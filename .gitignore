@@ -1,0 +1,36 @@
+# ─── Environment & Secrets ────────────────────────────────
+.env
+!backend/.env.example
+
+# ─── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+*.egg
+
+# ─── Node.js ─────────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# ─── IDE / OS ────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+
+# ─── Logs ────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ─── Docker volumes (local data) ─────────────────────────
+pgdata/
+openhands_data/
