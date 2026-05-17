@@ -8,6 +8,8 @@ import type {
   PipelineState,
   PipelinePhase,
   Artifact,
+  AgentSession,
+  AvailableAgentsResponse,
 } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -185,6 +187,29 @@ class ApiClient {
       `/api/experiences/search?q=${encodeURIComponent(query)}`,
     );
     return data.items;
+  }
+
+  // ─── Agent ──────────────────────────────────────────────
+
+  async executeAgent(todoId: string, phaseType: string, agentType?: string): Promise<AgentSession> {
+    return this.request<AgentSession>(`/api/todos/${todoId}/phases/${phaseType}/execute`, {
+      method: 'POST',
+      body: JSON.stringify({ agent_type: agentType || null }),
+    });
+  }
+
+  async getAgentSession(todoId: string, phaseType: string): Promise<AgentSession | null> {
+    return this.request<AgentSession | null>(`/api/todos/${todoId}/phases/${phaseType}/agent-session`);
+  }
+
+  async cancelAgent(todoId: string, phaseType: string): Promise<AgentSession> {
+    return this.request<AgentSession>(`/api/todos/${todoId}/phases/${phaseType}/cancel-agent`, {
+      method: 'POST',
+    });
+  }
+
+  async getAvailableAgents(): Promise<AvailableAgentsResponse> {
+    return this.request<AvailableAgentsResponse>('/api/todos/agent-types');
   }
 }
 

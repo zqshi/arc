@@ -17,11 +17,15 @@ from arc.domain.pipeline.value_objects import (
     PhaseType,
     next_phase,
 )
+from arc.domain.agent.entity import AgentSession
+from arc.domain.agent.value_objects import AgentType
 from arc.domain.todo.value_objects import ConversationPurpose, MessageRole, TodoStatus
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.conversation import ConversationRepository
 from arc.infrastructure.repositories.pipeline import PipelinePhaseRepository
 from arc.infrastructure.repositories.todo import TodoRepository
+
+AGENT_EXECUTION_PHASES = {PhaseType.DEVELOPMENT, PhaseType.TESTING, PhaseType.DEPLOYMENT}
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +257,51 @@ class PipelineService:
                 await self.todo_repo.update(todo)
 
         return target
+
+    async def execute_with_agent(
+        self,
+        todo_id: uuid.UUID,
+        phase_type: PhaseType,
+        agent_type: AgentType | None = None,
+    ) -> AgentSession:
+        """Trigger coding agent execution for an execution phase."""
+        if phase_type not in AGENT_EXECUTION_PHASES:
+            raise ValueError(f"{phase_type.value}阶段不支持Agent执行")
+
+        phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
+        if not phase:
+            raise ValueError(f"Phase {phase_type} not found for todo {todo_id}")
+
+        if phase.status == PhaseStatus.PENDING:
+            await self.start_phase(todo_id, phase_type)
+
+        from arc.application.agent.session_manager import AgentSessionManager
+        manager = AgentSessionManager(self.db)
+        return await manager.start_session(todo_id, phase_type, agent_type)
+
+    async def get_agent_session(
+        self, todo_id: uuid.UUID, phase_type: PhaseType
+    ) -> AgentSession | None:
+        """Get the agent session for a phase, if any."""
+        phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
+        if not phase or not phase.agent_session_id:
+            return None
+
+        from arc.infrastructure.repositories.agent import AgentSessionRepository
+        agent_repo = AgentSessionRepository(self.db)
+        return await agent_repo.get_by_id(phase.agent_session_id)
+
+    async def cancel_agent(
+        self, todo_id: uuid.UUID, phase_type: PhaseType
+    ) -> AgentSession | None:
+        """Cancel the running agent session for a phase."""
+        phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
+        if not phase or not phase.agent_session_id:
+            return None
+
+        from arc.application.agent.session_manager import AgentSessionManager
+        manager = AgentSessionManager(self.db)
+        return await manager.cancel_session(phase.agent_session_id)
 
     async def get_pipeline_state(self, todo_id: uuid.UUID) -> dict:
         """Get complete pipeline state for a todo."""

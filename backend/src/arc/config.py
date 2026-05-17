@@ -31,6 +31,23 @@ class Settings(BaseSettings):
     openhands_url: str = "http://localhost:3000"
     openhands_api_key: str = ""
 
+    # Codex
+    codex_api_key: str = ""
+    codex_base_url: str = "https://api.openai.com/v1"
+
+    # Claude Code
+    claude_code_path: str = ""
+    claude_code_work_dir: str = ""
+
+    # Cursor
+    cursor_cli_path: str = ""
+
+    # Agent orchestration — per-phase agent override (empty = use default)
+    agent_default: str = "openhands"
+    agent_development: str = ""
+    agent_testing: str = ""
+    agent_deployment: str = ""
+
     model_config = {"env_prefix": "ARC_", "env_file": ".env"}
 
 

@@ -101,6 +101,7 @@ async def health():
 
 
 def register_routes():
+    from arc.interface.routes.agent import router as agent_router
     from arc.interface.routes.conversation import router as conversation_router
     from arc.interface.routes.experience import router as experience_router
     from arc.interface.routes.pipeline import router as pipeline_router
@@ -109,6 +110,7 @@ def register_routes():
 
     app.include_router(todo_router, prefix="/api/todos", tags=["todos"])
     app.include_router(pipeline_router, prefix="/api/todos", tags=["pipeline"])
+    app.include_router(agent_router, prefix="/api/todos", tags=["agent"])
     app.include_router(conversation_router, prefix="/api/conversations", tags=["conversations"])
     app.include_router(experience_router, prefix="/api/experiences", tags=["experiences"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])

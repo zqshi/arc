@@ -105,10 +105,42 @@ export interface Experience {
   created_at: string;
 }
 
+// ─── Agent ──────────────────────────────────────────────
+export type AgentType = 'openhands' | 'codex' | 'claude_code' | 'cursor';
+export type AgentSessionStatus = 'pending' | 'running' | 'paused' | 'completed' | 'error' | 'cancelled';
+
+export interface AgentSession {
+  id: string;
+  todo_id: string;
+  phase_id: string;
+  agent_type: AgentType;
+  external_session_id: string | null;
+  status: AgentSessionStatus;
+  task_context: Record<string, unknown>;
+  result_summary: Record<string, unknown>;
+  error_reason: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentTypeInfo {
+  value: string;
+  label: string;
+}
+
+export interface AvailableAgentsResponse {
+  agents: AgentTypeInfo[];
+  default: string;
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 export const PHASE_ORDER: PhaseType[] = [
   'clarification', 'ui_design', 'architecture', 'development', 'testing', 'deployment', 'extraction',
 ];
+
+export const AGENT_EXECUTION_PHASES: Set<PhaseType> = new Set(['development', 'testing', 'deployment']);
 
 export const PHASE_LABELS: Record<PhaseType, string> = {
   clarification: '需求澄清',

@@ -1,3 +1,4 @@
+from .agent import AgentSessionModel
 from .artifact import ArtifactModel
 from .base import Base, TimestampMixin
 from .conversation import Conversation, Message
@@ -6,6 +7,7 @@ from .pipeline import PipelinePhaseModel
 from .todo import Todo
 
 __all__ = [
+    "AgentSessionModel",
     "ArtifactModel",
     "Base",
     "TimestampMixin",

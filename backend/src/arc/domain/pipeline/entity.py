@@ -25,6 +25,7 @@ class PipelinePhase:
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     status: PhaseStatus = PhaseStatus.PENDING
     conversation_id: uuid.UUID | None = None
+    agent_session_id: uuid.UUID | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
