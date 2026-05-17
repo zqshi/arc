@@ -1,0 +1,68 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: arc
+      POSTGRES_PASSWORD: arc
+      POSTGRES_DB: arc
+    ports:
+      - "${ARC_DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arc"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ARC_DATABASE_URL: postgresql+asyncpg://arc:arc@db:5432/arc
+      ARC_DEBUG: "true"
+      ARC_LLM_PROVIDER: ${ARC_LLM_PROVIDER:-openai}
+      ARC_OPENAI_API_KEY: ${ARC_OPENAI_API_KEY:-}
+      ARC_OPENAI_BASE_URL: ${ARC_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      ARC_OPENAI_MODEL: ${ARC_OPENAI_MODEL:-gpt-4o}
+      ARC_ANTHROPIC_API_KEY: ${ARC_ANTHROPIC_API_KEY:-}
+      ARC_ANTHROPIC_BASE_URL: ${ARC_ANTHROPIC_BASE_URL:-}
+      ARC_ANTHROPIC_MODEL: ${ARC_ANTHROPIC_MODEL:-claude-sonnet-4-20250514}
+      ARC_DEEPSEEK_API_KEY: ${ARC_DEEPSEEK_API_KEY:-}
+      ARC_DEEPSEEK_BASE_URL: ${ARC_DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      ARC_DEEPSEEK_MODEL: ${ARC_DEEPSEEK_MODEL:-deepseek-chat}
+      ARC_OPENHANDS_URL: http://openhands:3000
+      ARC_OPENHANDS_API_KEY: ${ARC_OPENHANDS_API_KEY:-}
+      ARC_CORS_ORIGINS: '["http://localhost:5173","http://localhost:3001"]'
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+        VITE_WS_URL: ws://localhost:8000
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+
+  openhands:
+    image: docker.all-hands.dev/all-hands-ai/openhands:latest
+    ports:
+      - "3000:3000"
+    environment:
+      SANDBOX_RUNTIME_CONTAINER_IMAGE: docker.all-hands.dev/all-hands-ai/runtime:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - openhands_data:/opt/workspace_base
+
+volumes:
+  pgdata:
+  openhands_data:
