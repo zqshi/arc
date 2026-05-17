@@ -21,6 +21,7 @@ class PipelinePhaseRepository:
             phase_type=phase.phase_type.value,
             status=phase.status.value,
             conversation_id=phase.conversation_id,
+            agent_session_id=phase.agent_session_id,
         )
         self.db.add(model)
         await self.db.flush()
@@ -36,6 +37,7 @@ class PipelinePhaseRepository:
                 phase_type=phase.phase_type.value,
                 status=phase.status.value,
                 conversation_id=phase.conversation_id,
+                agent_session_id=phase.agent_session_id,
             )
             self.db.add(model)
             models.append(model)
@@ -80,6 +82,7 @@ class PipelinePhaseRepository:
             raise ValueError(f"PipelinePhase {phase.id} not found")
         model.status = phase.status.value
         model.conversation_id = phase.conversation_id
+        model.agent_session_id = phase.agent_session_id
         await self.db.flush()
         await self.db.refresh(model)
         return self._to_entity(model)
@@ -100,6 +103,7 @@ class PipelinePhaseRepository:
             phase_type=PhaseType(model.phase_type),
             status=PhaseStatus(model.status),
             conversation_id=model.conversation_id,
+            agent_session_id=model.agent_session_id,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

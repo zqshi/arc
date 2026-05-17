@@ -21,6 +21,7 @@ import { useConversationSocket } from '../hooks/useConversationSocket';
 import { useToast } from '../components/Toast';
 import { api, ApiError } from '../api/client';
 import ArtifactRenderer from '../components/artifact-renderers';
+import AgentExecutionPanel from '../components/AgentExecutionPanel';
 import ExperienceDetailModal from '../components/ExperienceDetailModal';
 import MarkdownContent from '../components/MarkdownContent';
 import type {
@@ -29,7 +30,7 @@ import type {
   PhaseStatus,
   Experience,
 } from '../types/api';
-import { PHASE_ORDER, PHASE_LABELS, STATUS_LABELS } from '../types/api';
+import { PHASE_ORDER, PHASE_LABELS, STATUS_LABELS, AGENT_EXECUTION_PHASES } from '../types/api';
 
 // ─── Phase icon mapping ──────────────────────────────────
 const PHASES_NO_SKIP: Set<PhaseType> = new Set(['clarification', 'architecture', 'testing']);
@@ -472,20 +473,40 @@ export default function TodoDetail() {
                     className="h-full w-full resize-none rounded-lg border border-border bg-bg-input p-4 font-mono text-xs leading-relaxed text-text-secondary focus:border-accent focus:outline-none"
                   />
                 ) : currentArtifact ? (
-                  <ArtifactRenderer
-                    artifactType={currentArtifact.artifact_type}
-                    content={currentArtifact.content}
-                  />
-                ) : currentPhaseData?.status === 'active' ? (
-                  <div className="flex h-full flex-col items-center justify-center text-center">
-                    <Sparkles size={24} className="mb-3 text-accent/40" />
-                    <p className="mb-1 text-sm text-text-secondary">
-                      与 AI 对话后，点击"生成产出物"
-                    </p>
-                    <p className="text-[11px] text-text-muted">
-                      AI 将从对话中提取结构化的{PHASE_LABELS[activePhase]}文档
-                    </p>
+                  <div className="space-y-4">
+                    {AGENT_EXECUTION_PHASES.has(activePhase) && (
+                      <AgentExecutionPanel todoId={id!} phaseType={activePhase} />
+                    )}
+                    <ArtifactRenderer
+                      artifactType={currentArtifact.artifact_type}
+                      content={currentArtifact.content}
+                    />
                   </div>
+                ) : currentPhaseData?.status === 'active' ? (
+                  AGENT_EXECUTION_PHASES.has(activePhase) ? (
+                    <div className="space-y-4">
+                      <AgentExecutionPanel todoId={id!} phaseType={activePhase} />
+                      <div className="flex flex-col items-center justify-center pt-6 text-center">
+                        <Sparkles size={24} className="mb-3 text-accent/40" />
+                        <p className="mb-1 text-sm text-text-secondary">
+                          可通过 Agent 自动执行，或在右侧与 AI 对话
+                        </p>
+                        <p className="text-[11px] text-text-muted">
+                          Agent 执行完成后可生成{PHASE_LABELS[activePhase]}产出物
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center text-center">
+                      <Sparkles size={24} className="mb-3 text-accent/40" />
+                      <p className="mb-1 text-sm text-text-secondary">
+                        与 AI 对话后，点击"生成产出物"
+                      </p>
+                      <p className="text-[11px] text-text-muted">
+                        AI 将从对话中提取结构化的{PHASE_LABELS[activePhase]}文档
+                      </p>
+                    </div>
+                  )
                 ) : currentPhaseData?.status === 'pending' ? (
                   <div className="flex h-full flex-col items-center justify-center text-center">
                     <p className="mb-3 text-sm text-text-secondary">此阶段尚未开始</p>
