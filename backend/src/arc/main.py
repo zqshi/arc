@@ -44,10 +44,31 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Arc backend starting (debug=%s)", settings.debug)
+    await _cleanup_orphan_agent_sessions()
     yield
     from arc.application.ai.adapter_pool import adapter_pool
     await adapter_pool.shutdown()
     logger.info("Arc backend shut down")
+
+
+async def _cleanup_orphan_agent_sessions():
+    """Reset agent sessions stuck in running/pending state from a previous crash."""
+    try:
+        from sqlalchemy import update
+        from arc.infrastructure.database import async_session_factory
+        from arc.infrastructure.models.agent import AgentSession as AgentModel
+
+        async with async_session_factory() as db:
+            result = await db.execute(
+                update(AgentModel)
+                .where(AgentModel.status.in_(["pending", "running", "paused"]))
+                .values(status="error", error_reason="服务重启，会话已中断")
+            )
+            if result.rowcount > 0:
+                logger.warning("Cleaned up %d orphan agent sessions", result.rowcount)
+            await db.commit()
+    except Exception as exc:
+        logger.warning("Orphan session cleanup failed: %s", exc)
 
 
 app = FastAPI(
@@ -105,14 +126,18 @@ def register_routes():
     from arc.interface.routes.conversation import router as conversation_router
     from arc.interface.routes.experience import router as experience_router
     from arc.interface.routes.pipeline import router as pipeline_router
+    from arc.interface.routes.project import router as project_router
+    from arc.interface.routes.settings import router as settings_router
     from arc.interface.routes.todo import router as todo_router
     from arc.interface.ws.chat import router as ws_router
 
+    app.include_router(project_router, prefix="/api/projects", tags=["projects"])
     app.include_router(todo_router, prefix="/api/todos", tags=["todos"])
     app.include_router(pipeline_router, prefix="/api/todos", tags=["pipeline"])
     app.include_router(agent_router, prefix="/api/todos", tags=["agent"])
     app.include_router(conversation_router, prefix="/api/conversations", tags=["conversations"])
     app.include_router(experience_router, prefix="/api/experiences", tags=["experiences"])
+    app.include_router(settings_router, prefix="/api/settings", tags=["settings"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
 

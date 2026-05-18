@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class ClaudeCodeAdapter(CodingAgentAdapter):
     agent_type = AgentType.CLAUDE_CODE
+    implemented = False
 
     def __init__(self, cli_path: str = "claude", work_dir: str = "") -> None:
         self._cli_path = cli_path

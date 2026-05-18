@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class CursorAdapter(CodingAgentAdapter):
     agent_type = AgentType.CURSOR
+    implemented = False
 
     def __init__(self, cli_path: str = "cursor") -> None:
         self._cli_path = cli_path

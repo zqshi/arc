@@ -5,11 +5,66 @@ export type PhaseStatus = 'pending' | 'active' | 'awaiting_confirm' | 'confirmed
 export type ArtifactType = 'requirement_spec' | 'ui_design' | 'tech_architecture' | 'dev_report' | 'test_report' | 'deploy_report' | 'experience_card';
 export type ConversationPurpose = 'clarification' | 'ui_design' | 'architecture' | 'development' | 'testing' | 'deployment' | 'review';
 export type MessageRole = 'user' | 'assistant' | 'system';
+export type ProjectStatus = 'active' | 'archived';
+export type VersionStatus = 'planning' | 'active' | 'released';
 
 // ─── Shared ──────────────────────────────────────────────
 export interface Tag {
   label: string;
   color: string;
+}
+
+// ─── Project ────────────────────────────────────────────
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  tech_stack: string;
+  repo_url: string;
+  conventions: string;
+  status: ProjectStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  tech_stack?: string;
+  repo_url?: string;
+  conventions?: string;
+}
+
+export interface UpdateProjectRequest {
+  name?: string;
+  description?: string;
+  tech_stack?: string;
+  repo_url?: string;
+  conventions?: string;
+}
+
+// ─── Version ────────────────────────────────────────────
+export interface Version {
+  id: string;
+  project_id: string;
+  name: string;
+  goal: string;
+  status: VersionStatus;
+  parent_version_id: string | null;
+  order: number;
+  changelog: string;
+  todo_stats?: { pending: number; active: number; done: number; error: number; total: number };
+  created_at: string;
+  updated_at: string;
+}
+
+export type VersionType = 'major' | 'minor' | 'patch';
+
+export interface CreateVersionRequest {
+  name?: string;
+  goal?: string;
+  parent_version_id?: string;
+  version_type?: VersionType;
 }
 
 // ─── Todo ────────────────────────────────────────────────
@@ -18,6 +73,11 @@ export interface Todo {
   title: string;
   description: string;
   status: TodoStatus;
+  project_id: string | null;
+  version_id: string | null;
+  project_name: string | null;
+  version_name: string | null;
+  priority: number;
   current_phase: PhaseType | null;
   tags: Tag[];
   created_at: string;
@@ -27,12 +87,18 @@ export interface Todo {
 export interface CreateTodoRequest {
   title: string;
   description?: string;
+  project_id?: string;
+  version_id?: string;
+  priority?: number;
   tags?: Tag[];
 }
 
 export interface UpdateTodoRequest {
   title?: string;
   description?: string;
+  project_id?: string;
+  version_id?: string;
+  priority?: number;
   tags?: Tag[];
 }
 
@@ -86,13 +152,16 @@ export interface Message {
 }
 
 // ─── Experience ──────────────────────────────────────────
-export type ExperienceScope = 'todo' | 'project' | 'global';
+export type ExperienceScope = 'personal' | 'project';
+export type ExperienceStatus = 'draft' | 'confirmed' | 'archived';
 
 export interface Experience {
   id: string;
   todo_id?: string;
+  project_id?: string;
   title: string;
   scope: ExperienceScope;
+  status: ExperienceStatus;
   problem: string;
   solution: string;
   decisions: string[];
@@ -101,8 +170,25 @@ export interface Experience {
   tags: Tag[];
   confidence: number;
   reuse_count: number;
-  source?: string;
+  metadata?: Record<string, unknown>;
   created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateExperienceRequest {
+  title?: string;
+  problem?: string;
+  solution?: string;
+  decisions?: string[];
+  pitfalls?: string[];
+  applicable_scenarios?: string;
+  scope?: string;
+}
+
+export interface ExperienceRef {
+  id: string;
+  title: string;
+  scope: string;
 }
 
 // ─── Agent ──────────────────────────────────────────────
@@ -135,6 +221,33 @@ export interface AvailableAgentsResponse {
   default: string;
 }
 
+export interface AgentEvent {
+  id: string;
+  content: string;
+  timestamp: string | null;
+  metadata: Record<string, unknown>;
+}
+
+// ─── Settings ──────────────────────────────────────────
+export interface SystemSettings {
+  llm_provider: string;
+  openai_base_url: string;
+  openai_model: string;
+  openai_api_key_set: boolean;
+  anthropic_base_url: string;
+  anthropic_model: string;
+  anthropic_api_key_set: boolean;
+  deepseek_base_url: string;
+  deepseek_model: string;
+  deepseek_api_key_set: boolean;
+  openhands_url: string;
+  openhands_api_key_set: boolean;
+  agent_default: string;
+  agent_development: string;
+  agent_testing: string;
+  agent_deployment: string;
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 export const PHASE_ORDER: PhaseType[] = [
   'clarification', 'ui_design', 'architecture', 'development', 'testing', 'deployment', 'extraction',
@@ -150,6 +263,12 @@ export const PHASE_LABELS: Record<PhaseType, string> = {
   testing: '测试验证',
   deployment: '部署上线',
   extraction: '经验沉淀',
+};
+
+export const EXPERIENCE_STATUS_LABELS: Record<ExperienceStatus, string> = {
+  draft: '待审核',
+  confirmed: '已确认',
+  archived: '已归档',
 };
 
 export const STATUS_LABELS: Record<TodoStatus, string> = {

@@ -6,8 +6,10 @@ from .conversation import (
 )
 from .experience import (
     CreateExperienceRequest,
+    ExperienceFeedbackRequest,
     ExperienceListResponse,
     ExperienceResponse,
+    UpdateExperienceRequest,
 )
 from .pipeline import (
     ArtifactResponse,
@@ -30,10 +32,11 @@ __all__ = [
     "ConversationResponse",
     "CreateExperienceRequest",
     "CreateTodoRequest",
+    "ExperienceFeedbackRequest",
     "ExperienceListResponse",
     "ExperienceResponse",
+    "UpdateExperienceRequest",
     "MessageResponse",
-    "PhaseResponse",
     "PipelineStateResponse",
     "RollbackRequest",
     "SendMessageRequest",

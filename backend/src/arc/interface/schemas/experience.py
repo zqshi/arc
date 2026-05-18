@@ -10,8 +10,10 @@ from .todo import TagSchema
 class ExperienceResponse(BaseModel):
     id: str
     todo_id: str | None = None
+    project_id: str | None = None
     title: str
-    scope: str = "todo"
+    scope: str = "project"
+    status: str = "draft"
     problem: str
     solution: str
     decisions: list[str] = Field(default_factory=list)
@@ -34,10 +36,25 @@ class ExperienceListResponse(BaseModel):
 
 class CreateExperienceRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
-    scope: str = "todo"
+    scope: str = "project"
     problem: str = ""
     solution: str = ""
     decisions: list[str] = Field(default_factory=list)
     pitfalls: list[str] = Field(default_factory=list)
     applicable_scenarios: str | None = None
     tags: list[TagSchema] = Field(default_factory=list)
+
+
+class UpdateExperienceRequest(BaseModel):
+    title: str | None = None
+    problem: str | None = None
+    solution: str | None = None
+    decisions: list[str] | None = None
+    pitfalls: list[str] | None = None
+    applicable_scenarios: str | None = None
+    scope: str | None = None
+
+
+class ExperienceFeedbackRequest(BaseModel):
+    helpful: bool
+    todo_id: str

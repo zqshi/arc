@@ -1,25 +1,30 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
-import TodoList from './pages/TodoList';
+import ErrorBoundary from './components/ErrorBoundary';
 import TodoDetail from './pages/TodoDetail';
 import ExperienceList from './pages/ExperienceList';
-import { TodoProvider } from './store/TodoContext';
+import ProjectList from './pages/ProjectList';
+import ProjectDetail from './pages/ProjectDetail';
+import SettingsPage from './pages/SettingsPage';
 import { ToastProvider } from './components/Toast';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <ToastProvider>
-        <TodoProvider>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ToastProvider>
           <Routes>
             <Route element={<Layout />}>
-              <Route path="/" element={<TodoList />} />
-              <Route path="/todo/:id" element={<TodoDetail />} />
-              <Route path="/experience" element={<ExperienceList />} />
+              <Route path="/" element={<ErrorBoundary><ProjectList /></ErrorBoundary>} />
+              <Route path="/todo/:id" element={<ErrorBoundary><TodoDetail /></ErrorBoundary>} />
+              <Route path="/project/:id" element={<ErrorBoundary><ProjectDetail /></ErrorBoundary>} />
+              <Route path="/experience" element={<ErrorBoundary><ExperienceList /></ErrorBoundary>} />
+              <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
-        </TodoProvider>
-      </ToastProvider>
-    </BrowserRouter>
+        </ToastProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

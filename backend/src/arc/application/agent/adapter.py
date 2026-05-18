@@ -12,6 +12,7 @@ class CodingAgentAdapter(ABC):
     """Unified interface for all coding agent backends."""
 
     agent_type: AgentType
+    implemented: bool = True
 
     @abstractmethod
     async def start(self, context: TaskContext) -> str:

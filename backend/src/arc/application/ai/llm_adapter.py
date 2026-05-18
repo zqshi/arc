@@ -169,8 +169,9 @@ class OpenAIAdapter(LLMAdapter):
             )
             return resp.data[0].embedding
         except Exception as exc:
-            logger.error("OpenAI embed failed: %s", exc)
-            raise
+            logger.warning("OpenAI embed failed: %s, using local model", exc)
+            from arc.application.ai.local_embedding import embed_local
+            return embed_local(text)
 
     # -- lifecycle ------------------------------------------------------------
 
@@ -294,27 +295,24 @@ class AnthropicAdapter(LLMAdapter):
     # -- embed ----------------------------------------------------------------
 
     async def embed(self, text: str) -> list[float]:
-        if self._embed_client is None:
-            if not self._embedding_api_key:
-                raise ValueError(
-                    "Anthropic has no native embedding API. "
-                    "Set ARC_OPENAI_API_KEY for embedding fallback."
+        if self._embedding_api_key:
+            if self._embed_client is None:
+                from openai import AsyncOpenAI
+                self._embed_client = AsyncOpenAI(
+                    api_key=self._embedding_api_key,
+                    base_url=self._embedding_base_url,
                 )
-            from openai import AsyncOpenAI
+            try:
+                resp = await self._embed_client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=text,
+                )
+                return resp.data[0].embedding
+            except Exception as exc:
+                logger.warning("OpenAI embedding fallback failed: %s, using local model", exc)
 
-            self._embed_client = AsyncOpenAI(
-                api_key=self._embedding_api_key,
-                base_url=self._embedding_base_url,
-            )
-        try:
-            resp = await self._embed_client.embeddings.create(
-                model="text-embedding-3-small",
-                input=text,
-            )
-            return resp.data[0].embedding
-        except Exception as exc:
-            logger.error("Embedding (OpenAI fallback) failed: %s", exc)
-            raise
+        from arc.application.ai.local_embedding import embed_local
+        return embed_local(text)
 
     # -- lifecycle ------------------------------------------------------------
 

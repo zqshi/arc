@@ -95,6 +95,44 @@ async def cancel_agent(todo_id: str, phase_type: str, db: DbSession):
     return _session_response(session)
 
 
+@router.get(
+    "/{todo_id}/phases/{phase_type}/agent-events",
+)
+async def get_agent_events(todo_id: str, phase_type: str, db: DbSession):
+    """Get agent execution events (system messages from phase conversation)."""
+    from arc.domain.pipeline.value_objects import PhaseType
+    from arc.infrastructure.repositories.conversation import ConversationRepository
+    from arc.infrastructure.repositories.pipeline import PipelinePhaseRepository
+
+    try:
+        pt = PhaseType(phase_type)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid phase type: {phase_type}")
+
+    phase_repo = PipelinePhaseRepository(db)
+    phase = await phase_repo.get_by_todo_and_type(UUID(todo_id), pt)
+    if not phase or not phase.conversation_id:
+        return []
+
+    conv_repo = ConversationRepository(db)
+    conv = await conv_repo.get_by_id(phase.conversation_id)
+    if not conv:
+        return []
+
+    return [
+        {
+            "id": str(msg.id),
+            "content": msg.content,
+            "timestamp": msg.created_at.isoformat() if msg.created_at else None,
+            "metadata": msg.metadata or {},
+        }
+        for msg in conv.messages
+        if msg.role.value == "system" and msg.metadata and (
+            "agent_event_id" in msg.metadata or "agent_type" in msg.metadata
+        )
+    ]
+
+
 @router.get("/agent-types", response_model=AvailableAgentsResponse)
 async def list_agent_types():
     """List available coding agent types."""

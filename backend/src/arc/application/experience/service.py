@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
+import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.ai.json_extract import extract_json
 from arc.domain.experience.entity import Experience
 from arc.domain.todo.entity import Todo
-from arc.domain.todo.value_objects import Tag
+from arc.domain.todo.value_objects import ExperienceScope, ExperienceStatus, Tag
 from arc.infrastructure.repositories.conversation import ConversationRepository
 from arc.infrastructure.repositories.experience import ExperienceRepository
 
@@ -108,6 +109,9 @@ class ExperienceService:
 
             experience = Experience(
                 todo_id=todo.id,
+                project_id=todo.project_id,
+                scope=ExperienceScope.PROJECT,
+                status=ExperienceStatus.DRAFT,
                 title=data.get("title", todo.title),
                 problem=data.get("problem", ""),
                 solution=data.get("solution", ""),
@@ -128,7 +132,9 @@ class ExperienceService:
         finally:
             await adapter.close()
 
-    async def search_similar(self, query: str, limit: int = 5) -> list[Experience]:
+    async def search_similar(
+        self, query: str, limit: int = 5, project_id: uuid.UUID | None = None,
+    ) -> list[Experience]:
         """Search for related experiences using embedding similarity."""
         from arc.application.ai.resilience import create_resilient_adapter
 
@@ -141,7 +147,9 @@ class ExperienceService:
         finally:
             await adapter.close()
 
-        return await self.exp_repo.search_by_embedding(embedding, limit=limit)
+        return await self.exp_repo.search_by_embedding(
+            embedding, limit=limit, project_id=project_id,
+        )
 
     async def search_related(
         self, query_embedding: list[float], limit: int = 5

@@ -68,8 +68,19 @@ class AgentSessionManager:
         await self.phase_repo.update(phase)
         await self.db.commit()
 
-        asyncio.create_task(self._execute_and_poll(session.id, context))
+        task = asyncio.create_task(
+            self._execute_and_poll(session.id, context),
+            name=f"agent-{session.id}",
+        )
+        task.add_done_callback(self._task_done_callback)
         return session
+
+    @staticmethod
+    def _task_done_callback(task: asyncio.Task) -> None:
+        if task.cancelled():
+            logger.info("Agent task %s was cancelled", task.get_name())
+        elif exc := task.exception():
+            logger.error("Agent task %s failed unexpectedly: %s", task.get_name(), exc)
 
     async def cancel_session(self, session_id: uuid.UUID) -> AgentSession:
         session = await self.session_repo.get_by_id(session_id)

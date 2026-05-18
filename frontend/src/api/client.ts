@@ -5,11 +5,19 @@ import type {
   Conversation,
   Message,
   Experience,
+  UpdateExperienceRequest,
   PipelineState,
   PipelinePhase,
   Artifact,
   AgentSession,
+  AgentEvent,
   AvailableAgentsResponse,
+  Project,
+  CreateProjectRequest,
+  UpdateProjectRequest,
+  Version,
+  CreateVersionRequest,
+  SystemSettings,
 } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -51,11 +59,78 @@ class ApiClient {
     return resp.json();
   }
 
+  // ─── Projects ────────────────────────────────────────────
+
+  async listProjects(): Promise<Project[]> {
+    return this.request<Project[]>('/api/projects');
+  }
+
+  async getProject(id: string): Promise<Project> {
+    return this.request<Project>(`/api/projects/${id}`);
+  }
+
+  async createProject(data: CreateProjectRequest): Promise<Project> {
+    return this.request<Project>('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProject(id: string, data: UpdateProjectRequest): Promise<Project> {
+    return this.request<Project>(`/api/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async archiveProject(id: string): Promise<Project> {
+    return this.request<Project>(`/api/projects/${id}/archive`, { method: 'POST' });
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    return this.request<void>(`/api/projects/${id}`, { method: 'DELETE' });
+  }
+
+  // ─── Versions ──────────────────────────────────────────
+
+  async listVersions(projectId: string): Promise<Version[]> {
+    return this.request<Version[]>(`/api/projects/${projectId}/versions`);
+  }
+
+  async createVersion(projectId: string, data: CreateVersionRequest): Promise<Version> {
+    return this.request<Version>(`/api/projects/${projectId}/versions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async activateVersion(projectId: string, versionId: string): Promise<Version> {
+    return this.request<Version>(`/api/projects/${projectId}/versions/${versionId}/activate`, {
+      method: 'POST',
+    });
+  }
+
+  async releaseVersion(projectId: string, versionId: string): Promise<Version> {
+    return this.request<Version>(`/api/projects/${projectId}/versions/${versionId}/release`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteVersion(projectId: string, versionId: string): Promise<void> {
+    return this.request<void>(`/api/projects/${projectId}/versions/${versionId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ─── Todos ──────────────────────────────────────────────
 
-  async listTodos(status?: string): Promise<Todo[]> {
-    const params = status ? `?status=${encodeURIComponent(status)}` : '';
-    const data = await this.request<{ items: Todo[]; total: number }>(`/api/todos${params}`);
+  async listTodos(params?: { status?: string; project_id?: string; version_id?: string }): Promise<Todo[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.project_id) searchParams.set('project_id', params.project_id);
+    if (params?.version_id) searchParams.set('version_id', params.version_id);
+    const qs = searchParams.toString();
+    const data = await this.request<{ items: Todo[]; total: number }>(`/api/todos${qs ? `?${qs}` : ''}`);
     return data.items;
   }
 
@@ -173,8 +248,13 @@ class ApiClient {
 
   // ─── Experiences ────────────────────────────────────────
 
-  async listExperiences(): Promise<Experience[]> {
-    const data = await this.request<{ items: Experience[]; total: number }>('/api/experiences');
+  async listExperiences(params?: { project_id?: string; status?: string; scope?: string }): Promise<Experience[]> {
+    const sp = new URLSearchParams();
+    if (params?.project_id) sp.set('project_id', params.project_id);
+    if (params?.status) sp.set('status', params.status);
+    if (params?.scope) sp.set('scope', params.scope);
+    const qs = sp.toString();
+    const data = await this.request<{ items: Experience[]; total: number }>(`/api/experiences${qs ? `?${qs}` : ''}`);
     return data.items;
   }
 
@@ -182,11 +262,53 @@ class ApiClient {
     return this.request<Experience>(`/api/experiences/${id}`);
   }
 
-  async searchExperiences(query: string): Promise<Experience[]> {
+  async searchExperiences(query: string, projectId?: string): Promise<Experience[]> {
+    const sp = new URLSearchParams({ q: query });
+    if (projectId) sp.set('project_id', projectId);
     const data = await this.request<{ items: Experience[]; total: number }>(
-      `/api/experiences/search?q=${encodeURIComponent(query)}`,
+      `/api/experiences/search?${sp.toString()}`,
     );
     return data.items;
+  }
+
+  async updateExperience(id: string, data: UpdateExperienceRequest): Promise<Experience> {
+    return this.request<Experience>(`/api/experiences/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async confirmExperience(id: string): Promise<Experience> {
+    return this.request<Experience>(`/api/experiences/${id}/confirm`, { method: 'POST' });
+  }
+
+  async archiveExperience(id: string): Promise<Experience> {
+    return this.request<Experience>(`/api/experiences/${id}/archive`, { method: 'POST' });
+  }
+
+  async promoteExperience(id: string): Promise<Experience> {
+    return this.request<Experience>(`/api/experiences/${id}/promote`, { method: 'POST' });
+  }
+
+  async feedbackExperience(id: string, todoId: string, helpful: boolean): Promise<void> {
+    return this.request<void>(`/api/experiences/${id}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ todo_id: todoId, helpful }),
+    });
+  }
+
+  async listProjectExperiences(projectId: string, status?: string): Promise<Experience[]> {
+    const sp = new URLSearchParams();
+    if (status) sp.set('status', status);
+    const qs = sp.toString();
+    const data = await this.request<{ items: Experience[]; total: number }>(
+      `/api/projects/${projectId}/experiences${qs ? `?${qs}` : ''}`,
+    );
+    return data.items;
+  }
+
+  async getProjectExperienceInsights(projectId: string): Promise<{ suggestions: Array<{ id: string; title: string; solution: string; confidence: number; reuse_count: number }> }> {
+    return this.request(`/api/projects/${projectId}/experience-insights`);
   }
 
   // ─── Agent ──────────────────────────────────────────────
@@ -208,8 +330,18 @@ class ApiClient {
     });
   }
 
+  async getAgentEvents(todoId: string, phaseType: string): Promise<AgentEvent[]> {
+    return this.request<AgentEvent[]>(`/api/todos/${todoId}/phases/${phaseType}/agent-events`);
+  }
+
   async getAvailableAgents(): Promise<AvailableAgentsResponse> {
     return this.request<AvailableAgentsResponse>('/api/todos/agent-types');
+  }
+
+  // ─── Settings ──────────────────────────────────────────
+
+  async getSettings(): Promise<SystemSettings> {
+    return this.request<SystemSettings>('/api/settings');
   }
 }
 

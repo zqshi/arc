@@ -20,10 +20,17 @@ class TodoRepository:
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row else None
 
-    async def list_all(self) -> list[TodoEntity]:
-        result = await self.db.execute(
-            select(TodoModel).order_by(TodoModel.created_at.desc())
-        )
+    async def list_all(
+        self,
+        project_id: uuid.UUID | None = None,
+        version_id: uuid.UUID | None = None,
+    ) -> list[TodoEntity]:
+        stmt = select(TodoModel).order_by(TodoModel.created_at.desc())
+        if project_id:
+            stmt = stmt.where(TodoModel.project_id == project_id)
+        if version_id:
+            stmt = stmt.where(TodoModel.version_id == version_id)
+        result = await self.db.execute(stmt)
         return [self._to_entity(r) for r in result.scalars().all()]
 
     async def list_by_status(self, status: TodoStatus) -> list[TodoEntity]:
@@ -40,6 +47,9 @@ class TodoRepository:
             title=entity.title,
             description=entity.description,
             status=entity.status.value,
+            project_id=entity.project_id,
+            version_id=entity.version_id,
+            priority=entity.priority,
             current_phase=entity.current_phase.value if entity.current_phase else None,
             tags=[{"label": t.label, "color": t.color} for t in entity.tags],
         )
@@ -56,6 +66,9 @@ class TodoRepository:
         model.title = entity.title
         model.description = entity.description
         model.status = entity.status.value
+        model.project_id = entity.project_id
+        model.version_id = entity.version_id
+        model.priority = entity.priority
         model.current_phase = entity.current_phase.value if entity.current_phase else None
         model.tags = [{"label": t.label, "color": t.color} for t in entity.tags]
         await self.db.flush()
@@ -78,7 +91,10 @@ class TodoRepository:
             id=model.id,
             title=model.title,
             description=model.description or "",
+            project_id=model.project_id,
+            version_id=model.version_id,
             status=TodoStatus(model.status),
+            priority=model.priority if model.priority is not None else 2,
             current_phase=PhaseType(model.current_phase) if model.current_phase else None,
             tags=tags,
             created_at=model.created_at,

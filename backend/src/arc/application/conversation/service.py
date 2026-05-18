@@ -44,9 +44,9 @@ class ConversationService:
         self.phase_repo = PipelinePhaseRepository(db)
         self.artifact_repo = ArtifactRepository(db)
         self.exp_repo = ExperienceRepository(db)
+        self._last_experience_refs: list[dict] = []
 
     async def generate_response(self, conversation: Conversation) -> Message:
-        """Generate a complete AI response (non-streaming)."""
         from arc.application.ai.resilience import create_resilient_adapter
 
         adapter = create_resilient_adapter()
@@ -56,17 +56,20 @@ class ConversationService:
         finally:
             await adapter.close()
 
+        metadata: dict = {"model": response.model, "usage": response.usage}
+        if self._last_experience_refs:
+            metadata["referenced_experiences"] = self._last_experience_refs
+
         ai_message = conversation.add_message(
             role=MessageRole.ASSISTANT,
             content=response.content,
-            metadata={"model": response.model, "usage": response.usage},
+            metadata=metadata,
         )
         return ai_message
 
     async def generate_response_stream(
         self, conversation: Conversation
     ) -> AsyncIterator[dict]:
-        """Generate AI response with streaming chunks."""
         from arc.application.ai.resilience import create_resilient_adapter
 
         adapter = create_resilient_adapter()
@@ -81,10 +84,14 @@ class ConversationService:
         finally:
             await adapter.close()
 
+        metadata: dict = {"message_id": message_id, "streamed": True}
+        if self._last_experience_refs:
+            metadata["referenced_experiences"] = self._last_experience_refs
+
         ai_message = conversation.add_message(
             role=MessageRole.ASSISTANT,
             content=full_content,
-            metadata={"message_id": message_id, "streamed": True},
+            metadata=metadata,
         )
         await self.conv_repo.add_message(conversation.id, ai_message)
 
@@ -107,15 +114,26 @@ class ConversationService:
     async def _build_system_prompt(
         self, conversation: Conversation, todo, phase_type: PhaseType | None
     ) -> str:
-        """Build phase-aware system prompt with prior artifacts and experience context."""
+        """Build phase-aware system prompt with prior artifacts, experience context, and project context."""
         if not phase_type:
             return "你是一个AI助手，帮助用户完成任务。"
 
+        from arc.application.context.provider import ProjectContextProvider
+
+        project_ctx_provider = ProjectContextProvider(self.db)
+        project_ctx = await project_ctx_provider.get_context(conversation.todo_id)
+
         confirmed = await self._get_confirmed_artifacts(conversation.todo_id)
-        experience_context = await self._build_experience_context(todo, phase_type)
+        experience_context, experience_refs = await self._build_experience_context(todo, phase_type)
+
+        self._last_experience_refs = experience_refs
+
+        project_section = project_ctx.to_prompt_section()
 
         if phase_type == PhaseType.CLARIFICATION:
             prompt = self._build_clarification_prompt(conversation, todo, confirmed)
+            if project_section:
+                prompt += f"\n\n{project_section}"
             if experience_context:
                 prompt += f"\n\n## 相关历史经验\n{experience_context}"
             return prompt
@@ -127,6 +145,9 @@ class ConversationService:
             prompt = template.format(**format_args)
         except KeyError:
             prompt = template
+
+        if project_section:
+            prompt += f"\n\n{project_section}"
 
         if experience_context:
             prompt += f"\n\n## 相关历史经验（基于语义匹配）\n{experience_context}"
@@ -202,26 +223,25 @@ class ConversationService:
 
     async def _build_experience_context(
         self, todo, phase_type: PhaseType
-    ) -> str:
+    ) -> tuple[str, list[dict]]:
         """Search and format related experiences for system prompt injection.
 
-        Injection priority:
-        1. global scope — always injected (project-wide rules)
-        2. project scope — always injected (cross-todo patterns)
-        3. todo scope — semantic search matched (per-task experiences)
+        Returns (formatted_text, referenced_experience_list).
+        Only matches confirmed experiences.
         """
         from arc.domain.todo.value_objects import ExperienceScope
 
         all_experiences: list[Experience] = []
+        project_id = todo.project_id if todo else None
 
         try:
-            global_exps = await self.exp_repo.list_by_scope(
-                ExperienceScope.GLOBAL, limit=5
+            personal_exps = await self.exp_repo.list_by_scope(
+                ExperienceScope.PERSONAL, limit=5
             )
             project_exps = await self.exp_repo.list_by_scope(
-                ExperienceScope.PROJECT, limit=5
+                ExperienceScope.PROJECT, limit=5, project_id=project_id
             )
-            all_experiences.extend(global_exps)
+            all_experiences.extend(personal_exps)
             all_experiences.extend(project_exps)
         except Exception as exc:
             logger.warning("Scope-based experience fetch failed: %s", exc)
@@ -234,7 +254,9 @@ class ConversationService:
             try:
                 from arc.application.experience.service import ExperienceService
                 exp_svc = ExperienceService(self.db)
-                todo_exps = await exp_svc.search_similar(query, limit=3)
+                todo_exps = await exp_svc.search_similar(
+                    query, limit=3, project_id=project_id,
+                )
                 seen = {e.id for e in all_experiences}
                 all_experiences.extend(
                     e for e in todo_exps if e.id not in seen
@@ -243,13 +265,14 @@ class ConversationService:
                 logger.warning("Experience search failed: %s", exc)
 
         if not all_experiences:
-            return ""
+            return "", []
 
-        for exp in all_experiences:
-            exp.increment_reuse()
-            await self.exp_repo.update(exp)
+        refs = [
+            {"id": str(e.id), "title": e.title, "scope": e.scope.value}
+            for e in all_experiences
+        ]
 
-        return self._format_experiences(all_experiences, phase_type)
+        return self._format_experiences(all_experiences, phase_type), refs
 
     @staticmethod
     def _format_experiences(experiences: list[Experience], phase_type: PhaseType) -> str:

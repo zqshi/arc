@@ -71,7 +71,9 @@ def can_skip(phase_type: PhaseType) -> bool:
     return phase_type not in PHASES_NO_SKIP
 
 
-async def evaluate_gate(phase_type: PhaseType, content: dict) -> GateResult:
+async def evaluate_gate(
+    phase_type: PhaseType, content: dict, conventions: str = "",
+) -> GateResult:
     """Full gate evaluation: structural check + LLM quality assessment."""
     structural_gaps = check_required_fields(phase_type, content)
 
@@ -87,9 +89,15 @@ async def evaluate_gate(phase_type: PhaseType, content: dict) -> GateResult:
     from arc.application.ai.resilience import create_resilient_adapter
 
     phase_label = PHASE_LABELS.get(phase_type, phase_type.value)
+
+    conventions_section = ""
+    if conventions.strip():
+        conventions_section = f"\n## 项目规范（产出物必须符合以下规范）:\n{conventions}\n"
+
     prompt = GATE_EVALUATION_PROMPT.format(
         phase_label=phase_label,
         artifact_content=json.dumps(content, ensure_ascii=False, indent=2),
+        conventions_section=conventions_section,
     )
 
     adapter = create_resilient_adapter()

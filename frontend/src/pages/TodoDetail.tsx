@@ -11,24 +11,29 @@ import {
   Lightbulb,
   Loader2,
   Edit3,
-  Save,
-  X,
   ChevronRight,
   RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  ChevronDown as ChevDown,
 } from 'lucide-react';
-import { useTodos } from '../store/TodoContext';
 import { useConversationSocket } from '../hooks/useConversationSocket';
+import { useBreakpoint } from '../hooks/useMediaQuery';
 import { useToast } from '../components/Toast';
 import { api, ApiError } from '../api/client';
 import ArtifactRenderer from '../components/artifact-renderers';
+import ArtifactEditor from '../components/artifact-renderers/ArtifactEditor';
 import AgentExecutionPanel from '../components/AgentExecutionPanel';
 import ExperienceDetailModal from '../components/ExperienceDetailModal';
 import MarkdownContent from '../components/MarkdownContent';
+import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import type {
+  Todo,
   PipelineState,
   PhaseType,
   PhaseStatus,
   Experience,
+  ExperienceRef,
 } from '../types/api';
 import { PHASE_ORDER, PHASE_LABELS, STATUS_LABELS, AGENT_EXECUTION_PHASES } from '../types/api';
 
@@ -45,6 +50,16 @@ const PHASE_ICONS: Record<PhaseType, string> = {
   extraction: '7',
 };
 
+const PHASE_DESCRIPTIONS: Record<PhaseType, string> = {
+  clarification: '与AI对话明确需求边界与验收标准',
+  ui_design: '产出交互原型与界面描述',
+  architecture: '确定技术选型与系统设计',
+  development: 'Agent自动编码实现功能',
+  testing: '验证功能正确性与回归',
+  deployment: '部署上线并验证环境',
+  extraction: '沉淀可复用经验卡片',
+};
+
 const PHASE_STATUS_STYLE: Record<PhaseStatus, string> = {
   pending: 'border-border text-text-muted bg-transparent',
   active: 'border-accent bg-accent text-white',
@@ -57,8 +72,21 @@ export default function TodoDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { todos, refreshTodos } = useTodos();
-  const todo = todos.find((t) => t.id === id);
+  const { setProject: setCurrentProject } = useCurrentProject();
+  const [todo, setTodo] = useState<Todo | null>(null);
+
+  const fetchTodo = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await api.getTodo(id);
+      setTodo(data);
+      if (data.project_id && data.project_name) {
+        setCurrentProject({ id: data.project_id, name: data.project_name });
+      }
+    } catch {
+      navigate('/');
+    }
+  }, [id, navigate]);
 
   // Pipeline state
   const [pipeline, setPipeline] = useState<PipelineState | null>(null);
@@ -67,7 +95,6 @@ export default function TodoDetail() {
 
   // Artifact state
   const [editingArtifact, setEditingArtifact] = useState(false);
-  const [artifactDraft, setArtifactDraft] = useState('');
   const [generating, setGenerating] = useState(false);
 
   // Chat state
@@ -80,6 +107,22 @@ export default function TodoDetail() {
 
   // Action loading
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Responsive
+  const { isCompact, isNarrow } = useBreakpoint();
+
+  // Chat panel collapse — default collapsed on narrow screens
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const chatInitRef = useRef(false);
+  useEffect(() => {
+    if (!chatInitRef.current) {
+      chatInitRef.current = true;
+      if (isNarrow) setChatCollapsed(true);
+    }
+  }, [isNarrow]);
+
+  // Compact mode: tab between artifact/chat
+  const [mobileTab, setMobileTab] = useState<'artifact' | 'chat'>('artifact');
 
   // Derived: current phase data
   const currentPhaseData = pipeline?.phases.find((p) => p.phase_type === activePhase);
@@ -121,8 +164,10 @@ export default function TodoDetail() {
   }, [id]);
 
   useEffect(() => {
+    fetchTodo();
     fetchPipeline();
-  }, [fetchPipeline]);
+  }, [fetchTodo, fetchPipeline]);
+  useEffect(() => () => setCurrentProject(null), [setCurrentProject]);
 
   // Auto-initialize pipeline for todos without phases on first visit
   const autoInitRef = useRef(false);
@@ -140,7 +185,7 @@ export default function TodoDetail() {
 
   useEffect(() => {
     if (!todo) return;
-    api.searchExperiences(todo.title).then(setRelatedExps).catch(() => setRelatedExps([]));
+    api.searchExperiences(todo.title, todo.project_id || undefined).then(setRelatedExps).catch(() => setRelatedExps([]));
   }, [todo?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Actions ────────────────────────────────────────────
@@ -151,7 +196,7 @@ export default function TodoDetail() {
       await api.startPipeline(id);
       await api.startPhase(id, 'clarification');
       setActivePhase('clarification');
-      await Promise.all([fetchPipeline(), refreshTodos()]);
+      await Promise.all([fetchPipeline(), fetchTodo()]);
       toast('Pipeline已启动，开始需求澄清', 'success');
     } catch (err) {
       toast(`启动失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
@@ -199,7 +244,7 @@ export default function TodoDetail() {
         await api.startPhase(id, nextPhase);
         setActivePhase(nextPhase);
       }
-      await Promise.all([fetchPipeline(), refreshTodos()]);
+      await Promise.all([fetchPipeline(), fetchTodo()]);
       toast(`${PHASE_LABELS[activePhase]}已确认，自动进入下一阶段`, 'success');
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -247,7 +292,7 @@ export default function TodoDetail() {
         await api.startPhase(id, nextPhase);
         setActivePhase(nextPhase);
       }
-      await Promise.all([fetchPipeline(), refreshTodos()]);
+      await Promise.all([fetchPipeline(), fetchTodo()]);
       toast(`${PHASE_LABELS[activePhase]}已跳过`, 'success');
     } catch (err) {
       toast(`跳过失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
@@ -256,10 +301,9 @@ export default function TodoDetail() {
     }
   };
 
-  const handleSaveArtifact = async () => {
+  const handleSaveArtifact = async (content: Record<string, unknown>) => {
     if (!id || !currentArtifact) return;
     try {
-      const content = JSON.parse(artifactDraft);
       await api.updateArtifact(id, currentArtifact.id, content);
       await fetchPipeline();
       setEditingArtifact(false);
@@ -291,15 +335,45 @@ export default function TodoDetail() {
       {/* ─── Header with progress bar ─── */}
       <header className="flex items-center gap-3 border-b border-border px-4 py-3">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => {
+            if (todo.project_id) navigate(`/project/${todo.project_id}`);
+            else navigate('/');
+          }}
           className="flex items-center gap-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
         >
           <ArrowLeft size={14} />
         </button>
         <div className="h-4 w-px bg-border" />
-        <h1 className="min-w-0 flex-shrink truncate font-heading text-sm font-semibold text-text-primary">
-          {todo.title}
-        </h1>
+
+        {/* Breadcrumb */}
+        <div className="flex min-w-0 items-center gap-1 text-xs">
+          {todo.project_name && (
+            <>
+              <button
+                onClick={() => navigate(`/project/${todo.project_id}`)}
+                className="flex-shrink-0 text-text-tertiary transition-colors hover:text-accent"
+              >
+                {todo.project_name}
+              </button>
+              <span className="text-text-muted">›</span>
+            </>
+          )}
+          {todo.version_name && (
+            <>
+              <button
+                onClick={() => navigate(`/project/${todo.project_id}`)}
+                className="flex-shrink-0 text-text-tertiary transition-colors hover:text-accent"
+              >
+                {todo.version_name}
+              </button>
+              <span className="text-text-muted">›</span>
+            </>
+          )}
+          <h1 className="min-w-0 flex-shrink truncate font-heading text-sm font-semibold text-text-primary">
+            {todo.title}
+          </h1>
+        </div>
+
         <span
           className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
             todo.status === 'active'
@@ -345,21 +419,25 @@ export default function TodoDetail() {
         )}
       </header>
 
-      {/* ─── Main three-panel layout ─── */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left: Phase navigation */}
-        <div className="flex w-[140px] flex-shrink-0 flex-col border-r border-border bg-bg-sidebar py-2">
+      {/* ─── Main layout ─── */}
+      <div className={`flex flex-1 overflow-hidden ${isCompact ? 'flex-col' : ''}`}>
+        {/* Phase navigation — vertical sidebar or horizontal scroll strip */}
+        <div className={`${
+          isCompact
+            ? 'flex flex-shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-bg-sidebar px-2 py-1.5'
+            : 'flex w-[140px] flex-shrink-0 flex-col border-r border-border bg-bg-sidebar py-2'
+        }`}>
           {pipelineInitialized ? (
             PHASE_ORDER.map((pt) => {
               const phase = pipeline.phases.find((p) => p.phase_type === pt);
               if (!phase) return null;
-              const isActive = activePhase === pt;
+              const isActivePhase = activePhase === pt;
               return (
                 <button
                   key={phase.id}
                   onClick={() => setActivePhase(pt)}
-                  className={`mx-2 mb-0.5 flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] transition-colors ${
-                    isActive
+                  className={`${isCompact ? 'flex-shrink-0 px-2.5 py-1' : 'mx-2 mb-0.5 px-2 py-1.5'} flex items-center gap-2 rounded-md text-left text-[11px] transition-colors ${
+                    isActivePhase
                       ? 'bg-accent-subtle text-accent font-medium'
                       : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary'
                   }`}
@@ -377,26 +455,41 @@ export default function TodoDetail() {
                   >
                     {phase.status === 'confirmed' ? '✓' : phase.status === 'skipped' ? '—' : PHASE_ICONS[pt]}
                   </span>
-                  <span className="truncate">{PHASE_LABELS[pt]}</span>
+                  <span className={`${isCompact ? 'whitespace-nowrap' : 'truncate'}`}>{PHASE_LABELS[pt]}</span>
                 </button>
               );
             })
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center px-3 text-center">
-              <p className="mb-3 text-[11px] text-text-muted">尚未启动Pipeline</p>
+            !isCompact && (
+            <div className="flex flex-1 flex-col overflow-y-auto px-3 py-3">
+              <p className="mb-2 text-[11px] font-medium text-text-secondary">Pipeline 七阶段</p>
+              <div className="mb-3 space-y-1.5">
+                {PHASE_ORDER.map((pt, i) => (
+                  <div key={pt} className="flex items-start gap-2">
+                    <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-border text-[8px] font-bold text-text-muted">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-medium text-text-primary">{PHASE_LABELS[pt]}</span>
+                      <p className="text-[9px] leading-snug text-text-muted">{PHASE_DESCRIPTIONS[pt]}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
               <button
                 onClick={handleStartPipeline}
                 disabled={actionLoading}
-                className="flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[11px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
               >
                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-                启动
+                启动 Pipeline
               </button>
             </div>
+            )
           )}
 
-          {/* Related experiences at bottom */}
-          {relatedExps.length > 0 && (
+          {/* Related experiences at bottom — hidden on compact */}
+          {!isCompact && relatedExps.length > 0 && (
             <div className="mt-auto border-t border-border px-2 pt-2">
               <div className="mb-1 flex items-center gap-1 px-1">
                 <Lightbulb size={10} className="text-accent" />
@@ -415,7 +508,8 @@ export default function TodoDetail() {
           )}
         </div>
 
-        {/* Center: Artifact panel */}
+        {/* Center: Artifact panel — shown in non-compact always, in compact only when mobileTab=artifact */}
+        {(!isCompact || mobileTab === 'artifact') && (
         <div className="flex flex-1 flex-col overflow-hidden">
           {pipelineInitialized ? (
             <>
@@ -435,10 +529,7 @@ export default function TodoDetail() {
                 </div>
                 {currentArtifact && !editingArtifact && (
                   <button
-                    onClick={() => {
-                      setEditingArtifact(true);
-                      setArtifactDraft(JSON.stringify(currentArtifact.content, null, 2));
-                    }}
+                    onClick={() => setEditingArtifact(true)}
                     className="flex items-center gap-1 text-[11px] text-text-muted transition-colors hover:text-accent"
                   >
                     <Edit3 size={11} />
@@ -446,32 +537,21 @@ export default function TodoDetail() {
                   </button>
                 )}
                 {editingArtifact && (
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={handleSaveArtifact}
-                      className="flex items-center gap-1 rounded bg-accent px-2 py-0.5 text-[11px] text-white hover:bg-accent-hover"
-                    >
-                      <Save size={10} />
-                      保存
-                    </button>
-                    <button
-                      onClick={() => setEditingArtifact(false)}
-                      className="text-text-muted hover:text-text-primary"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
+                  <span className="text-[10px] text-text-muted">编辑模式</span>
                 )}
               </div>
 
               {/* Artifact content */}
               <div className="flex-1 overflow-y-auto px-5 py-4">
                 {editingArtifact ? (
-                  <textarea
-                    value={artifactDraft}
-                    onChange={(e) => setArtifactDraft(e.target.value)}
-                    className="h-full w-full resize-none rounded-lg border border-border bg-bg-input p-4 font-mono text-xs leading-relaxed text-text-secondary focus:border-accent focus:outline-none"
-                  />
+                  currentArtifact && (
+                    <ArtifactEditor
+                      artifactType={currentArtifact.artifact_type}
+                      content={currentArtifact.content}
+                      onSave={handleSaveArtifact}
+                      onCancel={() => setEditingArtifact(false)}
+                    />
+                  )
                 ) : currentArtifact ? (
                   <div className="space-y-4">
                     {AGENT_EXECUTION_PHASES.has(activePhase) && (
@@ -564,8 +644,94 @@ export default function TodoDetail() {
             </div>
           )}
         </div>
+        )}
 
-        {/* Right: Chat panel */}
+        {/* Right: Chat panel — in compact mode shows as full-width tab, in desktop as collapsible side panel */}
+        {isCompact ? (
+          mobileTab === 'chat' && (
+          <div className="flex flex-1 flex-col overflow-hidden bg-bg-elevated">
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              {wsMessages.filter((m) => m.role !== 'system').length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {wsMessages
+                    .filter((msg) => msg.role !== 'system')
+                    .map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+                      >
+                        {msg.role === 'assistant' && (
+                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-accent/15">
+                            <Bot size={11} className="text-accent" />
+                          </div>
+                        )}
+                        <div className="max-w-[85%]">
+                          <div
+                            className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
+                              msg.role === 'assistant'
+                                ? 'bg-bg-card text-text-secondary'
+                                : 'bg-accent-subtle text-text-primary'
+                            }`}
+                          >
+                            {msg.role === 'assistant' ? (
+                              <MarkdownContent content={msg.content} />
+                            ) : (
+                              <div className="whitespace-pre-wrap">{msg.content}</div>
+                            )}
+                          </div>
+                          {msg.role === 'assistant' && Array.isArray(msg.metadata?.referenced_experiences) && (
+                            <ExperienceRefBadge
+                              refs={msg.metadata.referenced_experiences as ExperienceRef[]}
+                              todoId={id!}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  {isStreaming && (
+                    <div className="flex gap-2">
+                      <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-accent/15">
+                        <Bot size={11} className="text-accent animate-pulse" />
+                      </div>
+                      <span className="text-[11px] text-text-muted">思考中...</span>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center px-2 text-center">
+                  <Bot size={20} className="mb-2 text-accent/30" />
+                  <p className="text-[11px] text-text-muted">
+                    {currentPhaseData?.conversation_id
+                      ? '对话即将开始...'
+                      : '启动阶段后可与AI对话'}
+                  </p>
+                </div>
+              )}
+            </div>
+            {currentPhaseData?.conversation_id && (
+              <div className="border-t border-border px-4 py-2.5">
+                <ChatInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSend={handleSend}
+                  disabled={!isConnected}
+                />
+              </div>
+            )}
+          </div>
+          )
+        ) : chatCollapsed ? (
+          <div className="flex w-10 flex-shrink-0 flex-col items-center border-l border-border bg-bg-elevated py-3">
+            <button
+              onClick={() => setChatCollapsed(false)}
+              title="展开对话面板"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-card hover:text-accent"
+            >
+              <Sparkles size={14} />
+            </button>
+          </div>
+        ) : (
         <div className="flex w-[340px] flex-shrink-0 flex-col border-l border-border bg-bg-elevated">
           {/* Chat header */}
           <div className="border-b border-border px-4 py-2.5">
@@ -577,6 +743,13 @@ export default function TodoDetail() {
               {isConnected && (
                 <span className="h-1.5 w-1.5 rounded-full bg-status-done" title="已连接" />
               )}
+              <button
+                onClick={() => setChatCollapsed(true)}
+                title="收起对话面板"
+                className="ml-auto flex h-5 w-5 items-center justify-center rounded text-text-muted transition-colors hover:text-text-secondary"
+              >
+                <ChevronRight size={13} />
+              </button>
             </div>
           </div>
 
@@ -596,17 +769,25 @@ export default function TodoDetail() {
                           <Bot size={11} className="text-accent" />
                         </div>
                       )}
-                      <div
-                        className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
-                          msg.role === 'assistant'
-                            ? 'bg-bg-card text-text-secondary'
-                            : 'bg-accent-subtle text-text-primary'
-                        }`}
-                      >
-                        {msg.role === 'assistant' ? (
-                          <MarkdownContent content={msg.content} />
-                        ) : (
-                          <div className="whitespace-pre-wrap">{msg.content}</div>
+                      <div className="max-w-[85%]">
+                        <div
+                          className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
+                            msg.role === 'assistant'
+                              ? 'bg-bg-card text-text-secondary'
+                              : 'bg-accent-subtle text-text-primary'
+                          }`}
+                        >
+                          {msg.role === 'assistant' ? (
+                            <MarkdownContent content={msg.content} />
+                          ) : (
+                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                          )}
+                        </div>
+                        {msg.role === 'assistant' && Array.isArray(msg.metadata?.referenced_experiences) && (
+                          <ExperienceRefBadge
+                            refs={msg.metadata.referenced_experiences as ExperienceRef[]}
+                            todoId={id!}
+                          />
                         )}
                       </div>
                     </div>
@@ -672,7 +853,33 @@ export default function TodoDetail() {
             </div>
           )}
         </div>
+        )}
       </div>
+
+      {/* Compact mode tab bar */}
+      {isCompact && pipelineInitialized && (
+        <div className="flex flex-shrink-0 border-t border-border bg-bg-sidebar">
+          <button
+            onClick={() => setMobileTab('artifact')}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors ${
+              mobileTab === 'artifact' ? 'text-accent' : 'text-text-muted'
+            }`}
+          >
+            <FileText size={13} />
+            产出物
+          </button>
+          <button
+            onClick={() => setMobileTab('chat')}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors ${
+              mobileTab === 'chat' ? 'text-accent' : 'text-text-muted'
+            }`}
+          >
+            <Sparkles size={13} />
+            对话
+            {isConnected && <span className="h-1.5 w-1.5 rounded-full bg-status-done" />}
+          </button>
+        </div>
+      )}
 
       <ExperienceDetailModal experience={selectedExp} onClose={() => setSelectedExp(null)} />
     </div>
@@ -832,6 +1039,76 @@ function QuickPrompts({ phase, onSelect }: { phase: PhaseType; onSelect: (text: 
           {text}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ─── Experience Reference Badge ─────────────────────────
+
+function ExperienceRefBadge({ refs, todoId }: { refs: ExperienceRef[]; todoId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
+  const { toast } = useToast();
+
+  if (!refs || refs.length === 0) return null;
+
+  const handleFeedback = async (expId: string, helpful: boolean) => {
+    try {
+      await api.feedbackExperience(expId, todoId, helpful);
+      setFeedbackGiven((prev) => ({ ...prev, [expId]: helpful ? 'up' : 'down' }));
+    } catch {
+      toast('反馈提交失败', 'error');
+    }
+  };
+
+  return (
+    <div className="mt-1">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-accent/70 transition-colors hover:bg-accent/5 hover:text-accent"
+      >
+        <Lightbulb size={10} />
+        参考了 {refs.length} 条经验
+        <ChevDown size={10} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="mt-1 space-y-1 rounded-md border border-border/50 bg-bg-card p-2">
+          {refs.map((ref) => (
+            <div key={ref.id} className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] text-text-secondary">{ref.title}</span>
+                <span className={`ml-1.5 rounded px-1 py-0.5 text-[8px] font-medium ${
+                  ref.scope === 'personal' ? 'bg-purple-500/15 text-purple-500' : 'bg-sky-500/15 text-sky-400'
+                }`}>
+                  {ref.scope === 'personal' ? '个人' : '项目'}
+                </span>
+              </div>
+              {feedbackGiven[ref.id] ? (
+                <span className="text-[9px] text-text-muted">
+                  {feedbackGiven[ref.id] === 'up' ? '已标记有效' : '已标记无效'}
+                </span>
+              ) : (
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleFeedback(ref.id, true)}
+                    className="rounded p-0.5 text-text-muted hover:bg-status-done/10 hover:text-status-done"
+                    title="有效"
+                  >
+                    <ThumbsUp size={10} />
+                  </button>
+                  <button
+                    onClick={() => handleFeedback(ref.id, false)}
+                    className="rounded p-0.5 text-text-muted hover:bg-status-error/10 hover:text-status-error"
+                    title="无效"
+                  >
+                    <ThumbsDown size={10} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

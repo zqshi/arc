@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Bot, Loader2, XCircle, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Bot, Loader2, XCircle, CheckCircle, AlertTriangle, RefreshCw, Terminal } from 'lucide-react';
 import { api } from '../api/client';
-import type { AgentSession, AgentTypeInfo, AgentSessionStatus, PhaseType } from '../types/api';
+import type { AgentSession, AgentTypeInfo, AgentSessionStatus, AgentEvent, PhaseType } from '../types/api';
 
 const STATUS_CONFIG: Record<AgentSessionStatus, { label: string; color: string; icon: typeof Bot }> = {
   pending: { label: '准备中', color: 'text-text-muted', icon: Loader2 },
@@ -25,6 +25,9 @@ export default function AgentExecutionPanel({ todoId, phaseType, onSessionChange
   const [selectedAgent, setSelectedAgent] = useState('');
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [events, setEvents] = useState<AgentEvent[]>([]);
+  const [showLogs, setShowLogs] = useState(true);
+  const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.getAvailableAgents().then((resp) => {
@@ -58,6 +61,28 @@ export default function AgentExecutionPanel({ todoId, phaseType, onSessionChange
     const timer = setInterval(fetchSession, 5000);
     return () => clearInterval(timer);
   }, [session?.status, fetchSession]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchEvents = useCallback(async () => {
+    try {
+      const evts = await api.getAgentEvents(todoId, phaseType);
+      setEvents(evts);
+    } catch {
+      // ignore
+    }
+  }, [todoId, phaseType]);
+
+  useEffect(() => {
+    if (!session) return;
+    fetchEvents();
+    if (session.status === 'running' || session.status === 'pending') {
+      const timer = setInterval(fetchEvents, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [session?.status, fetchEvents]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [events.length]);
 
   const handleExecute = async () => {
     setLoading(true);
@@ -180,7 +205,33 @@ export default function AgentExecutionPanel({ todoId, phaseType, onSessionChange
             重新执行
           </button>
         )}
+        <button
+          onClick={() => setShowLogs(!showLogs)}
+          className="ml-auto flex items-center gap-1 text-[10px] text-text-muted hover:text-text-secondary"
+        >
+          <Terminal size={10} />
+          {showLogs ? '收起日志' : '展开日志'}
+        </button>
       </div>
+
+      {showLogs && events.length > 0 && (
+        <div className="mt-3 max-h-48 overflow-y-auto rounded-md border border-border/50 bg-bg-primary p-2">
+          {events.map((evt) => (
+            <div key={evt.id} className="flex gap-2 border-b border-border/20 py-1.5 last:border-0">
+              <span className="flex-shrink-0 text-[9px] tabular-nums text-text-muted">
+                {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : '--:--'}
+              </span>
+              <span className="whitespace-pre-wrap break-all text-[11px] leading-relaxed text-text-secondary">
+                {evt.content}
+              </span>
+            </div>
+          ))}
+          <div ref={logEndRef} />
+        </div>
+      )}
+      {showLogs && events.length === 0 && session && (
+        <p className="mt-3 text-center text-[10px] text-text-muted">暂无执行日志</p>
+      )}
     </div>
   );
 }
