@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class CodexAdapter(CodingAgentAdapter):
     agent_type = AgentType.CODEX
+    implemented = False
 
     def __init__(self, api_key: str, base_url: str = "https://api.openai.com/v1") -> None:
         self._api_key = api_key

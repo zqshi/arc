@@ -36,9 +36,14 @@ class MessageRole(StrEnum):
 
 
 class ExperienceScope(StrEnum):
-    TODO = "todo"
+    PERSONAL = "personal"
     PROJECT = "project"
-    GLOBAL = "global"
+
+
+class ExperienceStatus(StrEnum):
+    DRAFT = "draft"
+    CONFIRMED = "confirmed"
+    ARCHIVED = "archived"
 
 
 @dataclass(frozen=True)

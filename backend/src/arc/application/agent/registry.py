@@ -42,34 +42,45 @@ class AgentRegistry:
 
 
 def create_agent_registry() -> AgentRegistry:
-    """Build registry from application settings, only registering configured agents."""
+    """Build registry from application settings, only registering configured and implemented agents."""
     from arc.config import settings
 
     registry = AgentRegistry()
 
     if settings.openhands_url:
-        registry.register(AgentType.OPENHANDS, lambda: OpenHandsAdapter())
+        adapter = OpenHandsAdapter()
+        if adapter.implemented:
+            registry.register(AgentType.OPENHANDS, lambda: OpenHandsAdapter())
 
     if settings.codex_api_key:
-        registry.register(
-            AgentType.CODEX,
-            lambda: CodexAdapter(api_key=settings.codex_api_key, base_url=settings.codex_base_url),
-        )
+        adapter = CodexAdapter(api_key=settings.codex_api_key, base_url=settings.codex_base_url)
+        if adapter.implemented:
+            registry.register(
+                AgentType.CODEX,
+                lambda: CodexAdapter(api_key=settings.codex_api_key, base_url=settings.codex_base_url),
+            )
 
     if settings.claude_code_path:
-        registry.register(
-            AgentType.CLAUDE_CODE,
-            lambda: ClaudeCodeAdapter(
-                cli_path=settings.claude_code_path,
-                work_dir=settings.claude_code_work_dir,
-            ),
+        adapter = ClaudeCodeAdapter(
+            cli_path=settings.claude_code_path,
+            work_dir=settings.claude_code_work_dir,
         )
+        if adapter.implemented:
+            registry.register(
+                AgentType.CLAUDE_CODE,
+                lambda: ClaudeCodeAdapter(
+                    cli_path=settings.claude_code_path,
+                    work_dir=settings.claude_code_work_dir,
+                ),
+            )
 
     if settings.cursor_cli_path:
-        registry.register(
-            AgentType.CURSOR,
-            lambda: CursorAdapter(cli_path=settings.cursor_cli_path),
-        )
+        adapter = CursorAdapter(cli_path=settings.cursor_cli_path)
+        if adapter.implemented:
+            registry.register(
+                AgentType.CURSOR,
+                lambda: CursorAdapter(cli_path=settings.cursor_cli_path),
+            )
 
     return registry
 

@@ -21,6 +21,7 @@ class TaskContext:
     todo_id: str
     todo_title: str
     todo_description: str = ""
+    project_context: str = ""
     requirement_spec: dict = field(default_factory=dict)
     ui_design: dict = field(default_factory=dict)
     tech_architecture: dict = field(default_factory=dict)
@@ -32,6 +33,10 @@ class TaskContext:
         parts = [f"# {self.todo_title}", ""]
         if self.todo_description:
             parts.append(f"## 描述\n{self.todo_description}\n")
+
+        if self.project_context:
+            parts.append(self.project_context)
+            parts.append("")
 
         if self.requirement_spec:
             parts.append("## 需求规格")
@@ -106,6 +111,11 @@ class TaskContextBuilder:
         if not todo:
             raise ValueError(f"Todo {todo_id} not found")
 
+        from arc.application.context.provider import ProjectContextProvider
+
+        project_provider = ProjectContextProvider(self.db)
+        project_ctx = await project_provider.get_context(todo_id)
+
         confirmed = await self.artifact_repo.list_confirmed_by_todo(todo_id)
         artifact_map: dict[str, dict] = {}
         for a in confirmed:
@@ -120,6 +130,7 @@ class TaskContextBuilder:
             todo_id=str(todo_id),
             todo_title=todo.title,
             todo_description=todo.description or "",
+            project_context=project_ctx.to_agent_section(),
             requirement_spec=artifact_map.get(ArtifactType.REQUIREMENT_SPEC, {}),
             ui_design=artifact_map.get(ArtifactType.UI_DESIGN, {}),
             tech_architecture=artifact_map.get(ArtifactType.TECH_ARCHITECTURE, {}),
@@ -133,7 +144,8 @@ class TaskContextBuilder:
             from arc.application.experience.service import ExperienceService
             exp_svc = ExperienceService(self.db)
             exps = await exp_svc.search_similar(
-                f"{todo.title} {todo.description or ''}", limit=3
+                f"{todo.title} {todo.description or ''}", limit=3,
+                project_id=todo.project_id,
             )
             return [
                 {

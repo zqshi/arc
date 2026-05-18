@@ -5,9 +5,12 @@ interface CreateTodoModalProps {
   open: boolean;
   onClose: () => void;
   onCreate: (title: string, description: string) => void;
+  projectId: string;
+  versionId: string;
+  versionName?: string;
 }
 
-export default function CreateTodoModal({ open, onClose, onCreate }: CreateTodoModalProps) {
+export default function CreateTodoModal({ open, onClose, onCreate, versionName }: CreateTodoModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
@@ -53,7 +56,9 @@ export default function CreateTodoModal({ open, onClose, onCreate }: CreateTodoM
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="font-heading text-sm font-semibold text-text-primary">新建待办</h2>
+          <h2 className="font-heading text-sm font-semibold text-text-primary">
+            {versionName ? `为 ${versionName} 新建需求` : '新建需求'}
+          </h2>
           <button
             onClick={onClose}
             className="flex h-6 w-6 items-center justify-center rounded text-text-muted transition-colors hover:text-text-secondary"
@@ -81,7 +86,7 @@ export default function CreateTodoModal({ open, onClose, onCreate }: CreateTodoM
           <div>
             <label className="mb-1.5 block text-[11px] font-medium text-text-tertiary">描述</label>
             <textarea
-              placeholder="补充任务的背景和目标（选填）"
+              placeholder="补充需求的背景和目标（选填）"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}

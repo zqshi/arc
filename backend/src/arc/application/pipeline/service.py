@@ -146,6 +146,7 @@ class PipelineService:
         """Confirm current phase's artifact and advance to next phase.
 
         Raises PhaseGateError if the artifact doesn't meet quality gates.
+        Uses a savepoint so all DB changes roll back atomically on failure.
         """
         from arc.application.pipeline.gate import PhaseGateError, evaluate_gate
 
@@ -161,35 +162,41 @@ class PipelineService:
                 suggestion="请先与AI对话并生成产出物，再进行确认。",
             ))
 
-        gate_result = await evaluate_gate(phase_type, artifact.content)
+        from arc.application.context.provider import ProjectContextProvider
+        project_ctx = await ProjectContextProvider(self.db).get_context(todo_id)
+        conventions = project_ctx.conventions if project_ctx.has_project else ""
+
+        gate_result = await evaluate_gate(phase_type, artifact.content, conventions)
         if not gate_result.passed:
             raise PhaseGateError(gate_result)
 
-        await self._feedback_experience_confidence(gate_result.score)
+        async with self.db.begin_nested():
+            await self._feedback_experience_confidence(gate_result.score)
 
-        if not artifact.is_confirmed:
-            artifact.confirm()
-            await self.artifact_repo.update(artifact)
+            if not artifact.is_confirmed:
+                artifact.confirm()
+                await self.artifact_repo.update(artifact)
 
-        phase.confirm()
-        await self.phase_repo.update(phase)
+            phase.confirm()
+            await self.phase_repo.update(phase)
 
-        nxt = next_phase(phase_type)
-        if nxt:
-            next_p = await self.phase_repo.get_by_todo_and_type(todo_id, nxt)
-            if next_p and next_p.status == PhaseStatus.PENDING:
-                next_p.activate()
-                await self.phase_repo.update(next_p)
+            nxt = next_phase(phase_type)
+            if nxt:
+                next_p = await self.phase_repo.get_by_todo_and_type(todo_id, nxt)
+                if next_p and next_p.status == PhaseStatus.PENDING:
+                    next_p.activate()
+                    await self.phase_repo.update(next_p)
 
-            todo = await self.todo_repo.get_by_id(todo_id)
-            if todo and nxt:
-                todo.update_phase(nxt)
-                await self.todo_repo.update(todo)
-        else:
-            todo = await self.todo_repo.get_by_id(todo_id)
-            if todo:
-                todo.complete()
-                await self.todo_repo.update(todo)
+                todo = await self.todo_repo.get_by_id(todo_id)
+                if todo and nxt:
+                    todo.update_phase(nxt)
+                    await self.todo_repo.update(todo)
+            else:
+                todo = await self.todo_repo.get_by_id(todo_id)
+                if todo:
+                    await self._extract_experience(todo)
+                    todo.complete()
+                    await self.todo_repo.update(todo)
 
         return phase
 
@@ -333,6 +340,15 @@ class PipelineService:
                 for a in artifacts
             ],
         }
+
+    async def _extract_experience(self, todo) -> None:
+        from arc.application.experience.service import ExperienceService
+
+        try:
+            svc = ExperienceService(self.db)
+            await svc.extract_from_todo(todo)
+        except Exception as exc:
+            logger.warning("Experience extraction failed for todo %s: %s", todo.id, exc)
 
     async def _feedback_experience_confidence(self, gate_score: int) -> None:
         """Update confidence of recently-reused experiences based on gate score."""

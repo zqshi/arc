@@ -4,6 +4,7 @@ from .base import Base, TimestampMixin
 from .conversation import Conversation, Message
 from .experience import Experience
 from .pipeline import PipelinePhaseModel
+from .project import ProjectModel, VersionModel
 from .todo import Todo
 
 __all__ = [
@@ -15,5 +16,7 @@ __all__ = [
     "Message",
     "Experience",
     "PipelinePhaseModel",
+    "ProjectModel",
+    "VersionModel",
     "Todo",
 ]

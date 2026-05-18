@@ -20,7 +20,10 @@ class Todo:
     title: str
     description: str = ""
     id: uuid.UUID = field(default_factory=uuid.uuid4)
+    project_id: uuid.UUID | None = None
+    version_id: uuid.UUID | None = None
     status: TodoStatus = TodoStatus.PENDING
+    priority: int = 2
     current_phase: PhaseType | None = None
     tags: list[Tag] = field(default_factory=list)
     error_reason: str = ""
