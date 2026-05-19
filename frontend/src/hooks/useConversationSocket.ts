@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Message } from '../types/api';
 
-const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+const WS_BASE = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
 
 interface WsMessageEvent {
   type: 'message';
@@ -69,7 +69,11 @@ export function useConversationSocket(conversationId: string | null) {
     function connect() {
       if (!mountedRef.current) return;
 
-      const ws = new WebSocket(`${WS_BASE}/ws/conversations/${conversationId}`);
+      const token = localStorage.getItem('access_token');
+      const url = token
+        ? `${WS_BASE}/ws/conversations/${conversationId}?token=${encodeURIComponent(token)}`
+        : `${WS_BASE}/ws/conversations/${conversationId}`;
+      const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {

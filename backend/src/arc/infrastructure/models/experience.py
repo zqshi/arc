@@ -12,6 +12,9 @@ class Experience(TimestampMixin, Base):
     __tablename__ = "experiences"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
     todo_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("todos.id"), nullable=True
     )

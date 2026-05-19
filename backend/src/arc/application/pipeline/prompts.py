@@ -451,7 +451,10 @@ PHASE_REQUIRED_FIELDS: dict[PhaseType, list[str]] = {
 PHASES_NO_SKIP: set[PhaseType] = {
     PhaseType.CLARIFICATION,
     PhaseType.ARCHITECTURE,
+    PhaseType.DEVELOPMENT,
     PhaseType.TESTING,
+    PhaseType.DEPLOYMENT,
+    PhaseType.EXTRACTION,
 }
 
 GATE_EVALUATION_PROMPT = """你是一个严格的质量评审员。评估以下阶段产出物是否满足推进到下一阶段的条件。

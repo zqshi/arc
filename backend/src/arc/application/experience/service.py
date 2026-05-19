@@ -138,7 +138,11 @@ class ExperienceService:
         """Search for related experiences using embedding similarity."""
         from arc.application.ai.resilience import create_resilient_adapter
 
-        adapter = create_resilient_adapter()
+        try:
+            adapter = create_resilient_adapter()
+        except Exception as exc:
+            logger.warning("search_similar: adapter creation failed: %s", exc)
+            return []
         try:
             embedding = await adapter.embed(query)
         except Exception as exc:
@@ -147,12 +151,20 @@ class ExperienceService:
         finally:
             await adapter.close()
 
-        return await self.exp_repo.search_by_embedding(
-            embedding, limit=limit, project_id=project_id,
-        )
+        try:
+            return await self.exp_repo.search_by_embedding(
+                embedding, limit=limit, project_id=project_id,
+            )
+        except Exception as exc:
+            logger.warning("search_similar: vector search failed: %s", exc)
+            return []
 
     async def search_related(
         self, query_embedding: list[float], limit: int = 5
     ) -> list[Experience]:
         """Search for related experiences using pre-computed vector."""
-        return await self.exp_repo.search_by_embedding(query_embedding, limit=limit)
+        try:
+            return await self.exp_repo.search_by_embedding(query_embedding, limit=limit)
+        except Exception as exc:
+            logger.warning("search_related: vector search failed: %s", exc)
+            return []

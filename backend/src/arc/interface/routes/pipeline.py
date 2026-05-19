@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 
 from arc.domain.pipeline.value_objects import PhaseType
-from arc.interface.deps import DbSession
+from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.pipeline import (
     ArtifactResponse,
     PhaseResponse,
@@ -25,7 +25,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 @router.get("/{todo_id}/pipeline", response_model=PipelineStateResponse)
-async def get_pipeline(todo_id: str, db: DbSession):
+async def get_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
     """Get complete pipeline state for a todo."""
     from arc.application.pipeline.service import PipelineService
 
@@ -47,7 +47,7 @@ async def get_pipeline(todo_id: str, db: DbSession):
 
 
 @router.post("/{todo_id}/pipeline/start", response_model=list[PhaseResponse])
-async def start_pipeline(todo_id: str, db: DbSession):
+async def start_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
     """Initialize pipeline with all 7 phases and activate the first one."""
     from arc.application.pipeline.service import PipelineService
 
@@ -64,7 +64,7 @@ async def start_pipeline(todo_id: str, db: DbSession):
 # ---------------------------------------------------------------------------
 
 @router.post("/{todo_id}/phases/{phase_type}/start", response_model=PhaseResponse)
-async def start_phase(todo_id: str, phase_type: str, db: DbSession):
+async def start_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Start a specific phase (create conversation)."""
     from arc.application.pipeline.service import PipelineService
 
@@ -78,7 +78,7 @@ async def start_phase(todo_id: str, phase_type: str, db: DbSession):
 
 
 @router.post("/{todo_id}/phases/{phase_type}/generate", response_model=ArtifactResponse)
-async def generate_artifact(todo_id: str, phase_type: str, db: DbSession):
+async def generate_artifact(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """AI generates artifact from current phase conversation."""
     from arc.application.pipeline.service import PipelineService
 
@@ -91,7 +91,7 @@ async def generate_artifact(todo_id: str, phase_type: str, db: DbSession):
 
 
 @router.post("/{todo_id}/phases/{phase_type}/confirm", response_model=PhaseResponse)
-async def confirm_phase(todo_id: str, phase_type: str, db: DbSession):
+async def confirm_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Confirm phase artifact and advance to next phase."""
     from arc.application.pipeline.gate import PhaseGateError
     from arc.application.pipeline.service import PipelineService
@@ -111,20 +111,23 @@ async def confirm_phase(todo_id: str, phase_type: str, db: DbSession):
 
 
 @router.post("/{todo_id}/phases/{phase_type}/skip", response_model=PhaseResponse)
-async def skip_phase(todo_id: str, phase_type: str, db: DbSession):
+async def skip_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Skip a phase."""
     from arc.application.pipeline.service import PipelineService
 
     pt = _parse_phase_type(phase_type)
     svc = PipelineService(db)
-    phase = await svc.skip_phase(UUID(todo_id), pt)
+    try:
+        phase = await svc.skip_phase(UUID(todo_id), pt)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not phase:
         raise HTTPException(status_code=404, detail="Phase not found")
     return _phase_response(phase)
 
 
 @router.post("/{todo_id}/pipeline/rollback")
-async def rollback_pipeline(todo_id: str, req: RollbackRequest, db: DbSession):
+async def rollback_pipeline(todo_id: str, req: RollbackRequest, db: DbSession, user: CurrentUser):
     """Rollback to a previous phase."""
     from arc.application.pipeline.service import PipelineService
 
@@ -141,7 +144,7 @@ async def rollback_pipeline(todo_id: str, req: RollbackRequest, db: DbSession):
 # ---------------------------------------------------------------------------
 
 @router.get("/{todo_id}/artifacts", response_model=list[ArtifactResponse])
-async def list_artifacts(todo_id: str, db: DbSession):
+async def list_artifacts(todo_id: str, db: DbSession, user: CurrentUser):
     """List all artifacts for a todo."""
     from arc.infrastructure.repositories.artifact import ArtifactRepository
 
@@ -151,7 +154,7 @@ async def list_artifacts(todo_id: str, db: DbSession):
 
 
 @router.get("/{todo_id}/artifacts/{artifact_id}", response_model=ArtifactResponse)
-async def get_artifact(todo_id: str, artifact_id: str, db: DbSession):
+async def get_artifact(todo_id: str, artifact_id: str, db: DbSession, user: CurrentUser):
     """Get a single artifact."""
     from arc.infrastructure.repositories.artifact import ArtifactRepository
 
@@ -164,7 +167,7 @@ async def get_artifact(todo_id: str, artifact_id: str, db: DbSession):
 
 @router.put("/{todo_id}/artifacts/{artifact_id}", response_model=ArtifactResponse)
 async def update_artifact(
-    todo_id: str, artifact_id: str, req: UpdateArtifactRequest, db: DbSession
+    todo_id: str, artifact_id: str, req: UpdateArtifactRequest, db: DbSession, user: CurrentUser
 ):
     """Edit artifact content (increments version, unconfirms)."""
     from arc.application.artifact.service import ArtifactService
@@ -177,7 +180,7 @@ async def update_artifact(
 
 
 @router.post("/{todo_id}/artifacts/{artifact_id}/confirm", response_model=ArtifactResponse)
-async def confirm_artifact(todo_id: str, artifact_id: str, db: DbSession):
+async def confirm_artifact(todo_id: str, artifact_id: str, db: DbSession, user: CurrentUser):
     """Confirm an artifact."""
     from arc.application.artifact.service import ArtifactService
 

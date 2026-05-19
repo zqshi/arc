@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     app_name: str = "Arc"
-    debug: bool = True
+    debug: bool = False
 
     # Database
     database_url: str = "postgresql+asyncpg://zqs@localhost:5432/arc"
@@ -14,6 +14,12 @@ class Settings(BaseSettings):
         "http://localhost:5173", "http://localhost:5174",
         "http://localhost:5175", "http://localhost:5176",
     ]
+
+    # Auth / JWT
+    jwt_secret: str = ""
+    jwt_access_expire_minutes: int = 30
+    jwt_refresh_expire_days: int = 7
+    sms_mock_mode: bool = True
 
     # LLM
     llm_provider: str = "openai"  # openai | anthropic | deepseek

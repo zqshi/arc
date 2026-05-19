@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 
 from arc.infrastructure.repositories.conversation import ConversationRepository
-from arc.interface.deps import DbSession
+from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas import (
     ConversationResponse,
     MessageResponse,
@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)
-async def get_conversation(conversation_id: str, db: DbSession):
+async def get_conversation(conversation_id: str, db: DbSession, user: CurrentUser):
     repo = ConversationRepository(db)
     conv = await repo.get_by_id(UUID(conversation_id))
     if not conv:
@@ -25,7 +25,7 @@ async def get_conversation(conversation_id: str, db: DbSession):
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)
-async def send_message(conversation_id: str, req: SendMessageRequest, db: DbSession):
+async def send_message(conversation_id: str, req: SendMessageRequest, db: DbSession, user: CurrentUser):
     """Send a user message and trigger AI response (non-streaming)."""
     repo = ConversationRepository(db)
     conv = await repo.get_by_id(UUID(conversation_id))

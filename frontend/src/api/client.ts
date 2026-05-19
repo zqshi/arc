@@ -20,7 +20,7 @@ import type {
   SystemSettings,
 } from '../types/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 class ApiError extends Error {
   status: number;
@@ -34,6 +34,40 @@ class ApiError extends Error {
   }
 }
 
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (isRefreshing && refreshPromise) return refreshPromise;
+
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) return false;
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!resp.ok) return false;
+
+      const data = await resp.json();
+      localStorage.setItem('access_token', data.access_token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 class ApiClient {
   private base: string;
 
@@ -41,11 +75,34 @@ class ApiClient {
     this.base = base;
   }
 
-  private async request<T>(path: string, options?: RequestInit): Promise<T> {
+  private async request<T>(path: string, options?: RequestInit, retried = false): Promise<T> {
+    const token = localStorage.getItem('access_token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (options?.headers) {
+      Object.assign(headers, options.headers);
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const resp = await fetch(`${this.base}${path}`, {
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
       ...options,
+      headers,
     });
+
+    if (resp.status === 401 && !retried) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        return this.request(path, options, true);
+      }
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('auth_user');
+      window.location.href = '/login';
+      throw new ApiError(401, '登录已过期');
+    }
 
     if (!resp.ok) {
       const error = await resp.json().catch(() => ({ detail: resp.statusText }));

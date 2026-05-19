@@ -3,12 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from arc.config import settings
+from arc.interface.deps import CurrentUser
 
 router = APIRouter()
 
 
 @router.get("")
-async def get_settings():
+async def get_settings(user: CurrentUser):
     """Get current system settings (sensitive keys are masked)."""
     return {
         "llm_provider": settings.llm_provider,
