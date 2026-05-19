@@ -1462,9 +1462,9 @@ async def create_seed_data(db: AsyncSession, user_id: uuid.UUID) -> None:
     # Project 5: 开发者开放平台 (3 versions, full pipeline)
     # ═══════════════════════════════════════════════════════════
 
-    from seed_gateway import seed_gateway_project
+    from .gateway import seed_gateway_project
     gw_result = await seed_gateway_project(db, user_id, now)
-    project5_id = gw_result["project_id"]
+    _ = gw_result["project_id"]
 
     # ═══════════════════════════════════════════════════════════
     # Experiences

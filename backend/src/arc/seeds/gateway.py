@@ -2,8 +2,11 @@
 3 versions, v1.0/v2.0 each with 2 full-pipeline todos, v3.0 planning.
 """
 from __future__ import annotations
-import json, uuid
-from datetime import UTC, datetime, timedelta
+
+import json
+import uuid
+from datetime import datetime, timedelta
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -566,18 +569,18 @@ async def seed_gateway_project(db: AsyncSession, user_id, now: datetime) -> dict
     todo1_id, todo2_id, todo3_id, todo4_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     todo5_id, todo6_id = uuid.uuid4(), uuid.uuid4()
 
-    PHASES = ["clarification", "ui_design", "architecture", "development", "testing", "deployment", "extraction"]
-    CONV_PHASES = ["clarification", "ui_design", "architecture", "extraction"]
-    AGENT_PHASES = ["development", "testing", "deployment"]
+    phases = ["clarification", "ui_design", "architecture", "development", "testing", "deployment", "extraction"]
+    conv_phases = ["clarification", "ui_design", "architecture", "extraction"]
+    agent_phases = ["development", "testing", "deployment"]
 
     # Phase/conv/agent IDs for todos 1-4
     phase_ids = {}
     conv_ids = {}
     agent_ids = {}
     for t in [todo1_id, todo2_id, todo3_id, todo4_id]:
-        phase_ids[t] = {p: uuid.uuid4() for p in PHASES}
-        conv_ids[t] = {p: uuid.uuid4() for p in CONV_PHASES}
-        agent_ids[t] = {p: uuid.uuid4() for p in AGENT_PHASES}
+        phase_ids[t] = {p: uuid.uuid4() for p in phases}
+        conv_ids[t] = {p: uuid.uuid4() for p in conv_phases}
+        agent_ids[t] = {p: uuid.uuid4() for p in agent_phases}
 
     # ── Project ──
     await _insert("projects", {
@@ -664,7 +667,7 @@ async def seed_gateway_project(db: AsyncSession, user_id, now: datetime) -> dict
 
     # ── Insert pipeline phases (without agent_session_id first) ──
     for tid, _, _, _, _, offset, _ in todo_defs:
-        for pt in PHASES:
+        for pt in phases:
             cid = conv_ids[tid].get(pt)
             await _insert("pipeline_phases", {
                 "id": phase_ids[tid][pt], "todo_id": tid,
@@ -745,7 +748,7 @@ async def seed_gateway_project(db: AsyncSession, user_id, now: datetime) -> dict
 
     # ── Link agent sessions to phases ──
     for tid in [todo1_id, todo2_id, todo3_id, todo4_id]:
-        for phase_name in AGENT_PHASES:
+        for phase_name in agent_phases:
             await db.execute(
                 text("UPDATE pipeline_phases SET agent_session_id = :aid WHERE id = :pid"),
                 {"aid": agent_ids[tid][phase_name], "pid": phase_ids[tid][phase_name]},
