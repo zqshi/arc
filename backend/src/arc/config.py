@@ -9,11 +9,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://zqs@localhost:5432/arc"
     database_echo: bool = False
 
-    # CORS
-    cors_origins: list[str] = [
-        "http://localhost:5173", "http://localhost:5174",
-        "http://localhost:5175", "http://localhost:5176",
-    ]
+    # CORS — explicitly configure in .env for production
+    cors_origins: list[str] = []
+
+    # Database pool
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_recycle: int = 3600
 
     # Auth / JWT
     jwt_secret: str = ""

@@ -68,6 +68,16 @@ async function tryRefreshToken(): Promise<boolean> {
   return refreshPromise;
 }
 
+function isTokenExpiringSoon(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const exp = payload.exp as number;
+    return exp * 1000 - Date.now() < 120_000;
+  } catch {
+    return false;
+  }
+}
+
 class ApiClient {
   private base: string;
 
@@ -76,7 +86,15 @@ class ApiClient {
   }
 
   private async request<T>(path: string, options?: RequestInit, retried = false): Promise<T> {
-    const token = localStorage.getItem('access_token');
+    let token = localStorage.getItem('access_token');
+
+    if (token && !retried && isTokenExpiringSoon(token)) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        token = localStorage.getItem('access_token');
+      }
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };

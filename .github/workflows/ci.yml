@@ -37,6 +37,7 @@ jobs:
       ARC_DATABASE_URL: postgresql+asyncpg://arc:arc@localhost:5432/arc_test
       ARC_JWT_SECRET: ci-test-secret-do-not-use-in-production
       ARC_SMS_MOCK_MODE: "true"
+      ARC_DEBUG: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,7 +52,50 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
       - run: cd frontend && npm ci
       - run: cd frontend && npx tsc --noEmit
       - run: cd frontend && npm run build
+      - run: cd frontend && npm test
+
+  docs-freshness:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation freshness
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          CHANGED=$(git diff --name-only "$BASE"...HEAD)
+
+          WARN=0
+
+          # Rule 1: domain/routes changed but no docs updated
+          if echo "$CHANGED" | grep -qE "backend/src/arc/(domain|interface/routes)/"; then
+            if ! echo "$CHANGED" | grep -qE "(docs/|README|CHANGELOG)"; then
+              echo "::warning::Domain or route files changed without updating documentation"
+              WARN=1
+            fi
+          fi
+
+          # Rule 2: Docker/compose changed but README not updated
+          if echo "$CHANGED" | grep -qE "(docker-compose|Dockerfile)"; then
+            if ! echo "$CHANGED" | grep -q "README"; then
+              echo "::warning::Docker configuration changed without updating README"
+              WARN=1
+            fi
+          fi
+
+          # Rule 3: config.py changed but .env.example not updated
+          if echo "$CHANGED" | grep -q "config.py"; then
+            if ! echo "$CHANGED" | grep -q ".env.example"; then
+              echo "::warning::config.py changed without updating .env.example"
+              WARN=1
+            fi
+          fi
+
+          if [ $WARN -eq 0 ]; then
+            echo "Documentation freshness check passed"
+          fi

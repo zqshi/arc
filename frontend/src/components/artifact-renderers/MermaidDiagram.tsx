@@ -1,23 +1,31 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import mermaid from 'mermaid';
-
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  themeVariables: {
-    primaryColor: '#6C63FF',
-    primaryTextColor: '#E8E6E3',
-    primaryBorderColor: '#4A4458',
-    lineColor: '#6C63FF',
-    secondaryColor: '#2A2A3E',
-    tertiaryColor: '#1E1E2E',
-    fontFamily: 'system-ui, sans-serif',
-    fontSize: '13px',
-  },
-  flowchart: { curve: 'basis', padding: 16 },
-});
 
 let counter = 0;
+let mermaidReady: Promise<typeof import('mermaid')> | null = null;
+
+function getMermaid() {
+  if (!mermaidReady) {
+    mermaidReady = import('mermaid').then((m) => {
+      m.default.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+          primaryColor: '#6C63FF',
+          primaryTextColor: '#E8E6E3',
+          primaryBorderColor: '#4A4458',
+          lineColor: '#6C63FF',
+          secondaryColor: '#2A2A3E',
+          tertiaryColor: '#1E1E2E',
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: '13px',
+        },
+        flowchart: { curve: 'basis', padding: 16 },
+      });
+      return m;
+    });
+  }
+  return mermaidReady;
+}
 
 interface Props {
   code: string;
@@ -38,6 +46,7 @@ export default function MermaidDiagram({ code }: Props) {
 
     async function render() {
       try {
+        const { default: mermaid } = await getMermaid();
         const { svg } = await mermaid.render(elemId, code.trim());
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg;

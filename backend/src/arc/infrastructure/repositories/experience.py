@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.experience.entity import Experience as ExpEntity
@@ -10,6 +10,8 @@ from arc.domain.experience.repository import IExperienceRepository
 from arc.domain.todo.value_objects import ExperienceScope, ExperienceStatus, Tag
 from arc.infrastructure.models.experience import (
     Experience as ExpModel,
+)
+from arc.infrastructure.models.experience import (
     ExperienceFeedback as FeedbackModel,
 )
 
@@ -28,19 +30,26 @@ class ExperienceRepository(IExperienceRepository):
         project_id: uuid.UUID | None = None,
         status: ExperienceStatus | None = None,
         user_id: uuid.UUID | None = None,
-    ) -> list[ExpEntity]:
-        stmt = select(ExpModel).where(ExpModel.status != "archived").order_by(ExpModel.created_at.desc())
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[ExpEntity], int]:
+        base = select(ExpModel).where(ExpModel.status != "archived")
         if user_id:
-            stmt = stmt.where(ExpModel.user_id == user_id)
+            base = base.where(ExpModel.user_id == user_id)
         if project_id:
-            stmt = stmt.where(
+            base = base.where(
                 (ExpModel.project_id == project_id)
                 | (ExpModel.scope == "personal")
             )
         if status:
-            stmt = stmt.where(ExpModel.status == status.value)
+            base = base.where(ExpModel.status == status.value)
+
+        count_result = await self.db.execute(select(func.count()).select_from(base.subquery()))
+        total = count_result.scalar() or 0
+
+        stmt = base.order_by(ExpModel.created_at.desc()).offset(offset).limit(limit)
         result = await self.db.execute(stmt)
-        return [self._to_entity(r) for r in result.scalars().all()]
+        return [self._to_entity(r) for r in result.scalars().all()], total
 
     async def search_by_embedding(
         self, embedding: list[float], limit: int = 10, project_id: uuid.UUID | None = None,

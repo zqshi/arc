@@ -32,6 +32,8 @@ class ExperienceResponse(BaseModel):
 class ExperienceListResponse(BaseModel):
     items: list[ExperienceResponse]
     total: int
+    page: int = 1
+    page_size: int = 50
 
 
 class CreateExperienceRequest(BaseModel):

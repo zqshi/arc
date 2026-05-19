@@ -5,7 +5,6 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.project.entity import Version
-from arc.infrastructure.models.todo import Todo as TodoModel
 from arc.infrastructure.repositories.project import VersionRepository
 from arc.infrastructure.repositories.todo import TodoRepository
 
@@ -42,7 +41,7 @@ class VersionService:
 
         version.release()
 
-        todos = await self.todo_repo.list_all(version_id=version_id)
+        todos, _ = await self.todo_repo.list_all(version_id=version_id, limit=10000)
         changelog_lines = [f"- {t.title}" for t in todos if t.status.value == "done"]
         if changelog_lines:
             version.set_changelog("\n".join(changelog_lines))
@@ -53,7 +52,7 @@ class VersionService:
         return version, carry_over_version
 
     async def _carry_over_todos(self, released_version: Version) -> Version | None:
-        todos = await self.todo_repo.list_all(version_id=released_version.id)
+        todos, _ = await self.todo_repo.list_all(version_id=released_version.id, limit=10000)
         pending_todos = [t for t in todos if t.status.value != "done"]
 
         if not pending_todos:
