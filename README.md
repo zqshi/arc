@@ -261,6 +261,7 @@ arc/
 
 - 产品愿景：[docs/arc-product-vision.md](./docs/arc-product-vision.md)
 - 模块拆解：[docs/arc-module-breakdown.md](./docs/arc-module-breakdown.md)
+- Agent 升级计划：[docs/agent-upgrade-plan.md](./docs/agent-upgrade-plan.md)
 - 变更日志：[CHANGELOG.md](./CHANGELOG.md)
 - 贡献规范：[CONTRIBUTING.md](./CONTRIBUTING.md)
 - 环境变量：[.env.example](./.env.example)

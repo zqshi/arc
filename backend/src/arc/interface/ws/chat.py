@@ -15,6 +15,7 @@ router = APIRouter()
 
 HEARTBEAT_INTERVAL = 30
 HEARTBEAT_TIMEOUT = 60
+TOKEN_CHECK_INTERVAL = 120
 
 
 class ConnectionManager:
@@ -108,16 +109,27 @@ async def _stream_ai_response(
         })
 
 
-async def _heartbeat(ws: WebSocket, cancel_event: asyncio.Event):
+async def _heartbeat(ws: WebSocket, cancel_event: asyncio.Event, token: str | None = None):
+    ticks = 0
     try:
         while not cancel_event.is_set():
             await asyncio.sleep(HEARTBEAT_INTERVAL)
             if cancel_event.is_set():
                 break
+            ticks += HEARTBEAT_INTERVAL
             try:
                 await ws.send_json({"type": "ping"})
             except Exception:
                 break
+            if token and ticks >= TOKEN_CHECK_INTERVAL:
+                ticks = 0
+                try:
+                    from arc.application.auth.jwt import verify_access_token
+                    verify_access_token(token)
+                except Exception:
+                    await ws.send_json({"type": "token_expired"})
+                    await ws.close(code=4002, reason="Token expired")
+                    break
     except asyncio.CancelledError:
         pass
 
@@ -136,7 +148,7 @@ async def conversation_ws(
     await manager.connect(conversation_id, ws)
 
     cancel_heartbeat = asyncio.Event()
-    heartbeat_task = asyncio.create_task(_heartbeat(ws, cancel_heartbeat))
+    heartbeat_task = asyncio.create_task(_heartbeat(ws, cancel_heartbeat, token))
 
     try:
         from arc.infrastructure.database import async_session_factory

@@ -10,6 +10,7 @@ from arc.config import settings
 from arc.domain.errors import AppError
 from arc.domain.pipeline.entity import InvalidPhaseTransition
 from arc.domain.todo.entity import InvalidStatusTransition
+from arc.interface.middleware.request_id import RequestIdFilter
 
 _BASE_ATTRS: frozenset[str] | None = None
 
@@ -24,7 +25,9 @@ class StructuredFormatter(logging.Formatter):
             ) | {"message", "msg", "args", "exc_info", "exc_text", "stack_info", "taskName"}
 
         ts = self.formatTime(record)
-        base = f"{ts} {record.levelname:<8} {record.name} — {record.getMessage()}"
+        rid = getattr(record, "request_id", "")
+        rid_tag = f" [{rid}]" if rid else ""
+        base = f"{ts} {record.levelname:<8} {record.name}{rid_tag} — {record.getMessage()}"
         extras = {
             k: v for k, v in record.__dict__.items() if k not in _BASE_ATTRS
         }
@@ -36,6 +39,7 @@ class StructuredFormatter(logging.Formatter):
 
 handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(StructuredFormatter())
+handler.addFilter(RequestIdFilter())
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
     handlers=[handler],
@@ -156,8 +160,10 @@ app.add_middleware(
 )
 
 from arc.interface.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
+from arc.interface.middleware.request_id import RequestIdMiddleware  # noqa: E402
 
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RequestIdMiddleware)
 
 
 @app.exception_handler(AppError)
