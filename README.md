@@ -1,98 +1,131 @@
 # Arc
 
-> 让研发不再只靠人记、人追、人补，而是让 AI 真正参与到每一步交付中。
+> 你做过的每个项目，都在让下一个项目更快更好。
 
-Arc 是一套面向研发团队的 AI 驱动待办工作台。  
-它不只是"帮你管任务"，而是把**需求澄清、方案设计、代码编写、质量把关、经验沉淀**串成一条由 AI 全程参与的研发链路。
+Arc 是一套 AI 原生的项目交付引擎。  
+它不是帮你"管项目"，而是把**需求澄清、方案设计、开发执行、质量把关、经验沉淀**串成一条上下文不断裂的交付链路——做完的事不会蒸发，踩过的坑不会重来。
 
-很多团队用了项目管理工具，依然卡在同样的地方：
+## 它解决什么问题
 
-- 需求拆了一堆 ticket，但没人帮你想清楚"到底做什么"
-- 代码写完了，但为什么这么做、踩过什么坑，没有地方沉淀
-- Agent 工具很多，但接入后不知道怎么编排进真实研发流程
-- 经验全靠老员工口传，换人就回到起点
+AI 工具已经很多了。Cursor 帮你写代码，ChatGPT 帮你分析需求，v0 帮你出原型。  
+但你有没有发现，**它们之间是断的**：
+
+- 你在 ChatGPT 里花了半小时想清楚的需求，切到 Cursor 要从头描述一遍
+- 代码写完了，为什么选了方案 A 不选方案 B，没有任何地方记录
+- 上个项目踩过的坑，这个项目又踩了一遍——经验全在脑子里，换人就归零
+- 每个 AI 工具都是"用完即弃"，不知道你在做什么项目、到了什么阶段、之前做了什么决策
+
+问题不在于单个环节不够快，而在于**环节之间根本不通**。
+
+Arc 要建的，就是这条被忽视的高速公路。
 
 ## 一句话理解
 
-Arc 把"待办管理"升级为"AI 参与的研发推进系统"，让每一条需求从创建到交付，都有 AI 辅助思考、编排执行、积累经验。
+Arc = 项目交付的"上下文高速公路" + 跨项目的"经验资产银行"。  
+获客靠前者（立竿见影的效率提升），留存靠后者（越用越值钱的累积资产）。
 
 ## 它为什么值得看
 
-- 它不是另一个 Jira / Linear，而是让 AI 真正进入研发决策环节
-- 它不是只调一个大模型聊天，而是支持多 Agent 协作（OpenHands / Codex / Claude Code / Cursor）
-- 它不是一次性生成，而是七阶段 Pipeline 逐步推进、每步有门禁
-- 它不是黑盒 AI 演示，而是可以进入团队日常工作的工程化系统
+- 它不是另一个 Jira / Linear——不做排期、不做人员分配、不做燃尽图
+- 它不是另一个 AI 编码工具——不和 Cursor / Claude Code 竞争单点效率
+- 它不是无监督的自主 Agent——人在关键节点做决策，AI 在执行层面提效
+- 它是**唯一一个让所有环节的 AI 共享同一份项目上下文的系统**
 
 ## 你会立刻感受到什么
 
-- 从"写 ticket"到"AI 帮你把需求想清楚"明显更快
-- 从"手动分配"到"AI 自动编排 Agent 执行"明显更省
-- 从"每次都重新踩坑"到"经验自动沉淀和复用"明显更稳
-- 从"接入一个 AI 就结束"到"多模型多 Agent 灵活调度"明显更实用
+- 从"每个工具都要重新交代背景"到"AI 始终知道你在做什么" —— **上下文零断裂**
+- 从"每个项目都从零开始"到"AI 主动提醒你上次踩过的坑" —— **越用越聪明**
+- 从"写完代码才发现需求没想清楚"到"每个阶段有门禁拦截" —— **质量内建**
+- 从"客户问为什么这样设计答不上来"到"三秒找到决策依据" —— **交付可追溯**
 
-## 产品价值
+## 核心价值
 
-### 1. 需求即研发起点，不再停留在文字描述
+### 1. 上下文零断裂 — 获客第一卖点
 
-Arc 用结构化 Pipeline 承接每一条待办，把模糊需求逐步转化为分析报告、技术方案、可执行代码，而不是让需求在看板里排队等人处理。
+从需求分析到部署上线，AI 始终持有完整的项目上下文。你在需求阶段和 AI 讨论的所有内容，到了开发阶段 AI 都记得。不需要在工具之间手动搬运信息。
 
-### 2. 多 Agent 编排，不只是调用一个模型
+当前没有任何产品做到了这一点。Cursor 不知道你的需求是什么，ChatGPT 不知道你的代码长什么样，Jira 不知道你的技术决策是什么。
 
-从 OpenHands 到 Claude Code，从 Codex 到 Cursor，Arc 用 Registry + Adapter 模式统一接入多种编码 Agent，按需求类型和复杂度自动分发任务。
+### 2. 越用越聪明 — 核心壁垒策略
 
-### 3. 七阶段 Pipeline，每步有门禁
+第一个项目，AI 给你的建议和 ChatGPT 差不多。第五个项目，AI 能直接告诉你"上次你做类似功能时踩过 XXX 的坑，建议这次这样处理"。
 
-需求分析 → 方案设计 → 代码生成 → 代码审查 → 测试验证 → 部署上线 → 经验沉淀。  
-每个阶段有明确的产出物和推进条件，不会跳步、不会失控。
+经验分两个维度自动积累：
+- **个人经验**：跟用户走，跨项目复用。你的技术选型偏好、踩坑记录、最佳实践
+- **项目经验**：跟项目走，跨版本复用。架构约束、技术债务、已知问题
 
-### 4. 经验会沉淀，而不是做完就忘
+经验数据不可迁移，用得越久迁移成本越高。这是一个正向飞轮：经验多 → AI 更准 → 用户更依赖 → 经验更多。
 
-每次研发过程中的决策、踩坑、解法，系统自动提炼为经验条目。下次遇到相似问题，AI 会主动调取相关经验，避免团队反复踩同一个坑。
+### 3. 质量内建 — 七阶段门禁
 
-## 典型使用场景
+每个阶段结束时，系统评估产出物质量——需求里缺少边界条件、技术方案漏了并发处理、测试没有覆盖异常路径。不达标不放行，质量不是事后检查，而是过程保证。
 
-- 需求澄清：把模糊的一句话需求，转化为结构化的分析报告
-- 方案设计：AI 辅助生成技术方案，支持多方案对比
-- 代码编排：自动选择合适的 Agent 完成编码任务
-- 质量把关：Pipeline 门禁确保每步产出物达标才能推进
-- 经验复用：向量搜索相似经验，新成员也能继承团队积累
+### 4. 交付可追溯 — 从需求到代码的完整链路
+
+任何一行代码都能追溯到需求来源，任何一个决策都能追溯到讨论上下文和经验依据。对于接项目的自由职业者和需要交付文档的团队，这是实实在在的交付价值。
 
 ## Arc 的工作方式
 
-```text
-需求输入（创建待办）
+```
+项目 → 版本 → 需求（三层结构，仅此三层）
+
+每条需求进入 7 阶段 Pipeline：
+
+需求澄清（人主导，AI 追问结构化）
    ↓
-AI 辅助需求分析与结构化拆解
+UI/UE 设计（AI 出方案，人选择）
    ↓
-技术方案生成（多方案对比）
+技术架构（AI 给建议，人做决策）
    ↓
-Agent 自动编排执行（OpenHands / Codex / Claude Code）
+开发实现（Agent 执行，人审查）
    ↓
-Pipeline 七阶段逐步推进
+测试验证（Agent 跑测试，人审阅）
    ↓
-经验自动提炼与沉淀
+部署上线（Agent 准备，人批准）
    ↓
-下次需求 → 相似经验自动召回
+经验沉淀（AI 提取，人确认）
+
+每个阶段有质量门禁 — 不达标不推进
+每个阶段的上下文 — 自动传递给下一阶段
+每次完成 — 经验自动提炼入库
 ```
 
 ## 适合谁
 
-- 技术负责人：让 AI 真正参与研发流程，不再只是聊天框
-- 研发团队：从接需求到交付，每步都有 AI 辅助思考和执行
-- AI 产品团队：把多种 Agent 能力编排进真实业务流程
-- 创业团队：用最小人力完成更大交付量，经验不随人走
+**主力用户：有项目交付诉求的"AI 增强型"个体和小团队。**
+
+- **接项目的强个体**：自由职业者 / 独立开发者 / 全栈产品经理，同时管理 2-5 个项目，苦于每个新项目都从零开始
+- **小团队管理者**：3-10 人团队的 leader，需要轻量项目管理但不想用 Jira，担心团队经验随人员流动而流失
+
+**不适合：** 需要 SAFe/Jira 这种重型管理的大企业 PMO；纯手动编码不接受 AI 参与的传统团队；只需写个简单页面的轻度用户。
 
 ## 当前已落地能力
 
-- 用户认证（账号密码 + 短信验证码）
-- 项目管理（多项目、版本管理、激活/发布流程）
-- 待办全生命周期管理（创建、推进、完成、归档）
-- 七阶段 Pipeline 引擎（含门禁校验）
-- 多 Agent 接入与编排（OpenHands / Codex / Claude Code / Cursor）
-- 多模型 AI 适配（Anthropic / OpenAI / DeepSeek）+ 韧性层
-- 经验库（自动提炼、向量搜索、相似度召回）
+**项目空间**
+- 项目 → 版本 → 需求三层管理
+- 版本激活 / 发布 / 未完成需求自动结转
+- 轻量项目管理（不做排期、不做人员分配）
+
+**智能管线**
+- 七阶段 Pipeline 引擎（含质量门禁校验）
+- 阶段对话 + 产出物管理
+- 跳过 / 回滚支持
+
+**经验引擎**
+- 个人经验 + 项目经验双维度
+- 向量语义搜索（pgvector）
+- 置信度评分 + 复用次数追踪
+- 相似经验自动召回
+
+**Agent 编排**
+- 多 Agent 接入（OpenHands / Codex / Claude Code / Cursor）
+- 多模型适配（Anthropic / OpenAI / DeepSeek）+ 韧性层
+- Registry + Adapter 模式，按需分发
+
+**工程基础**
+- 用户认证（账号密码 + 短信验证码 + JWT 双令牌）
 - 实时对话（WebSocket）
-- API 限流、JWT 双令牌、SMS 防刷
+- API 限流（IP 滑动窗口）+ SMS 防刷
 - Docker 一键部署（多阶段构建、非 root 运行）
 
 ## 技术栈
@@ -108,16 +141,12 @@ Pipeline 七阶段逐步推进
 
 ## 快速开始
 
-环境要求：
-
-- Docker & Docker Compose
-- Node.js >= 22（前端开发）
-- Python 3.12（后端开发）
+环境要求：Docker & Docker Compose · Node.js >= 22 · Python 3.12
 
 ### 1. 克隆项目
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/zqshi/arc.git
 cd arc
 ```
 
@@ -129,7 +158,7 @@ cp .env.example .env
 # 生产环境必须设置 ARC_JWT_SECRET（openssl rand -hex 32）
 ```
 
-### 3. Docker 一键启动
+### 3. 启动
 
 ```bash
 docker compose up -d
@@ -162,80 +191,38 @@ npm run dev
 
 DEBUG 模式自动创建种子账号：demo/demo123、test/test123
 
-## 开发配置说明
-
-核心环境文件：`.env.example`（与 `backend/src/arc/config.py` 一一对应）
-
-当前默认开发策略：
-
-- 所有配置项以 `ARC_` 为前缀
-- `ARC_DEBUG=true` 开启调试模式 + 种子账号
-- `ARC_SMS_MOCK_MODE=true` 短信验证码固定为 `666666`
-- `ARC_DATABASE_URL` 必须指向带 pgvector 扩展的 PostgreSQL
-
-## 上线前必须修改的配置
-
-### 1. 安全相关
+## 上线前配置
 
 ```bash
-ARC_JWT_SECRET=<openssl rand -hex 32>   # 必须设置，否则拒绝启动
-ARC_DEBUG=false                         # 关闭调试模式
-ARC_CORS_ORIGINS=https://your-domain    # 限定允许的前端域名
-```
+# 安全（必须）
+ARC_JWT_SECRET=<openssl rand -hex 32>   # 未设置拒绝启动
+ARC_DEBUG=false
+ARC_CORS_ORIGINS=https://your-domain
 
-### 2. 数据库
-
-```bash
+# 数据库（必须）
 ARC_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/arc
-# 连接池默认：pool_size=10, max_overflow=20, pool_recycle=3600
-```
 
-### 3. AI 服务
-
-```bash
-# 至少配置一个
+# AI（至少配一个）
 ARC_ANTHROPIC_API_KEY=sk-ant-...
 ARC_OPENAI_API_KEY=sk-...
 ARC_DEEPSEEK_API_KEY=sk-...
+
+# 短信（生产不要用 mock）
+ARC_SMS_MOCK_MODE=false
 ```
 
-### 4. 短信服务
-
-生产环境不要使用 `ARC_SMS_MOCK_MODE=true`，配置真实短信服务。
-
-## 安全特性
-
-- JWT access + refresh token 双令牌认证
-- 密码 bcrypt 哈希存储
-- SMS 验证码速率限制（60s 间隔、1h 5 次上限、连续失败锁定）
-- API 全局限流（IP 滑动窗口，默认 120 req/min）
-- 生产模式强制 JWT Secret 配置（未设置直接拒绝启动）
-- Docker 容器非 root 运行
-- CORS 生产默认为空，必须显式配置
+完整变量说明见 [.env.example](.env.example)（与 `backend/src/arc/config.py` 一一对应）。
 
 ## 常用命令
 
 ```bash
-# 全栈启动
-docker compose up -d
-
-# 后端开发
-ARC_DEBUG=true uvicorn arc.main:app --reload
-
-# 前端开发
-cd frontend && npm run dev
-
-# 后端测试
-cd backend && pytest -x
-
-# 前端测试
-cd frontend && npm test
-
-# 代码检查
-cd backend && ruff check src/
-
-# 数据库迁移
-cd backend && alembic upgrade head
+docker compose up -d                              # 全栈启动
+ARC_DEBUG=true uvicorn arc.main:app --reload      # 后端开发
+cd frontend && npm run dev                        # 前端开发
+cd backend && pytest -x                           # 后端测试
+cd frontend && npm test                           # 前端测试
+cd backend && ruff check src/                     # lint
+cd backend && alembic upgrade head                # 数据库迁移
 ```
 
 ## 项目结构
@@ -250,21 +237,20 @@ arc/
 │       │   ├── ai/              #   LLM 适配器 + 韧性层
 │       │   ├── auth/            #   认证（JWT + SMS + 速率限制）
 │       │   ├── pipeline/        #   七阶段 Pipeline 服务
-│       │   └── experience/      #   经验库服务（向量搜索）
+│       │   └── experience/      #   经验引擎（向量搜索 + 双维度积累）
 │       ├── infrastructure/      # 基础设施层（ORM、仓库实现、连接池）
 │       └── interface/           # 接口层
 │           ├── routes/          #   REST API（分页）
 │           ├── ws/              #   WebSocket（对话）
 │           ├── schemas/         #   请求/响应 Schema
 │           └── middleware/      #   中间件（API 限流）
-├── frontend/
-│   └── src/
-│       ├── api/                 # API 客户端（Token 主动刷新）
-│       ├── components/          # UI 组件 + Artifact 渲染器
-│       ├── contexts/            # React Context
-│       ├── hooks/               # 自定义 Hooks
-│       └── pages/               # 页面
-├── docs/                        # 设计态文档
+├── frontend/src/
+│   ├── api/                     # API 客户端（Token 主动刷新）
+│   ├── components/              # UI 组件 + Artifact 渲染器
+│   ├── contexts/                # React Context
+│   ├── hooks/                   # 自定义 Hooks
+│   └── pages/                   # 页面
+├── docs/                        # 产品愿景、模块拆解、设计文档
 ├── docker-compose.yml           # 4 服务编排
 ├── CONTRIBUTING.md              # 文档对齐规范
 ├── CHANGELOG.md                 # 变更日志
@@ -273,12 +259,22 @@ arc/
 
 ## 文档导航
 
+- 产品愿景：[docs/arc-product-vision.md](./docs/arc-product-vision.md)
+- 模块拆解：[docs/arc-module-breakdown.md](./docs/arc-module-breakdown.md)
 - 变更日志：[CHANGELOG.md](./CHANGELOG.md)
 - 贡献规范：[CONTRIBUTING.md](./CONTRIBUTING.md)
-- 模块拆解：[docs/arc-module-breakdown.md](./docs/arc-module-breakdown.md)
 - 环境变量：[.env.example](./.env.example)
 - API 文档：启动后访问 http://localhost:8000/docs
 
+## 阶段性目标
+
+| 阶段 | 目标 | 验证标准 |
+|------|------|----------|
+| Phase 0 | 核心验证 — "上下文零断裂"是否成立 | 用 Arc 开发 Arc 的下一个 feature，比不用明显更高效 |
+| Phase 1 | 项目级体验 — 多项目 + 经验双维度 | 同时管理 2+ 项目，项目经验隔离、个人经验跨项目复用 |
+| Phase 2 | 多用户 + 团队协作 | 3-5 人团队用 Arc 管理项目，团队经验库有实际使用 |
+| Phase 3 | 商业化 — 云端 + 定价 + 集成 | 可售卖的产品 |
+
 ## 许可
 
-Private — All rights reserved.
+[MIT](https://opensource.org/licenses/MIT)
