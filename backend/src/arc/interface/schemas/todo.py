@@ -49,3 +49,5 @@ class TodoResponse(BaseModel):
 class TodoListResponse(BaseModel):
     items: list[TodoResponse]
     total: int
+    page: int = 1
+    page_size: int = 50

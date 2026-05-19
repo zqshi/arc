@@ -329,11 +329,11 @@ async def list_project_experiences(
 
     repo = ExperienceRepository(db)
     st = ExperienceStatus(status) if status and status in ("draft", "confirmed", "archived") else None
-    experiences = await repo.list_all(project_id=project_id, status=st, user_id=user.id)
+    experiences, total = await repo.list_all(project_id=project_id, status=st, user_id=user.id)
 
     return ExperienceListResponse(
         items=[_exp_resp(e) for e in experiences],
-        total=len(experiences),
+        total=total,
     )
 
 

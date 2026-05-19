@@ -44,21 +44,28 @@ async def list_experiences(
     project_id: str | None = None,
     status: str | None = None,
     scope: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
 ):
     from arc.domain.todo.value_objects import ExperienceScope, ExperienceStatus
 
     repo = ExperienceRepository(db)
     pid = UUID(project_id) if project_id else None
     st = ExperienceStatus(status) if status and status in ("draft", "confirmed", "archived") else None
+    offset = (page - 1) * page_size
 
-    experiences = await repo.list_all(project_id=pid, status=st, user_id=user.id)
+    experiences, total = await repo.list_all(
+        project_id=pid, status=st, user_id=user.id, offset=offset, limit=page_size
+    )
 
     if scope and scope in ("personal", "project"):
         experiences = [e for e in experiences if e.scope.value == scope]
 
     return ExperienceListResponse(
         items=[_to_response(e) for e in experiences],
-        total=len(experiences),
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 

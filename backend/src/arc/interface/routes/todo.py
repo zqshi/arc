@@ -28,19 +28,29 @@ async def list_todos(
     status: str | None = None,
     project_id: str | None = None,
     version_id: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
 ):
     repo = TodoRepository(db)
     pid = UUID(project_id) if project_id else None
     vid = UUID(version_id) if version_id else None
+    offset = (page - 1) * page_size
+
     if status and status != "all":
-        todos = await repo.list_by_status(TodoStatus(status), user_id=user.id)
+        todos, total = await repo.list_by_status(
+            TodoStatus(status), user_id=user.id, offset=offset, limit=page_size
+        )
     else:
-        todos = await repo.list_all(project_id=pid, version_id=vid, user_id=user.id)
+        todos, total = await repo.list_all(
+            project_id=pid, version_id=vid, user_id=user.id, offset=offset, limit=page_size
+        )
 
     proj_names, ver_names = await _resolve_names(db, todos)
     return TodoListResponse(
         items=[_to_response(t, project_name=proj_names.get(t.project_id), version_name=ver_names.get(t.version_id)) for t in todos],
-        total=len(todos),
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 

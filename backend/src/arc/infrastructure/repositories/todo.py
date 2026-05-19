@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.pipeline.value_objects import PhaseType
@@ -25,29 +25,38 @@ class TodoRepository:
         project_id: uuid.UUID | None = None,
         version_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
-    ) -> list[TodoEntity]:
-        stmt = select(TodoModel).order_by(TodoModel.created_at.desc())
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[TodoEntity], int]:
+        base = select(TodoModel)
         if user_id:
-            stmt = stmt.where(TodoModel.user_id == user_id)
+            base = base.where(TodoModel.user_id == user_id)
         if project_id:
-            stmt = stmt.where(TodoModel.project_id == project_id)
+            base = base.where(TodoModel.project_id == project_id)
         if version_id:
-            stmt = stmt.where(TodoModel.version_id == version_id)
+            base = base.where(TodoModel.version_id == version_id)
+
+        count_result = await self.db.execute(select(func.count()).select_from(base.subquery()))
+        total = count_result.scalar() or 0
+
+        stmt = base.order_by(TodoModel.created_at.desc()).offset(offset).limit(limit)
         result = await self.db.execute(stmt)
-        return [self._to_entity(r) for r in result.scalars().all()]
+        return [self._to_entity(r) for r in result.scalars().all()], total
 
     async def list_by_status(
-        self, status: TodoStatus, user_id: uuid.UUID | None = None
-    ) -> list[TodoEntity]:
-        stmt = (
-            select(TodoModel)
-            .where(TodoModel.status == status.value)
-            .order_by(TodoModel.created_at.desc())
-        )
+        self, status: TodoStatus, user_id: uuid.UUID | None = None,
+        offset: int = 0, limit: int = 50,
+    ) -> tuple[list[TodoEntity], int]:
+        base = select(TodoModel).where(TodoModel.status == status.value)
         if user_id:
-            stmt = stmt.where(TodoModel.user_id == user_id)
+            base = base.where(TodoModel.user_id == user_id)
+
+        count_result = await self.db.execute(select(func.count()).select_from(base.subquery()))
+        total = count_result.scalar() or 0
+
+        stmt = base.order_by(TodoModel.created_at.desc()).offset(offset).limit(limit)
         result = await self.db.execute(stmt)
-        return [self._to_entity(r) for r in result.scalars().all()]
+        return [self._to_entity(r) for r in result.scalars().all()], total
 
     async def create(self, entity: TodoEntity, user_id: uuid.UUID | None = None) -> TodoEntity:
         model = TodoModel(

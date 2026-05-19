@@ -57,6 +57,7 @@ async def lifespan(app: FastAPI):
 async def _cleanup_orphan_agent_sessions():
     try:
         from sqlalchemy import update
+
         from arc.infrastructure.database import async_session_factory
         from arc.infrastructure.models.agent import AgentSession as AgentModel
 
@@ -74,16 +75,15 @@ async def _cleanup_orphan_agent_sessions():
 
 
 async def _ensure_seed_users():
-    """Create default test accounts and demo data on first startup (idempotent)."""
+    """Create default test accounts on first startup (debug only)."""
+    if not settings.debug:
+        return
     try:
-        from arc.infrastructure.database import async_session_factory
-        from arc.infrastructure.repositories.user import UserRepository
-        from arc.infrastructure.repositories.project import ProjectRepository, VersionRepository
-        from arc.infrastructure.repositories.todo import TodoRepository
         from arc.application.auth.password import hash_password
         from arc.domain.user.entity import User
-        from arc.domain.project.entity import Project, Version
-        from arc.domain.todo.entity import Todo
+        from arc.infrastructure.database import async_session_factory
+        from arc.infrastructure.repositories.project import ProjectRepository
+        from arc.infrastructure.repositories.user import UserRepository
 
         seed_accounts = [
             {"username": "demo", "password": "demo123", "display_name": "Demo 用户"},
@@ -121,8 +121,9 @@ async def _ensure_seed_users():
 
 
 async def _create_seed_data(db, user_id):
-    """Populate demo user with full-chain sample data (project → version → todo → pipeline → conversations → artifacts → experiences)."""
-    import sys, os
+    """Populate demo user with full-chain sample data."""
+    import os
+    import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
     from seed_data import create_seed_data
     await create_seed_data(db, user_id)
@@ -134,13 +135,29 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_DEV_ORIGINS = [
+    "http://localhost:5173", "http://localhost:5174",
+    "http://localhost:5175", "http://localhost:5176",
+    "http://localhost:3001",
+]
+
+_cors_origins = list(settings.cors_origins)
+if settings.debug:
+    for o in _DEV_ORIGINS:
+        if o not in _cors_origins:
+            _cors_origins.append(o)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+from arc.interface.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
+
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.exception_handler(AppError)
@@ -187,6 +204,7 @@ async def handle_unhandled_exception(request: Request, exc: Exception):
 @app.get("/health")
 async def health():
     from sqlalchemy import text
+
     from arc.infrastructure.database import async_session_factory
 
     checks: dict = {"status": "ok"}
@@ -203,8 +221,8 @@ async def health():
 
 
 def register_routes():
-    from arc.interface.routes.auth import router as auth_router
     from arc.interface.routes.agent import router as agent_router
+    from arc.interface.routes.auth import router as auth_router
     from arc.interface.routes.conversation import router as conversation_router
     from arc.interface.routes.experience import router as experience_router
     from arc.interface.routes.pipeline import router as pipeline_router

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -14,7 +15,13 @@ ALGORITHM = "HS256"
 def _get_secret() -> str:
     secret = settings.jwt_secret
     if not secret:
+        if not settings.debug:
+            raise RuntimeError(
+                "ARC_JWT_SECRET must be set in production. "
+                "Set ARC_DEBUG=true for local development with a default secret."
+            )
         secret = "arc-dev-secret-do-not-use-in-production"
+        logging.getLogger(__name__).warning("Using insecure default JWT secret (debug mode)")
     return secret
 
 
