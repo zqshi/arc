@@ -51,7 +51,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Arc backend starting (debug=%s)", settings.debug)
     await _cleanup_orphan_agent_sessions()
-    await _ensure_seed_users()
+    from arc.seeds import ensure_seed_users
+    await ensure_seed_users()
     yield
     from arc.application.ai.adapter_pool import adapter_pool
     await adapter_pool.shutdown()
@@ -76,61 +77,6 @@ async def _cleanup_orphan_agent_sessions():
             await db.commit()
     except Exception as exc:
         logger.warning("Orphan session cleanup failed: %s", exc)
-
-
-async def _ensure_seed_users():
-    """Create default test accounts on first startup (debug only)."""
-    if not settings.debug:
-        return
-    try:
-        from arc.application.auth.password import hash_password
-        from arc.domain.user.entity import User
-        from arc.infrastructure.database import async_session_factory
-        from arc.infrastructure.repositories.project import ProjectRepository
-        from arc.infrastructure.repositories.user import UserRepository
-
-        seed_accounts = [
-            {"username": "demo", "password": "demo123", "display_name": "Demo 用户"},
-            {"username": "test", "password": "test123", "display_name": "测试用户"},
-        ]
-
-        async with async_session_factory() as db:
-            user_repo = UserRepository(db)
-            for acct in seed_accounts:
-                existing = await user_repo.get_by_username(acct["username"])
-                if existing:
-                    continue
-                user = User(
-                    username=acct["username"],
-                    hashed_password=hash_password(acct["password"]),
-                    display_name=acct["display_name"],
-                )
-                await user_repo.create(user)
-                logger.info("Seed user created: %s", acct["username"])
-            await db.commit()
-
-            proj_repo = ProjectRepository(db)
-            for acct in seed_accounts:
-                u = await user_repo.get_by_username(acct["username"])
-                if not u:
-                    continue
-                existing = await proj_repo.list_all(user_id=u.id)
-                if existing:
-                    continue
-                await _create_seed_data(db, u.id)
-                await db.commit()
-                logger.info("Seed demo data created for user: %s", acct["username"])
-    except Exception as exc:
-        logger.warning("Seed user creation failed: %s", exc)
-
-
-async def _create_seed_data(db, user_id):
-    """Populate demo user with full-chain sample data."""
-    import os
-    import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
-    from seed_data import create_seed_data
-    await create_seed_data(db, user_id)
 
 
 app = FastAPI(
