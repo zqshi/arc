@@ -34,7 +34,9 @@ type WsEvent =
   | WsStreamStartEvent
   | WsStreamChunkEvent
   | WsStreamEndEvent
-  | WsErrorEvent;
+  | WsErrorEvent
+  | { type: 'token_expired' }
+  | { type: 'ping' };
 
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000];
 
@@ -66,6 +68,30 @@ export function useConversationSocket(conversationId: string | null) {
       return;
     }
 
+    function refreshTokenAndReconnect() {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) {
+        setError('登录已过期，请重新登录');
+        return;
+      }
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((data) => {
+          if (data.access_token) {
+            localStorage.setItem('access_token', data.access_token);
+            reconnectAttempt.current = 0;
+            setTimeout(connect, 500);
+          }
+        })
+        .catch(() => {
+          setError('登录已过期，请重新登录');
+        });
+    }
+
     function connect() {
       if (!mountedRef.current) return;
 
@@ -83,12 +109,16 @@ export function useConversationSocket(conversationId: string | null) {
         reconnectAttempt.current = 0;
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (!mountedRef.current) return;
         setIsConnected(false);
         setIsStreaming(false);
 
-        // Auto-reconnect with exponential backoff
+        if (event.code === 4002) {
+          refreshTokenAndReconnect();
+          return;
+        }
+
         const delay =
           RECONNECT_DELAYS[
             Math.min(reconnectAttempt.current, RECONNECT_DELAYS.length - 1)
@@ -113,6 +143,13 @@ export function useConversationSocket(conversationId: string | null) {
         }
 
         switch (data.type) {
+          case 'ping':
+            ws.send(JSON.stringify({ type: 'pong' }));
+            return;
+          case 'token_expired':
+            ws.close();
+            refreshTokenAndReconnect();
+            return;
           case 'message':
             setMessages((prev) => [...prev, data.message]);
             setIsStreaming(false);
