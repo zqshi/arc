@@ -6,6 +6,7 @@ from .experience import Experience
 from .pipeline import PipelinePhaseModel
 from .project import ProjectModel, VersionModel
 from .todo import Todo
+from .user import ProjectMemberModel, UserModel
 
 __all__ = [
     "AgentSessionModel",
@@ -16,7 +17,9 @@ __all__ = [
     "Message",
     "Experience",
     "PipelinePhaseModel",
+    "ProjectMemberModel",
     "ProjectModel",
+    "UserModel",
     "VersionModel",
     "Todo",
 ]

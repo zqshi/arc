@@ -15,9 +15,10 @@ class ProjectRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, project: Project) -> Project:
+    async def create(self, project: Project, user_id: uuid.UUID | None = None) -> Project:
         model = ProjectModel(
             id=project.id,
+            user_id=user_id,
             name=project.name,
             description=project.description,
             tech_stack=project.tech_stack,
@@ -29,17 +30,26 @@ class ProjectRepository:
         await self.db.flush()
         return project
 
-    async def get_by_id(self, project_id: uuid.UUID) -> Project | None:
-        result = await self.db.execute(
-            select(ProjectModel).where(ProjectModel.id == project_id)
-        )
+    async def get_by_id(
+        self, project_id: uuid.UUID, user_id: uuid.UUID | None = None,
+    ) -> Project | None:
+        stmt = select(ProjectModel).where(ProjectModel.id == project_id)
+        if user_id:
+            stmt = stmt.where(ProjectModel.user_id == user_id)
+        result = await self.db.execute(stmt)
         model = result.scalar_one_or_none()
         if not model:
             return None
         return self._to_entity(model)
 
-    async def list_all(self, include_archived: bool = False) -> list[Project]:
+    async def list_all(
+        self,
+        include_archived: bool = False,
+        user_id: uuid.UUID | None = None,
+    ) -> list[Project]:
         stmt = select(ProjectModel).order_by(ProjectModel.created_at.desc())
+        if user_id:
+            stmt = stmt.where(ProjectModel.user_id == user_id)
         if not include_archived:
             stmt = stmt.where(ProjectModel.status != "archived")
         result = await self.db.execute(stmt)
@@ -177,6 +187,21 @@ class VersionRepository:
             .group_by(TodoModel.status)
         )
         return dict(result.all())
+
+    async def batch_count_todos_by_status(
+        self, version_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, dict[str, int]]:
+        if not version_ids:
+            return {}
+        result = await self.db.execute(
+            select(TodoModel.version_id, TodoModel.status, func.count())
+            .where(TodoModel.version_id.in_(version_ids))
+            .group_by(TodoModel.version_id, TodoModel.status)
+        )
+        stats: dict[uuid.UUID, dict[str, int]] = {vid: {} for vid in version_ids}
+        for vid, status, count in result.all():
+            stats[vid][status] = count
+        return stats
 
     async def count_by_project(self, project_id: uuid.UUID) -> int:
         result = await self.db.execute(

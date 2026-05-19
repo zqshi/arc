@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from arc.domain.todo.value_objects import TodoStatus
 from arc.infrastructure.repositories.todo import TodoRepository
-from arc.interface.deps import DbSession
+from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas import (
     ConversationListResponse,
     CreateTodoRequest,
@@ -24,6 +24,7 @@ router = APIRouter()
 @router.get("", response_model=TodoListResponse)
 async def list_todos(
     db: DbSession,
+    user: CurrentUser,
     status: str | None = None,
     project_id: str | None = None,
     version_id: str | None = None,
@@ -32,17 +33,19 @@ async def list_todos(
     pid = UUID(project_id) if project_id else None
     vid = UUID(version_id) if version_id else None
     if status and status != "all":
-        todos = await repo.list_by_status(TodoStatus(status))
+        todos = await repo.list_by_status(TodoStatus(status), user_id=user.id)
     else:
-        todos = await repo.list_all(project_id=pid, version_id=vid)
+        todos = await repo.list_all(project_id=pid, version_id=vid, user_id=user.id)
+
+    proj_names, ver_names = await _resolve_names(db, todos)
     return TodoListResponse(
-        items=[_to_response(t) for t in todos],
+        items=[_to_response(t, project_name=proj_names.get(t.project_id), version_name=ver_names.get(t.version_id)) for t in todos],
         total=len(todos),
     )
 
 
 @router.get("/{todo_id}", response_model=TodoResponse)
-async def get_todo(todo_id: str, db: DbSession):
+async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
     repo = TodoRepository(db)
     todo = await repo.get_by_id(UUID(todo_id))
     if not todo:
@@ -51,7 +54,7 @@ async def get_todo(todo_id: str, db: DbSession):
     project_name = None
     version_name = None
     if todo.project_id:
-        from arc.infrastructure.repositories.project import ProjectRepository, VersionRepository
+        from arc.infrastructure.repositories.project import ProjectRepository
         project = await ProjectRepository(db).get_by_id(todo.project_id)
         if project:
             project_name = project.name
@@ -65,7 +68,7 @@ async def get_todo(todo_id: str, db: DbSession):
 
 
 @router.post("", response_model=TodoResponse, status_code=201)
-async def create_todo(req: CreateTodoRequest, db: DbSession):
+async def create_todo(req: CreateTodoRequest, db: DbSession, user: CurrentUser):
     from arc.domain.todo.entity import Todo
     from arc.domain.todo.value_objects import Tag
 
@@ -78,12 +81,12 @@ async def create_todo(req: CreateTodoRequest, db: DbSession):
         tags=[Tag(label=t.label, color=t.color) for t in req.tags],
     )
     repo = TodoRepository(db)
-    created = await repo.create(todo)
+    created = await repo.create(todo, user_id=user.id)
     return _to_response(created)
 
 
 @router.put("/{todo_id}", response_model=TodoResponse)
-async def update_todo(todo_id: str, req: UpdateTodoRequest, db: DbSession):
+async def update_todo(todo_id: str, req: UpdateTodoRequest, db: DbSession, user: CurrentUser):
     repo = TodoRepository(db)
     todo = await repo.get_by_id(UUID(todo_id))
     if not todo:
@@ -108,14 +111,13 @@ async def update_todo(todo_id: str, req: UpdateTodoRequest, db: DbSession):
 
 
 @router.delete("/{todo_id}", status_code=204)
-async def delete_todo(todo_id: str, db: DbSession):
+async def delete_todo(todo_id: str, db: DbSession, user: CurrentUser):
     repo = TodoRepository(db)
     await repo.delete(UUID(todo_id))
 
 
 @router.post("/{todo_id}/extract-tags", response_model=TodoResponse)
-async def extract_tags(todo_id: str, db: DbSession):
-    """Use LLM to auto-extract tags from todo title and description."""
+async def extract_tags(todo_id: str, db: DbSession, user: CurrentUser):
     from arc.application.todo.service import TodoService
 
     svc = TodoService(db)
@@ -124,8 +126,7 @@ async def extract_tags(todo_id: str, db: DbSession):
 
 
 @router.get("/{todo_id}/conversations", response_model=ConversationListResponse)
-async def list_todo_conversations(todo_id: str, db: DbSession):
-    """List all conversations for a specific todo."""
+async def list_todo_conversations(todo_id: str, db: DbSession, user: CurrentUser):
     from arc.infrastructure.repositories.conversation import ConversationRepository
     from arc.interface.routes.conversation import _to_response as conv_to_response
     conv_repo = ConversationRepository(db)
@@ -154,3 +155,28 @@ def _to_response(
         created_at=todo.created_at,
         updated_at=todo.updated_at,
     )
+
+
+async def _resolve_names(db, todos) -> tuple[dict, dict]:
+    from sqlalchemy import select
+    from arc.infrastructure.models.project import ProjectModel, VersionModel
+
+    proj_ids = {t.project_id for t in todos if t.project_id}
+    ver_ids = {t.version_id for t in todos if t.version_id}
+
+    proj_names: dict = {}
+    ver_names: dict = {}
+
+    if proj_ids:
+        result = await db.execute(
+            select(ProjectModel.id, ProjectModel.name).where(ProjectModel.id.in_(proj_ids))
+        )
+        proj_names = {row[0]: row[1] for row in result.all()}
+
+    if ver_ids:
+        result = await db.execute(
+            select(VersionModel.id, VersionModel.name).where(VersionModel.id.in_(ver_ids))
+        )
+        ver_names = {row[0]: row[1] for row in result.all()}
+
+    return proj_names, ver_names

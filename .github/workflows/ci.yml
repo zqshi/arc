@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check backend/src
+
+  backend-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: arc
+          POSTGRES_PASSWORD: arc
+          POSTGRES_DB: arc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arc"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      ARC_DATABASE_URL: postgresql+asyncpg://arc:arc@localhost:5432/arc_test
+      ARC_JWT_SECRET: ci-test-secret-do-not-use-in-production
+      ARC_SMS_MOCK_MODE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: cd backend && pip install -e ".[dev]"
+      - run: cd backend && pytest -x --tb=short
+
+  frontend-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: cd frontend && npm ci
+      - run: cd frontend && npx tsc --noEmit
+      - run: cd frontend && npm run build

@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 
 from arc.domain.agent.value_objects import AGENT_LABELS, AgentType
-from arc.interface.deps import DbSession
+from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.agent import (
     AgentSessionResponse,
     AgentTypeInfo,
@@ -28,6 +28,7 @@ async def execute_agent(
     phase_type: str,
     req: ExecuteAgentRequest,
     db: DbSession,
+    user: CurrentUser,
 ):
     """Trigger coding agent execution for a phase."""
     from arc.application.pipeline.service import PipelineService
@@ -57,7 +58,7 @@ async def execute_agent(
     "/{todo_id}/phases/{phase_type}/agent-session",
     response_model=AgentSessionResponse | None,
 )
-async def get_agent_session(todo_id: str, phase_type: str, db: DbSession):
+async def get_agent_session(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Get the agent session for a phase."""
     from arc.application.pipeline.service import PipelineService
     from arc.domain.pipeline.value_objects import PhaseType
@@ -78,7 +79,7 @@ async def get_agent_session(todo_id: str, phase_type: str, db: DbSession):
     "/{todo_id}/phases/{phase_type}/cancel-agent",
     response_model=AgentSessionResponse | None,
 )
-async def cancel_agent(todo_id: str, phase_type: str, db: DbSession):
+async def cancel_agent(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Cancel the running agent session for a phase."""
     from arc.application.pipeline.service import PipelineService
     from arc.domain.pipeline.value_objects import PhaseType
@@ -98,7 +99,7 @@ async def cancel_agent(todo_id: str, phase_type: str, db: DbSession):
 @router.get(
     "/{todo_id}/phases/{phase_type}/agent-events",
 )
-async def get_agent_events(todo_id: str, phase_type: str, db: DbSession):
+async def get_agent_events(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Get agent execution events (system messages from phase conversation)."""
     from arc.domain.pipeline.value_objects import PhaseType
     from arc.infrastructure.repositories.conversation import ConversationRepository
@@ -134,7 +135,7 @@ async def get_agent_events(todo_id: str, phase_type: str, db: DbSession):
 
 
 @router.get("/agent-types", response_model=AvailableAgentsResponse)
-async def list_agent_types():
+async def list_agent_types(user: CurrentUser):
     """List available coding agent types."""
     from arc.application.agent.registry import agent_registry
     from arc.config import settings

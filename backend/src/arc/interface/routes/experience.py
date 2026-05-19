@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from arc.infrastructure.repositories.experience import ExperienceRepository
-from arc.interface.deps import DbSession
+from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas import (
     CreateExperienceRequest,
     ExperienceFeedbackRequest,
@@ -23,6 +23,7 @@ router = APIRouter()
 @router.get("/search", response_model=ExperienceListResponse)
 async def search_experiences(
     db: DbSession,
+    user: CurrentUser,
     q: str = Query(..., min_length=1),
     project_id: str | None = None,
 ):
@@ -39,6 +40,7 @@ async def search_experiences(
 @router.get("", response_model=ExperienceListResponse)
 async def list_experiences(
     db: DbSession,
+    user: CurrentUser,
     project_id: str | None = None,
     status: str | None = None,
     scope: str | None = None,
@@ -49,7 +51,7 @@ async def list_experiences(
     pid = UUID(project_id) if project_id else None
     st = ExperienceStatus(status) if status and status in ("draft", "confirmed", "archived") else None
 
-    experiences = await repo.list_all(project_id=pid, status=st)
+    experiences = await repo.list_all(project_id=pid, status=st, user_id=user.id)
 
     if scope and scope in ("personal", "project"):
         experiences = [e for e in experiences if e.scope.value == scope]
@@ -61,7 +63,7 @@ async def list_experiences(
 
 
 @router.get("/{experience_id}", response_model=ExperienceResponse)
-async def get_experience(experience_id: str, db: DbSession):
+async def get_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
     exp = await repo.get_by_id(UUID(experience_id))
     if not exp:
@@ -70,7 +72,7 @@ async def get_experience(experience_id: str, db: DbSession):
 
 
 @router.post("", response_model=ExperienceResponse, status_code=201)
-async def create_experience(req: CreateExperienceRequest, db: DbSession):
+async def create_experience(req: CreateExperienceRequest, db: DbSession, user: CurrentUser):
     from arc.domain.experience.entity import Experience
     from arc.domain.todo.value_objects import ExperienceScope, Tag
 
@@ -97,12 +99,12 @@ async def create_experience(req: CreateExperienceRequest, db: DbSession):
         logger.warning("Failed to generate embedding for new experience, saving without it")
 
     repo = ExperienceRepository(db)
-    created = await repo.create(exp)
+    created = await repo.create(exp, user_id=user.id)
     return _to_response(created)
 
 
 @router.patch("/{experience_id}", response_model=ExperienceResponse)
-async def update_experience(experience_id: str, req: UpdateExperienceRequest, db: DbSession):
+async def update_experience(experience_id: str, req: UpdateExperienceRequest, db: DbSession, user: CurrentUser):
     from arc.domain.todo.value_objects import ExperienceScope
 
     repo = ExperienceRepository(db)
@@ -133,7 +135,7 @@ async def update_experience(experience_id: str, req: UpdateExperienceRequest, db
 
 
 @router.post("/{experience_id}/confirm", response_model=ExperienceResponse)
-async def confirm_experience(experience_id: str, db: DbSession):
+async def confirm_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
     exp = await repo.get_by_id(UUID(experience_id))
     if not exp:
@@ -144,7 +146,7 @@ async def confirm_experience(experience_id: str, db: DbSession):
 
 
 @router.post("/{experience_id}/archive", response_model=ExperienceResponse)
-async def archive_experience(experience_id: str, db: DbSession):
+async def archive_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
     exp = await repo.get_by_id(UUID(experience_id))
     if not exp:
@@ -155,7 +157,7 @@ async def archive_experience(experience_id: str, db: DbSession):
 
 
 @router.post("/{experience_id}/promote", response_model=ExperienceResponse)
-async def promote_experience(experience_id: str, db: DbSession):
+async def promote_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
     exp = await repo.get_by_id(UUID(experience_id))
     if not exp:
@@ -166,7 +168,7 @@ async def promote_experience(experience_id: str, db: DbSession):
 
 
 @router.post("/{experience_id}/feedback", status_code=204)
-async def feedback_experience(experience_id: str, req: ExperienceFeedbackRequest, db: DbSession):
+async def feedback_experience(experience_id: str, req: ExperienceFeedbackRequest, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
     exp = await repo.get_by_id(UUID(experience_id))
     if not exp:

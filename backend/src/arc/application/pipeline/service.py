@@ -12,6 +12,7 @@ from arc.domain.artifact.entity import Artifact
 from arc.domain.conversation.entity import Conversation
 from arc.domain.pipeline.entity import PipelinePhase
 from arc.domain.pipeline.value_objects import (
+    PHASE_LABELS,
     PHASE_ORDER,
     PhaseStatus,
     PhaseType,
@@ -93,6 +94,14 @@ class PipelineService:
             return phase
 
         if phase.status == PhaseStatus.PENDING:
+            all_phases = await self.phase_repo.list_by_todo_id(todo_id)
+            current_order = PHASE_ORDER[phase_type]
+            for p in all_phases:
+                p_order = PHASE_ORDER[p.phase_type]
+                if p_order < current_order and p.status not in (PhaseStatus.CONFIRMED, PhaseStatus.SKIPPED):
+                    raise ValueError(
+                        f"请先完成「{PHASE_LABELS[p.phase_type]}」阶段后再开始「{PHASE_LABELS[phase_type]}」"
+                    )
             phase.activate()
 
         purpose = PHASE_TO_CONV_PURPOSE[phase_type]

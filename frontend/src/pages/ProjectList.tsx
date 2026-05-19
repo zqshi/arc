@@ -11,6 +11,7 @@ import type { Project } from '../types/api';
 export default function ProjectList() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -19,10 +20,13 @@ export default function ProjectList() {
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const data = await api.listProjects();
       setProjects(data);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof ApiError ? `${err.status}: ${err.detail}` : String(err);
+      setFetchError(msg);
       setProjects([]);
     } finally {
       setLoading(false);
@@ -101,6 +105,18 @@ export default function ProjectList() {
       <div className="flex-1 overflow-y-auto px-6 py-5">
         {loading ? (
           <ProjectListSkeleton />
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center animate-fade-in">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-status-error/10 text-status-error">!</div>
+            <p className="text-sm font-medium text-text-primary">加载失败</p>
+            <p className="mt-1.5 max-w-sm text-xs text-status-error">{fetchError}</p>
+            <button
+              onClick={fetchProjects}
+              className="mt-5 rounded-md bg-accent px-5 py-2 text-xs font-medium text-white hover:bg-accent-hover"
+            >
+              重试
+            </button>
+          </div>
         ) : projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center animate-fade-in">
             <FolderOpen size={44} className="mb-4 text-text-muted" strokeWidth={1.2} />

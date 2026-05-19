@@ -27,8 +27,11 @@ class ExperienceRepository(IExperienceRepository):
         self,
         project_id: uuid.UUID | None = None,
         status: ExperienceStatus | None = None,
+        user_id: uuid.UUID | None = None,
     ) -> list[ExpEntity]:
         stmt = select(ExpModel).where(ExpModel.status != "archived").order_by(ExpModel.created_at.desc())
+        if user_id:
+            stmt = stmt.where(ExpModel.user_id == user_id)
         if project_id:
             stmt = stmt.where(
                 (ExpModel.project_id == project_id)
@@ -113,9 +116,10 @@ class ExperienceRepository(IExperienceRepository):
         self.db.add(fb)
         await self.db.flush()
 
-    async def create(self, entity: ExpEntity) -> ExpEntity:
+    async def create(self, entity: ExpEntity, user_id: uuid.UUID | None = None) -> ExpEntity:
         model = ExpModel(
             id=entity.id,
+            user_id=user_id,
             todo_id=entity.todo_id,
             project_id=entity.project_id,
             title=entity.title,

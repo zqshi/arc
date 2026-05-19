@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException
 
 from arc.application.project.service import VersionService
 from arc.domain.project.entity import Project, Version
@@ -11,7 +10,7 @@ from arc.infrastructure.repositories.project import (
     ProjectRepository,
     VersionRepository,
 )
-from arc.interface.deps import get_db
+from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.project import (
     ProjectCreate,
     ProjectResponse,
@@ -93,18 +92,20 @@ def _version_resp(v: Version, todo_stats: dict[str, int] | None = None) -> Versi
 
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects(
+    db: DbSession,
+    user: CurrentUser,
     include_archived: bool = False,
-    db: AsyncSession = Depends(get_db),
 ):
     repo = ProjectRepository(db)
-    projects = await repo.list_all(include_archived=include_archived)
+    projects = await repo.list_all(include_archived=include_archived, user_id=user.id)
     return [_project_resp(p) for p in projects]
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(
     body: ProjectCreate,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     project = Project(
         name=body.name,
@@ -114,18 +115,18 @@ async def create_project(
         conventions=body.conventions,
     )
     repo = ProjectRepository(db)
-    await repo.create(project)
-    await db.commit()
+    await repo.create(project, user_id=user.id)
     return _project_resp(project)
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     repo = ProjectRepository(db)
-    project = await repo.get_by_id(project_id)
+    project = await repo.get_by_id(project_id, user_id=user.id)
     if not project:
         raise HTTPException(404, "Project not found")
     return _project_resp(project)
@@ -135,10 +136,11 @@ async def get_project(
 async def update_project(
     project_id: uuid.UUID,
     body: ProjectUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     repo = ProjectRepository(db)
-    project = await repo.get_by_id(project_id)
+    project = await repo.get_by_id(project_id, user_id=user.id)
     if not project:
         raise HTTPException(404, "Project not found")
 
@@ -146,32 +148,32 @@ async def update_project(
     for key, val in updates.items():
         setattr(project, key, val)
     await repo.update(project)
-    await db.commit()
     return _project_resp(project)
 
 
 @router.post("/{project_id}/archive", response_model=ProjectResponse)
 async def archive_project(
     project_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     repo = ProjectRepository(db)
-    project = await repo.get_by_id(project_id)
+    project = await repo.get_by_id(project_id, user_id=user.id)
     if not project:
         raise HTTPException(404, "Project not found")
     project.archive()
     await repo.update(project)
-    await db.commit()
     return _project_resp(project)
 
 
 @router.delete("/{project_id}", status_code=204)
 async def delete_project(
     project_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     repo = ProjectRepository(db)
-    project = await repo.get_by_id(project_id)
+    project = await repo.get_by_id(project_id, user_id=user.id)
     if not project:
         raise HTTPException(404, "Project not found")
     version_repo = VersionRepository(db)
@@ -179,7 +181,6 @@ async def delete_project(
     if count > 0:
         raise HTTPException(409, "请先删除所有版本后再删除项目")
     await repo.delete(project_id)
-    await db.commit()
 
 
 # ── Versions ──────────────────────────────────────────────
@@ -188,15 +189,13 @@ async def delete_project(
 @router.get("/{project_id}/versions", response_model=list[VersionResponse])
 async def list_versions(
     project_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     repo = VersionRepository(db)
     versions = await repo.list_by_project(project_id)
-    results = []
-    for v in versions:
-        stats = await repo.count_todos_by_status(v.id)
-        results.append(_version_resp(v, stats))
-    return results
+    all_stats = await repo.batch_count_todos_by_status([v.id for v in versions])
+    return [_version_resp(v, all_stats.get(v.id, {})) for v in versions]
 
 
 @router.post(
@@ -205,7 +204,8 @@ async def list_versions(
 async def create_version(
     project_id: uuid.UUID,
     body: VersionCreate,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     repo = VersionRepository(db)
     next_order = await repo._next_order(project_id)
@@ -227,7 +227,6 @@ async def create_version(
         await repo.create(version)
     except ValueError as e:
         raise HTTPException(409, str(e))
-    await db.commit()
     stats = await repo.count_todos_by_status(version.id)
     return _version_resp(version, stats)
 
@@ -239,7 +238,8 @@ async def update_version(
     project_id: uuid.UUID,
     version_id: uuid.UUID,
     body: VersionUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     repo = VersionRepository(db)
     version = await repo.get_by_id(version_id)
@@ -250,7 +250,6 @@ async def update_version(
     for key, val in updates.items():
         setattr(version, key, val)
     await repo.update(version)
-    await db.commit()
     stats = await repo.count_todos_by_status(version_id)
     return _version_resp(version, stats)
 
@@ -262,14 +261,14 @@ async def update_version(
 async def activate_version(
     project_id: uuid.UUID,
     version_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     svc = VersionService(db)
     try:
         version = await svc.activate_version(project_id, version_id)
     except ValueError as e:
         raise HTTPException(409, str(e))
-    await db.commit()
     stats = await svc.version_repo.count_todos_by_status(version_id)
     return _version_resp(version, stats)
 
@@ -281,17 +280,16 @@ async def activate_version(
 async def release_version(
     project_id: uuid.UUID,
     version_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     svc = VersionService(db)
     try:
         version, carry_over = await svc.release_version(project_id, version_id)
     except ValueError as e:
         raise HTTPException(409, str(e))
-    await db.commit()
     stats = await svc.version_repo.count_todos_by_status(version_id)
-    resp = _version_resp(version, stats)
-    return resp
+    return _version_resp(version, stats)
 
 
 @router.delete(
@@ -301,7 +299,8 @@ async def release_version(
 async def delete_version(
     project_id: uuid.UUID,
     version_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     repo = VersionRepository(db)
     version = await repo.get_by_id(version_id)
@@ -313,7 +312,6 @@ async def delete_version(
     if sum(stats.values()) > 0:
         raise HTTPException(409, "请先删除版本下的需求后再删除版本")
     await repo.delete(version_id)
-    await db.commit()
 
 
 # ── Project Experiences ──────────────────────────────────
@@ -322,15 +320,16 @@ async def delete_version(
 @router.get("/{project_id}/experiences", response_model=ExperienceListResponse)
 async def list_project_experiences(
     project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
     status: str | None = None,
-    db: AsyncSession = Depends(get_db),
 ):
     from arc.domain.todo.value_objects import ExperienceStatus
     from arc.infrastructure.repositories.experience import ExperienceRepository
 
     repo = ExperienceRepository(db)
     st = ExperienceStatus(status) if status and status in ("draft", "confirmed", "archived") else None
-    experiences = await repo.list_all(project_id=project_id, status=st)
+    experiences = await repo.list_all(project_id=project_id, status=st, user_id=user.id)
 
     return ExperienceListResponse(
         items=[_exp_resp(e) for e in experiences],
@@ -341,7 +340,8 @@ async def list_project_experiences(
 @router.get("/{project_id}/experience-insights")
 async def project_experience_insights(
     project_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
+    user: CurrentUser,
 ):
     from arc.infrastructure.repositories.experience import ExperienceRepository
 

@@ -2,29 +2,31 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from arc.config import settings
+from arc.domain.errors import AppError
 from arc.domain.pipeline.entity import InvalidPhaseTransition
 from arc.domain.todo.entity import InvalidStatusTransition
 
+_BASE_ATTRS: frozenset[str] | None = None
+
 
 class StructuredFormatter(logging.Formatter):
-    """Compact structured log format for production observability."""
 
     def format(self, record: logging.LogRecord) -> str:
+        global _BASE_ATTRS
+        if _BASE_ATTRS is None:
+            _BASE_ATTRS = frozenset(
+                logging.LogRecord("", 0, "", 0, "", (), None).__dict__
+            ) | {"message", "msg", "args", "exc_info", "exc_text", "stack_info", "taskName"}
+
         ts = self.formatTime(record)
         base = f"{ts} {record.levelname:<8} {record.name} — {record.getMessage()}"
         extras = {
-            k: v for k, v in record.__dict__.items()
-            if k not in logging.LogRecord(
-                "", 0, "", 0, "", (), None
-            ).__dict__ and k not in (
-                "message", "msg", "args", "exc_info", "exc_text", "stack_info",
-                "taskName",
-            )
+            k: v for k, v in record.__dict__.items() if k not in _BASE_ATTRS
         }
         if extras:
             pairs = " ".join(f"{k}={v}" for k, v in extras.items())
@@ -45,6 +47,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Arc backend starting (debug=%s)", settings.debug)
     await _cleanup_orphan_agent_sessions()
+    await _ensure_seed_users()
     yield
     from arc.application.ai.adapter_pool import adapter_pool
     await adapter_pool.shutdown()
@@ -52,7 +55,6 @@ async def lifespan(app: FastAPI):
 
 
 async def _cleanup_orphan_agent_sessions():
-    """Reset agent sessions stuck in running/pending state from a previous crash."""
     try:
         from sqlalchemy import update
         from arc.infrastructure.database import async_session_factory
@@ -71,9 +73,64 @@ async def _cleanup_orphan_agent_sessions():
         logger.warning("Orphan session cleanup failed: %s", exc)
 
 
+async def _ensure_seed_users():
+    """Create default test accounts and demo data on first startup (idempotent)."""
+    try:
+        from arc.infrastructure.database import async_session_factory
+        from arc.infrastructure.repositories.user import UserRepository
+        from arc.infrastructure.repositories.project import ProjectRepository, VersionRepository
+        from arc.infrastructure.repositories.todo import TodoRepository
+        from arc.application.auth.password import hash_password
+        from arc.domain.user.entity import User
+        from arc.domain.project.entity import Project, Version
+        from arc.domain.todo.entity import Todo
+
+        seed_accounts = [
+            {"username": "demo", "password": "demo123", "display_name": "Demo 用户"},
+            {"username": "test", "password": "test123", "display_name": "测试用户"},
+        ]
+
+        async with async_session_factory() as db:
+            user_repo = UserRepository(db)
+            for acct in seed_accounts:
+                existing = await user_repo.get_by_username(acct["username"])
+                if existing:
+                    continue
+                user = User(
+                    username=acct["username"],
+                    hashed_password=hash_password(acct["password"]),
+                    display_name=acct["display_name"],
+                )
+                await user_repo.create(user)
+                logger.info("Seed user created: %s", acct["username"])
+            await db.commit()
+
+            proj_repo = ProjectRepository(db)
+            for acct in seed_accounts:
+                u = await user_repo.get_by_username(acct["username"])
+                if not u:
+                    continue
+                existing = await proj_repo.list_all(user_id=u.id)
+                if existing:
+                    continue
+                await _create_seed_data(db, u.id)
+                await db.commit()
+                logger.info("Seed demo data created for user: %s", acct["username"])
+    except Exception as exc:
+        logger.warning("Seed user creation failed: %s", exc)
+
+
+async def _create_seed_data(db, user_id):
+    """Populate demo user with full-chain sample data (project → version → todo → pipeline → conversations → artifacts → experiences)."""
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
+    from seed_data import create_seed_data
+    await create_seed_data(db, user_id)
+
+
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -81,31 +138,55 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+
+@app.exception_handler(AppError)
+async def handle_app_error(request: Request, exc: AppError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "error_code": exc.error_code},
+    )
 
 
 @app.exception_handler(InvalidStatusTransition)
 async def handle_invalid_transition(request: Request, exc: InvalidStatusTransition):
-    return JSONResponse(status_code=400, content={"detail": str(exc)})
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc), "error_code": "INVALID_STATUS_TRANSITION"},
+    )
 
 
 @app.exception_handler(InvalidPhaseTransition)
 async def handle_invalid_phase_transition(request: Request, exc: InvalidPhaseTransition):
-    return JSONResponse(status_code=400, content={"detail": str(exc)})
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc), "error_code": "INVALID_PHASE_TRANSITION"},
+    )
 
 
-@app.exception_handler(ValueError)
-async def handle_value_error(request: Request, exc: ValueError):
-    return JSONResponse(status_code=400, content={"detail": str(exc)})
+@app.exception_handler(HTTPException)
+async def handle_http_exception(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "error_code": f"HTTP_{exc.status_code}"},
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_unhandled_exception(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "服务内部错误", "error_code": "INTERNAL_ERROR"},
+    )
 
 
 @app.get("/health")
 async def health():
-    """Deep health check: DB connectivity and LLM reachability."""
     from sqlalchemy import text
-
     from arc.infrastructure.database import async_session_factory
 
     checks: dict = {"status": "ok"}
@@ -122,6 +203,7 @@ async def health():
 
 
 def register_routes():
+    from arc.interface.routes.auth import router as auth_router
     from arc.interface.routes.agent import router as agent_router
     from arc.interface.routes.conversation import router as conversation_router
     from arc.interface.routes.experience import router as experience_router
@@ -131,6 +213,7 @@ def register_routes():
     from arc.interface.routes.todo import router as todo_router
     from arc.interface.ws.chat import router as ws_router
 
+    app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(project_router, prefix="/api/projects", tags=["projects"])
     app.include_router(todo_router, prefix="/api/todos", tags=["todos"])
     app.include_router(pipeline_router, prefix="/api/todos", tags=["pipeline"])

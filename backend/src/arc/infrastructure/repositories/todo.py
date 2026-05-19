@@ -24,8 +24,11 @@ class TodoRepository:
         self,
         project_id: uuid.UUID | None = None,
         version_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
     ) -> list[TodoEntity]:
         stmt = select(TodoModel).order_by(TodoModel.created_at.desc())
+        if user_id:
+            stmt = stmt.where(TodoModel.user_id == user_id)
         if project_id:
             stmt = stmt.where(TodoModel.project_id == project_id)
         if version_id:
@@ -33,17 +36,23 @@ class TodoRepository:
         result = await self.db.execute(stmt)
         return [self._to_entity(r) for r in result.scalars().all()]
 
-    async def list_by_status(self, status: TodoStatus) -> list[TodoEntity]:
-        result = await self.db.execute(
+    async def list_by_status(
+        self, status: TodoStatus, user_id: uuid.UUID | None = None
+    ) -> list[TodoEntity]:
+        stmt = (
             select(TodoModel)
             .where(TodoModel.status == status.value)
             .order_by(TodoModel.created_at.desc())
         )
+        if user_id:
+            stmt = stmt.where(TodoModel.user_id == user_id)
+        result = await self.db.execute(stmt)
         return [self._to_entity(r) for r in result.scalars().all()]
 
-    async def create(self, entity: TodoEntity) -> TodoEntity:
+    async def create(self, entity: TodoEntity, user_id: uuid.UUID | None = None) -> TodoEntity:
         model = TodoModel(
             id=entity.id,
+            user_id=user_id,
             title=entity.title,
             description=entity.description,
             status=entity.status.value,
