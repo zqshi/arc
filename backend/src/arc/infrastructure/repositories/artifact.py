@@ -44,6 +44,25 @@ class ArtifactRepository:
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row else None
 
+    async def get_by_todo_and_type(
+        self, todo_id: uuid.UUID, artifact_type: ArtifactType,
+    ) -> Artifact | None:
+        result = await self.db.execute(
+            select(ArtifactModel).where(
+                ArtifactModel.todo_id == todo_id,
+                ArtifactModel.artifact_type == artifact_type.value,
+            )
+        )
+        row = result.scalar_one_or_none()
+        return self._to_entity(row) if row else None
+
+    async def upsert_by_type(self, artifact: Artifact) -> Artifact:
+        existing = await self.get_by_todo_and_type(artifact.todo_id, artifact.artifact_type)
+        if existing:
+            existing.update_content(artifact.content)
+            return await self.update(existing)
+        return await self.create(artifact)
+
     async def list_by_todo_id(self, todo_id: uuid.UUID) -> list[Artifact]:
         result = await self.db.execute(
             select(ArtifactModel)

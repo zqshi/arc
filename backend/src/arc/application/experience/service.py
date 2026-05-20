@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.application.ai.json_extract import extract_json
 from arc.domain.experience.entity import Experience
 from arc.domain.todo.entity import Todo
-from arc.domain.todo.value_objects import ExperienceScope, ExperienceStatus, Tag
+from arc.domain.todo.value_objects import (
+    ExperienceCategory,
+    ExperienceScope,
+    ExperienceSource,
+    ExperienceStatus,
+    Tag,
+)
 from arc.infrastructure.repositories.conversation import ConversationRepository
 from arc.infrastructure.repositories.experience import ExperienceRepository
 
@@ -32,6 +38,7 @@ EXTRACTION_PROMPT = """你是一个经验提取专家。根据以下待办任务
   "title": "经验标题（简洁概括）",
   "problem": "遇到的问题",
   "solution": "解决方案",
+  "category": "technical|business_rule|pitfall|architecture_decision",
   "decisions": ["关键决策1", "关键决策2"],
   "pitfalls": ["踩坑点1", "踩坑点2"],
   "applicable_scenarios": "适用场景描述",
@@ -107,11 +114,19 @@ class ExperienceService:
             )
             embedding = await adapter.embed(embedding_text)
 
+            try:
+                category = ExperienceCategory(data.get("category", "technical"))
+            except ValueError:
+                category = ExperienceCategory.TECHNICAL
+
             experience = Experience(
                 todo_id=todo.id,
                 project_id=todo.project_id,
+                version_id=todo.version_id,
                 scope=ExperienceScope.PROJECT,
                 status=ExperienceStatus.DRAFT,
+                category=category,
+                source=ExperienceSource.TODO_COMPLETION,
                 title=data.get("title", todo.title),
                 problem=data.get("problem", ""),
                 solution=data.get("solution", ""),

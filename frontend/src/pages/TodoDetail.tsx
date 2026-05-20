@@ -9,6 +9,9 @@ import {
   Loader2,
   Edit3,
   ChevronRight,
+  CheckCircle2,
+  Circle,
+  MessageSquare,
 } from 'lucide-react';
 import { useConversationSocket } from '../hooks/useConversationSocket';
 import { useBreakpoint } from '../hooks/useMediaQuery';
@@ -18,6 +21,7 @@ import ArtifactRenderer from '../components/artifact-renderers';
 import ArtifactEditor from '../components/artifact-renderers/ArtifactEditor';
 import AgentExecutionPanel from '../components/AgentExecutionPanel';
 import ExperienceDetailModal from '../components/ExperienceDetailModal';
+import DeliverableDrawer from '../components/DeliverableDrawer';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import { ChatInput, ChatMessages, SmartActionBar, QuickPrompts } from '../components/todo';
 import { TodoDetailSkeleton } from '../components/Skeleton';
@@ -27,6 +31,9 @@ import type {
   PhaseType,
   PhaseStatus,
   Experience,
+  DeliverableTracker,
+  Conversation,
+  Artifact,
 } from '../types/api';
 import { PHASE_ORDER, PHASE_LABELS, STATUS_LABELS, AGENT_EXECUTION_PHASES } from '../types/api';
 
@@ -57,6 +64,16 @@ const PHASE_STATUS_STYLE: Record<PhaseStatus, string> = {
   skipped: 'border-border bg-bg-elevated text-text-muted line-through',
 };
 
+const DELIVERABLE_LABELS: Record<string, string> = {
+  requirement_spec: '需求规格',
+  ui_design: 'UI设计',
+  tech_architecture: '技术架构',
+  dev_report: '开发报告',
+  test_report: '测试报告',
+  deploy_report: '部署报告',
+  experience_card: '经验卡片',
+};
+
 export default function TodoDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -79,6 +96,320 @@ export default function TodoDetail() {
       setTodoLoading(false);
     }
   }, [id, navigate]);
+
+  useEffect(() => { fetchTodo(); }, [fetchTodo]);
+  useEffect(() => () => setCurrentProject(null), [setCurrentProject]);
+
+  if (todoLoading || !todo) {
+    return todoLoading ? (
+      <TodoDetailSkeleton />
+    ) : (
+      <div className="flex h-full items-center justify-center text-text-secondary">
+        任务不存在
+      </div>
+    );
+  }
+
+  if (todo.execution_mode === 'conversation') {
+    return <ConversationModeView todo={todo} setTodo={setTodo} />;
+  }
+
+  return <PipelineModeView todo={todo} setTodo={setTodo} />;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Conversation Mode
+// ═══════════════════════════════════════════════════════════
+
+function ConversationModeView({ todo, setTodo }: { todo: Todo; setTodo: (t: Todo) => void }) {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { isCompact } = useBreakpoint();
+  const [inputValue, setInputValue] = useState('');
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [tracker, setTracker] = useState<DeliverableTracker | null>(null);
+  const [initializing, setInitializing] = useState(false);
+  const [showDeliverables, setShowDeliverables] = useState(!isCompact);
+  const [relatedExps, setRelatedExps] = useState<Experience[]>([]);
+  const [selectedExp, setSelectedExp] = useState<Experience | null>(null);
+  const [drawerArtifact, setDrawerArtifact] = useState<Artifact | null>(null);
+
+  const {
+    messages: wsMessages,
+    isConnected,
+    isStreaming,
+    error: wsError,
+    sendMessage: wsSend,
+    retry: wsRetry,
+    retryDisabled: wsRetryDisabled,
+  } = useConversationSocket(conversationId);
+
+  const fetchConversation = useCallback(async () => {
+    if (!id) return;
+    try {
+      const conversations = await api.listConversations(id);
+      const unified = conversations.find((c: Conversation) => c.purpose === 'unified');
+      if (unified) {
+        setConversationId(unified.id);
+      }
+    } catch {}
+  }, [id]);
+
+  const fetchTracker = useCallback(async () => {
+    if (!id) return;
+    try {
+      const state = await api.getDeliverables(id);
+      setTracker(state);
+    } catch {}
+  }, [id]);
+
+  useEffect(() => {
+    fetchConversation();
+    fetchTracker();
+  }, [fetchConversation, fetchTracker]);
+
+  useEffect(() => {
+    if (!todo) return;
+    api.searchExperiences(todo.title, todo.project_id || undefined)
+      .then(setRelatedExps).catch(() => setRelatedExps([]));
+  }, [todo?.title]);
+
+  useEffect(() => {
+    if (!isStreaming && conversationId) {
+      fetchTracker();
+    }
+  }, [isStreaming, conversationId, fetchTracker]);
+
+  const handleStartConversation = async () => {
+    if (!id) return;
+    setInitializing(true);
+    try {
+      const updated = await api.startConversation(id);
+      setTodo(updated);
+      await fetchConversation();
+      await fetchTracker();
+      toast('对话模式已启动', 'success');
+    } catch (err) {
+      toast(`启动失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
+    } finally {
+      setInitializing(false);
+    }
+  };
+
+  const handleSend = () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    wsSend(trimmed);
+    setInputValue('');
+  };
+
+  const isStarted = todo.status !== 'pending' && conversationId;
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Header */}
+      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+        <button
+          onClick={() => {
+            if (todo.project_id) navigate(`/project/${todo.project_id}`);
+            else navigate('/');
+          }}
+          className="flex items-center gap-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
+        >
+          <ArrowLeft size={14} />
+        </button>
+        <div className="h-4 w-px bg-border" />
+        <div className="flex min-w-0 items-center gap-1 text-xs">
+          {todo.project_name && (
+            <>
+              <button onClick={() => navigate(`/project/${todo.project_id}`)} className="flex-shrink-0 text-text-tertiary transition-colors hover:text-accent">{todo.project_name}</button>
+              <span className="text-text-muted">&rsaquo;</span>
+            </>
+          )}
+          {todo.version_name && (
+            <>
+              <button onClick={() => navigate(`/project/${todo.project_id}`)} className="flex-shrink-0 text-text-tertiary transition-colors hover:text-accent">{todo.version_name}</button>
+              <span className="text-text-muted">&rsaquo;</span>
+            </>
+          )}
+          <h1 className="min-w-0 flex-shrink truncate font-heading text-sm font-semibold text-text-primary">{todo.title}</h1>
+        </div>
+        <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+          todo.status === 'active' ? 'bg-accent/15 text-accent'
+            : todo.status === 'done' ? 'bg-status-done/15 text-status-done'
+            : todo.status === 'error' ? 'bg-status-error/15 text-status-error'
+            : 'bg-text-muted/15 text-text-muted'
+        }`}>
+          {STATUS_LABELS[todo.status]}
+        </span>
+        <span className="rounded-full bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-400">
+          <MessageSquare size={9} className="mr-0.5 inline" /> 对话模式
+        </span>
+        {tracker && (
+          <div className="ml-auto flex items-center gap-2 text-[11px] text-text-muted">
+            <div className="h-1 w-20 overflow-hidden rounded-full bg-border">
+              <div
+                className="h-full rounded-full bg-accent transition-all"
+                style={{ width: `${tracker.completion_pct * 100}%` }}
+              />
+            </div>
+            <span>{Math.round(tracker.completion_pct * 100)}%</span>
+          </div>
+        )}
+      </header>
+
+      {/* Main */}
+      {isStarted ? (
+        <div className={`flex flex-1 overflow-hidden ${isCompact ? 'flex-col' : ''}`}>
+          {/* Chat area */}
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              <ChatMessages
+                messages={wsMessages}
+                isStreaming={isStreaming}
+                error={wsError}
+                conversationId={conversationId}
+                todoId={id!}
+                onRetry={wsRetry}
+                retryDisabled={wsRetryDisabled}
+              />
+            </div>
+            <div className="border-t border-border px-4 py-2.5">
+              <ChatInput value={inputValue} onChange={setInputValue} onSend={handleSend} disabled={!isConnected} />
+            </div>
+          </div>
+
+          {/* Deliverables sidebar */}
+          {!isCompact && (showDeliverables ? (
+            <div className="flex w-[260px] flex-shrink-0 flex-col border-l border-border bg-bg-sidebar">
+              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <FileText size={13} className="text-accent" />
+                  <span className="text-xs font-medium text-text-primary">交付物</span>
+                </div>
+                <button
+                  onClick={() => setShowDeliverables(false)}
+                  className="flex h-5 w-5 items-center justify-center rounded text-text-muted transition-colors hover:text-text-secondary"
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 py-3">
+                {tracker ? (
+                  <div className="space-y-2">
+                    {tracker.required.map((type) => {
+                      const status = tracker.deliverables[type];
+                      const isDone = !!status;
+                      return (
+                        <button
+                          key={type}
+                          disabled={!isDone}
+                          onClick={async () => {
+                            if (!isDone || !id) return;
+                            try {
+                              const artifacts = await api.listArtifacts(id);
+                              const match = artifacts.find((a) => a.artifact_type === type);
+                              if (match) setDrawerArtifact(match);
+                            } catch { /* ignore */ }
+                          }}
+                          className={`flex w-full items-center gap-2.5 rounded-md p-2.5 text-left transition-colors ${
+                            isDone ? 'bg-status-done/5 hover:bg-status-done/10 cursor-pointer' : 'bg-bg-elevated cursor-default'
+                          }`}
+                        >
+                          {isDone ? (
+                            <CheckCircle2 size={14} className="flex-shrink-0 text-status-done" />
+                          ) : (
+                            <Circle size={14} className="flex-shrink-0 text-text-muted" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <span className={`text-[11px] font-medium ${isDone ? 'text-status-done' : 'text-text-secondary'}`}>
+                              {DELIVERABLE_LABELS[type] || type}
+                            </span>
+                            {isDone && (
+                              <p className="text-[9px] text-text-muted">点击预览</p>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-text-muted">暂无交付物信息</p>
+                )}
+                {tracker && tracker.is_complete && (
+                  <div className="mt-4 rounded-md border border-status-done/30 bg-status-done/5 p-3 text-center">
+                    <CheckCircle2 size={20} className="mx-auto mb-1 text-status-done" />
+                    <p className="text-xs font-medium text-status-done">全部交付物已完成</p>
+                  </div>
+                )}
+              </div>
+
+              {relatedExps.length > 0 && (
+                <div className="border-t border-border px-3 pt-2 pb-3">
+                  <div className="mb-1 flex items-center gap-1 px-1">
+                    <Lightbulb size={10} className="text-accent" />
+                    <span className="text-[9px] font-medium text-text-tertiary">相关经验</span>
+                  </div>
+                  {relatedExps.slice(0, 2).map((exp) => (
+                    <button key={exp.id} onClick={() => setSelectedExp(exp)} className="mb-1 w-full rounded px-1.5 py-1 text-left text-[10px] text-text-secondary transition-colors hover:bg-bg-elevated">
+                      <span className="line-clamp-1">{exp.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex w-10 flex-shrink-0 flex-col items-center border-l border-border bg-bg-sidebar py-3">
+              <button onClick={() => setShowDeliverables(true)} title="展开交付物面板" className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-card hover:text-accent">
+                <FileText size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="max-w-md text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-500/10">
+              <MessageSquare size={28} className="text-purple-400" />
+            </div>
+            <h2 className="mb-2 text-base font-semibold text-text-primary">对话模式</h2>
+            <p className="mb-1 text-sm text-text-secondary">
+              与 AI 自由对话推进需求，AI 会自动拆解任务并产出交付物
+            </p>
+            <p className="mb-6 text-[11px] text-text-muted">
+              {todo.description || '无固定阶段约束，按对话节奏灵活产出'}
+            </p>
+            <button
+              onClick={handleStartConversation}
+              disabled={initializing}
+              className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+            >
+              {initializing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              开始对话
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ExperienceDetailModal experience={selectedExp} onClose={() => setSelectedExp(null)} />
+      <DeliverableDrawer
+        open={!!drawerArtifact}
+        onClose={() => setDrawerArtifact(null)}
+        content={drawerArtifact ? { type: 'artifact', data: drawerArtifact } : null}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// Pipeline Mode (original implementation)
+// ═══════════════════════════════════════════════════════════
+
+function PipelineModeView({ todo, setTodo }: { todo: Todo; setTodo: (t: Todo) => void }) {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const [pipeline, setPipeline] = useState<PipelineState | null>(null);
   const [activePhase, setActivePhase] = useState<PhaseType>('clarification');
@@ -137,8 +468,15 @@ export default function TodoDetail() {
     }
   }, [id]);
 
-  useEffect(() => { fetchTodo(); fetchPipeline(); }, [fetchTodo, fetchPipeline]);
-  useEffect(() => () => setCurrentProject(null), [setCurrentProject]);
+  const fetchTodo = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await api.getTodo(id);
+      setTodo(data);
+    } catch {}
+  }, [id, setTodo]);
+
+  useEffect(() => { fetchPipeline(); }, [fetchPipeline]);
 
   const autoInitRef = useRef(false);
   useEffect(() => {
@@ -154,7 +492,6 @@ export default function TodoDetail() {
     api.searchExperiences(todo.title, todo.project_id || undefined).then(setRelatedExps).catch(() => setRelatedExps([]));
   }, [todo?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Actions ────────────────────────────────────────────
   const handleStartPipeline = async () => {
     if (!id) return;
     setActionLoading(true);
@@ -220,7 +557,7 @@ export default function TodoDetail() {
           const gapText = gate.gaps?.length
             ? gate.gaps.map((g: string) => `• ${g}`).join('\n')
             : '';
-          const msg = `⚠️ **门禁未通过** (${gate.score}/10)\n\n${gapText}\n\n💡 ${gate.suggestion}`;
+          const msg = `**门禁未通过** (${gate.score}/10)\n\n${gapText}\n\n${gate.suggestion}`;
           wsSocketRef.current.setMessages((prev) => [
             ...prev,
             {
@@ -282,21 +619,11 @@ export default function TodoDetail() {
     setInputValue('');
   };
 
-  if (todoLoading || !todo) {
-    return todoLoading ? (
-      <TodoDetailSkeleton />
-    ) : (
-      <div className="flex h-full items-center justify-center text-text-secondary">
-        任务不存在
-      </div>
-    );
-  }
-
   const pipelineInitialized = pipeline && pipeline.phases.length > 0;
 
   return (
     <div className="flex h-full flex-col">
-      {/* ─── Header ─── */}
+      {/* Header */}
       <header className="flex items-center gap-3 border-b border-border px-4 py-3">
         <button
           onClick={() => {
@@ -312,13 +639,13 @@ export default function TodoDetail() {
           {todo.project_name && (
             <>
               <button onClick={() => navigate(`/project/${todo.project_id}`)} className="flex-shrink-0 text-text-tertiary transition-colors hover:text-accent">{todo.project_name}</button>
-              <span className="text-text-muted">›</span>
+              <span className="text-text-muted">&rsaquo;</span>
             </>
           )}
           {todo.version_name && (
             <>
               <button onClick={() => navigate(`/project/${todo.project_id}`)} className="flex-shrink-0 text-text-tertiary transition-colors hover:text-accent">{todo.version_name}</button>
-              <span className="text-text-muted">›</span>
+              <span className="text-text-muted">&rsaquo;</span>
             </>
           )}
           <h1 className="min-w-0 flex-shrink truncate font-heading text-sm font-semibold text-text-primary">{todo.title}</h1>
@@ -355,7 +682,7 @@ export default function TodoDetail() {
         )}
       </header>
 
-      {/* ─── Main layout ─── */}
+      {/* Main layout */}
       <div className={`flex flex-1 overflow-hidden ${isCompact ? 'flex-col' : ''}`}>
         {/* Phase sidebar */}
         <PhaseSidebar

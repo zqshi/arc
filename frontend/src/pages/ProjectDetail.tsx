@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import ActionMenu from '../components/ActionMenu';
 import type { ActionMenuItem } from '../components/ActionMenu';
-import type { Project, Version, VersionType, Todo, Experience } from '../types/api';
+import type { Project, Version, VersionType, Todo, Experience, ExperienceCategory, PlanningSession } from '../types/api';
 import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
+import MarkdownContent from '../components/MarkdownContent';
+import DeliverableDrawer from '../components/DeliverableDrawer';
 import { TodosTab, SettingsTab, ExperiencesTab } from '../components/project';
 
 type TabKey = 'todos' | 'experiences' | 'settings';
@@ -34,7 +36,12 @@ export default function ProjectDetail() {
   const [activeTab, setActiveTab] = useState<TabKey>('todos');
 
   // Settings form
-  const [form, setForm] = useState({ name: '', description: '', tech_stack: '', repo_url: '', conventions: '' });
+  const [form, setForm] = useState({
+    name: '', description: '', tech_stack: '', repo_url: '', local_path: '', conventions: '', codebase_summary: '',
+    execution_mode: 'pipeline' as 'pipeline' | 'conversation',
+    pipeline_config: {} as Record<string, unknown>,
+    conversation_config: {} as Record<string, unknown>,
+  });
   const [dirty, setDirty] = useState(false);
 
   // New version
@@ -49,6 +56,7 @@ export default function ProjectDetail() {
   // Experiences tab
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [expFilter, setExpFilter] = useState<'all' | 'draft' | 'confirmed'>('all');
+  const [expCategoryFilter, setExpCategoryFilter] = useState<ExperienceCategory | 'all'>('all');
   const [expLoading, setExpLoading] = useState(false);
 
   // Insights
@@ -67,7 +75,12 @@ export default function ProjectDetail() {
         description: p.description,
         tech_stack: p.tech_stack,
         repo_url: p.repo_url,
+        local_path: p.local_path || '',
         conventions: p.conventions,
+        codebase_summary: p.codebase_summary || '',
+        execution_mode: p.execution_mode || 'pipeline',
+        pipeline_config: p.pipeline_config || {},
+        conversation_config: p.conversation_config || {},
       });
       setDirty(false);
       const activeIds = new Set(v.filter((ver) => ver.status === 'active').map((ver) => ver.id));
@@ -84,14 +97,15 @@ export default function ProjectDetail() {
     setExpLoading(true);
     try {
       const status = expFilter === 'all' ? undefined : expFilter;
-      const exps = await api.listProjectExperiences(id, status);
+      const category = expCategoryFilter === 'all' ? undefined : expCategoryFilter;
+      const exps = await api.listProjectExperiences(id, { status, category });
       setExperiences(exps);
     } catch {
       setExperiences([]);
     } finally {
       setExpLoading(false);
     }
-  }, [id, expFilter]);
+  }, [id, expFilter, expCategoryFilter]);
 
   const fetchInsights = useCallback(async () => {
     if (!id) return;
@@ -260,6 +274,26 @@ export default function ProjectDetail() {
     toast('已添加到规范，记得保存', 'success');
   };
 
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  // Drawer for roadmap preview
+  const [drawerSession, setDrawerSession] = useState<PlanningSession | null>(null);
+
+  const handleAnalyzeVersion = async (versionId: string) => {
+    if (!id) return;
+    setAnalyzing(true);
+    setAnalysisResult(null);
+    try {
+      const { analysis } = await api.analyzeIteration(id, versionId);
+      setAnalysisResult(analysis);
+    } catch (err) {
+      toast(`分析失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const handleArchiveProject = async () => {
     if (!id) return;
     try {
@@ -355,6 +389,7 @@ export default function ProjectDetail() {
         <div className="animate-fade-in">
           {activeTab === 'todos' && (
             <TodosTab
+              projectId={id!}
               versions={versions}
               versionTodos={versionTodos}
               expandedVersions={expandedVersions}
@@ -374,6 +409,9 @@ export default function ProjectDetail() {
               handleDeleteTodo={handleDeleteTodo}
               setCreateForVersion={setCreateForVersion}
               navigate={navigate}
+              onAnalyzeVersion={handleAnalyzeVersion}
+              onRefreshData={fetchData}
+              onPreviewRoadmap={(session) => setDrawerSession(session)}
             />
           )}
 
@@ -383,6 +421,8 @@ export default function ProjectDetail() {
               loading={expLoading}
               filter={expFilter}
               setFilter={setExpFilter}
+              categoryFilter={expCategoryFilter}
+              setCategoryFilter={setExpCategoryFilter}
               onConfirm={handleConfirmExp}
               onArchive={handleArchiveExp}
               onPromote={handlePromoteExp}
@@ -391,10 +431,12 @@ export default function ProjectDetail() {
 
           {activeTab === 'settings' && (
             <SettingsTab
+              projectId={id!}
               form={form}
               setForm={(f) => { setForm(f); setDirty(true); }}
               dirty={dirty}
               onSave={handleSave}
+              onRefresh={fetchData}
               insights={insights}
               onAppendConvention={handleAppendConvention}
             />
@@ -409,6 +451,43 @@ export default function ProjectDetail() {
         projectId={id!}
         versionId={createForVersion || ''}
         versionName={versions.find((v) => v.id === createForVersion)?.name}
+      />
+
+      {/* Iteration Analysis Modal */}
+      {(analyzing || analysisResult) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => { setAnalysisResult(null); setAnalyzing(false); }} />
+          <div className="relative mx-4 w-full max-w-2xl animate-slide-up rounded-xl border border-border-active bg-bg-card shadow-2xl sm:mx-auto">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+              <h2 className="flex items-center gap-2 font-heading text-sm font-semibold text-text-primary">
+                <Sparkles size={14} className="text-accent" /> AI 迭代分析
+              </h2>
+              <button
+                onClick={() => { setAnalysisResult(null); setAnalyzing(false); }}
+                className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:text-text-secondary"
+              >
+                ×
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+              {analyzing ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 size={20} className="animate-spin text-accent" />
+                  <span className="ml-2 text-sm text-text-muted">AI 正在分析迭代状态...</span>
+                </div>
+              ) : analysisResult ? (
+                <MarkdownContent content={analysisResult} />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Roadmap Preview Drawer */}
+      <DeliverableDrawer
+        open={!!drawerSession}
+        onClose={() => setDrawerSession(null)}
+        content={drawerSession ? { type: 'roadmap', data: drawerSession } : null}
       />
     </div>
   );

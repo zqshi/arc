@@ -9,13 +9,15 @@ class TodoStatus(StrEnum):
     ACTIVE = "active"
     DONE = "done"
     ERROR = "error"
+    ABANDONED = "abandoned"
 
 
 VALID_TRANSITIONS: dict[TodoStatus, set[TodoStatus]] = {
-    TodoStatus.PENDING: {TodoStatus.ACTIVE, TodoStatus.ERROR},
-    TodoStatus.ACTIVE: {TodoStatus.DONE, TodoStatus.ERROR},
+    TodoStatus.PENDING: {TodoStatus.ACTIVE, TodoStatus.ERROR, TodoStatus.ABANDONED},
+    TodoStatus.ACTIVE: {TodoStatus.DONE, TodoStatus.ERROR, TodoStatus.ABANDONED},
     TodoStatus.DONE: set(),
     TodoStatus.ERROR: {TodoStatus.PENDING},
+    TodoStatus.ABANDONED: set(),
 }
 
 
@@ -27,6 +29,8 @@ class ConversationPurpose(StrEnum):
     TESTING = "testing"
     DEPLOYMENT = "deployment"
     REVIEW = "review"
+    UNIFIED = "unified"
+    PLANNING = "planning"
 
 
 class MessageRole(StrEnum):
@@ -44,6 +48,22 @@ class ExperienceStatus(StrEnum):
     DRAFT = "draft"
     CONFIRMED = "confirmed"
     ARCHIVED = "archived"
+
+
+class ExperienceCategory(StrEnum):
+    TECHNICAL = "technical"
+    BUSINESS_RULE = "business_rule"
+    PITFALL = "pitfall"
+    ARCHITECTURE_DECISION = "architecture_decision"
+    SCOPE_CHANGE = "scope_change"
+    ESTIMATION = "estimation"
+
+
+class ExperienceSource(StrEnum):
+    TODO_COMPLETION = "todo_completion"
+    SCOPE_CHANGE = "scope_change"
+    VERSION_RELEASE = "version_release"
+    MANUAL = "manual"
 
 
 @dataclass(frozen=True)

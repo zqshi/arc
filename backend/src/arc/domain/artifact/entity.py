@@ -10,8 +10,8 @@ from arc.domain.artifact.value_objects import ArtifactType
 @dataclass
 class Artifact:
     todo_id: uuid.UUID
-    phase_id: uuid.UUID
     artifact_type: ArtifactType
+    phase_id: uuid.UUID | None = None
     content: dict = field(default_factory=dict)
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     version: int = 1

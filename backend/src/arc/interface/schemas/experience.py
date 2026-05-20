@@ -11,9 +11,12 @@ class ExperienceResponse(BaseModel):
     id: str
     todo_id: str | None = None
     project_id: str | None = None
+    version_id: str | None = None
     title: str
     scope: str = "project"
     status: str = "draft"
+    category: str = "technical"
+    source: str = "manual"
     problem: str
     solution: str
     decisions: list[str] = Field(default_factory=list)

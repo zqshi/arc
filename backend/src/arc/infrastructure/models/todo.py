@@ -25,4 +25,9 @@ class Todo(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     priority: Mapped[int] = mapped_column(Integer, default=2)
     current_phase: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    execution_mode: Mapped[str] = mapped_column(String(20), default="pipeline")
     tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    source_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("planning_sessions.id", ondelete="SET NULL"), nullable=True
+    )
+    source_feature_key: Mapped[str | None] = mapped_column(String(200), nullable=True)

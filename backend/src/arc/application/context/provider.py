@@ -19,6 +19,8 @@ class ProjectContext:
     tech_stack: str = ""
     conventions: str = ""
     repo_url: str = ""
+    local_path: str = ""
+    codebase_summary: str = ""
     version_name: str = ""
     version_goal: str = ""
     sibling_requirements: list[dict] = field(default_factory=list)
@@ -37,6 +39,8 @@ class ProjectContext:
             parts.append(f"- 技术栈: {self.tech_stack}")
         if self.repo_url:
             parts.append(f"- 代码仓库: {self.repo_url}")
+        if self.local_path:
+            parts.append(f"- 本地工作目录: {self.local_path}")
         if self.version_name:
             parts.append(f"\n## 当前版本\n- 版本: {self.version_name}")
             if self.version_goal:
@@ -57,8 +61,12 @@ class ProjectContext:
                 parts.append(f"版本目标: {self.version_goal}")
         if self.conventions:
             parts.append(f"\n## 项目规范（必须遵守）\n{self.conventions}")
+        if self.codebase_summary:
+            parts.append(f"\n## 代码库概况\n{self.codebase_summary}")
         if self.repo_url:
             parts.append(f"\n代码仓库: {self.repo_url}")
+        if self.local_path:
+            parts.append(f"工作目录: {self.local_path}")
         return "\n".join(parts)
 
 
@@ -84,6 +92,8 @@ class ProjectContextProvider:
             tech_stack=project.tech_stack,
             conventions=project.conventions,
             repo_url=project.repo_url,
+            local_path=project.local_path,
+            codebase_summary=project.codebase_summary,
         )
 
         if todo.version_id:

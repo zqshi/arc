@@ -1,6 +1,6 @@
 import { Lightbulb, Check, Archive, ArrowUpRight } from 'lucide-react';
-import type { Experience, ExperienceStatus } from '../../types/api';
-import { EXPERIENCE_STATUS_LABELS } from '../../types/api';
+import type { Experience, ExperienceStatus, ExperienceCategory } from '../../types/api';
+import { EXPERIENCE_STATUS_LABELS, EXPERIENCE_CATEGORY_LABELS } from '../../types/api';
 import { ExperienceListSkeleton } from '../Skeleton';
 
 const expStatusStyle: Record<ExperienceStatus, { bg: string; dot: string }> = {
@@ -9,21 +9,42 @@ const expStatusStyle: Record<ExperienceStatus, { bg: string; dot: string }> = {
   archived: { bg: 'bg-text-muted/15 text-text-muted', dot: 'bg-text-muted' },
 };
 
+const categoryColor: Record<ExperienceCategory, string> = {
+  technical: 'bg-blue-500/15 text-blue-500',
+  business_rule: 'bg-emerald-500/15 text-emerald-500',
+  pitfall: 'bg-red-500/15 text-red-500',
+  architecture_decision: 'bg-purple-500/15 text-purple-500',
+  scope_change: 'bg-amber-500/15 text-amber-500',
+  estimation: 'bg-cyan-500/15 text-cyan-500',
+};
+
 interface ExperiencesTabProps {
   experiences: Experience[];
   loading: boolean;
   filter: 'all' | 'draft' | 'confirmed';
   setFilter: (f: 'all' | 'draft' | 'confirmed') => void;
+  categoryFilter: ExperienceCategory | 'all';
+  setCategoryFilter: (c: ExperienceCategory | 'all') => void;
   onConfirm: (id: string) => void;
   onArchive: (id: string) => void;
   onPromote: (id: string) => void;
 }
 
-export function ExperiencesTab({ experiences, loading, filter, setFilter, onConfirm, onArchive, onPromote }: ExperiencesTabProps) {
+export function ExperiencesTab({ experiences, loading, filter, setFilter, categoryFilter, setCategoryFilter, onConfirm, onArchive, onPromote }: ExperiencesTabProps) {
   const filters: { key: typeof filter; label: string }[] = [
     { key: 'all', label: '全部' },
     { key: 'draft', label: '待审核' },
     { key: 'confirmed', label: '已确认' },
+  ];
+
+  const categoryFilters: { key: ExperienceCategory | 'all'; label: string }[] = [
+    { key: 'all', label: '全部类型' },
+    { key: 'technical', label: '技术' },
+    { key: 'business_rule', label: '业务规则' },
+    { key: 'pitfall', label: '踩坑' },
+    { key: 'architecture_decision', label: '架构决策' },
+    { key: 'scope_change', label: '范围变更' },
+    { key: 'estimation', label: '估算校准' },
   ];
 
   return (
@@ -45,6 +66,21 @@ export function ExperiencesTab({ experiences, loading, filter, setFilter, onConf
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Category filter */}
+      <div className="mb-3 flex flex-wrap gap-1">
+        {categoryFilters.map((c) => (
+          <button
+            key={c.key}
+            onClick={() => setCategoryFilter(c.key)}
+            className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+              categoryFilter === c.key ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-muted hover:text-text-secondary'
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -69,6 +105,11 @@ export function ExperiencesTab({ experiences, loading, filter, setFilter, onConf
                       <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${style.bg}`}>
                         {EXPERIENCE_STATUS_LABELS[exp.status]}
                       </span>
+                      {exp.category && exp.category !== 'technical' && (
+                        <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${categoryColor[exp.category] || ''}`}>
+                          {EXPERIENCE_CATEGORY_LABELS[exp.category] || exp.category}
+                        </span>
+                      )}
                       {exp.scope === 'personal' && (
                         <span className="rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-medium text-purple-500">个人</span>
                       )}

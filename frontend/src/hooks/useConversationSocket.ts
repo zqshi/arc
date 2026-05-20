@@ -29,12 +29,19 @@ interface WsErrorEvent {
   detail: string;
 }
 
+interface WsArtifactsExtractedEvent {
+  type: 'artifacts_extracted';
+  artifacts: string[];
+  artifact_names: string[];
+}
+
 type WsEvent =
   | WsMessageEvent
   | WsStreamStartEvent
   | WsStreamChunkEvent
   | WsStreamEndEvent
   | WsErrorEvent
+  | WsArtifactsExtractedEvent
   | { type: 'token_expired' }
   | { type: 'ping' };
 
@@ -190,6 +197,9 @@ export function useConversationSocket(conversationId: string | null) {
           case 'error':
             setError(data.detail);
             setIsStreaming(false);
+            break;
+
+          case 'artifacts_extracted':
             break;
         }
       };

@@ -79,8 +79,16 @@ async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
 
 @router.post("", response_model=TodoResponse, status_code=201)
 async def create_todo(req: CreateTodoRequest, db: DbSession, user: CurrentUser):
+    from arc.domain.project.value_objects import ExecutionMode
     from arc.domain.todo.entity import Todo
     from arc.domain.todo.value_objects import Tag
+    from arc.infrastructure.repositories.project import ProjectRepository
+
+    execution_mode = ExecutionMode.PIPELINE
+    if req.project_id:
+        project = await ProjectRepository(db).get_by_id(UUID(req.project_id))
+        if project:
+            execution_mode = project.execution_mode
 
     todo = Todo(
         title=req.title,
@@ -89,6 +97,7 @@ async def create_todo(req: CreateTodoRequest, db: DbSession, user: CurrentUser):
         version_id=UUID(req.version_id) if req.version_id else None,
         priority=req.priority,
         tags=[Tag(label=t.label, color=t.color) for t in req.tags],
+        execution_mode=execution_mode,
     )
     repo = TodoRepository(db)
     created = await repo.create(todo, user_id=user.id)
@@ -147,6 +156,38 @@ async def list_todo_conversations(todo_id: str, db: DbSession, user: CurrentUser
     )
 
 
+@router.post("/{todo_id}/start-conversation", response_model=TodoResponse)
+async def start_conversation(todo_id: str, db: DbSession, user: CurrentUser):
+    from arc.application.execution.conversation_strategy import ConversationExecutionService
+
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id))
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+
+    if todo.execution_mode.value != "conversation":
+        raise HTTPException(status_code=400, detail="此需求不是对话模式")
+
+    svc = ConversationExecutionService(db)
+    _, _ = await svc.initialize(UUID(todo_id))
+    todo = await repo.get_by_id(UUID(todo_id))
+    return _to_response(todo)
+
+
+@router.get("/{todo_id}/deliverables")
+async def get_deliverables(todo_id: str, db: DbSession, user: CurrentUser):
+    from arc.application.execution.conversation_strategy import ConversationExecutionService
+
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id))
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+
+    svc = ConversationExecutionService(db)
+    state = await svc.get_tracker_state(UUID(todo_id))
+    return state
+
+
 def _to_response(
     todo, *, project_name: str | None = None, version_name: str | None = None,
 ) -> TodoResponse:
@@ -161,6 +202,7 @@ def _to_response(
         version_name=version_name,
         priority=todo.priority,
         current_phase=todo.current_phase.value if todo.current_phase else None,
+        execution_mode=todo.execution_mode.value,
         tags=[{"label": t.label, "color": t.color} for t in todo.tags],
         created_at=todo.created_at,
         updated_at=todo.updated_at,
