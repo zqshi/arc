@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 
 from arc.application.project.service import VersionService
 from arc.domain.project.entity import Project, Version
@@ -12,12 +12,16 @@ from arc.infrastructure.repositories.project import (
 )
 from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.project import (
+    ApplyWithDiffRequest,
     ProjectCreate,
     ProjectResponse,
     ProjectUpdate,
     VersionCreate,
     VersionResponse,
     VersionUpdate,
+    PlanningSessionCreate,
+    PlanningSessionResponse,
+    DocumentResponse,
 )
 from arc.interface.schemas.experience import ExperienceListResponse, ExperienceResponse
 
@@ -55,8 +59,13 @@ def _project_resp(p: Project) -> ProjectResponse:
         description=p.description,
         tech_stack=p.tech_stack,
         repo_url=p.repo_url,
+        local_path=p.local_path,
         conventions=p.conventions,
+        codebase_summary=p.codebase_summary,
         status=p.status.value,
+        execution_mode=p.execution_mode.value,
+        pipeline_config=p.pipeline_config,
+        conversation_config=p.conversation_config,
         created_at=p.created_at.isoformat(),
         updated_at=p.updated_at.isoformat(),
     )
@@ -107,12 +116,14 @@ async def create_project(
     db: DbSession,
     user: CurrentUser,
 ):
+    from arc.domain.project.value_objects import ExecutionMode
     project = Project(
         name=body.name,
         description=body.description,
         tech_stack=body.tech_stack,
         repo_url=body.repo_url,
         conventions=body.conventions,
+        execution_mode=ExecutionMode(body.execution_mode),
     )
     repo = ProjectRepository(db)
     await repo.create(project, user_id=user.id)
@@ -145,10 +156,57 @@ async def update_project(
         raise HTTPException(404, "Project not found")
 
     updates = body.model_dump(exclude_unset=True)
+
+    if "execution_mode" in updates and updates["execution_mode"]:
+        from arc.domain.project.value_objects import ExecutionMode
+        project.set_execution_mode(ExecutionMode(updates.pop("execution_mode")))
+
+    if "pipeline_config" in updates and updates["pipeline_config"]:
+        project.update_pipeline_config(updates.pop("pipeline_config"))
+
+    if "conversation_config" in updates and updates["conversation_config"]:
+        project.update_conversation_config(updates.pop("conversation_config"))
+
     for key, val in updates.items():
-        setattr(project, key, val)
+        if val is not None:
+            setattr(project, key, val)
     await repo.update(project)
     return _project_resp(project)
+
+
+@router.post("/{project_id}/scan-codebase")
+async def scan_codebase(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if not project.local_path:
+        raise HTTPException(400, "请先配置本地工作目录")
+
+    import asyncio
+    from pathlib import Path
+
+    path = Path(project.local_path).expanduser().resolve()
+    if not path.is_dir():
+        raise HTTPException(400, f"目录不存在: {project.local_path}")
+
+    from arc.application.project.scanner import scan_and_summarize
+    try:
+        summary = await asyncio.wait_for(
+            scan_and_summarize(str(path)), timeout=60,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "扫描超时，请稍后重试")
+    except Exception as e:
+        raise HTTPException(502, f"扫描失败: {e}")
+
+    project.codebase_summary = summary
+    await repo.update(project)
+    return {"summary": summary}
 
 
 @router.post("/{project_id}/archive", response_model=ProjectResponse)
@@ -164,6 +222,24 @@ async def archive_project(
     project.archive()
     await repo.update(project)
     return _project_resp(project)
+
+
+@router.get("/{project_id}/mode-switch-impact")
+async def mode_switch_impact(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.infrastructure.repositories.todo import TodoRepository
+    repo = TodoRepository(db)
+    active_todos, _ = await repo.list_all(project_id=project_id, limit=1000)
+    active_count = sum(1 for t in active_todos if t.status.value == "active")
+    pending_count = sum(1 for t in active_todos if t.status.value == "pending")
+    return {
+        "active_count": active_count,
+        "pending_count": pending_count,
+        "safe_to_switch": active_count == 0,
+    }
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -288,6 +364,14 @@ async def release_version(
         version, carry_over = await svc.release_version(project_id, version_id)
     except ValueError as e:
         raise HTTPException(409, str(e))
+
+    try:
+        from arc.application.planning.planning_service import PlanningService
+        planning_svc = PlanningService(db)
+        await planning_svc.extract_release_experience(project_id, version_id)
+    except Exception:
+        pass
+
     stats = await svc.version_repo.count_todos_by_status(version_id)
     return _version_resp(version, stats)
 
@@ -323,13 +407,22 @@ async def list_project_experiences(
     db: DbSession,
     user: CurrentUser,
     status: str | None = None,
+    category: str | None = None,
 ):
-    from arc.domain.todo.value_objects import ExperienceStatus
+    from arc.domain.todo.value_objects import ExperienceCategory, ExperienceStatus
     from arc.infrastructure.repositories.experience import ExperienceRepository
 
     repo = ExperienceRepository(db)
     st = ExperienceStatus(status) if status and status in ("draft", "confirmed", "archived") else None
     experiences, total = await repo.list_all(project_id=project_id, status=st, user_id=user.id)
+
+    if category:
+        try:
+            cat = ExperienceCategory(category)
+            experiences = [e for e in experiences if e.category == cat]
+            total = len(experiences)
+        except ValueError:
+            pass
 
     return ExperienceListResponse(
         items=[_exp_resp(e) for e in experiences],
@@ -366,9 +459,12 @@ def _exp_resp(exp) -> ExperienceResponse:
         id=str(exp.id),
         todo_id=str(exp.todo_id) if exp.todo_id else None,
         project_id=str(exp.project_id) if exp.project_id else None,
+        version_id=str(exp.version_id) if exp.version_id else None,
         title=exp.title,
         scope=exp.scope.value if hasattr(exp.scope, "value") else str(exp.scope),
         status=exp.status.value if hasattr(exp.status, "value") else str(exp.status),
+        category=exp.category.value if hasattr(exp.category, "value") else str(exp.category),
+        source=exp.source.value if hasattr(exp.source, "value") else str(exp.source),
         problem=exp.problem,
         solution=exp.solution,
         decisions=exp.decisions,
@@ -380,4 +476,277 @@ def _exp_resp(exp) -> ExperienceResponse:
         metadata=exp.metadata,
         created_at=exp.created_at,
         updated_at=exp.updated_at,
+    )
+
+
+# ── Documents (规划引擎) ─────────────────────────────────
+
+
+@router.post("/{project_id}/documents", response_model=DocumentResponse, status_code=201)
+async def upload_document(
+    project_id: uuid.UUID,
+    file: UploadFile,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.document_service import DocumentService
+    svc = DocumentService(db)
+
+    data = await file.read()
+    doc = await svc.upload(
+        project_id=project_id,
+        filename=file.filename or "unknown",
+        content_type=file.content_type or "application/octet-stream",
+        data=data,
+    )
+    return DocumentResponse(
+        id=str(doc.id),
+        project_id=str(doc.project_id),
+        filename=doc.filename,
+        content_type=doc.content_type,
+        size=doc.size,
+        status=doc.status.value,
+        parsed_features=doc.parsed_features,
+        created_at=doc.created_at.isoformat(),
+    )
+
+
+@router.get("/{project_id}/documents", response_model=list[DocumentResponse])
+async def list_documents(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.document_service import DocumentService
+    svc = DocumentService(db)
+    docs = await svc.list_by_project(project_id)
+    return [
+        DocumentResponse(
+            id=str(d.id),
+            project_id=str(d.project_id),
+            filename=d.filename,
+            content_type=d.content_type,
+            size=d.size,
+            status=d.status.value,
+            parsed_features=d.parsed_features,
+            created_at=d.created_at.isoformat(),
+        )
+        for d in docs
+    ]
+
+
+@router.delete("/{project_id}/documents/{doc_id}", status_code=204)
+async def delete_document(
+    project_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.document_service import DocumentService
+    svc = DocumentService(db)
+    await svc.delete(doc_id)
+
+
+# ── Planning Sessions (版本规划) ──────────────────────────
+
+
+@router.post(
+    "/{project_id}/planning-sessions",
+    response_model=PlanningSessionResponse,
+    status_code=201,
+)
+async def create_planning_session(
+    project_id: uuid.UUID,
+    body: PlanningSessionCreate,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.planning_service import PlanningService
+    svc = PlanningService(db)
+    session = await svc.create_session(
+        project_id=project_id,
+        document_ids=[uuid.UUID(d) for d in body.document_ids],
+        constraints=body.constraints.model_dump() if body.constraints else None,
+        version_id=uuid.UUID(body.version_id) if body.version_id else None,
+    )
+    return _planning_session_resp(session)
+
+
+@router.get(
+    "/{project_id}/planning-sessions",
+    response_model=list[PlanningSessionResponse],
+)
+async def list_planning_sessions(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.infrastructure.repositories.planning import PlanningSessionRepository
+    repo = PlanningSessionRepository(db)
+    sessions = await repo.list_by_project(project_id)
+    return [_planning_session_resp(s) for s in sessions]
+
+
+@router.post(
+    "/{project_id}/planning-sessions/{session_id}/generate",
+    response_model=PlanningSessionResponse,
+)
+async def generate_roadmap(
+    project_id: uuid.UUID,
+    session_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.planning_service import PlanningService
+    svc = PlanningService(db)
+    await svc.generate_roadmap(session_id)
+    from arc.infrastructure.repositories.planning import PlanningSessionRepository
+    repo = PlanningSessionRepository(db)
+    session = await repo.get_by_id(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    return _planning_session_resp(session)
+
+
+@router.post(
+    "/{project_id}/planning-sessions/{session_id}/confirm",
+    response_model=PlanningSessionResponse,
+)
+async def confirm_roadmap(
+    project_id: uuid.UUID,
+    session_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.infrastructure.repositories.planning import PlanningSessionRepository
+    repo = PlanningSessionRepository(db)
+    session = await repo.get_by_id(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    session.confirm()
+    await repo.update(session)
+    return _planning_session_resp(session)
+
+
+@router.post(
+    "/{project_id}/planning-sessions/{session_id}/apply",
+)
+async def apply_roadmap(
+    project_id: uuid.UUID,
+    session_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.planning_service import PlanningService
+    svc = PlanningService(db)
+    versions = await svc.apply_roadmap(session_id)
+    return {
+        "message": f"已创建 {len(versions)} 个版本",
+        "version_ids": [str(v.id) for v in versions],
+    }
+
+
+@router.post(
+    "/{project_id}/planning-sessions/{session_id}/preview-diff",
+)
+async def preview_apply_diff(
+    project_id: uuid.UUID,
+    session_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.planning_service import PlanningService
+    svc = PlanningService(db)
+    try:
+        diff = await svc.preview_apply_diff(session_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return diff
+
+
+@router.post(
+    "/{project_id}/planning-sessions/{session_id}/apply-with-diff",
+)
+async def apply_with_diff(
+    project_id: uuid.UUID,
+    session_id: uuid.UUID,
+    body: ApplyWithDiffRequest,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.planning_service import PlanningService
+    svc = PlanningService(db)
+    try:
+        result = await svc.apply_with_diff(
+            session_id,
+            [uuid.UUID(tid) for tid in body.abandon_todo_ids],
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return result
+
+
+@router.post(
+    "/{project_id}/planning-sessions/{session_id}/revise",
+    response_model=PlanningSessionResponse,
+)
+async def revise_planning_session(
+    project_id: uuid.UUID,
+    session_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.infrastructure.repositories.planning import PlanningSessionRepository
+    repo = PlanningSessionRepository(db)
+    session = await repo.get_by_id(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    session.revise()
+    await repo.update(session)
+    return _planning_session_resp(session)
+
+
+@router.get(
+    "/{project_id}/versions/{version_id}/planning-sessions",
+    response_model=list[PlanningSessionResponse],
+)
+async def list_version_planning_sessions(
+    project_id: uuid.UUID,
+    version_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.infrastructure.repositories.planning import PlanningSessionRepository
+    repo = PlanningSessionRepository(db)
+    sessions = await repo.list_by_version(version_id)
+    return [_planning_session_resp(s) for s in sessions]
+
+
+@router.post(
+    "/{project_id}/versions/{version_id}/analyze",
+)
+async def analyze_iteration(
+    project_id: uuid.UUID,
+    version_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.planning.planning_service import PlanningService
+    svc = PlanningService(db)
+    analysis = await svc.analyze_iteration(project_id, version_id)
+    return {"analysis": analysis}
+
+
+def _planning_session_resp(s) -> PlanningSessionResponse:
+    return PlanningSessionResponse(
+        id=str(s.id),
+        project_id=str(s.project_id),
+        version_id=str(s.version_id) if s.version_id else None,
+        document_ids=[str(d) for d in s.document_ids],
+        constraints=s.constraints,
+        roadmap=s.roadmap,
+        conversation_id=str(s.conversation_id) if s.conversation_id else None,
+        status=s.status.value if hasattr(s.status, "value") else str(s.status),
+        created_at=s.created_at.isoformat(),
+        updated_at=s.updated_at.isoformat(),
     )

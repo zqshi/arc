@@ -4,7 +4,13 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from arc.domain.todo.value_objects import ExperienceScope, ExperienceStatus, Tag
+from arc.domain.todo.value_objects import (
+    ExperienceCategory,
+    ExperienceScope,
+    ExperienceSource,
+    ExperienceStatus,
+    Tag,
+)
 
 
 @dataclass
@@ -15,8 +21,11 @@ class Experience:
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     todo_id: uuid.UUID | None = None
     project_id: uuid.UUID | None = None
+    version_id: uuid.UUID | None = None
     scope: ExperienceScope = ExperienceScope.PROJECT
     status: ExperienceStatus = ExperienceStatus.DRAFT
+    category: ExperienceCategory = ExperienceCategory.TECHNICAL
+    source: ExperienceSource = ExperienceSource.MANUAL
     decisions: list[str] = field(default_factory=list)
     pitfalls: list[str] = field(default_factory=list)
     applicable_scenarios: str = ""

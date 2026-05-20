@@ -18,6 +18,10 @@ import type {
   Version,
   CreateVersionRequest,
   SystemSettings,
+  PlanningDocument,
+  PlanningSession,
+  DeliverableTracker,
+  ScopeDiff,
 } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -95,10 +99,9 @@ class ApiClient {
       }
     }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (options?.headers) {
+    const isFormData = options?.body instanceof FormData;
+    const headers: Record<string, string> = isFormData ? {} : { 'Content-Type': 'application/json' };
+    if (options?.headers && !(isFormData && Object.keys(options.headers).length === 0)) {
       Object.assign(headers, options.headers);
     }
     if (token) {
@@ -233,6 +236,14 @@ class ApiClient {
 
   async extractTags(id: string): Promise<Todo> {
     return this.request<Todo>(`/api/todos/${id}/extract-tags`, { method: 'POST' });
+  }
+
+  async startConversation(todoId: string): Promise<Todo> {
+    return this.request<Todo>(`/api/todos/${todoId}/start-conversation`, { method: 'POST' });
+  }
+
+  async getDeliverables(todoId: string): Promise<DeliverableTracker> {
+    return this.request<DeliverableTracker>(`/api/todos/${todoId}/deliverables`);
   }
 
   // ─── Pipeline ───────────────────────────────────────────
@@ -372,9 +383,10 @@ class ApiClient {
     });
   }
 
-  async listProjectExperiences(projectId: string, status?: string): Promise<Experience[]> {
+  async listProjectExperiences(projectId: string, params?: { status?: string; category?: string }): Promise<Experience[]> {
     const sp = new URLSearchParams();
-    if (status) sp.set('status', status);
+    if (params?.status) sp.set('status', params.status);
+    if (params?.category) sp.set('category', params.category);
     const qs = sp.toString();
     const data = await this.request<{ items: Experience[]; total: number }>(
       `/api/projects/${projectId}/experiences${qs ? `?${qs}` : ''}`,
@@ -413,10 +425,106 @@ class ApiClient {
     return this.request<AvailableAgentsResponse>('/api/todos/agent-types');
   }
 
+  // ─── Planning ─────────────────────────────────────────
+
+  async uploadDocument(projectId: string, file: File): Promise<PlanningDocument> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request<PlanningDocument>(`/api/projects/${projectId}/documents`, {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+  }
+
+  async listDocuments(projectId: string): Promise<PlanningDocument[]> {
+    return this.request<PlanningDocument[]>(`/api/projects/${projectId}/documents`);
+  }
+
+  async deleteDocument(projectId: string, docId: string): Promise<void> {
+    return this.request<void>(`/api/projects/${projectId}/documents/${docId}`, { method: 'DELETE' });
+  }
+
+  async createPlanningSession(projectId: string, data: { document_ids?: string[]; constraints?: Record<string, unknown>; version_id?: string }): Promise<PlanningSession> {
+    return this.request<PlanningSession>(`/api/projects/${projectId}/planning-sessions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listPlanningSessions(projectId: string): Promise<PlanningSession[]> {
+    return this.request<PlanningSession[]>(`/api/projects/${projectId}/planning-sessions`);
+  }
+
+  async listVersionPlanningSessions(projectId: string, versionId: string): Promise<PlanningSession[]> {
+    return this.request<PlanningSession[]>(`/api/projects/${projectId}/versions/${versionId}/planning-sessions`);
+  }
+
+  async generateRoadmap(projectId: string, sessionId: string): Promise<PlanningSession> {
+    return this.request<PlanningSession>(`/api/projects/${projectId}/planning-sessions/${sessionId}/generate`, {
+      method: 'POST',
+    });
+  }
+
+  async confirmRoadmap(projectId: string, sessionId: string): Promise<PlanningSession> {
+    return this.request<PlanningSession>(`/api/projects/${projectId}/planning-sessions/${sessionId}/confirm`, {
+      method: 'POST',
+    });
+  }
+
+  async applyRoadmap(projectId: string, sessionId: string): Promise<{ message: string; version_ids: string[] }> {
+    return this.request(`/api/projects/${projectId}/planning-sessions/${sessionId}/apply`, {
+      method: 'POST',
+    });
+  }
+
+  async previewApplyDiff(projectId: string, sessionId: string): Promise<ScopeDiff> {
+    return this.request<ScopeDiff>(`/api/projects/${projectId}/planning-sessions/${sessionId}/preview-diff`, {
+      method: 'POST',
+    });
+  }
+
+  async applyWithDiff(projectId: string, sessionId: string, abandonTodoIds: string[]): Promise<{ message: string; created_count: number; abandoned_count: number }> {
+    return this.request(`/api/projects/${projectId}/planning-sessions/${sessionId}/apply-with-diff`, {
+      method: 'POST',
+      body: JSON.stringify({ abandon_todo_ids: abandonTodoIds }),
+    });
+  }
+
+  async revisePlanningSession(projectId: string, sessionId: string): Promise<PlanningSession> {
+    return this.request<PlanningSession>(`/api/projects/${projectId}/planning-sessions/${sessionId}/revise`, {
+      method: 'POST',
+    });
+  }
+
+  async analyzeIteration(projectId: string, versionId: string): Promise<{ analysis: string }> {
+    return this.request(`/api/projects/${projectId}/versions/${versionId}/analyze`, {
+      method: 'POST',
+    });
+  }
+
+  async getModeSwitchImpact(projectId: string): Promise<{ active_count: number; pending_count: number; safe_to_switch: boolean }> {
+    return this.request(`/api/projects/${projectId}/mode-switch-impact`);
+  }
+
   // ─── Settings ──────────────────────────────────────────
 
   async getSettings(): Promise<SystemSettings> {
     return this.request<SystemSettings>('/api/settings');
+  }
+
+  // ─── Filesystem ───────────────────────────────────────
+
+  async browseDirectory(path: string = '~'): Promise<{ current: string; parent: string | null; dirs: string[] }> {
+    return this.request(`/api/filesystem/browse?path=${encodeURIComponent(path)}`);
+  }
+
+  async createDirectory(path: string): Promise<{ path: string }> {
+    return this.request('/api/filesystem/mkdir', { method: 'POST', body: JSON.stringify({ path }) });
+  }
+
+  async scanCodebase(projectId: string): Promise<{ summary: string }> {
+    return this.request(`/api/projects/${projectId}/scan-codebase`, { method: 'POST' });
   }
 }
 

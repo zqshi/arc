@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from arc.domain.pipeline.value_objects import PhaseType
+from arc.domain.project.value_objects import ExecutionMode
 from arc.domain.todo.value_objects import VALID_TRANSITIONS, Tag, TodoStatus
 
 
@@ -25,8 +26,11 @@ class Todo:
     status: TodoStatus = TodoStatus.PENDING
     priority: int = 2
     current_phase: PhaseType | None = None
+    execution_mode: ExecutionMode = ExecutionMode.PIPELINE
     tags: list[Tag] = field(default_factory=list)
     error_reason: str = ""
+    source_session_id: uuid.UUID | None = None
+    source_feature_key: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -40,6 +44,10 @@ class Todo:
     def start_pipeline(self) -> None:
         self._transition_to(TodoStatus.ACTIVE)
         self.current_phase = PhaseType.CLARIFICATION
+
+    def start_conversation(self) -> None:
+        self._transition_to(TodoStatus.ACTIVE)
+        self.current_phase = None
 
     def update_phase(self, phase: PhaseType) -> None:
         if self.status != TodoStatus.ACTIVE:
@@ -59,3 +67,6 @@ class Todo:
     def retry(self) -> None:
         self._transition_to(TodoStatus.PENDING)
         self.current_phase = None
+
+    def abandon(self) -> None:
+        self._transition_to(TodoStatus.ABANDONED)

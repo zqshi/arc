@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.pipeline.value_objects import PhaseType
+from arc.domain.project.value_objects import ExecutionMode
 from arc.domain.todo.entity import Todo as TodoEntity
 from arc.domain.todo.value_objects import Tag, TodoStatus
 from arc.infrastructure.models.todo import Todo as TodoModel
@@ -69,7 +70,10 @@ class TodoRepository:
             version_id=entity.version_id,
             priority=entity.priority,
             current_phase=entity.current_phase.value if entity.current_phase else None,
+            execution_mode=entity.execution_mode.value,
             tags=[{"label": t.label, "color": t.color} for t in entity.tags],
+            source_session_id=entity.source_session_id,
+            source_feature_key=entity.source_feature_key or None,
         )
         self.db.add(model)
         await self.db.flush()
@@ -88,7 +92,10 @@ class TodoRepository:
         model.version_id = entity.version_id
         model.priority = entity.priority
         model.current_phase = entity.current_phase.value if entity.current_phase else None
+        model.execution_mode = entity.execution_mode.value
         model.tags = [{"label": t.label, "color": t.color} for t in entity.tags]
+        model.source_session_id = entity.source_session_id
+        model.source_feature_key = entity.source_feature_key or None
         await self.db.flush()
         await self.db.refresh(model)
         return self._to_entity(model)
@@ -99,6 +106,15 @@ class TodoRepository:
         if model:
             await self.db.delete(model)
             await self.db.flush()
+
+    async def list_by_session(self, session_id: uuid.UUID) -> list[TodoEntity]:
+        stmt = (
+            select(TodoModel)
+            .where(TodoModel.source_session_id == session_id)
+            .order_by(TodoModel.created_at)
+        )
+        result = await self.db.execute(stmt)
+        return [self._to_entity(r) for r in result.scalars().all()]
 
     @staticmethod
     def _to_entity(model: TodoModel) -> TodoEntity:
@@ -114,7 +130,10 @@ class TodoRepository:
             status=TodoStatus(model.status),
             priority=model.priority if model.priority is not None else 2,
             current_phase=PhaseType(model.current_phase) if model.current_phase else None,
+            execution_mode=ExecutionMode(model.execution_mode) if model.execution_mode else ExecutionMode.PIPELINE,
             tags=tags,
+            source_session_id=model.source_session_id,
+            source_feature_key=model.source_feature_key or "",
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

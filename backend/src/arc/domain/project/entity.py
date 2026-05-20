@@ -5,7 +5,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from arc.domain.project.value_objects import (
+    DEFAULT_CONVERSATION_CONFIG,
+    DEFAULT_PIPELINE_CONFIG,
     VALID_VERSION_TRANSITIONS,
+    ExecutionMode,
     ProjectStatus,
     VersionStatus,
 )
@@ -18,8 +21,13 @@ class Project:
     description: str = ""
     tech_stack: str = ""
     repo_url: str = ""
+    local_path: str = ""
     conventions: str = ""
+    codebase_summary: str = ""
     status: ProjectStatus = ProjectStatus.ACTIVE
+    execution_mode: ExecutionMode = ExecutionMode.PIPELINE
+    pipeline_config: dict = field(default_factory=lambda: dict(DEFAULT_PIPELINE_CONFIG))
+    conversation_config: dict = field(default_factory=lambda: dict(DEFAULT_CONVERSATION_CONFIG))
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -29,6 +37,18 @@ class Project:
 
     def activate(self) -> None:
         self.status = ProjectStatus.ACTIVE
+        self.updated_at = datetime.now(UTC)
+
+    def set_execution_mode(self, mode: ExecutionMode) -> None:
+        self.execution_mode = mode
+        self.updated_at = datetime.now(UTC)
+
+    def update_pipeline_config(self, config: dict) -> None:
+        self.pipeline_config = {**DEFAULT_PIPELINE_CONFIG, **config}
+        self.updated_at = datetime.now(UTC)
+
+    def update_conversation_config(self, config: dict) -> None:
+        self.conversation_config = {**DEFAULT_CONVERSATION_CONFIG, **config}
         self.updated_at = datetime.now(UTC)
 
 

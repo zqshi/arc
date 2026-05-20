@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Plus,
   GitBranch,
@@ -6,12 +7,16 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  Sparkles,
+  Map,
 } from 'lucide-react';
-import type { Version, VersionStatus, VersionType, Todo, TodoStatus } from '../../types/api';
+import type { Version, VersionStatus, VersionType, Todo, TodoStatus, PlanningSession } from '../../types/api';
 import { STATUS_LABELS } from '../../types/api';
 import ActionMenu from '../ActionMenu';
 import type { ActionMenuItem } from '../ActionMenu';
 import PhaseProgress from '../PhaseProgress';
+import { VersionPlanningPanel } from './VersionPlanningPanel';
+import { ProjectPlanningPanel } from './ProjectPlanningPanel';
 
 const VERSION_STATUS_STYLE: Record<VersionStatus, { bg: string; label: string }> = {
   planning: { bg: 'bg-status-pending/15 text-status-pending', label: '规划中' },
@@ -24,6 +29,7 @@ const statusDotColor: Record<TodoStatus, string> = {
   active: 'bg-accent',
   done: 'bg-status-done',
   error: 'bg-status-error',
+  abandoned: 'bg-text-muted',
 };
 
 const statusBadgeBg: Record<TodoStatus, string> = {
@@ -31,9 +37,11 @@ const statusBadgeBg: Record<TodoStatus, string> = {
   active: 'bg-accent/15 text-accent',
   done: 'bg-status-done/15 text-status-done',
   error: 'bg-status-error/15 text-status-error',
+  abandoned: 'bg-text-muted/15 text-text-muted',
 };
 
 interface TodosTabProps {
+  projectId: string;
   versions: Version[];
   versionTodos: Record<string, Todo[]>;
   expandedVersions: Set<string>;
@@ -53,9 +61,13 @@ interface TodosTabProps {
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
   setCreateForVersion: (id: string) => void;
   navigate: (path: string) => void;
+  onAnalyzeVersion?: (versionId: string) => void;
+  onRefreshData: () => void;
+  onPreviewRoadmap?: (session: PlanningSession) => void;
 }
 
 export function TodosTab({
+  projectId,
   versions,
   versionTodos,
   expandedVersions,
@@ -75,20 +87,47 @@ export function TodosTab({
   handleDeleteTodo,
   setCreateForVersion,
   navigate,
+  onAnalyzeVersion,
+  onRefreshData,
+  onPreviewRoadmap,
 }: TodosTabProps) {
+  const [showGlobalPlanning, setShowGlobalPlanning] = useState(false);
+
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
           <GitBranch size={13} /> 版本 & 需求
         </h2>
-        <button
-          onClick={() => setShowNewVersion(true)}
-          className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary"
-        >
-          <Plus size={12} /> 新版本
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowGlobalPlanning(!showGlobalPlanning)}
+            className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              showGlobalPlanning
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-border text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <Map size={12} /> AI 全局规划
+          </button>
+          <button
+            onClick={() => setShowNewVersion(true)}
+            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary"
+          >
+            <Plus size={12} /> 新版本
+          </button>
+        </div>
       </div>
+
+      {/* Global Planning Panel */}
+      {showGlobalPlanning && (
+        <ProjectPlanningPanel
+          projectId={projectId}
+          onRoadmapApplied={() => { setShowGlobalPlanning(false); onRefreshData(); }}
+          onClose={() => setShowGlobalPlanning(false)}
+          onPreviewRoadmap={onPreviewRoadmap}
+        />
+      )}
 
       {showNewVersion && (
         <div className="mb-3 rounded-lg border border-accent/30 bg-bg-card p-4">
@@ -138,9 +177,9 @@ export function TodosTab({
       )}
 
       <div className="space-y-3">
-        {versions.length === 0 && !showNewVersion && (
+        {versions.length === 0 && !showNewVersion && !showGlobalPlanning && (
           <p className="rounded-lg border border-border bg-bg-card p-4 text-center text-xs text-text-muted">
-            还没有版本。创建一个版本来圈定需求范围。
+            还没有版本。创建一个版本来圈定需求范围，或使用「AI 全局规划」从文档自动生成。
           </p>
         )}
         {versions.map((v) => {
@@ -164,12 +203,13 @@ export function TodosTab({
                   ) : (
                     <ChevronRight size={14} className="flex-shrink-0 text-text-muted" />
                   )}
-                  <span className="text-sm font-medium text-text-primary">{v.name}</span>
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${style.bg}`}>
+                  <span className="rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-text-secondary">{v.name}</span>
+                  {v.goal && <span className="truncate text-sm font-medium text-text-primary">{v.goal}</span>}
+                  <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${style.bg}`}>
                     {style.label}
                   </span>
                   {total > 0 && (
-                    <span className="text-[10px] text-text-muted">{done}/{total} 完成</span>
+                    <span className="flex-shrink-0 text-[10px] text-text-muted">{done}/{total}</span>
                   )}
                 </button>
                 <div className="ml-3 flex items-center gap-1.5">
@@ -183,6 +223,9 @@ export function TodosTab({
                   )}
                   <ActionMenu items={(() => {
                     const items: ActionMenuItem[] = [];
+                    if (v.status === 'active' && onAnalyzeVersion) {
+                      items.push({ label: 'AI 分析', icon: <Sparkles size={12} />, onClick: () => onAnalyzeVersion(v.id) });
+                    }
                     if (v.status === 'planning') {
                       items.push({ label: '开始迭代', icon: <Play size={12} />, onClick: () => handleActivateVersion(v.id) });
                     }
@@ -219,12 +262,6 @@ export function TodosTab({
                 </div>
               )}
 
-              {v.goal && isExpanded && (
-                <div className="border-t border-border/50 px-4 py-2">
-                  <p className="text-xs text-text-secondary">{v.goal}</p>
-                </div>
-              )}
-
               {v.status === 'released' && v.changelog && isExpanded && (
                 <div className="border-t border-border/50 px-4 py-2">
                   <p className="mb-1 text-[10px] font-medium text-text-tertiary">变更记录</p>
@@ -232,47 +269,43 @@ export function TodosTab({
                 </div>
               )}
 
-              {isExpanded && (
+              {/* Version planning workspace (planning status) */}
+              {isExpanded && v.status === 'planning' && (
+                <div className="border-t border-border/50">
+                  <VersionPlanningPanel
+                    projectId={projectId}
+                    versionId={v.id}
+                    onTodosCreated={onRefreshData}
+                    onPreviewRoadmap={onPreviewRoadmap}
+                  />
+                  {/* Also show existing todos if any */}
+                  {todos.length > 0 && (
+                    <div className="border-t border-border/50">
+                      <TodoList
+                        todos={todos}
+                        versionId={v.id}
+                        navigate={navigate}
+                        handleDeleteTodo={handleDeleteTodo}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Todo list (active/released status) */}
+              {isExpanded && v.status !== 'planning' && (
                 <div className="border-t border-border/50">
                   {todos.length === 0 ? (
                     <p className="px-4 py-3 text-center text-[11px] text-text-muted">
                       暂无需求，点击"+ 需求"添加
                     </p>
                   ) : (
-                    <div className="divide-y divide-border/30">
-                      {todos.map((todo) => (
-                        <div
-                          key={todo.id}
-                          onClick={() => navigate(`/todo/${todo.id}`)}
-                          className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-elevated"
-                        >
-                          <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${statusDotColor[todo.status]}`} />
-                          <span className="min-w-0 flex-1 truncate text-xs text-text-primary">{todo.title}</span>
-                          <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusBadgeBg[todo.status]}`}>
-                            {STATUS_LABELS[todo.status]}
-                          </span>
-                          {todo.current_phase && <PhaseProgress currentPhase={todo.current_phase} />}
-                          <div className="flex flex-shrink-0 gap-1">
-                            {todo.tags.slice(0, 2).map((tag) => (
-                              <span
-                                key={tag.label}
-                                className="rounded px-1 py-0.5 text-[9px] font-medium"
-                                style={{ backgroundColor: `${tag.color}18`, color: tag.color }}
-                              >
-                                {tag.label}
-                              </span>
-                            ))}
-                          </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteTodo(todo.id, todo.title, v.id); }}
-                            className="flex-shrink-0 rounded p-1 text-text-muted opacity-0 transition-all hover:bg-status-error/10 hover:text-status-error group-hover:opacity-100"
-                            title="删除需求"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                    <TodoList
+                      todos={todos}
+                      versionId={v.id}
+                      navigate={navigate}
+                      handleDeleteTodo={handleDeleteTodo}
+                    />
                   )}
                 </div>
               )}
@@ -281,5 +314,59 @@ export function TodosTab({
         })}
       </div>
     </section>
+  );
+}
+
+function TodoList({
+  todos,
+  versionId,
+  navigate,
+  handleDeleteTodo,
+}: {
+  todos: Todo[];
+  versionId: string;
+  navigate: (path: string) => void;
+  handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
+}) {
+  return (
+    <div className="divide-y divide-border/30">
+      {todos.map((todo) => (
+        <div
+          key={todo.id}
+          onClick={() => navigate(`/todo/${todo.id}`)}
+          className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-elevated"
+        >
+          <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${statusDotColor[todo.status]}`} />
+          <span className="min-w-0 flex-1 truncate text-xs text-text-primary">{todo.title}</span>
+          <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusBadgeBg[todo.status]}`}>
+            {STATUS_LABELS[todo.status]}
+          </span>
+          {todo.execution_mode === 'conversation' && (
+            <span className="flex-shrink-0 rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-medium text-purple-400">
+              对话
+            </span>
+          )}
+          {todo.current_phase && <PhaseProgress currentPhase={todo.current_phase} />}
+          <div className="flex flex-shrink-0 gap-1">
+            {todo.tags.slice(0, 2).map((tag) => (
+              <span
+                key={tag.label}
+                className="rounded px-1 py-0.5 text-[9px] font-medium"
+                style={{ backgroundColor: `${tag.color}18`, color: tag.color }}
+              >
+                {tag.label}
+              </span>
+            ))}
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDeleteTodo(todo.id, todo.title, versionId); }}
+            className="flex-shrink-0 rounded p-1 text-text-muted opacity-0 transition-all hover:bg-status-error/10 hover:text-status-error group-hover:opacity-100"
+            title="删除需求"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }

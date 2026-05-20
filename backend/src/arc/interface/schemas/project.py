@@ -8,7 +8,9 @@ class ProjectCreate(BaseModel):
     description: str = ""
     tech_stack: str = ""
     repo_url: str = ""
+    local_path: str = ""
     conventions: str = ""
+    execution_mode: str = "pipeline"
 
 
 class ProjectUpdate(BaseModel):
@@ -16,7 +18,11 @@ class ProjectUpdate(BaseModel):
     description: str | None = None
     tech_stack: str | None = None
     repo_url: str | None = None
+    local_path: str | None = None
     conventions: str | None = None
+    execution_mode: str | None = None
+    pipeline_config: dict | None = None
+    conversation_config: dict | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -25,8 +31,13 @@ class ProjectResponse(BaseModel):
     description: str
     tech_stack: str
     repo_url: str
+    local_path: str
     conventions: str
+    codebase_summary: str
     status: str
+    execution_mode: str
+    pipeline_config: dict | None = None
+    conversation_config: dict | None = None
     created_at: str
     updated_at: str
 
@@ -55,3 +66,53 @@ class VersionResponse(BaseModel):
     todo_stats: dict[str, int] | None = None
     created_at: str
     updated_at: str
+
+
+class PlanningConstraintsRequest(BaseModel):
+    team_capacity: int = 3
+    iteration_weeks: int = 2
+    hard_deadlines: list[str] = Field(default_factory=list)
+    release_strategy: str = "mvp"
+    priority_framework: str = ""
+
+
+class PlanningSessionCreate(BaseModel):
+    document_ids: list[str] = Field(default_factory=list)
+    constraints: PlanningConstraintsRequest | None = None
+    version_id: str | None = None
+
+
+class PlanningSessionResponse(BaseModel):
+    id: str
+    project_id: str
+    version_id: str | None = None
+    document_ids: list[str]
+    constraints: dict
+    roadmap: dict
+    conversation_id: str | None = None
+    status: str
+    created_at: str
+    updated_at: str
+
+
+class DocumentResponse(BaseModel):
+    id: str
+    project_id: str
+    filename: str
+    content_type: str
+    size: int
+    status: str
+    parsed_features: list[dict] | None = None
+    created_at: str
+
+
+class ApplyWithDiffRequest(BaseModel):
+    abandon_todo_ids: list[str] = Field(default_factory=list)
+
+
+class DeliverableTrackerResponse(BaseModel):
+    todo_id: str
+    required: list[str]
+    deliverables: dict[str, str]
+    completion_pct: float
+    is_complete: bool

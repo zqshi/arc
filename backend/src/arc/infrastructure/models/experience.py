@@ -21,9 +21,14 @@ class Experience(TimestampMixin, Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
+    version_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("versions.id", ondelete="SET NULL"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     scope: Mapped[str] = mapped_column(String(20), default="project")
     status: Mapped[str] = mapped_column(String(20), default="draft")
+    category: Mapped[str] = mapped_column(String(30), default="technical")
+    source: Mapped[str] = mapped_column(String(30), default="manual")
     problem: Mapped[str] = mapped_column(Text, nullable=False)
     solution: Mapped[str] = mapped_column(Text, nullable=False)
     decisions: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

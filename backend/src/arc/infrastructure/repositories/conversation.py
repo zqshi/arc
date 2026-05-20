@@ -41,6 +41,21 @@ class ConversationRepository(IConversationRepository):
             entities.append(self._to_entity(row, messages))
         return entities
 
+    async def get_by_todo_and_purpose(
+        self, todo_id: uuid.UUID, purpose: ConversationPurpose,
+    ) -> ConvEntity | None:
+        result = await self.db.execute(
+            select(ConvModel).where(
+                ConvModel.todo_id == todo_id,
+                ConvModel.purpose == purpose.value,
+            )
+        )
+        row = result.scalar_one_or_none()
+        if not row:
+            return None
+        messages = await self._load_messages(row.id)
+        return self._to_entity(row, messages)
+
     async def create(self, entity: ConvEntity) -> ConvEntity:
         model = ConvModel(
             id=entity.id,

@@ -1,16 +1,50 @@
-import { Save, Lightbulb, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Save, Lightbulb, Settings, Workflow, MessageSquare, AlertTriangle, Zap, FolderOpen, ScanSearch, RefreshCw } from 'lucide-react';
 import { Field } from './FormFields';
+import { api } from '../../api/client';
+import FolderPicker from '../FolderPicker';
+import type { ExecutionMode } from '../../types/api';
+import { EXECUTION_MODE_LABELS, EXECUTION_MODE_DESCRIPTIONS } from '../../types/api';
 
 interface SettingsTabProps {
-  form: { name: string; description: string; tech_stack: string; repo_url: string; conventions: string };
+  projectId: string;
+  form: {
+    name: string;
+    description: string;
+    tech_stack: string;
+    repo_url: string;
+    local_path: string;
+    conventions: string;
+    codebase_summary: string;
+    execution_mode: ExecutionMode;
+    pipeline_config: Record<string, unknown>;
+    conversation_config: Record<string, unknown>;
+  };
   setForm: (f: SettingsTabProps['form']) => void;
   dirty: boolean;
   onSave: () => void;
+  onRefresh: () => void;
   insights: Array<{ id: string; title: string; solution: string; confidence: number; reuse_count: number }>;
   onAppendConvention: (solution: string) => void;
 }
 
-export function SettingsTab({ form, setForm, dirty, onSave, insights, onAppendConvention }: SettingsTabProps) {
+export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh, insights, onAppendConvention }: SettingsTabProps) {
+  const isAutopilot = Boolean(form.pipeline_config?.auto_advance) || form.conversation_config?.agent_autonomy === 'full';
+
+  const [impact, setImpact] = useState<{ active_count: number; pending_count: number } | null>(null);
+  const [impactLoaded, setImpactLoaded] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
+
+  useEffect(() => {
+    if (!projectId) return;
+    api.getModeSwitchImpact(projectId).then((data) => {
+      setImpact(data);
+      setImpactLoaded(true);
+    }).catch(() => setImpactLoaded(true));
+  }, [projectId]);
+
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
@@ -37,6 +71,162 @@ export function SettingsTab({ form, setForm, dirty, onSave, insights, onAppendCo
           <p className="text-[11px] font-medium text-text-tertiary uppercase tracking-wide">技术配置</p>
           <Field label="技术栈" value={form.tech_stack} onChange={(v) => setForm({ ...form, tech_stack: v })} placeholder="例如：React + FastAPI + PostgreSQL" />
           <Field label="代码仓库" value={form.repo_url} onChange={(v) => setForm({ ...form, repo_url: v })} placeholder="https://github.com/..." />
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-text-tertiary">本地工作目录</label>
+            <button
+              type="button"
+              onClick={() => setShowFolderPicker(true)}
+              className="flex h-9 w-full items-center gap-2 rounded-md border border-border bg-bg-input px-3 text-left text-sm transition-colors hover:border-border-active"
+            >
+              <FolderOpen size={14} className="flex-shrink-0 text-text-muted" />
+              {form.local_path ? (
+                <span className="flex-1 truncate font-mono text-xs text-text-primary">{form.local_path}</span>
+              ) : (
+                <span className="flex-1 truncate text-text-muted">点击选择目录...</span>
+              )}
+            </button>
+            <p className="mt-1 text-[10px] text-text-muted">Coding Agent 将在此目录下读写代码</p>
+          </div>
+
+          {form.local_path && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-medium text-text-tertiary">代码库概况</label>
+                <button
+                  type="button"
+                  disabled={scanning || dirty}
+                  onClick={async () => {
+                    setScanning(true);
+                    setScanError('');
+                    try {
+                      await api.scanCodebase(projectId);
+                      onRefresh();
+                    } catch (e: unknown) {
+                      setScanError(e instanceof Error ? e.message : '扫描失败');
+                    } finally {
+                      setScanning(false);
+                    }
+                  }}
+                  className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-elevated disabled:opacity-40"
+                >
+                  {scanning ? (
+                    <><RefreshCw size={11} className="animate-spin" /> 扫描中...</>
+                  ) : form.codebase_summary ? (
+                    <><RefreshCw size={11} /> 重新扫描</>
+                  ) : (
+                    <><ScanSearch size={11} /> 扫描代码库</>
+                  )}
+                </button>
+              </div>
+              {dirty && !form.codebase_summary && (
+                <p className="text-[10px] text-amber-500">请先保存工作目录配置再扫描</p>
+              )}
+              {scanError && (
+                <p className="text-[10px] text-red-500">{scanError}</p>
+              )}
+              {form.codebase_summary ? (
+                <div className="max-h-64 overflow-y-auto rounded-md border border-border bg-bg-elevated p-3 text-xs leading-relaxed text-text-secondary prose-headings:text-text-primary prose-headings:font-semibold">
+                  <pre className="whitespace-pre-wrap font-sans">{form.codebase_summary}</pre>
+                </div>
+              ) : !scanning && (
+                <p className="text-[10px] text-text-muted">尚未扫描。点击扫描后，AI 将分析代码库结构并生成总结，供后续 Agent 交互使用。</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Execution Mode */}
+        <div className="rounded-lg border border-border bg-bg-card p-4 lg:col-span-2">
+          <p className="mb-3 text-[11px] font-medium text-text-tertiary uppercase tracking-wide">执行模式</p>
+          <p className="mb-3 text-[11px] text-text-muted">决定项目中需求的推进方式。新创建的需求将继承此设置。</p>
+
+          {/* Impact warning */}
+          {impactLoaded && impact && impact.active_count > 0 && (
+            <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+              <AlertTriangle size={13} className="mt-0.5 flex-shrink-0 text-amber-500" />
+              <div className="text-[11px] text-amber-600">
+                <span className="font-medium">当前有 {impact.active_count} 个进行中的需求</span>
+                {impact.pending_count > 0 && <span>，{impact.pending_count} 个待启动的需求</span>}
+                <span>。切换模式仅影响新建需求，已有需求保持原有模式不变。</span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {(['pipeline', 'conversation'] as ExecutionMode[]).map((mode) => {
+              const isActive = form.execution_mode === mode;
+              const Icon = mode === 'pipeline' ? Workflow : MessageSquare;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setForm({ ...form, execution_mode: mode })}
+                  className={`flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-all ${
+                    isActive
+                      ? 'border-accent bg-accent/5'
+                      : 'border-border hover:border-border-active hover:bg-bg-elevated'
+                  }`}
+                >
+                  <div className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${
+                    isActive ? 'bg-accent text-white' : 'bg-bg-elevated text-text-muted'
+                  }`}>
+                    <Icon size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-medium ${isActive ? 'text-accent' : 'text-text-primary'}`}>
+                        {EXECUTION_MODE_LABELS[mode]}
+                      </span>
+                      {isActive && (
+                        <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium text-accent">
+                          当前
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-text-muted">
+                      {EXECUTION_MODE_DESCRIPTIONS[mode]}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Autopilot */}
+        <div className="rounded-lg border border-border bg-bg-card p-4 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                isAutopilot ? 'bg-accent text-white' : 'bg-bg-elevated text-text-muted'
+              }`}>
+                <Zap size={16} />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-text-primary">自驾模式</p>
+                <p className="text-[11px] text-text-muted">
+                  {form.execution_mode === 'pipeline'
+                    ? 'AI 自动通过阶段关卡，仅在异常时中断'
+                    : 'Agent 完全自主推进，仅在异常时中断'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setForm({
+                  ...form,
+                  pipeline_config: { ...form.pipeline_config, auto_advance: !isAutopilot },
+                  conversation_config: { ...form.conversation_config, agent_autonomy: isAutopilot ? 'supervised' : 'full' },
+                });
+              }}
+              className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
+                isAutopilot ? 'bg-accent' : 'bg-border'
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                isAutopilot ? 'translate-x-5' : ''
+              }`} />
+            </button>
+          </div>
         </div>
 
         <div className="rounded-lg border border-border bg-bg-card p-4 lg:col-span-2">
@@ -73,6 +263,13 @@ export function SettingsTab({ form, setForm, dirty, onSave, insights, onAppendCo
           </div>
         )}
       </div>
+
+      <FolderPicker
+        open={showFolderPicker}
+        onClose={() => setShowFolderPicker(false)}
+        onSelect={(path) => setForm({ ...form, local_path: path })}
+        initialPath={form.local_path || '~'}
+      />
     </section>
   );
 }

@@ -79,6 +79,15 @@ async def _stream_ai_response(
     ai_msg_id = None
     try:
         async for chunk in svc.generate_response_stream(conv):
+            event_type = chunk.get("event")
+            if event_type == "artifacts_extracted":
+                await manager.broadcast(conversation_id, {
+                    "type": "artifacts_extracted",
+                    "artifacts": chunk.get("artifacts", []),
+                    "artifact_names": chunk.get("artifact_names", []),
+                })
+                continue
+
             if ai_msg_id is None:
                 ai_msg_id = chunk.get("message_id")
                 await manager.broadcast(conversation_id, {
@@ -194,8 +203,12 @@ async def conversation_ws(
                         await ws.send_json({"type": "error", "detail": "Conversation lost"})
                         continue
 
-                    from arc.application.conversation.service import ConversationService
-                    svc = ConversationService(db)
+                    if conv.purpose.value == "unified":
+                        from arc.application.execution.conversation_strategy import ConversationExecutionService
+                        svc = ConversationExecutionService(db)
+                    else:
+                        from arc.application.conversation.service import ConversationService
+                        svc = ConversationService(db)
                     await _stream_ai_response(manager, conversation_id, svc, conv)
                     await db.commit()
                 continue
@@ -229,8 +242,12 @@ async def conversation_ws(
                     },
                 })
 
-                from arc.application.conversation.service import ConversationService
-                svc = ConversationService(db)
+                if conv.purpose.value == "unified":
+                    from arc.application.execution.conversation_strategy import ConversationExecutionService
+                    svc = ConversationExecutionService(db)
+                else:
+                    from arc.application.conversation.service import ConversationService
+                    svc = ConversationService(db)
                 await _stream_ai_response(manager, conversation_id, svc, conv)
                 await db.commit()
 

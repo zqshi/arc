@@ -6,7 +6,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.project.entity import Project, Version
-from arc.domain.project.value_objects import ProjectStatus, VersionStatus
+from arc.domain.project.value_objects import (
+    DEFAULT_CONVERSATION_CONFIG,
+    DEFAULT_PIPELINE_CONFIG,
+    ExecutionMode,
+    ProjectStatus,
+    VersionStatus,
+)
 from arc.infrastructure.models.project import ProjectModel, VersionModel
 from arc.infrastructure.models.todo import Todo as TodoModel
 
@@ -23,8 +29,13 @@ class ProjectRepository:
             description=project.description,
             tech_stack=project.tech_stack,
             repo_url=project.repo_url,
+            local_path=project.local_path,
             conventions=project.conventions,
+            codebase_summary=project.codebase_summary,
             status=project.status.value,
+            execution_mode=project.execution_mode.value,
+            pipeline_config=project.pipeline_config,
+            conversation_config=project.conversation_config,
         )
         self.db.add(model)
         await self.db.flush()
@@ -66,8 +77,13 @@ class ProjectRepository:
         model.description = project.description
         model.tech_stack = project.tech_stack
         model.repo_url = project.repo_url
+        model.local_path = project.local_path
         model.conventions = project.conventions
+        model.codebase_summary = project.codebase_summary
         model.status = project.status.value
+        model.execution_mode = project.execution_mode.value
+        model.pipeline_config = project.pipeline_config
+        model.conversation_config = project.conversation_config
         await self.db.flush()
 
     async def delete(self, project_id: uuid.UUID) -> bool:
@@ -89,8 +105,13 @@ class ProjectRepository:
             description=model.description or "",
             tech_stack=model.tech_stack or "",
             repo_url=model.repo_url or "",
+            local_path=model.local_path or "",
             conventions=model.conventions or "",
+            codebase_summary=model.codebase_summary or "",
             status=ProjectStatus(model.status),
+            execution_mode=ExecutionMode(model.execution_mode) if model.execution_mode else ExecutionMode.PIPELINE,
+            pipeline_config=model.pipeline_config or dict(DEFAULT_PIPELINE_CONFIG),
+            conversation_config=model.conversation_config or dict(DEFAULT_CONVERSATION_CONFIG),
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.experience.entity import Experience as ExpEntity
 from arc.domain.experience.repository import IExperienceRepository
-from arc.domain.todo.value_objects import ExperienceScope, ExperienceStatus, Tag
+from arc.domain.todo.value_objects import (
+    ExperienceCategory,
+    ExperienceScope,
+    ExperienceSource,
+    ExperienceStatus,
+    Tag,
+)
 from arc.infrastructure.models.experience import (
     Experience as ExpModel,
 )
@@ -131,9 +137,12 @@ class ExperienceRepository(IExperienceRepository):
             user_id=user_id,
             todo_id=entity.todo_id,
             project_id=entity.project_id,
+            version_id=entity.version_id,
             title=entity.title,
             scope=entity.scope.value,
             status=entity.status.value,
+            category=entity.category.value,
+            source=entity.source.value,
             problem=entity.problem,
             solution=entity.solution,
             decisions=entity.decisions or None,
@@ -158,6 +167,9 @@ class ExperienceRepository(IExperienceRepository):
         model.title = entity.title
         model.scope = entity.scope.value
         model.status = entity.status.value
+        model.category = entity.category.value
+        model.source = entity.source.value
+        model.version_id = entity.version_id
         model.problem = entity.problem
         model.solution = entity.solution
         model.decisions = entity.decisions or None
@@ -189,13 +201,28 @@ class ExperienceRepository(IExperienceRepository):
         else:
             status = ExperienceStatus.DRAFT
 
+        cat_val = getattr(model, "category", None) or "technical"
+        try:
+            category = ExperienceCategory(cat_val)
+        except ValueError:
+            category = ExperienceCategory.TECHNICAL
+
+        src_val = getattr(model, "source", None) or "manual"
+        try:
+            source = ExperienceSource(src_val)
+        except ValueError:
+            source = ExperienceSource.MANUAL
+
         return ExpEntity(
             id=model.id,
             todo_id=model.todo_id,
             project_id=model.project_id if hasattr(model, "project_id") else None,
+            version_id=getattr(model, "version_id", None),
             title=model.title,
             scope=scope,
             status=status,
+            category=category,
+            source=source,
             problem=model.problem,
             solution=model.solution,
             decisions=model.decisions or [],

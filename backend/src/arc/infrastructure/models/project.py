@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, TimestampMixin
@@ -17,8 +18,13 @@ class ProjectModel(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     tech_stack: Mapped[str | None] = mapped_column(Text, nullable=True)
     repo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    local_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     conventions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    codebase_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
+    execution_mode: Mapped[str] = mapped_column(String(20), default="pipeline")
+    pipeline_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    conversation_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class VersionModel(TimestampMixin, Base):
