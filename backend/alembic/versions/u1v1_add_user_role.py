@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "u1v1_add_user_role"
-down_revision = "t1t3_experience_decay_distill"
+down_revision = "t1t3_decay_distill"
 branch_labels = None
 depends_on = None
 
