@@ -1,45 +1,224 @@
-"""Claude Code CLI adapter — skeleton for future implementation.
-
-Claude Code runs as a local CLI process. This adapter will:
-1. Spawn `claude` CLI with the task context as input
-2. Monitor stdout/stderr for events
-3. Report results back via the unified event model
-
-The CLI wrapper approach allows Arc to orchestrate Claude Code as a
-background process while the user interacts through the Arc UI.
-"""
-
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from arc.application.agent.adapter import CodingAgentAdapter
 from arc.application.agent.context_builder import TaskContext
-from arc.application.agent.events import AgentEvent
+from arc.application.agent.events import AgentEvent, EventType
 from arc.domain.agent.value_objects import AgentType, SessionStatus
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class _Session:
+    process: asyncio.subprocess.Process
+    stdout_lines: list[str] = field(default_factory=list)
+    stderr_lines: list[str] = field(default_factory=list)
+    read_task: asyncio.Task | None = None
+    finished: bool = False
+    return_code: int | None = None
+
+
 class ClaudeCodeAdapter(CodingAgentAdapter):
     agent_type = AgentType.CLAUDE_CODE
-    implemented = False
+    implemented = True
 
-    def __init__(self, cli_path: str = "claude", work_dir: str = "") -> None:
+    def __init__(
+        self,
+        cli_path: str = "claude",
+        work_dir: str = "",
+        model: str = "",
+    ) -> None:
         self._cli_path = cli_path
         self._work_dir = work_dir
+        self._model = model
+        self._sessions: dict[str, _Session] = {}
 
     async def start(self, context: TaskContext) -> str:
-        raise NotImplementedError("Claude Code adapter not yet implemented")
+        session_id = str(uuid.uuid4())
+
+        cwd = self._work_dir or None
+        if context.project_context:
+            for line in context.project_context.splitlines():
+                if line.startswith("工作目录:"):
+                    path = line.split(":", 1)[1].strip()
+                    if path:
+                        cwd = path
+                    break
+
+        cmd = [self._cli_path, "--print", "--output-format", "json"]
+        if self._model:
+            cmd.extend(["--model", self._model])
+
+        task_md = context.to_markdown()
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
+
+        process.stdin.write(task_md.encode())
+        process.stdin.write_eof()
+
+        session = _Session(process=process)
+        self._sessions[session_id] = session
+
+        session.read_task = asyncio.create_task(
+            self._read_output(session_id),
+            name=f"claude-code-reader-{session_id}",
+        )
+
+        logger.info(
+            "Claude Code session %s started (pid=%s, cwd=%s)",
+            session_id, process.pid, cwd,
+        )
+        return session_id
+
+    async def _read_output(self, session_id: str) -> None:
+        session = self._sessions.get(session_id)
+        if not session:
+            return
+
+        stdout = session.process.stdout
+        stderr = session.process.stderr
+
+        async def _drain_stderr():
+            while True:
+                line = await stderr.readline()
+                if not line:
+                    break
+                session.stderr_lines.append(line.decode(errors="replace").rstrip())
+
+        stderr_task = asyncio.create_task(_drain_stderr())
+
+        while True:
+            line = await stdout.readline()
+            if not line:
+                break
+            session.stdout_lines.append(line.decode(errors="replace").rstrip())
+
+        await stderr_task
+        session.return_code = await session.process.wait()
+        session.finished = True
 
     async def get_status(self, session_id: str) -> SessionStatus:
-        raise NotImplementedError("Claude Code adapter not yet implemented")
+        session = self._sessions.get(session_id)
+        if not session:
+            return SessionStatus.ERROR
+
+        if not session.finished:
+            return SessionStatus.RUNNING
+
+        if session.return_code == 0:
+            return SessionStatus.COMPLETED
+        return SessionStatus.ERROR
 
     async def get_events(self, session_id: str, since: str = "") -> list[AgentEvent]:
-        raise NotImplementedError("Claude Code adapter not yet implemented")
+        session = self._sessions.get(session_id)
+        if not session:
+            return []
+
+        since_idx = 0
+        if since:
+            try:
+                since_idx = int(since) + 1
+            except ValueError:
+                since_idx = 0
+
+        events: list[AgentEvent] = []
+        lines = session.stdout_lines[since_idx:]
+
+        for i, line in enumerate(lines, start=since_idx):
+            event = self._parse_line(line, str(i))
+            if event:
+                events.append(event)
+
+        if session.finished and session.stderr_lines:
+            stderr_combined = "\n".join(session.stderr_lines[-20:])
+            if stderr_combined.strip():
+                events.append(AgentEvent(
+                    event_id=f"stderr-{session_id}",
+                    event_type=EventType.LOG,
+                    content=f"[stderr]\n{stderr_combined}",
+                ))
+                session.stderr_lines.clear()
+
+        return events
+
+    @staticmethod
+    def _parse_line(line: str, event_id: str) -> AgentEvent | None:
+        line = line.strip()
+        if not line:
+            return None
+
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            return AgentEvent(
+                event_id=event_id,
+                event_type=EventType.LOG,
+                content=line,
+            )
+
+        if isinstance(data, dict):
+            content = data.get("result", "") or data.get("content", "") or data.get("text", "")
+            if not content and "message" in data:
+                content = data["message"]
+            if not content:
+                content = json.dumps(data, ensure_ascii=False)
+
+            event_type = EventType.OBSERVATION
+            if data.get("type") == "error":
+                event_type = EventType.ERROR
+            elif data.get("is_error"):
+                event_type = EventType.ERROR
+
+            return AgentEvent(
+                event_id=event_id,
+                event_type=event_type,
+                content=content,
+                metadata={k: v for k, v in data.items() if k not in ("result", "content", "text")},
+            )
+
+        return AgentEvent(
+            event_id=event_id,
+            event_type=EventType.LOG,
+            content=str(data),
+        )
 
     async def cancel(self, session_id: str) -> None:
-        raise NotImplementedError("Claude Code adapter not yet implemented")
+        session = self._sessions.get(session_id)
+        if not session or session.finished:
+            return
+
+        import signal
+
+        try:
+            session.process.send_signal(signal.SIGTERM)
+            try:
+                await asyncio.wait_for(session.process.wait(), timeout=3.0)
+            except asyncio.TimeoutError:
+                session.process.kill()
+                await session.process.wait()
+        except ProcessLookupError:
+            pass
+
+        session.finished = True
+        session.return_code = session.process.returncode
+        logger.info("Claude Code session %s cancelled", session_id)
 
     async def close(self) -> None:
-        pass
+        for sid in list(self._sessions):
+            await self.cancel(sid)
+            session = self._sessions.pop(sid, None)
+            if session and session.read_task and not session.read_task.done():
+                session.read_task.cancel()

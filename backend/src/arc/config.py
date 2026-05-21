@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     # Claude Code
     claude_code_path: str = ""
     claude_code_work_dir: str = ""
+    claude_code_model: str = ""
 
     # Cursor
     cursor_cli_path: str = ""

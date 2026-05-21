@@ -64,6 +64,7 @@ def create_agent_registry() -> AgentRegistry:
         adapter = ClaudeCodeAdapter(
             cli_path=settings.claude_code_path,
             work_dir=settings.claude_code_work_dir,
+            model=settings.claude_code_model,
         )
         if adapter.implemented:
             registry.register(
@@ -71,6 +72,7 @@ def create_agent_registry() -> AgentRegistry:
                 lambda: ClaudeCodeAdapter(
                     cli_path=settings.claude_code_path,
                     work_dir=settings.claude_code_work_dir,
+                    model=settings.claude_code_model,
                 ),
             )
 
