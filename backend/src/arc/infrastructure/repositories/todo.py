@@ -111,7 +111,7 @@ class TodoRepository:
         await self.db.execute(
             update(TodoModel)
             .where(TodoModel.id == todo_id)
-            .values(last_seen_at=datetime.now(UTC))
+            .values(last_seen_at=func.now(), updated_at=TodoModel.updated_at)
             .execution_options(synchronize_session=False)
         )
         await self.db.flush()
