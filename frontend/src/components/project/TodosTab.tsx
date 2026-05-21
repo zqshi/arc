@@ -30,7 +30,7 @@ const VERSION_STATUS_STYLE: Record<VersionStatus, { bg: string; label: string }>
 
 const statusDotColor: Record<TodoStatus, string> = {
   pending: 'bg-status-pending',
-  active: 'bg-accent',
+  active: 'bg-emerald-400',
   done: 'bg-status-done',
   error: 'bg-status-error',
   abandoned: 'bg-text-muted',
@@ -358,9 +358,10 @@ function TodoList({
           className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-elevated"
         >
           <span className="relative flex-shrink-0">
-            <span className={`block h-1.5 w-1.5 rounded-full ${statusDotColor[todo.status]}`} />
-            {todo.needs_attention && (
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-status-error ring-1 ring-bg-card" />
+            {todo.needs_attention ? (
+              <span className="block h-2 w-2 rounded-full bg-accent shadow-[0_0_4px_rgba(74,159,216,0.6)]" />
+            ) : (
+              <span className={`block h-1.5 w-1.5 rounded-full ${statusDotColor[todo.status]}`} />
             )}
           </span>
           <span className="min-w-0 flex-1 truncate text-xs text-text-primary">{todo.title}</span>

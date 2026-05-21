@@ -5,7 +5,7 @@ import { STATUS_LABELS } from '../../types/api';
 
 const statusDotColor: Record<string, string> = {
   pending: 'bg-status-pending',
-  active: 'bg-accent',
+  active: 'bg-emerald-400',
   done: 'bg-status-done',
   error: 'bg-status-error',
   abandoned: 'bg-text-muted',
@@ -63,9 +63,10 @@ export function TodoSidebar({ todos, activeTodoId, projectName, versionName, pro
             >
               {/* Status dot + attention indicator */}
               <span className="relative flex-shrink-0">
-                <span className={`block h-1.5 w-1.5 rounded-full ${statusDotColor[todo.status] || 'bg-text-muted'}`} />
-                {todo.needs_attention && (
-                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-status-error ring-1 ring-bg-sidebar" />
+                {todo.needs_attention ? (
+                  <span className="block h-2 w-2 rounded-full bg-accent shadow-[0_0_4px_rgba(74,159,216,0.6)]" />
+                ) : (
+                  <span className={`block h-1.5 w-1.5 rounded-full ${statusDotColor[todo.status] || 'bg-text-muted'}`} />
                 )}
               </span>
 
