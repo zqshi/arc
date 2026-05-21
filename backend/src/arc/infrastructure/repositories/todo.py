@@ -135,6 +135,16 @@ class TodoRepository:
         result = await self.db.execute(stmt)
         return [self._to_entity(r) for r in result.scalars().all()]
 
+    async def list_by_version(
+        self, version_id: uuid.UUID, *, exclude_id: uuid.UUID | None = None,
+    ) -> list[TodoEntity]:
+        stmt = select(TodoModel).where(TodoModel.version_id == version_id)
+        if exclude_id:
+            stmt = stmt.where(TodoModel.id != exclude_id)
+        stmt = stmt.order_by(TodoModel.created_at)
+        result = await self.db.execute(stmt)
+        return [self._to_entity(r) for r in result.scalars().all()]
+
     @staticmethod
     def _to_entity(model: TodoModel) -> TodoEntity:
         tags = []
