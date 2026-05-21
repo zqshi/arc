@@ -4,8 +4,10 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.pipeline.value_objects import PhaseType
+from arc.infrastructure.repositories.todo import TodoRepository
 from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.pipeline import (
     ArtifactResponse,
@@ -20,6 +22,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _verify_todo_ownership(db: AsyncSession, todo_id: str, user_id) -> None:
+    todo = await TodoRepository(db).get_by_id(UUID(todo_id), user_id=user_id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+
+
 # ---------------------------------------------------------------------------
 # Pipeline lifecycle
 # ---------------------------------------------------------------------------
@@ -27,6 +35,8 @@ router = APIRouter()
 @router.get("/{todo_id}/pipeline", response_model=PipelineStateResponse)
 async def get_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
     """Get complete pipeline state for a todo."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.pipeline.service import PipelineService
 
     svc = PipelineService(db)
@@ -49,6 +59,8 @@ async def get_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
 @router.post("/{todo_id}/pipeline/start", response_model=list[PhaseResponse])
 async def start_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
     """Initialize pipeline with all 7 phases and activate the first one."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.pipeline.service import PipelineService
 
     svc = PipelineService(db)
@@ -66,6 +78,8 @@ async def start_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
 @router.post("/{todo_id}/phases/{phase_type}/start", response_model=PhaseResponse)
 async def start_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Start a specific phase (create conversation)."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.pipeline.service import PipelineService
 
     pt = _parse_phase_type(phase_type)
@@ -80,6 +94,8 @@ async def start_phase(todo_id: str, phase_type: str, db: DbSession, user: Curren
 @router.post("/{todo_id}/phases/{phase_type}/generate", response_model=ArtifactResponse)
 async def generate_artifact(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """AI generates artifact from current phase conversation."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.pipeline.service import PipelineService
 
     pt = _parse_phase_type(phase_type)
@@ -93,6 +109,8 @@ async def generate_artifact(todo_id: str, phase_type: str, db: DbSession, user: 
 @router.post("/{todo_id}/phases/{phase_type}/confirm", response_model=PhaseResponse)
 async def confirm_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Confirm phase artifact and advance to next phase."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.pipeline.gate import PhaseGateError
     from arc.application.pipeline.service import PipelineService
 
@@ -113,6 +131,8 @@ async def confirm_phase(todo_id: str, phase_type: str, db: DbSession, user: Curr
 @router.post("/{todo_id}/phases/{phase_type}/skip", response_model=PhaseResponse)
 async def skip_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Skip a phase."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.pipeline.service import PipelineService
 
     pt = _parse_phase_type(phase_type)
@@ -129,6 +149,8 @@ async def skip_phase(todo_id: str, phase_type: str, db: DbSession, user: Current
 @router.post("/{todo_id}/pipeline/rollback")
 async def rollback_pipeline(todo_id: str, req: RollbackRequest, db: DbSession, user: CurrentUser):
     """Rollback to a previous phase."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.pipeline.service import PipelineService
 
     pt = _parse_phase_type(req.target_phase)
@@ -146,6 +168,8 @@ async def rollback_pipeline(todo_id: str, req: RollbackRequest, db: DbSession, u
 @router.get("/{todo_id}/artifacts", response_model=list[ArtifactResponse])
 async def list_artifacts(todo_id: str, db: DbSession, user: CurrentUser):
     """List all artifacts for a todo."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.infrastructure.repositories.artifact import ArtifactRepository
 
     repo = ArtifactRepository(db)
@@ -156,6 +180,8 @@ async def list_artifacts(todo_id: str, db: DbSession, user: CurrentUser):
 @router.get("/{todo_id}/artifacts/{artifact_id}", response_model=ArtifactResponse)
 async def get_artifact(todo_id: str, artifact_id: str, db: DbSession, user: CurrentUser):
     """Get a single artifact."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.infrastructure.repositories.artifact import ArtifactRepository
 
     repo = ArtifactRepository(db)
@@ -170,6 +196,8 @@ async def update_artifact(
     todo_id: str, artifact_id: str, req: UpdateArtifactRequest, db: DbSession, user: CurrentUser
 ):
     """Edit artifact content (increments version, unconfirms)."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.artifact.service import ArtifactService
 
     svc = ArtifactService(db)
@@ -182,6 +210,8 @@ async def update_artifact(
 @router.post("/{todo_id}/artifacts/{artifact_id}/confirm", response_model=ArtifactResponse)
 async def confirm_artifact(todo_id: str, artifact_id: str, db: DbSession, user: CurrentUser):
     """Confirm an artifact."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
     from arc.application.artifact.service import ArtifactService
 
     svc = ArtifactService(db)

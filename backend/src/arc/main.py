@@ -50,6 +50,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Arc backend starting (debug=%s)", settings.debug)
+    if not settings.debug and not settings.jwt_secret:
+        raise RuntimeError("ARC_JWT_SECRET must be set in production mode")
     await _cleanup_orphan_agent_sessions()
     from arc.seeds import ensure_seed_users
     await ensure_seed_users()
@@ -64,7 +66,7 @@ async def _cleanup_orphan_agent_sessions():
         from sqlalchemy import update
 
         from arc.infrastructure.database import async_session_factory
-        from arc.infrastructure.models.agent import AgentSession as AgentModel
+        from arc.infrastructure.models.agent import AgentSessionModel as AgentModel
 
         async with async_session_factory() as db:
             result = await db.execute(

@@ -9,6 +9,8 @@ import {
   Trash2,
   Sparkles,
   Map,
+  Loader2,
+  Rocket,
 } from 'lucide-react';
 import type { Version, VersionStatus, VersionType, Todo, TodoStatus, PlanningSession } from '../../types/api';
 import { STATUS_LABELS } from '../../types/api';
@@ -17,6 +19,8 @@ import type { ActionMenuItem } from '../ActionMenu';
 import PhaseProgress from '../PhaseProgress';
 import { VersionPlanningPanel } from './VersionPlanningPanel';
 import { ProjectPlanningPanel } from './ProjectPlanningPanel';
+import { TaskCard } from './TaskCard';
+import type { TaskState } from '../../hooks/useProjectTaskStream';
 
 const VERSION_STATUS_STYLE: Record<VersionStatus, { bg: string; label: string }> = {
   planning: { bg: 'bg-status-pending/15 text-status-pending', label: '规划中' },
@@ -64,6 +68,9 @@ interface TodosTabProps {
   onAnalyzeVersion?: (versionId: string) => void;
   onRefreshData: () => void;
   onPreviewRoadmap?: (session: PlanningSession) => void;
+  getTaskState?: (todoId: string) => TaskState;
+  onBatchStart?: (todoIds: string[]) => Promise<void>;
+  executionMode?: 'pipeline' | 'conversation';
 }
 
 export function TodosTab({
@@ -90,8 +97,13 @@ export function TodosTab({
   onAnalyzeVersion,
   onRefreshData,
   onPreviewRoadmap,
+  getTaskState,
+  onBatchStart,
+  executionMode,
 }: TodosTabProps) {
   const [showGlobalPlanning, setShowGlobalPlanning] = useState(false);
+  const [batchStarting, setBatchStarting] = useState(false);
+  const isConversationMode = executionMode === 'conversation';
 
   return (
     <section>
@@ -299,6 +311,15 @@ export function TodosTab({
                     <p className="px-4 py-3 text-center text-[11px] text-text-muted">
                       暂无需求，点击"+ 需求"添加
                     </p>
+                  ) : isConversationMode && getTaskState ? (
+                    <ConversationTodoList
+                      todos={todos}
+                      getTaskState={getTaskState}
+                      navigate={navigate}
+                      onBatchStart={onBatchStart}
+                      batchStarting={batchStarting}
+                      setBatchStarting={setBatchStarting}
+                    />
                   ) : (
                     <TodoList
                       todos={todos}
@@ -336,7 +357,12 @@ function TodoList({
           onClick={() => navigate(`/todo/${todo.id}`)}
           className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-elevated"
         >
-          <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${statusDotColor[todo.status]}`} />
+          <span className="relative flex-shrink-0">
+            <span className={`block h-1.5 w-1.5 rounded-full ${statusDotColor[todo.status]}`} />
+            {todo.needs_attention && (
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-status-error ring-1 ring-bg-card" />
+            )}
+          </span>
           <span className="min-w-0 flex-1 truncate text-xs text-text-primary">{todo.title}</span>
           <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusBadgeBg[todo.status]}`}>
             {STATUS_LABELS[todo.status]}
@@ -366,6 +392,69 @@ function TodoList({
             <Trash2 size={12} />
           </button>
         </div>
+      ))}
+    </div>
+  );
+}
+
+function ConversationTodoList({
+  todos,
+  getTaskState,
+  navigate,
+  onBatchStart,
+  batchStarting,
+  setBatchStarting,
+}: {
+  todos: Todo[];
+  getTaskState: (todoId: string) => TaskState;
+  navigate: (path: string) => void;
+  onBatchStart?: (todoIds: string[]) => Promise<void>;
+  batchStarting: boolean;
+  setBatchStarting: (v: boolean) => void;
+}) {
+  const pendingTodos = todos.filter((t) => t.status === 'pending');
+  const hasPending = pendingTodos.length > 0;
+
+  const handleBatchStart = async () => {
+    if (!onBatchStart || batchStarting || !hasPending) return;
+    setBatchStarting(true);
+    try {
+      await onBatchStart(pendingTodos.map((t) => t.id));
+    } finally {
+      setBatchStarting(false);
+    }
+  };
+
+  return (
+    <div className="p-3 space-y-2">
+      {/* Batch action bar */}
+      {hasPending && onBatchStart && (
+        <div className="flex items-center justify-between rounded-md border border-border/50 bg-bg-elevated px-3 py-2">
+          <span className="text-[11px] text-text-muted">
+            {pendingTodos.length} 个待启动的需求
+          </span>
+          <button
+            onClick={handleBatchStart}
+            disabled={batchStarting}
+            className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-white transition-opacity hover:bg-accent-hover disabled:opacity-50"
+          >
+            {batchStarting ? (
+              <><Loader2 size={11} className="animate-spin" /> 启动中...</>
+            ) : (
+              <><Rocket size={11} /> 全部启动</>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Task cards */}
+      {todos.map((todo) => (
+        <TaskCard
+          key={todo.id}
+          todo={todo}
+          taskState={getTaskState(todo.id)}
+          navigate={navigate}
+        />
       ))}
     </div>
   );

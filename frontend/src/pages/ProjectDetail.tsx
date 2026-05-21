@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2, Sparkles, Lo
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
+import { useProjectTaskStream } from '../hooks/useProjectTaskStream';
 import ActionMenu from '../components/ActionMenu';
 import type { ActionMenuItem } from '../components/ActionMenu';
 import type { Project, Version, VersionType, Todo, Experience, ExperienceCategory, PlanningSession } from '../types/api';
@@ -61,6 +62,10 @@ export default function ProjectDetail() {
 
   // Insights
   const [insights, setInsights] = useState<Array<{ id: string; title: string; solution: string; confidence: number; reuse_count: number }>>([]);
+
+  // Task stream for conversation mode
+  const isConversationMode = form.execution_mode === 'conversation';
+  const { getTaskState } = useProjectTaskStream(isConversationMode ? id : undefined);
 
   const fetchData = useCallback(async () => {
     if (!id) return;
@@ -412,6 +417,12 @@ export default function ProjectDetail() {
               onAnalyzeVersion={handleAnalyzeVersion}
               onRefreshData={fetchData}
               onPreviewRoadmap={(session) => setDrawerSession(session)}
+              executionMode={form.execution_mode}
+              getTaskState={isConversationMode ? getTaskState : undefined}
+              onBatchStart={isConversationMode ? async (todoIds) => {
+                await api.batchStartConversations(id!, todoIds);
+                fetchData();
+              } : undefined}
             />
           )}
 

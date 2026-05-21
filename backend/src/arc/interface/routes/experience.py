@@ -45,7 +45,7 @@ async def list_experiences(
     status: str | None = None,
     scope: str | None = None,
     page: int = 1,
-    page_size: int = 50,
+    page_size: int = Query(default=50, le=200),
 ):
     from arc.domain.todo.value_objects import ExperienceScope, ExperienceStatus
 
@@ -72,7 +72,7 @@ async def list_experiences(
 @router.get("/{experience_id}", response_model=ExperienceResponse)
 async def get_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id))
+    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
     if not exp:
         raise HTTPException(status_code=404, detail="Experience not found")
     return _to_response(exp)
@@ -115,7 +115,7 @@ async def update_experience(experience_id: str, req: UpdateExperienceRequest, db
     from arc.domain.todo.value_objects import ExperienceScope
 
     repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id))
+    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
     if not exp:
         raise HTTPException(status_code=404, detail="Experience not found")
 
@@ -144,7 +144,7 @@ async def update_experience(experience_id: str, req: UpdateExperienceRequest, db
 @router.post("/{experience_id}/confirm", response_model=ExperienceResponse)
 async def confirm_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id))
+    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
     if not exp:
         raise HTTPException(status_code=404, detail="Experience not found")
     exp.confirm()
@@ -155,7 +155,7 @@ async def confirm_experience(experience_id: str, db: DbSession, user: CurrentUse
 @router.post("/{experience_id}/archive", response_model=ExperienceResponse)
 async def archive_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id))
+    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
     if not exp:
         raise HTTPException(status_code=404, detail="Experience not found")
     exp.archive()
@@ -166,7 +166,7 @@ async def archive_experience(experience_id: str, db: DbSession, user: CurrentUse
 @router.post("/{experience_id}/promote", response_model=ExperienceResponse)
 async def promote_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id))
+    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
     if not exp:
         raise HTTPException(status_code=404, detail="Experience not found")
     exp.promote_to_personal()
@@ -177,7 +177,7 @@ async def promote_experience(experience_id: str, db: DbSession, user: CurrentUse
 @router.post("/{experience_id}/feedback", status_code=204)
 async def feedback_experience(experience_id: str, req: ExperienceFeedbackRequest, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id))
+    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
     if not exp:
         raise HTTPException(status_code=404, detail="Experience not found")
 

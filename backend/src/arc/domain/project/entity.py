@@ -24,6 +24,7 @@ class Project:
     local_path: str = ""
     conventions: str = ""
     codebase_summary: str = ""
+    scan_fingerprint: str = ""
     status: ProjectStatus = ProjectStatus.ACTIVE
     execution_mode: ExecutionMode = ExecutionMode.PIPELINE
     pipeline_config: dict = field(default_factory=lambda: dict(DEFAULT_PIPELINE_CONFIG))

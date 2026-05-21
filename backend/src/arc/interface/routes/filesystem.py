@@ -8,7 +8,16 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from arc.interface.deps import CurrentUser
+
 router = APIRouter()
+
+_ALLOWED_ROOTS = (Path.home(),)
+
+
+def _validate_path(resolved: Path) -> None:
+    if not any(resolved == root or root in resolved.parents for root in _ALLOWED_ROOTS):
+        raise HTTPException(403, "只允许访问用户主目录下的路径")
 
 
 class BrowseResponse(BaseModel):
@@ -26,8 +35,9 @@ class MkdirResponse(BaseModel):
 
 
 @router.get("/browse", response_model=BrowseResponse)
-async def browse_directory(path: str = "~"):
+async def browse_directory(user: CurrentUser, path: str = "~"):
     resolved = Path(os.path.expanduser(path)).resolve()
+    _validate_path(resolved)
     if not resolved.exists():
         raise HTTPException(404, f"路径不存在: {resolved}")
     if not resolved.is_dir():
@@ -49,8 +59,9 @@ async def browse_directory(path: str = "~"):
 
 
 @router.post("/mkdir", response_model=MkdirResponse)
-async def create_directory(body: MkdirRequest):
+async def create_directory(user: CurrentUser, body: MkdirRequest):
     target = Path(os.path.expanduser(body.path)).resolve()
+    _validate_path(target)
     if target.exists():
         raise HTTPException(409, f"目录已存在: {target}")
     try:

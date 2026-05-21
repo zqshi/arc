@@ -35,7 +35,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return self._default_limit
 
     def _maybe_gc(self, now: float) -> None:
-        if now - self._last_gc < _GC_INTERVAL and len(self._hits) < _MAX_KEYS:
+        if now - self._last_gc < _GC_INTERVAL or len(self._hits) < _MAX_KEYS:
             return
         expired = [k for k, v in self._hits.items() if not v or now - v[-1] >= self._window]
         for k in expired:

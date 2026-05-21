@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from arc.domain.todo.value_objects import TodoStatus
 from arc.infrastructure.repositories.todo import TodoRepository
@@ -29,7 +29,7 @@ async def list_todos(
     project_id: str | None = None,
     version_id: str | None = None,
     page: int = 1,
-    page_size: int = 50,
+    page_size: int = Query(default=50, le=200),
 ):
     repo = TodoRepository(db)
     pid = UUID(project_id) if project_id else None
@@ -57,7 +57,10 @@ async def list_todos(
 @router.get("/{todo_id}", response_model=TodoResponse)
 async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
     repo = TodoRepository(db)
-    todo = await repo.get_by_id(UUID(todo_id))
+    await repo.mark_seen(UUID(todo_id))
+    await db.commit()
+
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
@@ -107,7 +110,7 @@ async def create_todo(req: CreateTodoRequest, db: DbSession, user: CurrentUser):
 @router.put("/{todo_id}", response_model=TodoResponse)
 async def update_todo(todo_id: str, req: UpdateTodoRequest, db: DbSession, user: CurrentUser):
     repo = TodoRepository(db)
-    todo = await repo.get_by_id(UUID(todo_id))
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
@@ -132,12 +135,17 @@ async def update_todo(todo_id: str, req: UpdateTodoRequest, db: DbSession, user:
 @router.delete("/{todo_id}", status_code=204)
 async def delete_todo(todo_id: str, db: DbSession, user: CurrentUser):
     repo = TodoRepository(db)
-    await repo.delete(UUID(todo_id))
+    await repo.delete(UUID(todo_id), user_id=user.id)
 
 
 @router.post("/{todo_id}/extract-tags", response_model=TodoResponse)
 async def extract_tags(todo_id: str, db: DbSession, user: CurrentUser):
     from arc.application.todo.service import TodoService
+
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
 
     svc = TodoService(db)
     todo = await svc.extract_tags(UUID(todo_id))
@@ -148,6 +156,12 @@ async def extract_tags(todo_id: str, db: DbSession, user: CurrentUser):
 async def list_todo_conversations(todo_id: str, db: DbSession, user: CurrentUser):
     from arc.infrastructure.repositories.conversation import ConversationRepository
     from arc.interface.routes.conversation import _to_response as conv_to_response
+
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+
     conv_repo = ConversationRepository(db)
     conversations = await conv_repo.list_by_todo_id(UUID(todo_id))
     return ConversationListResponse(
@@ -161,7 +175,7 @@ async def start_conversation(todo_id: str, db: DbSession, user: CurrentUser):
     from arc.application.execution.conversation_strategy import ConversationExecutionService
 
     repo = TodoRepository(db)
-    todo = await repo.get_by_id(UUID(todo_id))
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
@@ -170,7 +184,7 @@ async def start_conversation(todo_id: str, db: DbSession, user: CurrentUser):
 
     svc = ConversationExecutionService(db)
     _, _ = await svc.initialize(UUID(todo_id))
-    todo = await repo.get_by_id(UUID(todo_id))
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
     return _to_response(todo)
 
 
@@ -179,7 +193,7 @@ async def get_deliverables(todo_id: str, db: DbSession, user: CurrentUser):
     from arc.application.execution.conversation_strategy import ConversationExecutionService
 
     repo = TodoRepository(db)
-    todo = await repo.get_by_id(UUID(todo_id))
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
@@ -188,9 +202,108 @@ async def get_deliverables(todo_id: str, db: DbSession, user: CurrentUser):
     return state
 
 
+@router.post("/{todo_id}/quick-message")
+async def send_quick_message(todo_id: str, db: DbSession, user: CurrentUser, body: dict):
+    import asyncio
+
+    from arc.application.project.task_stream import project_task_stream
+    from arc.domain.todo.value_objects import MessageRole
+    from arc.infrastructure.repositories.conversation import ConversationRepository
+
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+
+    content = (body.get("content") or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="content is required")
+
+    conv_repo = ConversationRepository(db)
+    conversations = await conv_repo.list_by_todo_id(UUID(todo_id))
+    conv = next((c for c in conversations if c.purpose.value == "unified"), None)
+    if not conv:
+        raise HTTPException(status_code=404, detail="No active conversation for this todo")
+
+    user_msg = conv.add_message(role=MessageRole.USER, content=content)
+    await conv_repo.add_message(conv.id, user_msg)
+    await db.commit()
+
+    project_id = str(todo.project_id) if todo.project_id else None
+
+    async def _run_ai():
+        from arc.application.execution.conversation_strategy import ConversationExecutionService
+        from arc.infrastructure.database import async_session_factory
+
+        async with async_session_factory() as _db:
+            _conv_repo = ConversationRepository(_db)
+            _conv = await _conv_repo.get_by_id(conv.id)
+            if not _conv:
+                return
+            svc = ConversationExecutionService(_db)
+            ai_msg_id = None
+            try:
+                async for chunk in svc.generate_response_stream(_conv):
+                    event_type = chunk.get("event")
+                    if event_type == "artifacts_extracted":
+                        if project_id:
+                            await project_task_stream.emit(project_id, {
+                                "event": "task_done",
+                                "todo_id": todo_id,
+                                "artifacts": chunk.get("artifact_names", []),
+                            })
+                        continue
+
+                    if ai_msg_id is None:
+                        ai_msg_id = chunk.get("message_id")
+                        if project_id:
+                            await project_task_stream.emit(project_id, {
+                                "event": "task_status",
+                                "todo_id": todo_id,
+                                "status": "running",
+                                "stage": "AI 正在生成回复...",
+                            })
+
+                    if project_id:
+                        await project_task_stream.emit(project_id, {
+                            "event": "task_chunk",
+                            "todo_id": todo_id,
+                            "content": chunk.get("content", ""),
+                        })
+            except Exception as exc:
+                logger.error("quick-message AI failed: %s", exc, exc_info=True)
+                if project_id:
+                    await project_task_stream.emit(project_id, {
+                        "event": "task_status",
+                        "todo_id": todo_id,
+                        "status": "error",
+                        "stage": "AI响应生成失败",
+                    })
+            finally:
+                if project_id:
+                    await project_task_stream.emit(project_id, {
+                        "event": "task_status",
+                        "todo_id": todo_id,
+                        "status": "idle",
+                        "stage": "等待用户输入",
+                    })
+                await _db.commit()
+
+    asyncio.create_task(_run_ai())
+
+    return {
+        "message_id": str(user_msg.id),
+        "status": "accepted",
+    }
+
+
 def _to_response(
     todo, *, project_name: str | None = None, version_name: str | None = None,
 ) -> TodoResponse:
+    needs_attention = (
+        todo.status.value in ("active", "error")
+        and (todo.last_seen_at is None or todo.updated_at > todo.last_seen_at)
+    )
     return TodoResponse(
         id=str(todo.id),
         title=todo.title,
@@ -203,6 +316,7 @@ def _to_response(
         priority=todo.priority,
         current_phase=todo.current_phase.value if todo.current_phase else None,
         execution_mode=todo.execution_mode.value,
+        needs_attention=needs_attention,
         tags=[{"label": t.label, "color": t.color} for t in todo.tags],
         created_at=todo.created_at,
         updated_at=todo.updated_at,

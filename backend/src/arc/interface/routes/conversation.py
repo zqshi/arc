@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 
 from arc.infrastructure.repositories.conversation import ConversationRepository
+from arc.infrastructure.repositories.todo import TodoRepository
 from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas import (
     ConversationResponse,
@@ -21,6 +22,9 @@ async def get_conversation(conversation_id: str, db: DbSession, user: CurrentUse
     conv = await repo.get_by_id(UUID(conversation_id))
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    todo = await TodoRepository(db).get_by_id(conv.todo_id, user_id=user.id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Conversation not found")
     return _to_response(conv)
 
 
@@ -30,6 +34,9 @@ async def send_message(conversation_id: str, req: SendMessageRequest, db: DbSess
     repo = ConversationRepository(db)
     conv = await repo.get_by_id(UUID(conversation_id))
     if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    todo = await TodoRepository(db).get_by_id(conv.todo_id, user_id=user.id)
+    if not todo:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     from arc.domain.todo.value_objects import MessageRole

@@ -80,7 +80,7 @@ export default function FolderPicker({ open, onClose, onSelect, initialPath }: F
                 type="text"
                 value={pathInput}
                 onChange={(e) => setPathInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handlePathSubmit(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handlePathSubmit(); }}
                 placeholder="输入路径或粘贴，按回车跳转"
                 className="h-9 w-full rounded-md border border-border bg-bg-input pl-3 pr-8 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
               />
@@ -128,7 +128,7 @@ export default function FolderPicker({ open, onClose, onSelect, initialPath }: F
                 placeholder="新文件夹名称"
                 className="h-8 flex-1 rounded-md border border-border bg-bg-input px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
                 autoFocus
-                onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleCreate(); if (e.key === 'Escape') setCreating(false); }}
               />
               <button onClick={handleCreate} className="rounded-md bg-accent px-2.5 py-1.5 text-[11px] text-white hover:bg-accent-hover">创建</button>
               <button onClick={() => setCreating(false)} className="rounded-md border border-border px-2 py-1.5 text-[11px] text-text-muted">取消</button>

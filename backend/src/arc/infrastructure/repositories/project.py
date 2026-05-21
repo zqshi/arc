@@ -32,6 +32,7 @@ class ProjectRepository:
             local_path=project.local_path,
             conventions=project.conventions,
             codebase_summary=project.codebase_summary,
+            scan_fingerprint=project.scan_fingerprint,
             status=project.status.value,
             execution_mode=project.execution_mode.value,
             pipeline_config=project.pipeline_config,
@@ -80,6 +81,7 @@ class ProjectRepository:
         model.local_path = project.local_path
         model.conventions = project.conventions
         model.codebase_summary = project.codebase_summary
+        model.scan_fingerprint = project.scan_fingerprint
         model.status = project.status.value
         model.execution_mode = project.execution_mode.value
         model.pipeline_config = project.pipeline_config
@@ -108,6 +110,7 @@ class ProjectRepository:
             local_path=model.local_path or "",
             conventions=model.conventions or "",
             codebase_summary=model.codebase_summary or "",
+            scan_fingerprint=model.scan_fingerprint or "",
             status=ProjectStatus(model.status),
             execution_mode=ExecutionMode(model.execution_mode) if model.execution_mode else ExecutionMode.PIPELINE,
             pipeline_config=model.pipeline_config or dict(DEFAULT_PIPELINE_CONFIG),

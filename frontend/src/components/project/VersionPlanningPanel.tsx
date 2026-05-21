@@ -109,7 +109,7 @@ export function VersionPlanningPanel({ projectId, versionId, onTodosCreated, onP
   const latestSession = sessions[0];
 
   return (
-    <div className="space-y-3 px-4 py-3">
+    <div className={latestSession || scopeDiff ? 'space-y-3 px-4 py-3' : ''}>
       {/* Session result */}
       {latestSession && (
         <SessionCard

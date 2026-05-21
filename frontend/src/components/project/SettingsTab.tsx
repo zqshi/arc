@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Save, Lightbulb, Settings, Workflow, MessageSquare, AlertTriangle, Zap, FolderOpen, ScanSearch, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Save, Lightbulb, Settings, Workflow, MessageSquare, AlertTriangle, Zap, FolderOpen, ScanSearch, RefreshCw, AlertCircle } from 'lucide-react';
 import { Field } from './FormFields';
 import { api } from '../../api/client';
+import type { ScanEvent } from '../../api/client';
 import FolderPicker from '../FolderPicker';
 import type { ExecutionMode } from '../../types/api';
 import { EXECUTION_MODE_LABELS, EXECUTION_MODE_DESCRIPTIONS } from '../../types/api';
@@ -34,8 +35,69 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
   const [impact, setImpact] = useState<{ active_count: number; pending_count: number } | null>(null);
   const [impactLoaded, setImpactLoaded] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
+
+  // Scan state
   const [scanning, setScanning] = useState(false);
+  const [scanStage, setScanStage] = useState('');
+  const [scanContent, setScanContent] = useState('');
   const [scanError, setScanError] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
+
+  const startScan = useCallback(async (force: boolean) => {
+    setScanning(true);
+    setScanStage('');
+    setScanContent('');
+    setScanError('');
+
+    try {
+      const result = await api.scanCodebase(projectId, force);
+      if (result.cached && result.summary) {
+        setForm({ ...form, codebase_summary: result.summary });
+        setScanning(false);
+        return;
+      }
+
+      // Task started — subscribe to SSE stream
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      api.scanCodebaseStream(projectId, (event: ScanEvent) => {
+        switch (event.event) {
+          case 'stage':
+            setScanStage(event.message || '');
+            break;
+          case 'chunk':
+            setScanContent((prev) => prev + (event.content || ''));
+            break;
+          case 'done':
+            setScanContent(event.summary || '');
+            setScanning(false);
+            setScanStage('');
+            onRefresh();
+            break;
+          case 'error':
+            setScanError(event.detail || '扫描失败');
+            setScanning(false);
+            setScanStage('');
+            break;
+          case 'close':
+            if (scanning) {
+              setScanning(false);
+            }
+            break;
+        }
+      }, controller.signal);
+    } catch (e: unknown) {
+      setScanError(e instanceof Error ? e.message : '扫描启动失败');
+      setScanning(false);
+    }
+  }, [projectId, form, setForm, onRefresh, scanning]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (!projectId) return;
@@ -95,22 +157,11 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
                 <button
                   type="button"
                   disabled={scanning || dirty}
-                  onClick={async () => {
-                    setScanning(true);
-                    setScanError('');
-                    try {
-                      await api.scanCodebase(projectId);
-                      onRefresh();
-                    } catch (e: unknown) {
-                      setScanError(e instanceof Error ? e.message : '扫描失败');
-                    } finally {
-                      setScanning(false);
-                    }
-                  }}
+                  onClick={() => startScan(!!form.codebase_summary)}
                   className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-elevated disabled:opacity-40"
                 >
                   {scanning ? (
-                    <><RefreshCw size={11} className="animate-spin" /> 扫描中...</>
+                    <><RefreshCw size={11} className="animate-spin" /> {scanStage || '扫描中...'}</>
                   ) : form.codebase_summary ? (
                     <><RefreshCw size={11} /> 重新扫描</>
                   ) : (
@@ -122,13 +173,28 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
                 <p className="text-[10px] text-amber-500">请先保存工作目录配置再扫描</p>
               )}
               {scanError && (
-                <p className="text-[10px] text-red-500">{scanError}</p>
-              )}
-              {form.codebase_summary ? (
-                <div className="max-h-64 overflow-y-auto rounded-md border border-border bg-bg-elevated p-3 text-xs leading-relaxed text-text-secondary prose-headings:text-text-primary prose-headings:font-semibold">
-                  <pre className="whitespace-pre-wrap font-sans">{form.codebase_summary}</pre>
+                <div className="flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2">
+                  <AlertCircle size={12} className="flex-shrink-0 text-red-500" />
+                  <p className="flex-1 text-[11px] text-red-500">{scanError}</p>
+                  <button
+                    onClick={() => startScan(true)}
+                    className="flex-shrink-0 rounded-md border border-red-500/30 px-2 py-0.5 text-[10px] font-medium text-red-500 hover:bg-red-500/10"
+                  >
+                    重试
+                  </button>
                 </div>
-              ) : !scanning && (
+              )}
+              {scanning && scanContent && (
+                <div className="max-h-64 overflow-y-auto rounded-md border border-accent/30 bg-bg-elevated p-3 text-xs leading-relaxed text-text-secondary">
+                  <pre className="whitespace-pre-wrap font-sans">{scanContent}</pre>
+                  <span className="inline-block h-3 w-1.5 animate-pulse bg-accent/60" />
+                </div>
+              )}
+              {!scanning && (form.codebase_summary || scanContent) ? (
+                <div className="max-h-64 overflow-y-auto rounded-md border border-border bg-bg-elevated p-3 text-xs leading-relaxed text-text-secondary prose-headings:text-text-primary prose-headings:font-semibold">
+                  <pre className="whitespace-pre-wrap font-sans">{form.codebase_summary || scanContent}</pre>
+                </div>
+              ) : !scanning && !scanError && (
                 <p className="text-[10px] text-text-muted">尚未扫描。点击扫描后，AI 将分析代码库结构并生成总结，供后续 Agent 交互使用。</p>
               )}
             </div>

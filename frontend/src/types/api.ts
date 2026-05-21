@@ -91,6 +91,7 @@ export interface Todo {
   priority: number;
   current_phase: PhaseType | null;
   execution_mode: ExecutionMode;
+  needs_attention: boolean;
   tags: Tag[];
   created_at: string;
   updated_at: string;
@@ -370,4 +371,29 @@ export interface ModeSwitchImpact {
   active_count: number;
   pending_count: number;
   safe_to_switch: boolean;
+}
+
+// ─── Task Stream (Conversation Mode Orchestration) ─────────
+export type TaskStreamEventType = 'connected' | 'task_status' | 'task_chunk' | 'task_done' | 'error';
+
+export interface TaskStreamEvent {
+  event: TaskStreamEventType;
+  todo_id?: string;
+  status?: 'idle' | 'running' | 'error';
+  stage?: string;
+  content?: string;
+  artifacts?: string[];
+  detail?: string;
+}
+
+export interface BatchStartResult {
+  todo_id: string;
+  status: 'started' | 'error';
+  conversation_id?: string;
+  detail?: string;
+}
+
+export interface QuickMessageResponse {
+  message_id: string;
+  status: 'accepted';
 }
