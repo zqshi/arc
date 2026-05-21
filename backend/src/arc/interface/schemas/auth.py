@@ -40,3 +40,4 @@ class UserResponse(BaseModel):
     username: str | None
     phone: str | None
     display_name: str
+    role: str = "admin"

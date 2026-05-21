@@ -15,6 +15,7 @@ import type {
   Project,
   CreateProjectRequest,
   UpdateProjectRequest,
+  ProjectMember,
   Version,
   CreateVersionRequest,
   SystemSettings,
@@ -186,6 +187,32 @@ class ApiClient {
 
   async deleteProject(id: string): Promise<void> {
     return this.request<void>(`/api/projects/${id}`, { method: 'DELETE' });
+  }
+
+  // ─── Project Members ──────────────────────────────────
+
+  async listMembers(projectId: string): Promise<ProjectMember[]> {
+    return this.request<ProjectMember[]>(`/api/projects/${projectId}/members`);
+  }
+
+  async addMember(projectId: string, userId: string, role: string = 'member'): Promise<ProjectMember> {
+    return this.request<ProjectMember>(`/api/projects/${projectId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, role }),
+    });
+  }
+
+  async updateMemberRole(projectId: string, userId: string, role: string): Promise<ProjectMember> {
+    return this.request<ProjectMember>(`/api/projects/${projectId}/members/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async removeMember(projectId: string, userId: string): Promise<void> {
+    return this.request<void>(`/api/projects/${projectId}/members/${userId}`, {
+      method: 'DELETE',
+    });
   }
 
   // ─── Versions ──────────────────────────────────────────

@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-21
+
+### Added
+- 角色权限体系 — UserRole 枚举（admin/member/viewer），User model 扩展 role 字段
+- 项目成员管理 — 成员邀请/移除/角色变更 API，创建项目自动添加创建者为 admin
+- 权限中间件 — require_project_role 依赖注入，成员管理写操作需 admin 权限
+- 项目成员前端 — MembersTab 组件（成员列表、添加、角色变更、移除）
+- 前端权限渲染 — 根据项目角色控制操作按钮显隐（viewer 只读、member 可操作、admin 可管理）
+- 经验访问控制 — 项目经验团队成员可见，个人经验仅创建者可见，搜索范围限定
+- 团队经验复用 — 成员间经验发现，经验库 scope 筛选（个人/项目）
+
+### Changed
+- 项目列表查询扩展 — 用户可见自己创建的项目 + 作为成员参与的项目
+- 登录/注册返回用户 role 字段
+- /me 端点返回 role 字段
+
 ## [0.5.0] - 2026-05-21
 
 ### Added

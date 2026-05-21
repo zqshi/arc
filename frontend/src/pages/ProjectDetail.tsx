@@ -1,24 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2, Sparkles, Loader2, Users } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useProjectTaskStream } from '../hooks/useProjectTaskStream';
 import ActionMenu from '../components/ActionMenu';
 import type { ActionMenuItem } from '../components/ActionMenu';
-import type { Project, Version, VersionType, Todo, Experience, ExperienceCategory, PlanningSession } from '../types/api';
+import type { Project, Version, VersionType, Todo, Experience, ExperienceCategory, PlanningSession, UserRole } from '../types/api';
 import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
 import MarkdownContent from '../components/MarkdownContent';
 import DeliverableDrawer from '../components/DeliverableDrawer';
-import { TodosTab, SettingsTab, ExperiencesTab } from '../components/project';
+import { TodosTab, SettingsTab, ExperiencesTab, MembersTab } from '../components/project';
 
-type TabKey = 'todos' | 'experiences' | 'settings';
+type TabKey = 'todos' | 'experiences' | 'members' | 'settings';
 
 const TAB_ITEMS: { key: TabKey; label: string; icon: typeof FileText }[] = [
   { key: 'todos', label: '需求', icon: FileText },
   { key: 'experiences', label: '经验', icon: Lightbulb },
+  { key: 'members', label: '成员', icon: Users },
   { key: 'settings', label: '设置', icon: Settings },
 ];
 
@@ -28,6 +30,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { setProject: setCurrentProject } = useCurrentProject();
+  const { user: authUser } = useAuth();
 
   const [project, setProject] = useState<Project | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
@@ -63,6 +66,9 @@ export default function ProjectDetail() {
   // Insights
   const [insights, setInsights] = useState<Array<{ id: string; title: string; solution: string; confidence: number; reuse_count: number }>>([]);
 
+  // Project role for current user
+  const [myRole, setMyRole] = useState<UserRole>('admin');
+
   // Task stream for conversation mode
   const isConversationMode = form.execution_mode === 'conversation';
   const { getTaskState } = useProjectTaskStream(isConversationMode ? id : undefined);
@@ -71,10 +77,14 @@ export default function ProjectDetail() {
     if (!id) return;
     setLoading(true);
     try {
-      const [p, v] = await Promise.all([api.getProject(id), api.listVersions(id)]);
+      const [p, v, members] = await Promise.all([api.getProject(id), api.listVersions(id), api.listMembers(id).catch(() => [])]);
       setProject(p);
       setCurrentProject({ id: p.id, name: p.name });
       setVersions(v);
+      if (authUser) {
+        const me = members.find(m => m.user_id === authUser.id);
+        setMyRole(me?.role ?? 'admin');
+      }
       setForm({
         name: p.name,
         description: p.description,
@@ -363,10 +373,18 @@ export default function ProjectDetail() {
     );
   }
 
-  const projectActions: ActionMenuItem[] = [
+  const isAdmin = myRole === 'admin';
+  const canWrite = myRole === 'admin' || myRole === 'member';
+
+  const projectActions: ActionMenuItem[] = isAdmin ? [
     ...(project.status !== 'archived' ? [{ label: '归档项目', icon: <Archive size={12} />, onClick: handleArchiveProject }] : []),
     { label: '删除项目', icon: <Trash2 size={12} />, danger: true, onClick: handleDeleteProject },
-  ];
+  ] : [];
+
+  const visibleTabs = TAB_ITEMS.filter(t => {
+    if (t.key === 'settings' || t.key === 'members') return isAdmin;
+    return true;
+  });
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -379,11 +397,11 @@ export default function ProjectDetail() {
           <ArrowLeft size={16} />
         </button>
         <h1 className="font-heading text-lg font-semibold text-text-primary">{project.name}</h1>
-        <ActionMenu items={projectActions} />
+        {projectActions.length > 0 && <ActionMenu items={projectActions} />}
 
         {/* Tab bar */}
         <nav className="ml-6 flex gap-1">
-          {TAB_ITEMS.map(({ key, label, icon: Icon }) => (
+          {visibleTabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
@@ -433,6 +451,7 @@ export default function ProjectDetail() {
                 await api.batchStartConversations(id!, todoIds);
                 fetchData();
               } : undefined}
+              canWrite={canWrite}
             />
           )}
 
@@ -462,6 +481,10 @@ export default function ProjectDetail() {
               insights={insights}
               onAppendConvention={handleAppendConvention}
             />
+          )}
+
+          {activeTab === 'members' && (
+            <MembersTab projectId={id!} />
           )}
         </div>
       </div>

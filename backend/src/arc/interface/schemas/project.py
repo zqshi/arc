@@ -117,3 +117,20 @@ class DeliverableTrackerResponse(BaseModel):
     deliverables: dict[str, str]
     completion_pct: float
     is_complete: bool
+
+
+class AddMemberRequest(BaseModel):
+    user_id: str
+    role: str = Field("member", pattern=r"^(admin|member|viewer)$")
+
+
+class UpdateMemberRoleRequest(BaseModel):
+    role: str = Field(..., pattern=r"^(admin|member|viewer)$")
+
+
+class MemberResponse(BaseModel):
+    user_id: str
+    display_name: str
+    username: str | None = None
+    role: str
+    joined_at: str

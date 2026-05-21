@@ -30,7 +30,7 @@ async def search_experiences(
     from arc.application.experience.service import ExperienceService
     svc = ExperienceService(db)
     pid = UUID(project_id) if project_id else None
-    results = await svc.search_similar(q, limit=5, project_id=pid)
+    results = await svc.search_similar(q, limit=5, project_id=pid, user_id=user.id)
     return ExperienceListResponse(
         items=[_to_response(e) for e in results],
         total=len(results),

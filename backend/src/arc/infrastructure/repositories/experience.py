@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.experience.entity import Experience as ExpEntity
@@ -20,6 +20,7 @@ from arc.infrastructure.models.experience import (
 from arc.infrastructure.models.experience import (
     ExperienceFeedback as FeedbackModel,
 )
+from arc.infrastructure.models.user import ProjectMemberModel
 
 
 class ExperienceRepository(IExperienceRepository):
@@ -44,12 +45,19 @@ class ExperienceRepository(IExperienceRepository):
     ) -> tuple[list[ExpEntity], int]:
         base = select(ExpModel).where(ExpModel.status != "archived")
         if user_id:
-            base = base.where(ExpModel.user_id == user_id)
-        if project_id:
-            base = base.where(
-                (ExpModel.project_id == project_id)
-                | (ExpModel.scope == "personal")
+            user_project_ids = (
+                select(ProjectMemberModel.project_id)
+                .where(ProjectMemberModel.user_id == user_id)
+                .scalar_subquery()
             )
+            base = base.where(
+                or_(
+                    ExpModel.user_id == user_id,
+                    ExpModel.project_id.in_(user_project_ids),
+                )
+            )
+        if project_id:
+            base = base.where(ExpModel.project_id == project_id)
         if status:
             base = base.where(ExpModel.status == status.value)
 
@@ -61,18 +69,29 @@ class ExperienceRepository(IExperienceRepository):
         return [self._to_entity(r) for r in result.scalars().all()], total
 
     async def search_by_embedding(
-        self, embedding: list[float], limit: int = 10, project_id: uuid.UUID | None = None,
+        self, embedding: list[float], limit: int = 10,
+        project_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
     ) -> list[ExpEntity]:
         stmt = (
             select(ExpModel)
             .where(ExpModel.embedding.isnot(None))
             .where(ExpModel.status == "confirmed")
         )
-        if project_id:
-            stmt = stmt.where(
-                (ExpModel.project_id == project_id)
-                | (ExpModel.scope == "personal")
+        if user_id:
+            user_project_ids = (
+                select(ProjectMemberModel.project_id)
+                .where(ProjectMemberModel.user_id == user_id)
+                .scalar_subquery()
             )
+            stmt = stmt.where(
+                or_(
+                    ExpModel.user_id == user_id,
+                    ExpModel.project_id.in_(user_project_ids),
+                )
+            )
+        if project_id:
+            stmt = stmt.where(ExpModel.project_id == project_id)
         stmt = stmt.order_by(ExpModel.embedding.cosine_distance(embedding)).limit(limit)
         result = await self.db.execute(stmt)
         return [self._to_entity(r) for r in result.scalars().all()]

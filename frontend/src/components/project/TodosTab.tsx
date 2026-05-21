@@ -71,6 +71,7 @@ interface TodosTabProps {
   getTaskState?: (todoId: string) => TaskState;
   onBatchStart?: (todoIds: string[]) => Promise<void>;
   executionMode?: 'pipeline' | 'conversation';
+  canWrite?: boolean;
 }
 
 export function TodosTab({
@@ -100,6 +101,7 @@ export function TodosTab({
   getTaskState,
   onBatchStart,
   executionMode,
+  canWrite = true,
 }: TodosTabProps) {
   const [showGlobalPlanning, setShowGlobalPlanning] = useState(false);
   const [batchStarting, setBatchStarting] = useState(false);
@@ -112,22 +114,26 @@ export function TodosTab({
           <GitBranch size={13} /> 版本 & 需求
         </h2>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowGlobalPlanning(!showGlobalPlanning)}
-            className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-              showGlobalPlanning
-                ? 'border-accent bg-accent/10 text-accent'
-                : 'border-border text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            <Map size={12} /> AI 全局规划
-          </button>
-          <button
-            onClick={() => setShowNewVersion(true)}
-            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary"
-          >
-            <Plus size={12} /> 新版本
-          </button>
+          {canWrite && (
+            <>
+              <button
+                onClick={() => setShowGlobalPlanning(!showGlobalPlanning)}
+                className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  showGlobalPlanning
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <Map size={12} /> AI 全局规划
+              </button>
+              <button
+                onClick={() => setShowNewVersion(true)}
+                className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary"
+              >
+                <Plus size={12} /> 新版本
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -225,7 +231,7 @@ export function TodosTab({
                   )}
                 </button>
                 <div className="ml-3 flex items-center gap-1.5">
-                  {v.status !== 'released' && (
+                  {canWrite && v.status !== 'released' && (
                     <button
                       onClick={() => setCreateForVersion(v.id)}
                       className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-text-secondary hover:border-accent hover:text-accent"
