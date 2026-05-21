@@ -13,14 +13,13 @@ import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
 import MarkdownContent from '../components/MarkdownContent';
 import DeliverableDrawer from '../components/DeliverableDrawer';
-import { TodosTab, SettingsTab, ExperiencesTab, MembersTab } from '../components/project';
+import { TodosTab, SettingsTab, ExperiencesTab } from '../components/project';
 
-type TabKey = 'todos' | 'experiences' | 'members' | 'settings';
+type TabKey = 'todos' | 'experiences' | 'settings';
 
 const TAB_ITEMS: { key: TabKey; label: string; icon: typeof FileText }[] = [
   { key: 'todos', label: '需求', icon: FileText },
   { key: 'experiences', label: '经验', icon: Lightbulb },
-  { key: 'members', label: '成员', icon: Users },
   { key: 'settings', label: '设置', icon: Settings },
 ];
 
@@ -382,7 +381,7 @@ export default function ProjectDetail() {
   ] : [];
 
   const visibleTabs = TAB_ITEMS.filter(t => {
-    if (t.key === 'settings' || t.key === 'members') return isAdmin;
+    if (t.key === 'settings') return isAdmin;
     return true;
   });
 
@@ -481,10 +480,6 @@ export default function ProjectDetail() {
               insights={insights}
               onAppendConvention={handleAppendConvention}
             />
-          )}
-
-          {activeTab === 'members' && (
-            <MembersTab projectId={id!} />
           )}
         </div>
       </div>
