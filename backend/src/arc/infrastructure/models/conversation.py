@@ -12,7 +12,7 @@ class Conversation(TimestampMixin, Base):
     __tablename__ = "conversations"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    todo_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("todos.id"), nullable=False)
+    todo_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("todos.id", ondelete="CASCADE"), nullable=False)
     purpose: Mapped[str] = mapped_column(String(20), nullable=False)
 
 
@@ -21,7 +21,7 @@ class Message(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     conversation_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("conversations.id"), nullable=False
+        ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

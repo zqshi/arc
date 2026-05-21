@@ -69,7 +69,7 @@ class AuthService:
 
     async def send_sms_code(self, phone: str) -> None:
         code = await self.sms.send_code(phone)
-        logger.info("SMS code sent to %s: %s", phone[-4:], code)
+        logger.info("SMS code sent to ***%s", phone[-4:])
 
     async def login_with_sms(self, phone: str, code: str) -> dict:
         valid = await self.sms.verify_code(phone, code)

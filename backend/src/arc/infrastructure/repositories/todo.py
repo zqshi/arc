@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +17,13 @@ class TodoRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_by_id(self, todo_id: uuid.UUID) -> TodoEntity | None:
-        result = await self.db.execute(select(TodoModel).where(TodoModel.id == todo_id))
+    async def get_by_id(
+        self, todo_id: uuid.UUID, *, user_id: uuid.UUID | None = None,
+    ) -> TodoEntity | None:
+        stmt = select(TodoModel).where(TodoModel.id == todo_id)
+        if user_id:
+            stmt = stmt.where(TodoModel.user_id == user_id)
+        result = await self.db.execute(stmt)
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row else None
 
@@ -100,8 +106,21 @@ class TodoRepository:
         await self.db.refresh(model)
         return self._to_entity(model)
 
-    async def delete(self, todo_id: uuid.UUID) -> None:
-        result = await self.db.execute(select(TodoModel).where(TodoModel.id == todo_id))
+    async def mark_seen(self, todo_id: uuid.UUID) -> None:
+        from sqlalchemy import update
+        await self.db.execute(
+            update(TodoModel)
+            .where(TodoModel.id == todo_id)
+            .values(last_seen_at=datetime.now(UTC))
+            .execution_options(synchronize_session=False)
+        )
+        await self.db.flush()
+
+    async def delete(self, todo_id: uuid.UUID, *, user_id: uuid.UUID | None = None) -> None:
+        stmt = select(TodoModel).where(TodoModel.id == todo_id)
+        if user_id:
+            stmt = stmt.where(TodoModel.user_id == user_id)
+        result = await self.db.execute(stmt)
         model = result.scalar_one_or_none()
         if model:
             await self.db.delete(model)
@@ -136,4 +155,5 @@ class TodoRepository:
             source_feature_key=model.source_feature_key or "",
             created_at=model.created_at,
             updated_at=model.updated_at,
+            last_seen_at=model.last_seen_at,
         )

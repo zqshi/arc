@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import os
 from pathlib import Path
+from typing import AsyncIterator
 
 IGNORE_DIRS = {
     "node_modules", ".git", "__pycache__", ".venv", "venv", "env",
@@ -115,21 +118,87 @@ class CodebaseScanner:
         return result
 
 
-async def scan_and_summarize(path: str) -> str:
-    """Convenience function: scan codebase and get LLM summary."""
+async def compute_scan_fingerprint(path: str) -> str:
+    """Compute a fingerprint for the codebase state.
+
+    Uses git HEAD if available, otherwise hashes key file mtimes.
+    """
+    root = Path(os.path.expanduser(path)).resolve()
+
+    git_dir = root / ".git"
+    if git_dir.exists():
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "HEAD",
+                cwd=str(root),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _ = await proc.communicate()
+            if proc.returncode == 0:
+                return f"git:{stdout.decode().strip()}"
+        except (OSError, ValueError):
+            pass
+
+    h = hashlib.sha256()
+    for name in KEY_FILES:
+        fpath = root / name
+        if fpath.is_file():
+            try:
+                stat = fpath.stat()
+                h.update(f"{name}:{stat.st_mtime_ns}:{stat.st_size}".encode())
+            except OSError:
+                continue
+    return f"mtime:{h.hexdigest()[:16]}"
+
+
+async def scan_and_summarize_stream(path: str) -> AsyncIterator[dict]:
+    """Stream scan events: stage updates, LLM chunks, and final result."""
+    from arc.application.ai.adapter_pool import adapter_pool
     from arc.application.ai.llm_adapter import LLMMessage
-    from arc.application.ai.resilience import create_resilient_adapter
+
+    yield {"event": "stage", "message": "正在遍历目录结构..."}
+
+    scanner = CodebaseScanner(path)
+    data = scanner.scan()
+
+    file_count = len(data["files"])
+    yield {"event": "stage", "message": f"正在读取关键文件 ({file_count}个)..."}
+
+    files_section = ""
+    for fname, content in data["files"].items():
+        files_section += f"\n### {fname}\n```\n{content}\n```\n"
+
+    prompt = SCAN_PROMPT.format(
+        path=data["path"],
+        tree=data["tree"],
+        files_content=files_section or "(未找到关键文件)",
+    )
+
+    yield {"event": "stage", "message": "AI 正在分析代码库..."}
+
+    full_content = ""
+    async with adapter_pool.acquire() as adapter:
+        messages = [LLMMessage(role="user", content=prompt)]
+        async for chunk in adapter.chat_stream(messages, temperature=0.3, max_tokens=4096):
+            full_content += chunk
+            yield {"event": "chunk", "content": chunk}
+
+    yield {"event": "done", "summary": full_content}
+
+
+async def scan_and_summarize(path: str) -> str:
+    """Legacy non-streaming scan (kept for backward compat)."""
+    from arc.application.ai.adapter_pool import adapter_pool
+    from arc.application.ai.llm_adapter import LLMMessage
 
     scanner = CodebaseScanner(path)
     prompt = scanner.build_prompt()
 
-    adapter = create_resilient_adapter()
-    try:
+    async with adapter_pool.acquire() as adapter:
         response = await adapter.chat(
             [LLMMessage(role="user", content=prompt)],
             temperature=0.3,
             max_tokens=4096,
         )
         return response.content
-    finally:
-        await adapter.close()

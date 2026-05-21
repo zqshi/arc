@@ -21,6 +21,7 @@ class ProjectModel(TimestampMixin, Base):
     local_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     conventions: Mapped[str | None] = mapped_column(Text, nullable=True)
     codebase_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scan_fingerprint: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
     execution_mode: Mapped[str] = mapped_column(String(20), default="pipeline")
     pipeline_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

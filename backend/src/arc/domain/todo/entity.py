@@ -33,6 +33,7 @@ class Todo:
     source_feature_key: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    last_seen_at: datetime | None = None
 
     def _transition_to(self, target: TodoStatus) -> None:
         allowed = VALID_TRANSITIONS.get(self.status, set())

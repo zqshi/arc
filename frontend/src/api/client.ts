@@ -22,9 +22,20 @@ import type {
   PlanningSession,
   DeliverableTracker,
   ScopeDiff,
+  BatchStartResult,
+  QuickMessageResponse,
+  TaskStreamEvent,
 } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+
+export interface ScanEvent {
+  event: string;
+  message?: string;
+  content?: string;
+  summary?: string;
+  detail?: string;
+}
 
 class ApiError extends Error {
   status: number;
@@ -108,33 +119,41 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const resp = await fetch(`${this.base}${path}`, {
-      ...options,
-      headers,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
-    if (resp.status === 401 && !retried) {
-      const refreshed = await tryRefreshToken();
-      if (refreshed) {
-        return this.request(path, options, true);
+    try {
+      const resp = await fetch(`${this.base}${path}`, {
+        ...options,
+        headers,
+        signal: options?.signal || controller.signal,
+      });
+
+      if (resp.status === 401 && !retried) {
+        const refreshed = await tryRefreshToken();
+        if (refreshed) {
+          return this.request(path, options, true);
+        }
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('auth_user');
+        window.location.href = '/login';
+        throw new ApiError(401, '登录已过期');
       }
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('auth_user');
-      window.location.href = '/login';
-      throw new ApiError(401, '登录已过期');
-    }
 
-    if (!resp.ok) {
-      const error = await resp.json().catch(() => ({ detail: resp.statusText }));
-      const detail = typeof error.detail === 'string'
-        ? error.detail
-        : JSON.stringify(error.detail);
-      throw new ApiError(resp.status, detail || resp.statusText);
-    }
+      if (!resp.ok) {
+        const error = await resp.json().catch(() => ({ detail: resp.statusText }));
+        const detail = typeof error.detail === 'string'
+          ? error.detail
+          : JSON.stringify(error.detail);
+        throw new ApiError(resp.status, detail || resp.statusText);
+      }
 
-    if (resp.status === 204) return undefined as T;
-    return resp.json();
+      if (resp.status === 204) return undefined as T;
+      return resp.json();
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   // ─── Projects ────────────────────────────────────────────
@@ -523,8 +542,127 @@ class ApiClient {
     return this.request('/api/filesystem/mkdir', { method: 'POST', body: JSON.stringify({ path }) });
   }
 
-  async scanCodebase(projectId: string): Promise<{ summary: string }> {
-    return this.request(`/api/projects/${projectId}/scan-codebase`, { method: 'POST' });
+  async scanCodebase(projectId: string, force = false): Promise<{ summary?: string; cached?: boolean; task_id?: string; status?: string }> {
+    const params = force ? '?force=true' : '';
+    return this.request(`/api/projects/${projectId}/scan-codebase${params}`, { method: 'POST' });
+  }
+
+  scanCodebaseStream(projectId: string, onEvent: (event: ScanEvent) => void, signal?: AbortSignal): void {
+    const token = localStorage.getItem('access_token');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch(`${this.base}/api/projects/${projectId}/scan-codebase/stream`, {
+      headers,
+      signal,
+    }).then(async (resp) => {
+      if (!resp.ok || !resp.body) {
+        onEvent({ event: 'error', detail: `HTTP ${resp.status}` });
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let currentEvent = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data);
+              onEvent({ event: currentEvent || parsed.event, ...parsed });
+            } catch {
+              // skip malformed data
+            }
+            currentEvent = '';
+          }
+        }
+      }
+
+      onEvent({ event: 'close' });
+    }).catch((err) => {
+      if (err.name !== 'AbortError') {
+        onEvent({ event: 'error', detail: err.message || '连接失败' });
+      }
+    });
+  }
+
+  // ─── Task Orchestration (Conversation Mode) ───────────────
+
+  async batchStartConversations(projectId: string, todoIds: string[]): Promise<{ results: BatchStartResult[] }> {
+    return this.request(`/api/projects/${projectId}/batch-start-conversations`, {
+      method: 'POST',
+      body: JSON.stringify({ todo_ids: todoIds }),
+    });
+  }
+
+  async sendQuickMessage(todoId: string, content: string): Promise<QuickMessageResponse> {
+    return this.request(`/api/todos/${todoId}/quick-message`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  subscribeTaskStream(
+    projectId: string,
+    onEvent: (event: TaskStreamEvent) => void,
+    signal?: AbortSignal,
+  ): void {
+    const token = localStorage.getItem('access_token');
+    const url = `${this.base}/api/projects/${projectId}/task-stream`;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch(url, { headers, signal }).then(async (resp) => {
+      if (!resp.ok || !resp.body) {
+        onEvent({ event: 'error', detail: `HTTP ${resp.status}` });
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let currentEvent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data);
+              onEvent({ event: (currentEvent || 'connected') as TaskStreamEvent['event'], ...parsed });
+            } catch {
+              // skip malformed
+            }
+            currentEvent = '';
+          }
+        }
+      }
+    }).catch((err) => {
+      if (err.name !== 'AbortError') {
+        onEvent({ event: 'error', detail: err.message || '连接失败' });
+      }
+    });
   }
 }
 

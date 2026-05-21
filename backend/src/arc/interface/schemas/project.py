@@ -34,6 +34,7 @@ class ProjectResponse(BaseModel):
     local_path: str
     conventions: str
     codebase_summary: str
+    scan_fingerprint: str = ""
     status: str
     execution_mode: str
     pipeline_config: dict | None = None

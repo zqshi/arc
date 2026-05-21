@@ -65,8 +65,8 @@ async def _authenticate_ws(token: str | None):
             user = await UserRepository(db).get_by_id(UUID(payload["sub"]))
             if user and user.is_active:
                 return user
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("WebSocket auth failed: %s", exc)
     return None
 
 
@@ -76,6 +76,24 @@ async def _stream_ai_response(
     svc,
     conv,
 ):
+    from arc.application.project.task_stream import project_task_stream
+
+    todo_id = str(conv.todo_id) if conv.todo_id else None
+    project_id = None
+    if todo_id:
+        try:
+            project_id = str(getattr(conv, '_project_id', '')) or None
+            if not project_id:
+                from arc.infrastructure.database import async_session_factory
+                from arc.infrastructure.repositories.todo import TodoRepository
+                from uuid import UUID
+                async with async_session_factory() as _db:
+                    _todo = await TodoRepository(_db).get_by_id(UUID(todo_id))
+                    if _todo and _todo.project_id:
+                        project_id = str(_todo.project_id)
+        except Exception:
+            pass
+
     ai_msg_id = None
     try:
         async for chunk in svc.generate_response_stream(conv):
@@ -86,6 +104,12 @@ async def _stream_ai_response(
                     "artifacts": chunk.get("artifacts", []),
                     "artifact_names": chunk.get("artifact_names", []),
                 })
+                if project_id and todo_id:
+                    await project_task_stream.emit(project_id, {
+                        "event": "task_done",
+                        "todo_id": todo_id,
+                        "artifacts": chunk.get("artifact_names", []),
+                    })
                 continue
 
             if ai_msg_id is None:
@@ -94,12 +118,25 @@ async def _stream_ai_response(
                     "type": "stream_start",
                     "message_id": ai_msg_id,
                 })
+                if project_id and todo_id:
+                    await project_task_stream.emit(project_id, {
+                        "event": "task_status",
+                        "todo_id": todo_id,
+                        "status": "running",
+                        "stage": "AI 正在生成回复...",
+                    })
 
             await manager.broadcast(conversation_id, {
                 "type": "stream_chunk",
                 "message_id": ai_msg_id,
                 "content": chunk.get("content", ""),
             })
+            if project_id and todo_id:
+                await project_task_stream.emit(project_id, {
+                    "event": "task_chunk",
+                    "todo_id": todo_id,
+                    "content": chunk.get("content", ""),
+                })
     except Exception as exc:
         logger.error("AI response generation failed: %s", exc, exc_info=True)
         error_msg = "AI响应生成失败"
@@ -110,12 +147,26 @@ async def _stream_ai_response(
             "type": "error",
             "detail": error_msg,
         })
+        if project_id and todo_id:
+            await project_task_stream.emit(project_id, {
+                "event": "task_status",
+                "todo_id": todo_id,
+                "status": "error",
+                "stage": error_msg,
+            })
 
     if ai_msg_id:
         await manager.broadcast(conversation_id, {
             "type": "stream_end",
             "message_id": ai_msg_id,
         })
+        if project_id and todo_id:
+            await project_task_stream.emit(project_id, {
+                "event": "task_status",
+                "todo_id": todo_id,
+                "status": "idle",
+                "stage": "等待用户输入",
+            })
 
 
 async def _heartbeat(ws: WebSocket, cancel_event: asyncio.Event, token: str | None = None):

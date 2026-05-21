@@ -25,7 +25,7 @@ from arc.application.execution.prompts import (
 from arc.domain.artifact.value_objects import ARTIFACT_LABELS, ArtifactType
 from arc.domain.conversation.entity import Conversation, Message
 from arc.domain.planning.entity import DeliverableTracker
-from arc.domain.todo.value_objects import ConversationPurpose, MessageRole
+from arc.domain.todo.value_objects import ConversationPurpose, MessageRole, TodoStatus
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.conversation import ConversationRepository
 from arc.infrastructure.repositories.planning import DeliverableTrackerRepository
@@ -57,6 +57,9 @@ class ConversationExecutionService:
             todo_id, ConversationPurpose.UNIFIED,
         )
         if existing_conv:
+            if todo.status == TodoStatus.PENDING:
+                todo.start_conversation()
+                await self.todo_repo.update(todo)
             tracker = await self.tracker_repo.get_by_todo_id(todo_id)
             if not tracker:
                 tracker = await self._create_tracker(todo_id, required_deliverables)
@@ -84,7 +87,7 @@ class ConversationExecutionService:
         conv.add_message(role=MessageRole.ASSISTANT, content=greeting)
         await self.conv_repo.create(conv)
 
-        if todo.status.value == "pending":
+        if todo.status == TodoStatus.PENDING:
             todo.start_conversation()
             await self.todo_repo.update(todo)
 
@@ -95,21 +98,18 @@ class ConversationExecutionService:
         self, conversation: Conversation,
     ) -> AsyncIterator[dict]:
         """生成AI流式回复，完成后自动提取产出物。"""
+        from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.ai.resilience import create_resilient_adapter
 
         llm_messages = await self._build_llm_messages(conversation)
-        adapter = create_resilient_adapter()
 
-        try:
+        async with adapter_pool.acquire() as adapter:
             message_id = str(uuid.uuid4())
             full_content = ""
 
             async for chunk in adapter.chat_stream(llm_messages):
                 full_content += chunk
                 yield {"message_id": message_id, "content": chunk}
-        finally:
-            await adapter.close()
 
         ai_message = conversation.add_message(
             role=MessageRole.ASSISTANT,

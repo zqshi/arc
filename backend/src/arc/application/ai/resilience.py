@@ -11,8 +11,8 @@ from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MAX_RETRIES = 3
-_DEFAULT_TIMEOUT_SECONDS = 120
+_DEFAULT_MAX_RETRIES = 2
+_DEFAULT_TIMEOUT_SECONDS = 300
 _CB_FAILURE_THRESHOLD = 5
 _CB_RECOVERY_SECONDS = 30
 
@@ -81,7 +81,7 @@ class ResilientAdapter(LLMAdapter):
         self._max_retries = max_retries
         self._timeout = timeout_seconds
         self._chat_breaker = breaker or _chat_breaker
-        self._embed_breaker = breaker or _embed_breaker
+        self._embed_breaker = _embed_breaker if breaker is None else breaker
 
     async def chat(
         self,
@@ -106,13 +106,26 @@ class ResilientAdapter(LLMAdapter):
         *,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        stream_idle_timeout: float = 60.0,
     ) -> AsyncIterator[str]:
         self._chat_breaker.before_call()
         started = False
         try:
-            async for chunk in self._inner.chat_stream(
+            stream = self._inner.chat_stream(
                 messages, temperature=temperature, max_tokens=max_tokens
-            ):
+            )
+            ait = stream.__aiter__()
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(
+                        ait.__anext__(), timeout=stream_idle_timeout
+                    )
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    raise asyncio.TimeoutError(
+                        f"LLM stream idle for {stream_idle_timeout}s — connection likely stalled"
+                    )
                 if not started:
                     self._chat_breaker.on_success()
                     started = True

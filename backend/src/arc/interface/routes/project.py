@@ -62,6 +62,7 @@ def _project_resp(p: Project) -> ProjectResponse:
         local_path=p.local_path,
         conventions=p.conventions,
         codebase_summary=p.codebase_summary,
+        scan_fingerprint=p.scan_fingerprint,
         status=p.status.value,
         execution_mode=p.execution_mode.value,
         pipeline_config=p.pipeline_config,
@@ -179,7 +180,13 @@ async def scan_codebase(
     project_id: uuid.UUID,
     db: DbSession,
     user: CurrentUser,
+    force: bool = False,
 ):
+    from pathlib import Path
+
+    from arc.application.project.scan_task import scan_manager
+    from arc.application.project.scanner import compute_scan_fingerprint
+
     repo = ProjectRepository(db)
     project = await repo.get_by_id(project_id, user_id=user.id)
     if not project:
@@ -187,26 +194,148 @@ async def scan_codebase(
     if not project.local_path:
         raise HTTPException(400, "请先配置本地工作目录")
 
-    import asyncio
-    from pathlib import Path
-
     path = Path(project.local_path).expanduser().resolve()
     if not path.is_dir():
         raise HTTPException(400, f"目录不存在: {project.local_path}")
 
-    from arc.application.project.scanner import scan_and_summarize
-    try:
-        summary = await asyncio.wait_for(
-            scan_and_summarize(str(path)), timeout=60,
-        )
-    except asyncio.TimeoutError:
-        raise HTTPException(504, "扫描超时，请稍后重试")
-    except Exception as e:
-        raise HTTPException(502, f"扫描失败: {e}")
+    pid = str(project_id)
 
-    project.codebase_summary = summary
-    await repo.update(project)
-    return {"summary": summary}
+    if not force and project.codebase_summary:
+        current_fp = await compute_scan_fingerprint(str(path))
+        if current_fp == project.scan_fingerprint:
+            return {"summary": project.codebase_summary, "cached": True}
+
+    if scan_manager.is_running(pid):
+        raise HTTPException(409, "扫描进行中，请勿重复操作")
+
+    task_id = await scan_manager.start_scan(pid, str(path))
+    from starlette.responses import JSONResponse
+    return JSONResponse(
+        status_code=202,
+        content={"task_id": task_id, "status": "running"},
+    )
+
+
+@router.get("/{project_id}/scan-codebase/stream")
+async def scan_codebase_stream(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    import asyncio
+    import json
+
+    from starlette.responses import StreamingResponse
+
+    from arc.application.project.scan_task import scan_manager
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    pid = str(project_id)
+
+    async def event_generator():
+        keepalive_interval = 15
+
+        async for event in scan_manager.subscribe(pid):
+            event_type = event.get("event", "message")
+            data = json.dumps(event, ensure_ascii=False)
+            yield f"event: {event_type}\ndata: {data}\n\n"
+
+        yield "event: close\ndata: {}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/{project_id}/batch-start-conversations")
+async def batch_start_conversations(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+    body: dict,
+):
+    from arc.application.execution.conversation_strategy import ConversationExecutionService
+    from arc.infrastructure.repositories.todo import TodoRepository
+
+    todo_ids = body.get("todo_ids", [])
+    if not todo_ids:
+        raise HTTPException(400, "todo_ids is required")
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    todo_repo = TodoRepository(db)
+    svc = ConversationExecutionService(db)
+
+    results = []
+    for tid in todo_ids:
+        try:
+            todo = await todo_repo.get_by_id(uuid.UUID(tid))
+            if not todo or str(todo.project_id) != str(project_id):
+                results.append({"todo_id": tid, "status": "error", "detail": "Todo not found"})
+                continue
+            conv, _ = await svc.initialize(uuid.UUID(tid))
+            results.append({
+                "todo_id": tid,
+                "status": "started",
+                "conversation_id": str(conv.id),
+            })
+        except Exception as e:
+            results.append({"todo_id": tid, "status": "error", "detail": str(e)})
+
+    await db.commit()
+    return {"results": results}
+
+
+@router.get("/{project_id}/task-stream")
+async def project_task_stream_endpoint(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    import asyncio
+    import json
+
+    from starlette.responses import StreamingResponse
+
+    from arc.application.project.task_stream import project_task_stream
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    pid = str(project_id)
+
+    async def event_generator():
+        yield "event: connected\ndata: {}\n\n"
+
+        async for event in project_task_stream.subscribe(pid):
+            event_type = event.pop("event", "message")
+            data = json.dumps(event, ensure_ascii=False)
+            yield f"event: {event_type}\ndata: {data}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/{project_id}/archive", response_model=ProjectResponse)

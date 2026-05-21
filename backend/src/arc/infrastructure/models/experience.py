@@ -16,7 +16,7 @@ class Experience(TimestampMixin, Base):
         ForeignKey("users.id"), nullable=True
     )
     todo_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("todos.id"), nullable=True
+        ForeignKey("todos.id", ondelete="CASCADE"), nullable=True
     )
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True

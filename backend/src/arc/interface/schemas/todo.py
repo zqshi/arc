@@ -40,6 +40,7 @@ class TodoResponse(BaseModel):
     priority: int = 2
     current_phase: str | None = None
     execution_mode: str = "pipeline"
+    needs_attention: bool = False
     tags: list[TagSchema]
     created_at: datetime
     updated_at: datetime

@@ -26,8 +26,11 @@ class ExperienceRepository(IExperienceRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_by_id(self, exp_id: uuid.UUID) -> ExpEntity | None:
-        result = await self.db.execute(select(ExpModel).where(ExpModel.id == exp_id))
+    async def get_by_id(self, exp_id: uuid.UUID, *, user_id: uuid.UUID | None = None) -> ExpEntity | None:
+        stmt = select(ExpModel).where(ExpModel.id == exp_id)
+        if user_id:
+            stmt = stmt.where(ExpModel.user_id == user_id)
+        result = await self.db.execute(stmt)
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row else None
 
