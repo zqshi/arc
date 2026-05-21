@@ -10,7 +10,60 @@ from arc.domain.pipeline.value_objects import PhaseType
 from arc.domain.project.value_objects import ExecutionMode
 from arc.domain.todo.entity import Todo as TodoEntity
 from arc.domain.todo.value_objects import Tag, TodoStatus
-from arc.infrastructure.models.todo import Todo as TodoModel
+from arc.infrastructure.models.todo import Todo as TodoModel, TodoDependency
+
+
+class TodoDependencyRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def add(self, todo_id: uuid.UUID, depends_on_id: uuid.UUID) -> None:
+        dep = TodoDependency(todo_id=todo_id, depends_on_id=depends_on_id)
+        self.db.add(dep)
+        await self.db.flush()
+
+    async def remove(self, todo_id: uuid.UUID, depends_on_id: uuid.UUID) -> bool:
+        stmt = select(TodoDependency).where(
+            TodoDependency.todo_id == todo_id,
+            TodoDependency.depends_on_id == depends_on_id,
+        )
+        result = await self.db.execute(stmt)
+        dep = result.scalar_one_or_none()
+        if dep:
+            await self.db.delete(dep)
+            await self.db.flush()
+            return True
+        return False
+
+    async def get_blocked_by(self, todo_id: uuid.UUID) -> list[uuid.UUID]:
+        stmt = select(TodoDependency.depends_on_id).where(TodoDependency.todo_id == todo_id)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_blocks(self, todo_id: uuid.UUID) -> list[uuid.UUID]:
+        stmt = select(TodoDependency.todo_id).where(TodoDependency.depends_on_id == todo_id)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_map(self, todo_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[uuid.UUID]]:
+        if not todo_ids:
+            return {}
+        stmt = select(TodoDependency).where(TodoDependency.todo_id.in_(todo_ids))
+        result = await self.db.execute(stmt)
+        dep_map: dict[uuid.UUID, list[uuid.UUID]] = {tid: [] for tid in todo_ids}
+        for dep in result.scalars().all():
+            dep_map[dep.todo_id].append(dep.depends_on_id)
+        return dep_map
+
+    async def get_blocks_map(self, todo_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[uuid.UUID]]:
+        if not todo_ids:
+            return {}
+        stmt = select(TodoDependency).where(TodoDependency.depends_on_id.in_(todo_ids))
+        result = await self.db.execute(stmt)
+        blocks_map: dict[uuid.UUID, list[uuid.UUID]] = {tid: [] for tid in todo_ids}
+        for dep in result.scalars().all():
+            blocks_map[dep.depends_on_id].append(dep.todo_id)
+        return blocks_map
 
 
 class TodoRepository:
