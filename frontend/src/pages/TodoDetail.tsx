@@ -13,6 +13,7 @@ import {
   Circle,
   MessageSquare,
   Menu,
+  Lock,
 } from 'lucide-react';
 import { useConversationSocket } from '../hooks/useConversationSocket';
 import { useBreakpoint } from '../hooks/useMediaQuery';
@@ -211,6 +212,11 @@ function WorkspaceHeader({ todo, isCompact, hasSidebar, onOpenSidebar }: {
         </button>
       )}
       <h1 className="min-w-0 flex-1 truncate text-xs font-semibold text-text-primary">{todo.title}</h1>
+      {todo.blocked_by && todo.blocked_by.length > 0 && (
+        <span className="flex items-center gap-0.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-medium text-amber-400" title={`被 ${todo.blocked_by.length} 个需求阻塞`}>
+          <Lock size={8} /> 阻塞
+        </span>
+      )}
       <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
         todo.status === 'active' ? 'bg-accent/15 text-accent'
           : todo.status === 'done' ? 'bg-status-done/15 text-status-done'

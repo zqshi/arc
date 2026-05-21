@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Send, ChevronDown, ChevronRight, ExternalLink, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Send, ChevronDown, ChevronRight, ExternalLink, Loader2, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
 import type { Todo } from '../../types/api';
 import type { TaskState } from '../../hooks/useProjectTaskStream';
 import { api } from '../../api/client';
@@ -69,6 +69,11 @@ export function TaskCard({ todo, taskState, navigate }: TaskCardProps) {
           {todo.title}
         </span>
         {isDone && <CheckCircle2 size={13} className="text-status-done" />}
+        {todo.blocked_by && todo.blocked_by.length > 0 && !isDone && (
+          <span className="flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400" title="被阻塞">
+            <Lock size={8} /> 阻塞
+          </span>
+        )}
         {taskState.status === 'error' && <AlertCircle size={13} className="text-status-error" />}
         {isRunning && <Loader2 size={13} className="animate-spin text-accent" />}
         {taskState.stage && (

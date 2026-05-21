@@ -253,6 +253,21 @@ class ApiClient {
     return this.request<void>(`/api/todos/${id}`, { method: 'DELETE' });
   }
 
+  async addDependency(todoId: string, dependsOnId: string): Promise<void> {
+    return this.request(`/api/todos/${todoId}/dependencies`, {
+      method: 'POST',
+      body: JSON.stringify({ depends_on_id: dependsOnId }),
+    });
+  }
+
+  async removeDependency(todoId: string, dependsOnId: string): Promise<void> {
+    return this.request(`/api/todos/${todoId}/dependencies/${dependsOnId}`, { method: 'DELETE' });
+  }
+
+  async getProjectDashboard(projectId: string): Promise<ProjectDashboard> {
+    return this.request(`/api/projects/${projectId}/dashboard`);
+  }
+
   async extractTags(id: string): Promise<Todo> {
     return this.request<Todo>(`/api/todos/${id}/extract-tags`, { method: 'POST' });
   }

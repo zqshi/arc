@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, GitBranch } from 'lucide-react';
+import { ArrowLeft, MessageSquare, GitBranch, Lock } from 'lucide-react';
 import type { Todo } from '../../types/api';
 import { STATUS_LABELS } from '../../types/api';
 
@@ -83,6 +83,11 @@ export function TodoSidebar({ todos, activeTodoId, projectName, versionName, pro
                   }`}>
                     {STATUS_LABELS[todo.status]}
                   </span>
+                  {todo.blocked_by && todo.blocked_by.length > 0 && (
+                    <span className="flex items-center gap-0.5 text-[9px] text-amber-400" title="被其他需求阻塞">
+                      <Lock size={7} /> {todo.blocked_by.length}
+                    </span>
+                  )}
                   {todo.execution_mode === 'conversation' ? (
                     <MessageSquare size={8} className="text-purple-400" />
                   ) : (

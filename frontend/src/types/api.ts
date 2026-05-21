@@ -399,3 +399,19 @@ export interface QuickMessageResponse {
   message_id: string;
   status: 'accepted';
 }
+
+// ─── Project Dashboard ─────────────────────────────────────
+export interface ProjectDashboard {
+  project_id: string;
+  todo_stats: { pending: number; active: number; done: number; error: number; total: number };
+  version_progress: Array<{
+    id: string;
+    name: string;
+    status: string;
+    total: number;
+    done: number;
+    progress: number;
+  }>;
+  agent_stats: { pending: number; running: number; completed: number; error: number };
+  recent_activity: Array<{ id: string; title: string; status: string; updated_at: string }>;
+}

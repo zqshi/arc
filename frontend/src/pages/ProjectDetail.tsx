@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2, Sparkles, Loader2, BarChart3 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
@@ -12,12 +12,13 @@ import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
 import MarkdownContent from '../components/MarkdownContent';
 import DeliverableDrawer from '../components/DeliverableDrawer';
-import { TodosTab, SettingsTab, ExperiencesTab } from '../components/project';
+import { TodosTab, SettingsTab, ExperiencesTab, DashboardTab } from '../components/project';
 
-type TabKey = 'todos' | 'experiences' | 'settings';
+type TabKey = 'todos' | 'dashboard' | 'experiences' | 'settings';
 
 const TAB_ITEMS: { key: TabKey; label: string; icon: typeof FileText }[] = [
   { key: 'todos', label: '需求', icon: FileText },
+  { key: 'dashboard', label: '仪表盘', icon: BarChart3 },
   { key: 'experiences', label: '经验', icon: Lightbulb },
   { key: 'settings', label: '设置', icon: Settings },
 ];
@@ -424,6 +425,10 @@ export default function ProjectDetail() {
                 fetchData();
               } : undefined}
             />
+          )}
+
+          {activeTab === 'dashboard' && id && (
+            <DashboardTab projectId={id} />
           )}
 
           {activeTab === 'experiences' && (
