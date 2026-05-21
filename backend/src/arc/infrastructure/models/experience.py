@@ -2,7 +2,7 @@ import uuid
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint, Boolean
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, TimestampMixin
@@ -24,6 +24,11 @@ class Experience(TimestampMixin, Base):
     version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("versions.id", ondelete="SET NULL"), nullable=True
     )
+    source_experience_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("experiences.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     scope: Mapped[str] = mapped_column(String(20), default="project")
     status: Mapped[str] = mapped_column(String(20), default="draft")
@@ -38,6 +43,7 @@ class Experience(TimestampMixin, Base):
     embedding = mapped_column(Vector(1536), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     reuse_count: Mapped[int] = mapped_column(Integer, default=0)
+    half_life_days: Mapped[int] = mapped_column(Integer, default=180, server_default="180")
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 
 

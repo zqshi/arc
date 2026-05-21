@@ -183,3 +183,81 @@ class ExperienceService:
         except Exception as exc:
             logger.warning("search_related: vector search failed: %s", exc)
             return []
+
+    async def decay_batch(self) -> int:
+        entities = await self.exp_repo.list_for_decay()
+        if not entities:
+            return 0
+
+        updates: list[tuple[uuid.UUID, float]] = []
+        for exp in entities:
+            decayed = exp.compute_decayed_confidence()
+            if abs(decayed - exp.confidence) > 0.001:
+                updates.append((exp.id, decayed))
+
+        if not updates:
+            return 0
+
+        count = await self.exp_repo.batch_update_confidence(updates)
+        await self.db.commit()
+        logger.info("decay_batch: updated %d experiences", count)
+        return count
+
+    async def distill_to_personal(self, experience_id: uuid.UUID, user_id: uuid.UUID | None = None) -> Experience:
+        exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
+        if not exp:
+            raise ValueError("Experience not found")
+        if exp.scope == ExperienceScope.PERSONAL:
+            raise ValueError("Already a personal experience")
+
+        from arc.application.ai.llm_adapter import LLMMessage
+        from arc.application.ai.resilience import create_resilient_adapter
+
+        distill_prompt = (
+            f"将以下项目经验提炼为通用个人经验。去除项目特定细节，提取可复用的通用模式。\n\n"
+            f"标题: {exp.title}\n问题: {exp.problem}\n方案: {exp.solution}\n"
+            f"决策: {', '.join(exp.decisions)}\n踩坑: {', '.join(exp.pitfalls)}\n"
+            f"适用场景: {exp.applicable_scenarios}\n\n"
+            f"请以JSON格式输出：\n"
+            f'{{"title": "通用标题", "problem": "通用问题描述", "solution": "通用方案", '
+            f'"applicable_scenarios": "适用场景"}}\n只输出JSON。'
+        )
+
+        distilled_data = {}
+        try:
+            adapter = create_resilient_adapter()
+            try:
+                response = await adapter.chat(
+                    [LLMMessage(role="user", content=distill_prompt)],
+                    temperature=0.3,
+                )
+                from arc.application.ai.json_extract import extract_json
+                distilled_data = extract_json(response.content)
+                if not isinstance(distilled_data, dict):
+                    distilled_data = {}
+            finally:
+                await adapter.close()
+        except Exception as exc:
+            logger.warning("distill_to_personal: AI distill failed: %s, using original content", exc)
+
+        personal = Experience(
+            title=distilled_data.get("title", exp.title),
+            problem=distilled_data.get("problem", exp.problem),
+            solution=distilled_data.get("solution", exp.solution),
+            project_id=None,
+            version_id=None,
+            source_experience_id=exp.id,
+            scope=ExperienceScope.PERSONAL,
+            status=ExperienceStatus.DRAFT,
+            category=exp.category,
+            source=exp.source,
+            decisions=exp.decisions,
+            pitfalls=exp.pitfalls,
+            applicable_scenarios=distilled_data.get("applicable_scenarios", exp.applicable_scenarios),
+            tags=exp.tags,
+            confidence=exp.confidence,
+        )
+
+        created = await self.exp_repo.create(personal, user_id=user_id)
+        logger.info("distill_to_personal: created personal exp %s from %s", created.id, experience_id)
+        return created

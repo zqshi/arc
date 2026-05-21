@@ -1,6 +1,7 @@
 import logging
 import sys
 from contextlib import asynccontextmanager
+import asyncio
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,7 +56,10 @@ async def lifespan(app: FastAPI):
     await _cleanup_orphan_agent_sessions()
     from arc.seeds import ensure_seed_users
     await ensure_seed_users()
+
+    decay_task = asyncio.create_task(_experience_decay_loop())
     yield
+    decay_task.cancel()
     from arc.application.ai.adapter_pool import adapter_pool
     await adapter_pool.shutdown()
     logger.info("Arc backend shut down")
@@ -79,6 +83,28 @@ async def _cleanup_orphan_agent_sessions():
             await db.commit()
     except Exception as exc:
         logger.warning("Orphan session cleanup failed: %s", exc)
+
+
+_DECAY_INTERVAL = 24 * 3600
+
+
+async def _experience_decay_loop():
+    await asyncio.sleep(60)
+    while True:
+        try:
+            from arc.application.experience.service import ExperienceService
+            from arc.infrastructure.database import async_session_factory
+
+            async with async_session_factory() as db:
+                svc = ExperienceService(db)
+                count = await svc.decay_batch()
+                if count > 0:
+                    logger.info("Experience decay: updated %d records", count)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("Experience decay loop error: %s", exc)
+        await asyncio.sleep(_DECAY_INTERVAL)
 
 
 app = FastAPI(

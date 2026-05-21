@@ -141,6 +141,7 @@ class ExperienceRepository(IExperienceRepository):
             todo_id=entity.todo_id,
             project_id=entity.project_id,
             version_id=entity.version_id,
+            source_experience_id=entity.source_experience_id,
             title=entity.title,
             scope=entity.scope.value,
             status=entity.status.value,
@@ -155,6 +156,7 @@ class ExperienceRepository(IExperienceRepository):
             embedding=entity.embedding,
             confidence=entity.confidence,
             reuse_count=entity.reuse_count,
+            half_life_days=entity.half_life_days,
             metadata_=entity.metadata or None,
         )
         self.db.add(model)
@@ -173,6 +175,7 @@ class ExperienceRepository(IExperienceRepository):
         model.category = entity.category.value
         model.source = entity.source.value
         model.version_id = entity.version_id
+        model.source_experience_id = entity.source_experience_id
         model.problem = entity.problem
         model.solution = entity.solution
         model.decisions = entity.decisions or None
@@ -181,6 +184,7 @@ class ExperienceRepository(IExperienceRepository):
         model.tags = [{"label": t.label, "color": t.color} for t in entity.tags]
         model.confidence = entity.confidence
         model.reuse_count = entity.reuse_count
+        model.half_life_days = entity.half_life_days
         model.metadata_ = entity.metadata or None
         await self.db.flush()
         await self.db.refresh(model)
@@ -221,6 +225,7 @@ class ExperienceRepository(IExperienceRepository):
             todo_id=model.todo_id,
             project_id=model.project_id if hasattr(model, "project_id") else None,
             version_id=getattr(model, "version_id", None),
+            source_experience_id=getattr(model, "source_experience_id", None),
             title=model.title,
             scope=scope,
             status=status,
@@ -235,7 +240,91 @@ class ExperienceRepository(IExperienceRepository):
             embedding=list(model.embedding) if model.embedding else None,
             confidence=model.confidence,
             reuse_count=model.reuse_count,
+            half_life_days=getattr(model, "half_life_days", 180),
             metadata=model.metadata_ or {},
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
+
+    async def list_for_decay(self, batch_size: int = 500) -> list[ExpEntity]:
+        stmt = (
+            select(ExpModel)
+            .where(ExpModel.status.in_(["draft", "confirmed"]))
+            .where(ExpModel.confidence > 0)
+            .limit(batch_size)
+        )
+        result = await self.db.execute(stmt)
+        return [self._to_entity(r) for r in result.scalars().all()]
+
+    async def batch_update_confidence(self, updates: list[tuple[uuid.UUID, float]]) -> int:
+        from sqlalchemy import update
+        count = 0
+        for exp_id, new_conf in updates:
+            result = await self.db.execute(
+                update(ExpModel)
+                .where(ExpModel.id == exp_id)
+                .values(confidence=new_conf)
+            )
+            count += result.rowcount
+        await self.db.flush()
+        return count
+
+    async def get_reuse_analytics(self, project_id: uuid.UUID | None = None) -> dict:
+        from sqlalchemy import case
+
+        base = select(ExpModel).where(ExpModel.status.in_(["draft", "confirmed"]))
+        if project_id:
+            base = base.where(
+                (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
+            )
+
+        cat_stmt = (
+            select(
+                ExpModel.category,
+                func.count().label("count"),
+                func.sum(ExpModel.reuse_count).label("total_reuse"),
+            )
+            .where(ExpModel.status.in_(["draft", "confirmed"]))
+        )
+        if project_id:
+            cat_stmt = cat_stmt.where(
+                (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
+            )
+        cat_stmt = cat_stmt.group_by(ExpModel.category)
+        cat_result = await self.db.execute(cat_stmt)
+        by_category = [
+            {"category": r.category, "count": r.count, "total_reuse": r.total_reuse or 0}
+            for r in cat_result.all()
+        ]
+
+        top_stmt = (
+            select(ExpModel)
+            .where(ExpModel.reuse_count > 0)
+            .where(ExpModel.status.in_(["draft", "confirmed"]))
+        )
+        if project_id:
+            top_stmt = top_stmt.where(
+                (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
+            )
+        top_stmt = top_stmt.order_by(ExpModel.reuse_count.desc()).limit(10)
+        top_result = await self.db.execute(top_stmt)
+        top_reused = [self._to_entity(r) for r in top_result.scalars().all()]
+
+        stale_stmt = (
+            select(func.count())
+            .select_from(ExpModel)
+            .where(ExpModel.status.in_(["draft", "confirmed"]))
+            .where(ExpModel.confidence < 0.3)
+        )
+        if project_id:
+            stale_stmt = stale_stmt.where(
+                (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
+            )
+        stale_result = await self.db.execute(stale_stmt)
+        stale_count = stale_result.scalar() or 0
+
+        return {
+            "by_category": by_category,
+            "top_reused": top_reused,
+            "stale_count": stale_count,
+        }

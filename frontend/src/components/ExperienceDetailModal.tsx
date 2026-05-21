@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, Lightbulb, Target, BookOpen, Pencil, Check, Archive, ArrowUpRight } from 'lucide-react';
+import { X, AlertTriangle, Lightbulb, Target, BookOpen, Pencil, Check, Archive, ArrowUpRight, Beaker, Clock } from 'lucide-react';
 import { api } from '../api/client';
 import { useToast } from './Toast';
-import type { Experience } from '../types/api';
-import { EXPERIENCE_STATUS_LABELS } from '../types/api';
+import type { Experience, ExperienceCategory } from '../types/api';
+import { EXPERIENCE_STATUS_LABELS, EXPERIENCE_CATEGORY_LABELS } from '../types/api';
 
 interface Props {
   experience: Experience | null;
@@ -14,6 +14,7 @@ interface Props {
 export default function ExperienceDetailModal({ experience, onClose, onAction }: Props) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
+  const [distilling, setDistilling] = useState(false);
   const [form, setForm] = useState({
     title: '',
     problem: '',
@@ -21,6 +22,8 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
     decisions: [] as string[],
     pitfalls: [] as string[],
     applicable_scenarios: '',
+    category: 'technical' as ExperienceCategory,
+    half_life_days: 180,
   });
 
   useEffect(() => {
@@ -33,6 +36,8 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
       decisions: [...experience.decisions],
       pitfalls: [...experience.pitfalls],
       applicable_scenarios: experience.applicable_scenarios || '',
+      category: experience.category,
+      half_life_days: experience.half_life_days,
     });
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -84,11 +89,33 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
     }
   };
 
+  const handleDistill = async () => {
+    setDistilling(true);
+    try {
+      await api.distillExperience(experience.id);
+      toast('已提炼为个人经验', 'success');
+      onAction?.();
+    } catch {
+      toast('提炼失败', 'error');
+    } finally {
+      setDistilling(false);
+    }
+  };
+
   const statusStyle: Record<string, string> = {
     draft: 'bg-amber-500/15 text-amber-600',
     confirmed: 'bg-status-done/15 text-status-done',
     archived: 'bg-text-muted/15 text-text-muted',
   };
+
+  const categoryOptions: { value: ExperienceCategory; label: string }[] = [
+    { value: 'technical', label: '技术' },
+    { value: 'business_rule', label: '业务规则' },
+    { value: 'pitfall', label: '踩坑' },
+    { value: 'architecture_decision', label: '架构决策' },
+    { value: 'scope_change', label: '范围变更' },
+    { value: 'estimation', label: '估算校准' },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -112,6 +139,11 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
             <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusStyle[experience.status] || ''}`}>
               {EXPERIENCE_STATUS_LABELS[experience.status as keyof typeof EXPERIENCE_STATUS_LABELS] || experience.status}
             </span>
+            {experience.is_stale && (
+              <span className="flex items-center gap-0.5 rounded-full bg-status-error/15 px-1.5 py-0.5 text-[9px] font-medium text-status-error">
+                <Clock size={9} /> 过期
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -132,6 +164,9 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
               }`}>
                 {experience.scope === 'personal' ? '个人' : '项目'}
               </span>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/15 text-blue-500`}>
+                {EXPERIENCE_CATEGORY_LABELS[experience.category] || experience.category}
+              </span>
               {experience.tags.map((tag) => (
                 <span
                   key={tag.label}
@@ -143,9 +178,36 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
               ))}
             </div>
             <span className="text-[10px] text-text-muted">
-              复用 {experience.reuse_count} 次 · 信心 {Math.round(experience.confidence * 100)}%
+              复用 {experience.reuse_count} 次 · 信心 {Math.round(experience.confidence * 100)}% · 半衰期 {experience.half_life_days} 天
             </span>
           </div>
+
+          {editing && (
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-medium text-text-muted">类型</label>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value as ExperienceCategory })}
+                  className="h-8 w-full rounded border border-border bg-bg-input px-2 text-xs text-text-primary focus:border-border-active focus:outline-none"
+                >
+                  {categoryOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-medium text-text-muted">半衰期（天）</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.half_life_days}
+                  onChange={(e) => setForm({ ...form, half_life_days: parseInt(e.target.value) || 180 })}
+                  className="h-8 w-full rounded border border-border bg-bg-input px-2 text-xs text-text-primary focus:border-border-active focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Problem */}
           <Section icon={<Target size={13} />} title="问题">
@@ -248,6 +310,12 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
               )}
             </Section>
           )}
+
+          {experience.source_experience_id && (
+            <div className="mb-4 rounded-md border border-border bg-bg-elevated px-3 py-2 text-[10px] text-text-muted">
+              由项目经验提炼而来
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -298,12 +366,21 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
                   </button>
                 )}
                 {experience.scope === 'project' && experience.status === 'confirmed' && (
-                  <button
-                    onClick={handlePromote}
-                    className="flex items-center gap-1 rounded-md border border-purple-500/30 px-2.5 py-1.5 text-xs text-purple-500 hover:bg-purple-500/10"
-                  >
-                    <ArrowUpRight size={11} /> 升级为个人
-                  </button>
+                  <>
+                    <button
+                      onClick={handleDistill}
+                      disabled={distilling}
+                      className="flex items-center gap-1 rounded-md border border-accent/30 px-2.5 py-1.5 text-xs text-accent hover:bg-accent/10 disabled:opacity-50"
+                    >
+                      <Beaker size={11} /> {distilling ? '提炼中...' : '提炼'}
+                    </button>
+                    <button
+                      onClick={handlePromote}
+                      className="flex items-center gap-1 rounded-md border border-purple-500/30 px-2.5 py-1.5 text-xs text-purple-500 hover:bg-purple-500/10"
+                    >
+                      <ArrowUpRight size={11} /> 升级为个人
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={onClose}
