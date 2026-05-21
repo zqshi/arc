@@ -19,7 +19,9 @@ from .pipeline import (
     UpdateArtifactRequest,
 )
 from .todo import (
+    AddDependencyRequest,
     CreateTodoRequest,
+    DependencyListResponse,
     TagSchema,
     TodoListResponse,
     TodoResponse,
@@ -27,11 +29,13 @@ from .todo import (
 )
 
 __all__ = [
+    "AddDependencyRequest",
     "ArtifactResponse",
     "ConversationListResponse",
     "ConversationResponse",
     "CreateExperienceRequest",
     "CreateTodoRequest",
+    "DependencyListResponse",
     "ExperienceFeedbackRequest",
     "ExperienceListResponse",
     "ExperienceResponse",

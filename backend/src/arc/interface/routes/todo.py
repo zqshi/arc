@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 
 from arc.domain.todo.value_objects import TodoStatus
-from arc.infrastructure.repositories.todo import TodoRepository
+from arc.infrastructure.repositories.todo import TodoDependencyRepository, TodoRepository
 from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas import (
+    AddDependencyRequest,
     ConversationListResponse,
     CreateTodoRequest,
+    DependencyListResponse,
     TodoListResponse,
     TodoResponse,
     UpdateTodoRequest,
@@ -46,8 +49,21 @@ async def list_todos(
         )
 
     proj_names, ver_names = await _resolve_names(db, todos)
+    dep_repo = TodoDependencyRepository(db)
+    todo_ids = [t.id for t in todos]
+    blocked_by_map = await dep_repo.get_map(todo_ids)
+    blocks_map = await dep_repo.get_blocks_map(todo_ids)
     return TodoListResponse(
-        items=[_to_response(t, project_name=proj_names.get(t.project_id), version_name=ver_names.get(t.version_id)) for t in todos],
+        items=[
+            _to_response(
+                t,
+                project_name=proj_names.get(t.project_id),
+                version_name=ver_names.get(t.version_id),
+                blocked_by=blocked_by_map.get(t.id, []),
+                blocks=blocks_map.get(t.id, []),
+            )
+            for t in todos
+        ],
         total=total,
         page=page,
         page_size=page_size,
@@ -77,7 +93,50 @@ async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
         if version:
             version_name = version.name
 
-    return _to_response(todo, project_name=project_name, version_name=version_name)
+    dep_repo = TodoDependencyRepository(db)
+    blocked_by = await dep_repo.get_blocked_by(UUID(todo_id))
+    blocks = await dep_repo.get_blocks(UUID(todo_id))
+    return _to_response(todo, project_name=project_name, version_name=version_name, blocked_by=blocked_by, blocks=blocks)
+async def get_dependencies(todo_id: str, db: DbSession, user: CurrentUser):
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    dep_repo = TodoDependencyRepository(db)
+    blocked_by = await dep_repo.get_blocked_by(UUID(todo_id))
+    blocks = await dep_repo.get_blocks(UUID(todo_id))
+    return DependencyListResponse(
+        blocked_by=[str(uid) for uid in blocked_by],
+        blocks=[str(uid) for uid in blocks],
+    )
+
+
+@router.post("/{todo_id}/dependencies", status_code=201)
+async def add_dependency(todo_id: str, req: AddDependencyRequest, db: DbSession, user: CurrentUser):
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    dep_on = await repo.get_by_id(UUID(req.depends_on_id), user_id=user.id)
+    if not dep_on:
+        raise HTTPException(status_code=404, detail="Dependency target not found")
+    if todo_id == req.depends_on_id:
+        raise HTTPException(status_code=400, detail="Cannot depend on self")
+    dep_repo = TodoDependencyRepository(db)
+    await dep_repo.add(UUID(todo_id), UUID(req.depends_on_id))
+    return {"status": "ok"}
+
+
+@router.delete("/{todo_id}/dependencies/{depends_on_id}", status_code=204)
+async def remove_dependency(todo_id: str, depends_on_id: str, db: DbSession, user: CurrentUser):
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    dep_repo = TodoDependencyRepository(db)
+    removed = await dep_repo.remove(UUID(todo_id), UUID(depends_on_id))
+    if not removed:
+        raise HTTPException(status_code=404, detail="Dependency not found")
 
 
 @router.post("", response_model=TodoResponse, status_code=201)
@@ -298,7 +357,12 @@ async def send_quick_message(todo_id: str, db: DbSession, user: CurrentUser, bod
 
 
 def _to_response(
-    todo, *, project_name: str | None = None, version_name: str | None = None,
+    todo,
+    *,
+    project_name: str | None = None,
+    version_name: str | None = None,
+    blocked_by: list[uuid.UUID] | None = None,
+    blocks: list[uuid.UUID] | None = None,
 ) -> TodoResponse:
     needs_attention = (
         todo.status.value in ("active", "error")
@@ -318,6 +382,8 @@ def _to_response(
         execution_mode=todo.execution_mode.value,
         needs_attention=needs_attention,
         tags=[{"label": t.label, "color": t.color} for t in todo.tags],
+        blocked_by=[str(uid) for uid in (blocked_by or [])],
+        blocks=[str(uid) for uid in (blocks or [])],
         created_at=todo.created_at,
         updated_at=todo.updated_at,
     )

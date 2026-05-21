@@ -42,6 +42,8 @@ class TodoResponse(BaseModel):
     execution_mode: str = "pipeline"
     needs_attention: bool = False
     tags: list[TagSchema]
+    blocked_by: list[str] = Field(default_factory=list)
+    blocks: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -53,3 +55,12 @@ class TodoListResponse(BaseModel):
     total: int
     page: int = 1
     page_size: int = 50
+
+
+class AddDependencyRequest(BaseModel):
+    depends_on_id: str
+
+
+class DependencyListResponse(BaseModel):
+    blocked_by: list[str]
+    blocks: list[str]

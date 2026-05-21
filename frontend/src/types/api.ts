@@ -93,6 +93,8 @@ export interface Todo {
   execution_mode: ExecutionMode;
   needs_attention: boolean;
   tags: Tag[];
+  blocked_by: string[];
+  blocks: string[];
   created_at: string;
   updated_at: string;
 }
