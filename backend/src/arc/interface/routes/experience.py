@@ -69,6 +69,22 @@ async def list_experiences(
     )
 
 
+@router.get("/analytics/reuse")
+async def reuse_analytics(
+    db: DbSession,
+    user: CurrentUser,
+    project_id: str | None = None,
+):
+    repo = ExperienceRepository(db)
+    pid = UUID(project_id) if project_id else None
+    data = await repo.get_reuse_analytics(project_id=pid)
+    return {
+        "by_category": data["by_category"],
+        "top_reused": [_to_response(e) for e in data["top_reused"]],
+        "stale_count": data["stale_count"],
+    }
+
+
 @router.get("/{experience_id}", response_model=ExperienceResponse)
 async def get_experience(experience_id: str, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
@@ -112,7 +128,7 @@ async def create_experience(req: CreateExperienceRequest, db: DbSession, user: C
 
 @router.patch("/{experience_id}", response_model=ExperienceResponse)
 async def update_experience(experience_id: str, req: UpdateExperienceRequest, db: DbSession, user: CurrentUser):
-    from arc.domain.todo.value_objects import ExperienceScope
+    from arc.domain.todo.value_objects import ExperienceCategory, ExperienceScope, ExperienceSource, Tag
 
     repo = ExperienceRepository(db)
     exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
@@ -123,6 +139,12 @@ async def update_experience(experience_id: str, req: UpdateExperienceRequest, db
     for key, val in updates.items():
         if key == "scope" and val:
             exp.scope = ExperienceScope(val)
+        elif key == "category" and val:
+            exp.category = ExperienceCategory(val)
+        elif key == "source" and val:
+            exp.source = ExperienceSource(val)
+        elif key == "tags" and val is not None:
+            exp.tags = [Tag(label=t.label, color=t.color) for t in val]
         else:
             setattr(exp, key, val)
 
@@ -174,6 +196,17 @@ async def promote_experience(experience_id: str, db: DbSession, user: CurrentUse
     return _to_response(updated)
 
 
+@router.post("/{experience_id}/distill", response_model=ExperienceResponse)
+async def distill_experience(experience_id: str, db: DbSession, user: CurrentUser):
+    from arc.application.experience.service import ExperienceService
+    svc = ExperienceService(db)
+    try:
+        personal = await svc.distill_to_personal(UUID(experience_id), user_id=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _to_response(personal)
+
+
 @router.post("/{experience_id}/feedback", status_code=204)
 async def feedback_experience(experience_id: str, req: ExperienceFeedbackRequest, db: DbSession, user: CurrentUser):
     repo = ExperienceRepository(db)
@@ -195,9 +228,12 @@ def _to_response(exp) -> ExperienceResponse:
         id=str(exp.id),
         todo_id=str(exp.todo_id) if exp.todo_id else None,
         project_id=str(exp.project_id) if exp.project_id else None,
+        source_experience_id=str(exp.source_experience_id) if exp.source_experience_id else None,
         title=exp.title,
         scope=exp.scope.value if hasattr(exp.scope, "value") else str(exp.scope),
         status=exp.status.value if hasattr(exp.status, "value") else str(exp.status),
+        category=exp.category.value if hasattr(exp.category, "value") else str(exp.category),
+        source=exp.source.value if hasattr(exp.source, "value") else str(exp.source),
         problem=exp.problem,
         solution=exp.solution,
         decisions=exp.decisions,
@@ -206,6 +242,8 @@ def _to_response(exp) -> ExperienceResponse:
         tags=[{"label": t.label, "color": t.color} for t in exp.tags],
         confidence=exp.confidence,
         reuse_count=exp.reuse_count,
+        half_life_days=exp.half_life_days,
+        is_stale=exp.is_stale,
         metadata=exp.metadata,
         created_at=exp.created_at,
         updated_at=exp.updated_at,

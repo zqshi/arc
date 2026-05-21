@@ -264,10 +264,6 @@ class ApiClient {
     return this.request(`/api/todos/${todoId}/dependencies/${dependsOnId}`, { method: 'DELETE' });
   }
 
-  async getProjectDashboard(projectId: string): Promise<ProjectDashboard> {
-    return this.request(`/api/projects/${projectId}/dashboard`);
-  }
-
   async extractTags(id: string): Promise<Todo> {
     return this.request<Todo>(`/api/todos/${id}/extract-tags`, { method: 'POST' });
   }
@@ -408,6 +404,17 @@ class ApiClient {
 
   async promoteExperience(id: string): Promise<Experience> {
     return this.request<Experience>(`/api/experiences/${id}/promote`, { method: 'POST' });
+  }
+
+  async distillExperience(id: string): Promise<Experience> {
+    return this.request<Experience>(`/api/experiences/${id}/distill`, { method: 'POST' });
+  }
+
+  async getReuseAnalytics(projectId?: string): Promise<{ by_category: Array<{ category: string; count: number; total_reuse: number }>; top_reused: Experience[]; stale_count: number }> {
+    const sp = new URLSearchParams();
+    if (projectId) sp.set('project_id', projectId);
+    const qs = sp.toString();
+    return this.request(`/api/experiences/analytics/reuse${qs ? `?${qs}` : ''}`);
   }
 
   async feedbackExperience(id: string, todoId: string, helpful: boolean): Promise<void> {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Lightbulb, FolderOpen } from 'lucide-react';
+import { Search, Lightbulb, FolderOpen, Clock, AlertTriangle } from 'lucide-react';
 import { api } from '../api/client';
 import { ExperienceListSkeleton } from '../components/Skeleton';
 import type { Experience, ExperienceStatus, Project } from '../types/api';
@@ -18,10 +18,12 @@ export default function ExperienceList() {
   const [tab, setTab] = useState<FilterTab>('all');
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [staleCount, setStaleCount] = useState(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     api.listProjects().then(setProjects).catch(() => setProjects([]));
+    api.getReuseAnalytics().then((data) => setStaleCount(data.stale_count)).catch(() => {});
   }, []);
 
   const fetchExperiences = useCallback(async () => {
@@ -94,6 +96,11 @@ export default function ExperienceList() {
           <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[11px] font-medium text-accent">
             {experiences.length}
           </span>
+          {staleCount > 0 && (
+            <span className="flex items-center gap-1 rounded-full bg-status-error/10 px-2 py-0.5 text-[11px] font-medium text-status-error">
+              <AlertTriangle size={10} /> {staleCount} 过期
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -181,6 +188,11 @@ export default function ExperienceList() {
                     <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${style.bg}`}>
                       {EXPERIENCE_STATUS_LABELS[exp.status]}
                     </span>
+                    {exp.is_stale && (
+                      <span className="flex items-center gap-0.5 flex-shrink-0 rounded-full bg-status-error/15 px-1.5 py-0.5 text-[9px] font-medium text-status-error">
+                        <Clock size={9} /> 过期
+                      </span>
+                    )}
                   </div>
 
                   <p className="mb-2 line-clamp-2 text-xs leading-relaxed text-text-secondary">

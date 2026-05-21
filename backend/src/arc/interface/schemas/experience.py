@@ -12,6 +12,7 @@ class ExperienceResponse(BaseModel):
     todo_id: str | None = None
     project_id: str | None = None
     version_id: str | None = None
+    source_experience_id: str | None = None
     title: str
     scope: str = "project"
     status: str = "draft"
@@ -25,6 +26,8 @@ class ExperienceResponse(BaseModel):
     tags: list[TagSchema] = Field(default_factory=list)
     confidence: float = 0.0
     reuse_count: int = 0
+    half_life_days: int = 180
+    is_stale: bool = False
     metadata: dict | None = None
     created_at: datetime
     updated_at: datetime
@@ -58,6 +61,10 @@ class UpdateExperienceRequest(BaseModel):
     pitfalls: list[str] | None = None
     applicable_scenarios: str | None = None
     scope: str | None = None
+    category: str | None = None
+    source: str | None = None
+    tags: list[TagSchema] | None = None
+    half_life_days: int | None = Field(None, ge=1)
 
 
 class ExperienceFeedbackRequest(BaseModel):

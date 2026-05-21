@@ -388,92 +388,6 @@ async def delete_project(
     await repo.delete(project_id)
 
 
-@router.get("/{project_id}/dashboard")
-async def project_dashboard(
-    project_id: uuid.UUID,
-    db: DbSession,
-    user: CurrentUser,
-):
-    from sqlalchemy import func, select
-
-    from arc.infrastructure.models.agent import AgentSessionModel
-    from arc.infrastructure.models.todo import Todo as TodoModel
-
-    repo = ProjectRepository(db)
-    project = await repo.get_by_id(project_id, user_id=user.id)
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    version_repo = VersionRepository(db)
-    versions = await version_repo.list_by_project(project_id)
-    all_stats = await version_repo.batch_count_todos_by_status([v.id for v in versions])
-
-    version_progress = []
-    for v in versions:
-        stats = all_stats.get(v.id, {})
-        total = sum(stats.values())
-        done = stats.get("done", 0)
-        version_progress.append({
-            "id": str(v.id),
-            "name": v.name,
-            "status": v.status.value,
-            "total": total,
-            "done": done,
-            "progress": round(done / total * 100, 1) if total else 0,
-        })
-
-    todo_result = await db.execute(
-        select(TodoModel.status, func.count())
-        .where(TodoModel.project_id == project_id)
-        .group_by(TodoModel.status)
-    )
-    todo_stats = {row[0]: row[1] for row in todo_result.all()}
-
-    agent_result = await db.execute(
-        select(AgentSessionModel.status, func.count())
-        .where(AgentSessionModel.todo_id.in_(
-            select(TodoModel.id).where(TodoModel.project_id == project_id)
-        ))
-        .group_by(AgentSessionModel.status)
-    )
-    agent_stats = {row[0]: row[1] for row in agent_result.all()}
-
-    recent_result = await db.execute(
-        select(TodoModel)
-        .where(TodoModel.project_id == project_id)
-        .order_by(TodoModel.updated_at.desc())
-        .limit(5)
-    )
-    recent_todos = [
-        {
-            "id": str(t.id),
-            "title": t.title,
-            "status": t.status,
-            "updated_at": t.updated_at.isoformat(),
-        }
-        for t in recent_result.scalars().all()
-    ]
-
-    return {
-        "project_id": str(project_id),
-        "todo_stats": {
-            "pending": todo_stats.get("pending", 0),
-            "active": todo_stats.get("active", 0),
-            "done": todo_stats.get("done", 0),
-            "error": todo_stats.get("error", 0),
-            "total": sum(todo_stats.values()),
-        },
-        "version_progress": version_progress,
-        "agent_stats": {
-            "pending": agent_stats.get("pending", 0),
-            "running": agent_stats.get("running", 0),
-            "completed": agent_stats.get("completed", 0),
-            "error": agent_stats.get("error", 0),
-        },
-        "recent_activity": recent_todos,
-    }
-
-
 # ── Versions ──────────────────────────────────────────────
 
 
@@ -675,6 +589,7 @@ def _exp_resp(exp) -> ExperienceResponse:
         todo_id=str(exp.todo_id) if exp.todo_id else None,
         project_id=str(exp.project_id) if exp.project_id else None,
         version_id=str(exp.version_id) if exp.version_id else None,
+        source_experience_id=str(exp.source_experience_id) if exp.source_experience_id else None,
         title=exp.title,
         scope=exp.scope.value if hasattr(exp.scope, "value") else str(exp.scope),
         status=exp.status.value if hasattr(exp.status, "value") else str(exp.status),
@@ -688,6 +603,8 @@ def _exp_resp(exp) -> ExperienceResponse:
         tags=[{"label": t.label, "color": t.color} for t in exp.tags],
         confidence=exp.confidence,
         reuse_count=exp.reuse_count,
+        half_life_days=exp.half_life_days,
+        is_stale=exp.is_stale,
         metadata=exp.metadata,
         created_at=exp.created_at,
         updated_at=exp.updated_at,

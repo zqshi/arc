@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -12,6 +13,8 @@ from arc.domain.todo.value_objects import (
     Tag,
 )
 
+STALE_THRESHOLD = 0.3
+
 
 @dataclass
 class Experience:
@@ -22,6 +25,7 @@ class Experience:
     todo_id: uuid.UUID | None = None
     project_id: uuid.UUID | None = None
     version_id: uuid.UUID | None = None
+    source_experience_id: uuid.UUID | None = None
     scope: ExperienceScope = ExperienceScope.PROJECT
     status: ExperienceStatus = ExperienceStatus.DRAFT
     category: ExperienceCategory = ExperienceCategory.TECHNICAL
@@ -33,9 +37,24 @@ class Experience:
     embedding: list[float] | None = None
     confidence: float = 0.0
     reuse_count: int = 0
+    half_life_days: int = 180
     metadata: dict = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    @property
+    def is_stale(self) -> bool:
+        return self.confidence < STALE_THRESHOLD
+
+    def compute_decayed_confidence(self, original_confidence: float | None = None) -> float:
+        base = original_confidence if original_confidence is not None else self.confidence
+        if self.half_life_days <= 0:
+            return base
+        days_elapsed = (datetime.now(UTC) - self.created_at).days
+        if days_elapsed <= 0:
+            return base
+        decay = math.pow(0.5, days_elapsed / self.half_life_days)
+        return round(base * decay, 4)
 
     def confirm(self) -> None:
         if self.status == ExperienceStatus.ARCHIVED:

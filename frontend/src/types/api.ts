@@ -177,6 +177,7 @@ export interface Experience {
   todo_id?: string;
   project_id?: string;
   version_id?: string;
+  source_experience_id?: string;
   title: string;
   scope: ExperienceScope;
   status: ExperienceStatus;
@@ -190,6 +191,8 @@ export interface Experience {
   tags: Tag[];
   confidence: number;
   reuse_count: number;
+  half_life_days: number;
+  is_stale: boolean;
   metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -212,6 +215,10 @@ export interface UpdateExperienceRequest {
   pitfalls?: string[];
   applicable_scenarios?: string;
   scope?: string;
+  category?: string;
+  source?: string;
+  tags?: Tag[];
+  half_life_days?: number;
 }
 
 export interface ExperienceRef {
@@ -400,18 +407,3 @@ export interface QuickMessageResponse {
   status: 'accepted';
 }
 
-// ─── Project Dashboard ─────────────────────────────────────
-export interface ProjectDashboard {
-  project_id: string;
-  todo_stats: { pending: number; active: number; done: number; error: number; total: number };
-  version_progress: Array<{
-    id: string;
-    name: string;
-    status: string;
-    total: number;
-    done: number;
-    progress: number;
-  }>;
-  agent_stats: { pending: number; running: number; completed: number; error: number };
-  recent_activity: Array<{ id: string; title: string; status: string; updated_at: string }>;
-}

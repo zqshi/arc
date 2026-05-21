@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-21
+
+### Added
+- 经验衰减机制 — confidence 按半衰期（默认 180 天）自动衰减，过期标记（is_stale）
+- 经验提炼 — 项目经验一键提炼为个人经验（AI 去项目细节 + source_experience_id 关联追踪）
+- 经验编辑增强 — 支持编辑 category、source、tags、half_life_days
+- 复用效果追踪 — 按类别聚合分析 API、过期统计、top 复用经验
+- 定时衰减任务 — 后端 lifespan 注册 24h 批量衰减循环
+- 前端过期标记 — 经验列表/详情/项目经验 Tab 均显示"过期"标记
+- 提炼按钮 — ExperienceDetailModal 和 ExperiencesTab 新增"提炼"操作
+- 经验库过期统计 — ExperienceList 页面头部显示过期经验数
+
+### Removed
+- 项目仪表盘 Tab — 移除 DashboardTab 及关联后端 API（功能价值不足）
+
 ## [0.4.0] - 2026-05-21
 
 ### Added

@@ -1,4 +1,4 @@
-import { Lightbulb, Check, Archive, ArrowUpRight } from 'lucide-react';
+import { Lightbulb, Check, Archive, ArrowUpRight, Beaker, Clock } from 'lucide-react';
 import type { Experience, ExperienceStatus, ExperienceCategory } from '../../types/api';
 import { EXPERIENCE_STATUS_LABELS, EXPERIENCE_CATEGORY_LABELS } from '../../types/api';
 import { ExperienceListSkeleton } from '../Skeleton';
@@ -28,9 +28,10 @@ interface ExperiencesTabProps {
   onConfirm: (id: string) => void;
   onArchive: (id: string) => void;
   onPromote: (id: string) => void;
+  onDistill?: (id: string) => void;
 }
 
-export function ExperiencesTab({ experiences, loading, filter, setFilter, categoryFilter, setCategoryFilter, onConfirm, onArchive, onPromote }: ExperiencesTabProps) {
+export function ExperiencesTab({ experiences, loading, filter, setFilter, categoryFilter, setCategoryFilter, onConfirm, onArchive, onPromote, onDistill }: ExperiencesTabProps) {
   const filters: { key: typeof filter; label: string }[] = [
     { key: 'all', label: '全部' },
     { key: 'draft', label: '待审核' },
@@ -113,6 +114,11 @@ export function ExperiencesTab({ experiences, loading, filter, setFilter, catego
                       {exp.scope === 'personal' && (
                         <span className="rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-medium text-purple-500">个人</span>
                       )}
+                      {exp.is_stale && (
+                        <span className="flex items-center gap-0.5 rounded-full bg-status-error/15 px-1.5 py-0.5 text-[9px] font-medium text-status-error">
+                          <Clock size={9} /> 过期
+                        </span>
+                      )}
                     </div>
                     {exp.problem && <p className="mt-1.5 line-clamp-2 text-xs text-text-secondary">{exp.problem}</p>}
                     <div className="mt-2 flex items-center gap-3 text-[10px] text-text-muted">
@@ -141,6 +147,11 @@ export function ExperiencesTab({ experiences, loading, filter, setFilter, catego
                     {exp.scope === 'project' && exp.status === 'confirmed' && (
                       <button onClick={() => onPromote(exp.id)} className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-text-secondary hover:border-purple-500 hover:text-purple-500" title="升级为个人经验">
                         <ArrowUpRight size={10} /> 个人
+                      </button>
+                    )}
+                    {exp.scope === 'project' && exp.status === 'confirmed' && onDistill && (
+                      <button onClick={() => onDistill(exp.id)} className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-text-secondary hover:border-accent hover:text-accent" title="提炼为个人经验">
+                        <Beaker size={10} /> 提炼
                       </button>
                     )}
                   </div>
