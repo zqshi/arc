@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.user.entity import User as UserEntity
+from arc.domain.user.value_objects import UserRole
 from arc.infrastructure.models.user import UserModel
 
 
@@ -40,6 +41,7 @@ class UserRepository:
             hashed_password=entity.hashed_password,
             display_name=entity.display_name,
             is_active=entity.is_active,
+            role=entity.role.value,
         )
         self.db.add(model)
         await self.db.flush()
@@ -58,6 +60,7 @@ class UserRepository:
         model.hashed_password = entity.hashed_password
         model.display_name = entity.display_name
         model.is_active = entity.is_active
+        model.role = entity.role.value
         await self.db.flush()
         await self.db.refresh(model)
         return self._to_entity(model)
@@ -71,6 +74,7 @@ class UserRepository:
             hashed_password=model.hashed_password,
             display_name=model.display_name,
             is_active=model.is_active,
+            role=UserRole(model.role) if model.role else UserRole.ADMIN,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

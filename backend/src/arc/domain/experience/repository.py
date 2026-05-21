@@ -23,7 +23,9 @@ class IExperienceRepository(ABC):
 
     @abstractmethod
     async def search_by_embedding(
-        self, embedding: list[float], limit: int = 10, project_id: uuid.UUID | None = None,
+        self, embedding: list[float], limit: int = 10,
+        project_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
     ) -> list[Experience]: ...
 
     @abstractmethod

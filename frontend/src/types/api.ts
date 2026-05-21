@@ -8,6 +8,7 @@ export type MessageRole = 'user' | 'assistant' | 'system';
 export type ProjectStatus = 'active' | 'archived';
 export type VersionStatus = 'planning' | 'active' | 'released';
 export type ExecutionMode = 'pipeline' | 'conversation';
+export type UserRole = 'admin' | 'member' | 'viewer';
 
 // ─── Shared ──────────────────────────────────────────────
 export interface Tag {
@@ -52,6 +53,15 @@ export interface UpdateProjectRequest {
   execution_mode?: ExecutionMode;
   pipeline_config?: Record<string, unknown>;
   conversation_config?: Record<string, unknown>;
+}
+
+// ─── Project Member ────────────────────────────────────
+export interface ProjectMember {
+  user_id: string;
+  display_name: string;
+  username: string | null;
+  role: UserRole;
+  joined_at: string;
 }
 
 // ─── Version ────────────────────────────────────────────

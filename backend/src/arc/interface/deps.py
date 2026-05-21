@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Annotated, AsyncGenerator
 from uuid import UUID
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.errors import AuthenticationError
 from arc.domain.user.entity import User as UserEntity
+from arc.domain.user.value_objects import UserRole
 from arc.infrastructure.database import async_session_factory
 
 
@@ -44,3 +45,36 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[UserEntity, Depends(get_current_user)]
+
+
+_ROLE_LEVEL = {UserRole.VIEWER: 0, UserRole.MEMBER: 1, UserRole.ADMIN: 2}
+
+
+def require_project_role(min_role: UserRole = UserRole.VIEWER):
+    async def _check(
+        project_id: UUID = Path(...),
+        user: UserEntity = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> UserEntity:
+        from arc.infrastructure.models.project import ProjectModel
+        from sqlalchemy import select
+        result = await db.execute(
+            select(ProjectModel.user_id).where(ProjectModel.id == project_id)
+        )
+        owner_id = result.scalar_one_or_none()
+        if owner_id and owner_id == user.id:
+            return user
+
+        from arc.infrastructure.repositories.project_member import ProjectMemberRepository
+        member_repo = ProjectMemberRepository(db)
+        member = await member_repo.get_member(project_id, user.id)
+        if not member:
+            raise AuthenticationError("无权访问该项目")
+
+        member_role = UserRole(member.role)
+        if _ROLE_LEVEL.get(member_role, 0) < _ROLE_LEVEL.get(min_role, 0):
+            raise AuthenticationError(f"需要 {min_role.value} 及以上权限")
+
+        return user
+
+    return Depends(_check)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.project.entity import Project, Version
@@ -15,6 +15,7 @@ from arc.domain.project.value_objects import (
 )
 from arc.infrastructure.models.project import ProjectModel, VersionModel
 from arc.infrastructure.models.todo import Todo as TodoModel
+from arc.infrastructure.models.user import ProjectMemberModel
 
 
 class ProjectRepository:
@@ -47,7 +48,17 @@ class ProjectRepository:
     ) -> Project | None:
         stmt = select(ProjectModel).where(ProjectModel.id == project_id)
         if user_id:
-            stmt = stmt.where(ProjectModel.user_id == user_id)
+            member_project_ids = (
+                select(ProjectMemberModel.project_id)
+                .where(ProjectMemberModel.user_id == user_id)
+                .scalar_subquery()
+            )
+            stmt = stmt.where(
+                or_(
+                    ProjectModel.user_id == user_id,
+                    ProjectModel.id.in_(member_project_ids),
+                )
+            )
         result = await self.db.execute(stmt)
         model = result.scalar_one_or_none()
         if not model:
@@ -61,7 +72,17 @@ class ProjectRepository:
     ) -> list[Project]:
         stmt = select(ProjectModel).order_by(ProjectModel.created_at.desc())
         if user_id:
-            stmt = stmt.where(ProjectModel.user_id == user_id)
+            member_project_ids = (
+                select(ProjectMemberModel.project_id)
+                .where(ProjectMemberModel.user_id == user_id)
+                .scalar_subquery()
+            )
+            stmt = stmt.where(
+                or_(
+                    ProjectModel.user_id == user_id,
+                    ProjectModel.id.in_(member_project_ids),
+                )
+            )
         if not include_archived:
             stmt = stmt.where(ProjectModel.status != "archived")
         result = await self.db.execute(stmt)

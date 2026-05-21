@@ -88,4 +88,5 @@ async def me(user: CurrentUser):
         username=user.username,
         phone=user.phone,
         display_name=user.display_name,
+        role=user.role.value,
     )

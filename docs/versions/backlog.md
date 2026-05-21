@@ -11,7 +11,7 @@
 
 ---
 
-## ~~v1.0.0~~ → 已激活, 见 [v1.0.0-current.md](v1.0.0-current.md)
+## ~~v1.0.0~~ → 已完成, 见 [v1.0.0-snapshot.md](v1.0.0-snapshot.md)
 
 ---
 

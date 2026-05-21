@@ -6,6 +6,7 @@ interface AuthUser {
   username: string | null;
   phone: string | null;
   display_name: string;
+  role: 'admin' | 'member' | 'viewer';
 }
 
 interface AuthContextType {
