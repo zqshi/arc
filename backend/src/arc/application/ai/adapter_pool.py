@@ -13,7 +13,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse
+from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse, StreamResult
 from arc.application.ai.resilience import create_resilient_adapter
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,42 @@ class TracingAdapter(LLMAdapter):
                     "latency_ms": int(elapsed * 1000),
                 },
             )
+
+    async def chat_stream_with_result(
+        self,
+        messages: list[LLMMessage],
+        *,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> tuple[AsyncIterator[str], StreamResult]:
+        trace_id = str(uuid.uuid4())[:8]
+        start = time.perf_counter()
+
+        inner_iter, result = await self._inner.chat_stream_with_result(
+            messages, temperature=temperature, max_tokens=max_tokens
+        )
+
+        async def _traced():
+            token_count = 0
+            try:
+                async for chunk in inner_iter:
+                    token_count += 1
+                    yield chunk
+            finally:
+                elapsed = time.perf_counter() - start
+                logger.info(
+                    "llm.stream",
+                    extra={
+                        "trace_id": trace_id,
+                        "messages": len(messages),
+                        "chunks": token_count,
+                        "latency_ms": int(elapsed * 1000),
+                        "finish_reason": result.finish_reason,
+                        "usage": result.usage,
+                    },
+                )
+
+        return _traced(), result
 
     async def embed(self, text: str) -> list[float]:
         start = time.perf_counter()

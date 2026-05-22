@@ -101,23 +101,82 @@ class ConversationExecutionService:
         self,
         conversation: Conversation,
     ) -> AsyncIterator[dict]:
-        """生成AI流式回复，完成后自动提取产出物。"""
+        """生成AI流式回复，使用AgentLoop引擎处理续写和验证。"""
         from arc.application.ai.adapter_pool import adapter_pool
+        from arc.application.execution.agent_loop import (
+            DELIVERABLE_REQUIRED_FIELDS,
+            AgentLoop,
+            DeliverableValidator,
+            LoopConfig,
+        )
 
         llm_messages = await self._build_llm_messages(conversation)
+        validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)
+        config = LoopConfig(
+            max_continuations=3,
+            max_validation_retries=2,
+            max_tokens_per_call=16384,
+            token_budget=80000,
+            wall_timeout_seconds=300.0,
+        )
+
+        message_id = None
+        full_content = ""
 
         async with adapter_pool.acquire() as adapter:
-            message_id = str(uuid.uuid4())
-            full_content = ""
+            loop = AgentLoop(adapter, config)
+            async for event in loop.run(llm_messages, validator=validator):
+                if event.type == "chunk":
+                    if message_id is None:
+                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                    yield {"message_id": message_id, "content": event.content}
 
-            async for chunk in adapter.chat_stream(llm_messages):
-                full_content += chunk
-                yield {"message_id": message_id, "content": chunk}
+                elif event.type == "continuation":
+                    logger.info(
+                        "Agent loop continuation #%d (transparent)",
+                        event.metadata.get("iteration", 0),
+                    )
+
+                elif event.type == "validation_retry":
+                    logger.info(
+                        "Agent loop validation retry #%d",
+                        event.metadata.get("retry", 0),
+                    )
+
+                elif event.type == "budget_warning":
+                    logger.warning(
+                        "Agent loop budget exceeded: %s/%s tokens",
+                        event.metadata.get("total_tokens"),
+                        event.metadata.get("budget"),
+                    )
+
+                elif event.type == "error":
+                    logger.error("Agent loop error: %s", event.content)
+
+                elif event.type == "complete":
+                    full_content = event.content
+                    metrics = event.metadata.get("metrics", {})
+                    if message_id is None:
+                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                    logger.info(
+                        "Agent loop complete: %d iterations, %d continuations, %dms",
+                        metrics.get("iterations", 0),
+                        metrics.get("continuations", 0),
+                        metrics.get("elapsed_ms", 0),
+                    )
+
+        if not message_id:
+            message_id = str(uuid.uuid4())
 
         ai_message = conversation.add_message(
             role=MessageRole.ASSISTANT,
             content=full_content,
-            metadata={"message_id": message_id, "streamed": True, "mode": "conversation"},
+            metadata={
+                "message_id": message_id,
+                "streamed": True,
+                "mode": "conversation",
+                "agent_loop": loop.metrics.__dict__,
+            },
         )
         await self.conv_repo.add_message(conversation.id, ai_message)
 
@@ -241,6 +300,15 @@ class ConversationExecutionService:
         todo_id: uuid.UUID,
         required_types: list[str] | None,
     ) -> DeliverableTracker:
+        if not required_types:
+            todo = await self.todo_repo.get_by_id(todo_id)
+            if todo and todo.project_id:
+                from arc.infrastructure.repositories.project import ProjectRepository
+
+                project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+                if project and project.conversation_config:
+                    required_types = project.conversation_config.get("required_deliverables")
+
         if not required_types:
             from arc.domain.project.value_objects import DEFAULT_CONVERSATION_CONFIG
 

@@ -68,21 +68,41 @@ class ConversationService:
         return ai_message
 
     async def generate_response_stream(self, conversation: Conversation) -> AsyncIterator[dict]:
-        from arc.application.ai.resilience import create_resilient_adapter
+        from arc.application.ai.adapter_pool import adapter_pool
+        from arc.application.execution.agent_loop import AgentLoop, LoopConfig
 
-        adapter = create_resilient_adapter()
-        try:
-            llm_messages = await self._build_llm_messages(conversation)
+        llm_messages = await self._build_llm_messages(conversation)
+        config = LoopConfig(
+            max_continuations=2,
+            max_validation_retries=0,
+            max_tokens_per_call=16384,
+            token_budget=60000,
+            wall_timeout_seconds=180.0,
+        )
+
+        message_id = None
+        full_content = ""
+
+        async with adapter_pool.acquire() as adapter:
+            loop = AgentLoop(adapter, config)
+            async for event in loop.run(llm_messages):
+                if event.type == "chunk":
+                    if message_id is None:
+                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                    yield {"message_id": message_id, "content": event.content}
+                elif event.type == "complete":
+                    full_content = event.content
+                    if message_id is None:
+                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+
+        if not message_id:
             message_id = str(uuid.uuid4())
-            full_content = ""
 
-            async for chunk in adapter.chat_stream(llm_messages):
-                full_content += chunk
-                yield {"message_id": message_id, "content": chunk}
-        finally:
-            await adapter.close()
-
-        metadata: dict = {"message_id": message_id, "streamed": True}
+        metadata: dict = {
+            "message_id": message_id,
+            "streamed": True,
+            "agent_loop": loop.metrics.__dict__,
+        }
         if self._last_experience_refs:
             metadata["referenced_experiences"] = self._last_experience_refs
 
