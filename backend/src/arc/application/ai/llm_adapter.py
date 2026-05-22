@@ -40,6 +40,20 @@ class LLMResponse:
     content: str
     model: str
     usage: dict = field(default_factory=dict)  # prompt_tokens, completion_tokens
+    finish_reason: str = "stop"  # stop | length | content_filter | error
+
+
+@dataclass
+class StreamResult:
+    """Accumulated metadata collected after a streaming call completes.
+
+    The caller iterates ``chat_stream`` to get text deltas, then reads this
+    object (returned via ``chat_stream_with_result``) for the stop signal.
+    """
+
+    finish_reason: str = "stop"
+    usage: dict = field(default_factory=dict)
+    model: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +83,34 @@ class LLMAdapter(ABC):
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         """Stream a chat response, yielding content deltas as they arrive."""
+
+    async def chat_stream_with_result(
+        self,
+        messages: list[LLMMessage],
+        *,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> tuple[AsyncIterator[str], StreamResult]:
+        """Stream a chat response and collect metadata in *result*.
+
+        Returns ``(async_iterator, result)``.  The caller iterates the
+        iterator to get deltas; once the iterator is exhausted, ``result``
+        is populated with ``finish_reason`` and ``usage``.  Default
+        implementation wraps ``chat_stream`` with heuristic detection —
+        subclasses override for native support.
+        """
+        result = StreamResult()
+
+        async def _wrap():
+            token_count = 0
+            async for chunk in self.chat_stream(
+                messages, temperature=temperature, max_tokens=max_tokens
+            ):
+                token_count += 1
+                yield chunk
+            result.usage = {"completion_tokens_approx": token_count}
+
+        return _wrap(), result
 
     @abstractmethod
     async def embed(self, text: str) -> list[float]:
@@ -161,6 +203,48 @@ class OpenAIAdapter(LLMAdapter):
             delta = chunk.choices[0].delta if chunk.choices else None
             if delta and delta.content:
                 yield delta.content
+
+    async def chat_stream_with_result(
+        self,
+        messages: list[LLMMessage],
+        *,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> tuple[AsyncIterator[str], StreamResult]:
+        formatted = [{"role": m.role, "content": m.content} for m in messages]
+        result = StreamResult(model=self._model)
+
+        try:
+            stream = await self._client.chat.completions.create(
+                model=self._model,
+                messages=formatted,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+        except Exception as exc:
+            logger.error("OpenAI stream failed: %s", exc)
+            raise
+
+        async def _iterate():
+            token_count = 0
+            async for chunk in stream:
+                if chunk.usage:
+                    result.usage = {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                    }
+                choice = chunk.choices[0] if chunk.choices else None
+                if choice and choice.finish_reason:
+                    result.finish_reason = choice.finish_reason
+                if choice and choice.delta and choice.delta.content:
+                    token_count += 1
+                    yield choice.delta.content
+            if not result.usage:
+                result.usage = {"completion_tokens_approx": token_count}
+
+        return _iterate(), result
 
     # -- embed ----------------------------------------------------------------
 
@@ -296,6 +380,46 @@ class AnthropicAdapter(LLMAdapter):
         async with stream as s:
             async for text in s.text_stream:
                 yield text
+
+    async def chat_stream_with_result(
+        self,
+        messages: list[LLMMessage],
+        *,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> tuple[AsyncIterator[str], StreamResult]:
+        system_text, chat_msgs = self._split_system(messages)
+        result = StreamResult(model=self._model)
+        kwargs: dict = {
+            "model": self._model,
+            "messages": chat_msgs,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if system_text:
+            kwargs["system"] = system_text
+
+        try:
+            stream = self._client.messages.stream(**kwargs)
+        except Exception as exc:
+            logger.error("Anthropic stream failed: %s", exc)
+            raise
+
+        async def _iterate():
+            async with stream as s:
+                async for text in s.text_stream:
+                    yield text
+                response = await s.get_final_message()
+                result.finish_reason = (
+                    "length" if response.stop_reason == "max_tokens" else "stop"
+                )
+                if response.usage:
+                    result.usage = {
+                        "prompt_tokens": response.usage.input_tokens,
+                        "completion_tokens": response.usage.output_tokens,
+                    }
+
+        return _iterate(), result
 
     # -- embed ----------------------------------------------------------------
 

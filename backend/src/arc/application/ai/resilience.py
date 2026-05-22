@@ -7,7 +7,7 @@ import logging
 import time
 from typing import AsyncIterator
 
-from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse
+from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse, StreamResult
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +131,50 @@ class ResilientAdapter(LLMAdapter):
         except Exception:
             self._chat_breaker.on_failure()
             raise
+
+    async def chat_stream_with_result(
+        self,
+        messages: list[LLMMessage],
+        *,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        stream_idle_timeout: float = 60.0,
+    ) -> tuple[AsyncIterator[str], StreamResult]:
+        self._chat_breaker.before_call()
+        inner_iter, result = await self._inner.chat_stream_with_result(
+            messages, temperature=temperature, max_tokens=max_tokens
+        )
+
+        async def _wrap():
+            started = False
+            try:
+                ait = inner_iter.__aiter__()
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(ait.__anext__(), timeout=stream_idle_timeout)
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        result.finish_reason = "error"
+                        raise asyncio.TimeoutError(
+                            f"LLM stream idle {stream_idle_timeout}s — stalled"
+                        )
+                    if not started:
+                        self._chat_breaker.on_success()
+                        started = True
+                    yield chunk
+                if not started:
+                    self._chat_breaker.on_success()
+            except (CircuitOpenError, asyncio.CancelledError):
+                raise
+            except asyncio.TimeoutError:
+                raise
+            except Exception:
+                self._chat_breaker.on_failure()
+                result.finish_reason = "error"
+                raise
+
+        return _wrap(), result
 
     async def embed(self, text: str) -> list[float]:
         return await self._retry(
