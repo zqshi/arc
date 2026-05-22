@@ -81,7 +81,7 @@ export function useConversationSocket(conversationId: string | null) {
         setError('登录已过期，请重新登录');
         return;
       }
-      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/auth/refresh`, {
+      fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken }),

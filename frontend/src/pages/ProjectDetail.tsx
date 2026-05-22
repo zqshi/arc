@@ -148,7 +148,7 @@ export default function ProjectDetail() {
     expanded.forEach((versionId) => {
       api.listTodos({ project_id: id, version_id: versionId }).then((todos) => {
         setVersionTodos((prev) => ({ ...prev, [versionId]: todos }));
-      }).catch(() => {});
+      }).catch((err) => { console.warn('Failed to load todos for version:', versionId, err); });
     });
   }, [id, versions, expandedVersions]);
 
@@ -231,7 +231,7 @@ export default function ProjectDetail() {
           ...prev,
           [createForVersion]: (prev[createForVersion] || []).map((t) => (t.id === updated.id ? updated : t)),
         }));
-      }).catch(() => {});
+      }).catch((err) => { console.warn('Failed to extract tags:', err); });
       navigate(`/todo/${todo.id}`);
     } catch {
       toast('创建需求失败', 'error');

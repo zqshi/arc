@@ -14,7 +14,7 @@ export default function SettingsPage() {
       try {
         const [s, h] = await Promise.all([
           api.getSettings(),
-          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/health`).then(r => r.json()),
+          fetch(`${import.meta.env.VITE_API_URL || ''}/health`).then(r => r.json()),
         ]);
         setSettings(s);
         setHealthStatus(h);

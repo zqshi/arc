@@ -34,7 +34,7 @@ export default function AgentExecutionPanel({ todoId, phaseType, onSessionChange
       setAgents(resp.agents);
       setDefaultAgent(resp.default);
       if (!selectedAgent) setSelectedAgent(resp.default);
-    }).catch(() => {});
+    }).catch((err) => { console.warn('Failed to load agents:', err); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSession = useCallback(async () => {
