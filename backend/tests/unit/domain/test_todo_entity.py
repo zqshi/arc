@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 from arc.domain.pipeline.value_objects import PhaseType
-from arc.domain.todo.entity import InvalidStatusTransition, Todo
+from arc.domain.todo.entity import InvalidStatusTransitionError, Todo
 from arc.domain.todo.value_objects import Tag, TodoStatus
 
 
@@ -46,7 +46,7 @@ class TestTodoPipelineTransitions:
 
     def test_update_phase_requires_active(self) -> None:
         todo = Todo(title="t")
-        with pytest.raises(InvalidStatusTransition):
+        with pytest.raises(InvalidStatusTransitionError):
             todo.update_phase(PhaseType.CLARIFICATION)
 
     def test_complete(self) -> None:
@@ -84,7 +84,7 @@ class TestTodoErrorTransitions:
         todo = Todo(title="t")
         todo.start_pipeline()
         todo.complete()
-        with pytest.raises(InvalidStatusTransition):
+        with pytest.raises(InvalidStatusTransitionError):
             todo.mark_error("oops")
 
     def test_retry_from_error(self) -> None:
@@ -105,14 +105,14 @@ class TestTodoErrorTransitions:
 class TestTodoInvalidTransitions:
     def test_pending_cannot_complete(self) -> None:
         todo = Todo(title="t")
-        with pytest.raises(InvalidStatusTransition):
+        with pytest.raises(InvalidStatusTransitionError):
             todo.complete()
 
     def test_done_cannot_transition(self) -> None:
         todo = Todo(title="t")
         todo.start_pipeline()
         todo.complete()
-        with pytest.raises(InvalidStatusTransition):
+        with pytest.raises(InvalidStatusTransitionError):
             todo.start_pipeline()
 
 

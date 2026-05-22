@@ -69,7 +69,8 @@ class CodexAdapter(CodingAgentAdapter):
 
         logger.info(
             "Codex session %s started (response_id=%s)",
-            session_id, data.get("id"),
+            session_id,
+            data.get("id"),
         )
         return session_id
 
@@ -135,11 +136,13 @@ class CodexAdapter(CodingAgentAdapter):
                 content = str(item)
 
             if content.strip():
-                events.append(AgentEvent(
-                    event_id=str(i),
-                    event_type=event_type,
-                    content=content,
-                ))
+                events.append(
+                    AgentEvent(
+                        event_id=str(i),
+                        event_type=event_type,
+                        content=content,
+                    )
+                )
 
         session["events_sent"] = len(output)
         return events

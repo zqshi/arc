@@ -42,7 +42,10 @@ class AgentRegistry:
 
 
 def create_agent_registry() -> AgentRegistry:
-    """Build registry from application settings, only registering configured and implemented agents."""
+    """Build registry from application settings.
+
+    Only registers configured and implemented agents.
+    """
     from arc.config import settings
 
     registry = AgentRegistry()
@@ -57,7 +60,9 @@ def create_agent_registry() -> AgentRegistry:
         if adapter.implemented:
             registry.register(
                 AgentType.CODEX,
-                lambda: CodexAdapter(api_key=settings.codex_api_key, base_url=settings.codex_base_url),
+                lambda: CodexAdapter(
+                    api_key=settings.codex_api_key, base_url=settings.codex_base_url
+                ),
             )
 
     if settings.claude_code_path:

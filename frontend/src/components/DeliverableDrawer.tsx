@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { X, FileText, Code, TestTube, Rocket, BookOpen, Layout, Package } from 'lucide-react';
 import MarkdownContent from './MarkdownContent';
-import type { Artifact, PlanningSession, ArtifactType } from '../types/api';
+import type { Artifact, PlanningSession } from '../types/api';
 
 type DrawerContent =
   | { type: 'artifact'; data: Artifact }

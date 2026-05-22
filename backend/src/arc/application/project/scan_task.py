@@ -36,9 +36,7 @@ class ScanTaskManager:
                 raise RuntimeError("Scan already in progress")
             self._queues[project_id] = []
             task_id = str(uuid.uuid4())[:8]
-            task = asyncio.create_task(
-                self._run_scan(project_id, path, task_id)
-            )
+            task = asyncio.create_task(self._run_scan(project_id, path, task_id))
             self._tasks[project_id] = task
             return task_id
 
@@ -105,18 +103,19 @@ class ScanTaskManager:
 
         except Exception as exc:
             logger.error("Scan failed for project %s: %s", project_id, exc)
-            await self._emit(project_id, {
-                "event": "error",
-                "detail": str(exc),
-            })
+            await self._emit(
+                project_id,
+                {
+                    "event": "error",
+                    "detail": str(exc),
+                },
+            )
         finally:
             await self._finish(project_id)
             async with self._lock:
                 self._tasks.pop(project_id, None)
 
-    async def _persist_result(
-        self, project_id: str, summary: str, fingerprint: str
-    ) -> None:
+    async def _persist_result(self, project_id: str, summary: str, fingerprint: str) -> None:
         """Save scan result to database."""
         from uuid import UUID
 

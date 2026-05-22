@@ -11,7 +11,7 @@ from arc.domain.agent.value_objects import (
 )
 
 
-class InvalidSessionTransition(Exception):
+class InvalidSessionTransitionError(Exception):
     def __init__(self, current: SessionStatus, target: SessionStatus) -> None:
         self.current = current
         self.target = target
@@ -37,7 +37,7 @@ class AgentSession:
     def _transition_to(self, target: SessionStatus) -> None:
         allowed = VALID_SESSION_TRANSITIONS.get(self.status, set())
         if target not in allowed:
-            raise InvalidSessionTransition(self.status, target)
+            raise InvalidSessionTransitionError(self.status, target)
         self.status = target
         self.updated_at = datetime.now(UTC)
 
@@ -78,4 +78,8 @@ class AgentSession:
 
     @property
     def is_terminal(self) -> bool:
-        return self.status in (SessionStatus.COMPLETED, SessionStatus.ERROR, SessionStatus.CANCELLED)
+        return self.status in (
+            SessionStatus.COMPLETED,
+            SessionStatus.ERROR,
+            SessionStatus.CANCELLED,
+        )

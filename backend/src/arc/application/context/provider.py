@@ -48,7 +48,9 @@ class ProjectContext:
         if self.conventions:
             parts.append(f"\n## 项目规范\n{self.conventions}")
         if self.sibling_requirements:
-            parts.append("\n## 同版本其他需求\n以下是同版本正在进行的其他需求，生成方案时注意避免冲突：")
+            parts.append(
+                "\n## 同版本其他需求\n以下是同版本正在进行的其他需求，生成方案时注意避免冲突："
+            )
             for req in self.sibling_requirements:
                 parts.append(f"- {req['title']}（状态: {req['status']}）")
         return "\n".join(parts)
@@ -111,11 +113,11 @@ class ProjectContextProvider:
                 ctx.version_goal = version.goal
 
             siblings = await self.todo_repo.list_by_version(
-                todo.version_id, exclude_id=todo.id,
+                todo.version_id,
+                exclude_id=todo.id,
             )
             ctx.sibling_requirements = [
-                {"title": s.title, "status": s.status.value}
-                for s in siblings
+                {"title": s.title, "status": s.status.value} for s in siblings
             ]
 
         return ctx

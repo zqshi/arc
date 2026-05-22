@@ -31,9 +31,7 @@ async def register(req: RegisterRequest, db: DbSession):
     if req.username:
         if not req.password:
             raise HTTPException(400, "账号注册需要提供密码")
-        user = await svc.register_with_password(
-            req.username, req.password, req.display_name
-        )
+        user = await svc.register_with_password(req.username, req.password, req.display_name)
         result = svc._generate_tokens(user)
     else:
         user = await svc.register_with_phone(req.phone, req.display_name)

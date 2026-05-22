@@ -67,9 +67,7 @@ class ConversationService:
         )
         return ai_message
 
-    async def generate_response_stream(
-        self, conversation: Conversation
-    ) -> AsyncIterator[dict]:
+    async def generate_response_stream(self, conversation: Conversation) -> AsyncIterator[dict]:
         from arc.application.ai.resilience import create_resilient_adapter
 
         adapter = create_resilient_adapter()
@@ -114,7 +112,10 @@ class ConversationService:
     async def _build_system_prompt(
         self, conversation: Conversation, todo, phase_type: PhaseType | None
     ) -> str:
-        """Build phase-aware system prompt with prior artifacts, experience context, and project context."""
+        """Build phase-aware system prompt.
+
+        Includes prior artifacts, experience context, and project context.
+        """
         if not phase_type:
             return "你是一个AI助手，帮助用户完成任务。"
 
@@ -158,13 +159,9 @@ class ConversationService:
 
         return prompt
 
-    def _build_clarification_prompt(
-        self, conversation: Conversation, todo, confirmed: dict
-    ) -> str:
+    def _build_clarification_prompt(self, conversation: Conversation, todo, confirmed: dict) -> str:
         """Build Socratic clarification prompt with layer awareness."""
-        user_msgs = [
-            m for m in conversation.messages if m.role == MessageRole.USER
-        ]
+        user_msgs = [m for m in conversation.messages if m.role == MessageRole.USER]
         current_layer = min(len(user_msgs) // 2 + 1, len(SOCRATIC_LAYERS))
 
         collected_parts = []
@@ -235,9 +232,7 @@ class ConversationService:
         project_id = todo.project_id if todo else None
 
         try:
-            personal_exps = await self.exp_repo.list_by_scope(
-                ExperienceScope.PERSONAL, limit=5
-            )
+            personal_exps = await self.exp_repo.list_by_scope(ExperienceScope.PERSONAL, limit=5)
             project_exps = await self.exp_repo.list_by_scope(
                 ExperienceScope.PROJECT, limit=5, project_id=project_id
             )
@@ -253,14 +248,15 @@ class ConversationService:
             query = " ".join(query_parts)
             try:
                 from arc.application.experience.service import ExperienceService
+
                 exp_svc = ExperienceService(self.db)
                 todo_exps = await exp_svc.search_similar(
-                    query, limit=3, project_id=project_id,
+                    query,
+                    limit=3,
+                    project_id=project_id,
                 )
                 seen = {e.id for e in all_experiences}
-                all_experiences.extend(
-                    e for e in todo_exps if e.id not in seen
-                )
+                all_experiences.extend(e for e in todo_exps if e.id not in seen)
             except Exception as exc:
                 logger.warning("Experience search failed: %s", exc)
 
@@ -268,8 +264,7 @@ class ConversationService:
             return "", []
 
         refs = [
-            {"id": str(e.id), "title": e.title, "scope": e.scope.value}
-            for e in all_experiences
+            {"id": str(e.id), "title": e.title, "scope": e.scope.value} for e in all_experiences
         ]
 
         return self._format_experiences(all_experiences, phase_type), refs
@@ -284,15 +279,17 @@ class ConversationService:
             section += f"**方案**: {exp.solution}\n"
 
             if exp.pitfalls and phase_type in (
-                PhaseType.ARCHITECTURE, PhaseType.DEVELOPMENT, PhaseType.TESTING
+                PhaseType.ARCHITECTURE,
+                PhaseType.DEVELOPMENT,
+                PhaseType.TESTING,
             ):
-                pitfall_text = "; ".join(
-                    p if isinstance(p, str) else str(p) for p in exp.pitfalls
-                )
+                pitfall_text = "; ".join(p if isinstance(p, str) else str(p) for p in exp.pitfalls)
                 section += f"**踩坑记录**: {pitfall_text}\n"
 
             if exp.decisions and phase_type in (
-                PhaseType.CLARIFICATION, PhaseType.ARCHITECTURE, PhaseType.UI_DESIGN
+                PhaseType.CLARIFICATION,
+                PhaseType.ARCHITECTURE,
+                PhaseType.UI_DESIGN,
             ):
                 decision_text = "; ".join(
                     d if isinstance(d, str) else str(d) for d in exp.decisions

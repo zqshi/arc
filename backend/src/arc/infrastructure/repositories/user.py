@@ -20,16 +20,12 @@ class UserRepository:
         return self._to_entity(row) if row else None
 
     async def get_by_username(self, username: str) -> UserEntity | None:
-        result = await self.db.execute(
-            select(UserModel).where(UserModel.username == username)
-        )
+        result = await self.db.execute(select(UserModel).where(UserModel.username == username))
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row else None
 
     async def get_by_phone(self, phone: str) -> UserEntity | None:
-        result = await self.db.execute(
-            select(UserModel).where(UserModel.phone == phone)
-        )
+        result = await self.db.execute(select(UserModel).where(UserModel.phone == phone))
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row else None
 
@@ -49,9 +45,7 @@ class UserRepository:
         return self._to_entity(model)
 
     async def update(self, entity: UserEntity) -> UserEntity:
-        result = await self.db.execute(
-            select(UserModel).where(UserModel.id == entity.id)
-        )
+        result = await self.db.execute(select(UserModel).where(UserModel.id == entity.id))
         model = result.scalar_one_or_none()
         if not model:
             raise ValueError(f"User {entity.id} not found")

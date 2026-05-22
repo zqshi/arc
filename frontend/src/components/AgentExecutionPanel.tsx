@@ -90,7 +90,7 @@ export default function AgentExecutionPanel({ todoId, phaseType, onSessionChange
       const s = await api.executeAgent(todoId, phaseType, selectedAgent || undefined);
       setSession(s);
       onSessionChange?.(s);
-    } catch (err) {
+    } catch {
       // error handled by caller
     } finally {
       setLoading(false);

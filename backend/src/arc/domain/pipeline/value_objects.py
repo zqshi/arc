@@ -47,7 +47,7 @@ VALID_PHASE_TRANSITIONS: dict[PhaseStatus, set[PhaseStatus]] = {
     PhaseStatus.ACTIVE: {PhaseStatus.AWAITING_CONFIRM},
     PhaseStatus.AWAITING_CONFIRM: {PhaseStatus.CONFIRMED, PhaseStatus.ACTIVE},
     PhaseStatus.CONFIRMED: {PhaseStatus.ACTIVE},  # rollback
-    PhaseStatus.SKIPPED: {PhaseStatus.ACTIVE},     # un-skip
+    PhaseStatus.SKIPPED: {PhaseStatus.ACTIVE},  # un-skip
 }
 
 

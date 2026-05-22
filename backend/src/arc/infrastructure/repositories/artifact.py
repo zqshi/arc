@@ -31,9 +31,7 @@ class ArtifactRepository:
         return self._to_entity(model)
 
     async def get_by_id(self, artifact_id: uuid.UUID) -> Artifact | None:
-        result = await self.db.execute(
-            select(ArtifactModel).where(ArtifactModel.id == artifact_id)
-        )
+        result = await self.db.execute(select(ArtifactModel).where(ArtifactModel.id == artifact_id))
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row else None
 
@@ -45,7 +43,9 @@ class ArtifactRepository:
         return self._to_entity(row) if row else None
 
     async def get_by_todo_and_type(
-        self, todo_id: uuid.UUID, artifact_type: ArtifactType,
+        self,
+        todo_id: uuid.UUID,
+        artifact_type: ArtifactType,
     ) -> Artifact | None:
         result = await self.db.execute(
             select(ArtifactModel).where(
@@ -74,15 +74,13 @@ class ArtifactRepository:
     async def list_confirmed_by_todo(self, todo_id: uuid.UUID) -> list[Artifact]:
         result = await self.db.execute(
             select(ArtifactModel)
-            .where(ArtifactModel.todo_id == todo_id, ArtifactModel.is_confirmed == True)
+            .where(ArtifactModel.todo_id == todo_id, ArtifactModel.is_confirmed.is_(True))
             .order_by(ArtifactModel.created_at)
         )
         return [self._to_entity(r) for r in result.scalars().all()]
 
     async def update(self, artifact: Artifact) -> Artifact:
-        result = await self.db.execute(
-            select(ArtifactModel).where(ArtifactModel.id == artifact.id)
-        )
+        result = await self.db.execute(select(ArtifactModel).where(ArtifactModel.id == artifact.id))
         model = result.scalar_one_or_none()
         if not model:
             raise ValueError(f"Artifact {artifact.id} not found")

@@ -57,9 +57,7 @@ class _CircuitBreaker:
         self._last_failure = time.monotonic()
         if self._failures >= self._threshold:
             self._state = "open"
-            logger.warning(
-                "Circuit breaker opened after %d consecutive failures", self._failures
-            )
+            logger.warning("Circuit breaker opened after %d consecutive failures", self._failures)
 
 
 _chat_breaker = _CircuitBreaker()
@@ -92,9 +90,7 @@ class ResilientAdapter(LLMAdapter):
     ) -> LLMResponse:
         return await self._retry(
             lambda: asyncio.wait_for(
-                self._inner.chat(
-                    messages, temperature=temperature, max_tokens=max_tokens
-                ),
+                self._inner.chat(messages, temperature=temperature, max_tokens=max_tokens),
                 timeout=self._timeout,
             ),
             breaker=self._chat_breaker,
@@ -117,9 +113,7 @@ class ResilientAdapter(LLMAdapter):
             ait = stream.__aiter__()
             while True:
                 try:
-                    chunk = await asyncio.wait_for(
-                        ait.__anext__(), timeout=stream_idle_timeout
-                    )
+                    chunk = await asyncio.wait_for(ait.__anext__(), timeout=stream_idle_timeout)
                 except StopAsyncIteration:
                     break
                 except asyncio.TimeoutError:
@@ -140,9 +134,7 @@ class ResilientAdapter(LLMAdapter):
 
     async def embed(self, text: str) -> list[float]:
         return await self._retry(
-            lambda: asyncio.wait_for(
-                self._inner.embed(text), timeout=self._timeout
-            ),
+            lambda: asyncio.wait_for(self._inner.embed(text), timeout=self._timeout),
             breaker=self._embed_breaker,
         )
 
@@ -161,21 +153,15 @@ class ResilientAdapter(LLMAdapter):
                 raise
             except asyncio.TimeoutError:
                 breaker.on_failure()
-                last_exc = asyncio.TimeoutError(
-                    f"LLM request timed out after {self._timeout}s"
-                )
-                logger.warning(
-                    "LLM timeout (attempt %d/%d)", attempt + 1, self._max_retries
-                )
+                last_exc = asyncio.TimeoutError(f"LLM request timed out after {self._timeout}s")
+                logger.warning("LLM timeout (attempt %d/%d)", attempt + 1, self._max_retries)
             except Exception as exc:
                 breaker.on_failure()
                 last_exc = exc
-                logger.warning(
-                    "LLM error (attempt %d/%d): %s", attempt + 1, self._max_retries, exc
-                )
+                logger.warning("LLM error (attempt %d/%d): %s", attempt + 1, self._max_retries, exc)
 
             if attempt < self._max_retries - 1:
-                delay = min(2 ** attempt, 8)
+                delay = min(2**attempt, 8)
                 await asyncio.sleep(delay)
 
         raise last_exc
@@ -190,6 +176,4 @@ def create_resilient_adapter(
     from arc.application.ai.llm_adapter import create_llm_adapter
 
     inner = create_llm_adapter()
-    return ResilientAdapter(
-        inner, max_retries=max_retries, timeout_seconds=timeout_seconds
-    )
+    return ResilientAdapter(inner, max_retries=max_retries, timeout_seconds=timeout_seconds)

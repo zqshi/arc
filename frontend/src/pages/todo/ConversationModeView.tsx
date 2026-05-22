@@ -61,7 +61,7 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     try {
       const state = await api.getDeliverables(id);
       setTracker(state);
-    } catch {}
+    } catch { /* fetch failed, keep previous state */ }
   }, [id]);
 
   const autoInitRef = useRef(false);
@@ -89,7 +89,7 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
           setInitializing(false);
         }
       }
-    } catch {}
+    } catch { /* fetch failed, keep previous state */ }
   }, [id, fetchTracker, toast, setTodo]);
 
   useEffect(() => {

@@ -84,11 +84,13 @@ async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
     version_name = None
     if todo.project_id:
         from arc.infrastructure.repositories.project import ProjectRepository
+
         project = await ProjectRepository(db).get_by_id(todo.project_id)
         if project:
             project_name = project.name
     if todo.version_id:
         from arc.infrastructure.repositories.project import VersionRepository
+
         version = await VersionRepository(db).get_by_id(todo.version_id)
         if version:
             version_name = version.name
@@ -96,7 +98,13 @@ async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
     dep_repo = TodoDependencyRepository(db)
     blocked_by = await dep_repo.get_blocked_by(UUID(todo_id))
     blocks = await dep_repo.get_blocks(UUID(todo_id))
-    return _to_response(todo, project_name=project_name, version_name=version_name, blocked_by=blocked_by, blocks=blocks)
+    return _to_response(
+        todo,
+        project_name=project_name,
+        version_name=version_name,
+        blocked_by=blocked_by,
+        blocks=blocks,
+    )
 
 
 @router.get("/{todo_id}/dependencies", response_model=DependencyListResponse)
@@ -188,6 +196,7 @@ async def update_todo(todo_id: str, req: UpdateTodoRequest, db: DbSession, user:
         todo.version_id = UUID(req.version_id) if req.version_id else None
     if req.tags is not None:
         from arc.domain.todo.value_objects import Tag
+
         todo.tags = [Tag(label=t.label, color=t.color) for t in req.tags]
 
     updated = await repo.update(todo)
@@ -309,46 +318,61 @@ async def send_quick_message(todo_id: str, db: DbSession, user: CurrentUser, bod
                     event_type = chunk.get("event")
                     if event_type == "artifacts_extracted":
                         if project_id:
-                            await project_task_stream.emit(project_id, {
-                                "event": "task_done",
-                                "todo_id": todo_id,
-                                "artifacts": chunk.get("artifact_names", []),
-                            })
+                            await project_task_stream.emit(
+                                project_id,
+                                {
+                                    "event": "task_done",
+                                    "todo_id": todo_id,
+                                    "artifacts": chunk.get("artifact_names", []),
+                                },
+                            )
                         continue
 
                     if ai_msg_id is None:
                         ai_msg_id = chunk.get("message_id")
                         if project_id:
-                            await project_task_stream.emit(project_id, {
-                                "event": "task_status",
-                                "todo_id": todo_id,
-                                "status": "running",
-                                "stage": "AI 正在生成回复...",
-                            })
+                            await project_task_stream.emit(
+                                project_id,
+                                {
+                                    "event": "task_status",
+                                    "todo_id": todo_id,
+                                    "status": "running",
+                                    "stage": "AI 正在生成回复...",
+                                },
+                            )
 
                     if project_id:
-                        await project_task_stream.emit(project_id, {
-                            "event": "task_chunk",
-                            "todo_id": todo_id,
-                            "content": chunk.get("content", ""),
-                        })
+                        await project_task_stream.emit(
+                            project_id,
+                            {
+                                "event": "task_chunk",
+                                "todo_id": todo_id,
+                                "content": chunk.get("content", ""),
+                            },
+                        )
             except Exception as exc:
                 logger.error("quick-message AI failed: %s", exc, exc_info=True)
                 if project_id:
-                    await project_task_stream.emit(project_id, {
-                        "event": "task_status",
-                        "todo_id": todo_id,
-                        "status": "error",
-                        "stage": "AI响应生成失败",
-                    })
+                    await project_task_stream.emit(
+                        project_id,
+                        {
+                            "event": "task_status",
+                            "todo_id": todo_id,
+                            "status": "error",
+                            "stage": "AI响应生成失败",
+                        },
+                    )
             finally:
                 if project_id:
-                    await project_task_stream.emit(project_id, {
-                        "event": "task_status",
-                        "todo_id": todo_id,
-                        "status": "idle",
-                        "stage": "等待用户输入",
-                    })
+                    await project_task_stream.emit(
+                        project_id,
+                        {
+                            "event": "task_status",
+                            "todo_id": todo_id,
+                            "status": "idle",
+                            "stage": "等待用户输入",
+                        },
+                    )
                 await _db.commit()
 
     asyncio.create_task(_run_ai())
@@ -367,9 +391,8 @@ def _to_response(
     blocked_by: list[uuid.UUID] | None = None,
     blocks: list[uuid.UUID] | None = None,
 ) -> TodoResponse:
-    needs_attention = (
-        todo.status.value in ("active", "error")
-        and (todo.last_seen_at is None or todo.updated_at > todo.last_seen_at)
+    needs_attention = todo.status.value in ("active", "error") and (
+        todo.last_seen_at is None or todo.updated_at > todo.last_seen_at
     )
     return TodoResponse(
         id=str(todo.id),
@@ -394,6 +417,7 @@ def _to_response(
 
 async def _resolve_names(db, todos) -> tuple[dict, dict]:
     from sqlalchemy import select
+
     from arc.infrastructure.models.project import ProjectModel, VersionModel
 
     proj_ids = {t.project_id for t in todos if t.project_id}

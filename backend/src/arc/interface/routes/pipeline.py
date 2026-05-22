@@ -32,6 +32,7 @@ async def _verify_todo_ownership(db: AsyncSession, todo_id: str, user_id) -> Non
 # Pipeline lifecycle
 # ---------------------------------------------------------------------------
 
+
 @router.get("/{todo_id}/pipeline", response_model=PipelineStateResponse)
 async def get_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
     """Get complete pipeline state for a todo."""
@@ -74,6 +75,7 @@ async def start_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
 # ---------------------------------------------------------------------------
 # Phase operations
 # ---------------------------------------------------------------------------
+
 
 @router.post("/{todo_id}/phases/{phase_type}/start", response_model=PhaseResponse)
 async def start_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
@@ -119,10 +121,13 @@ async def confirm_phase(todo_id: str, phase_type: str, db: DbSession, user: Curr
     try:
         phase = await svc.confirm_phase(UUID(todo_id), pt)
     except PhaseGateError as exc:
-        raise HTTPException(status_code=409, detail={
-            "type": "gate_failed",
-            "gate": exc.result.to_dict(),
-        })
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "type": "gate_failed",
+                "gate": exc.result.to_dict(),
+            },
+        )
     if not phase:
         raise HTTPException(status_code=404, detail="Phase not found")
     return _phase_response(phase)
@@ -164,6 +169,7 @@ async def rollback_pipeline(todo_id: str, req: RollbackRequest, db: DbSession, u
 # ---------------------------------------------------------------------------
 # Artifact operations
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{todo_id}/artifacts", response_model=list[ArtifactResponse])
 async def list_artifacts(todo_id: str, db: DbSession, user: CurrentUser):
@@ -225,6 +231,7 @@ async def confirm_artifact(todo_id: str, artifact_id: str, db: DbSession, user: 
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _parse_phase_type(value: str) -> PhaseType:
     try:
         return PhaseType(value)
@@ -236,8 +243,10 @@ def _phase_response(phase) -> PhaseResponse:
     return PhaseResponse(
         id=str(phase.id),
         todo_id=str(phase.todo_id),
-        phase_type=phase.phase_type.value if hasattr(phase.phase_type, 'value') else phase.phase_type,
-        status=phase.status.value if hasattr(phase.status, 'value') else phase.status,
+        phase_type=phase.phase_type.value
+        if hasattr(phase.phase_type, "value")
+        else phase.phase_type,
+        status=phase.status.value if hasattr(phase.status, "value") else phase.status,
         conversation_id=str(phase.conversation_id) if phase.conversation_id else None,
         created_at=phase.created_at,
         updated_at=phase.updated_at,
@@ -249,7 +258,9 @@ def _artifact_response(artifact) -> ArtifactResponse:
         id=str(artifact.id),
         todo_id=str(artifact.todo_id),
         phase_id=str(artifact.phase_id),
-        artifact_type=artifact.artifact_type.value if hasattr(artifact.artifact_type, 'value') else artifact.artifact_type,
+        artifact_type=artifact.artifact_type.value
+        if hasattr(artifact.artifact_type, "value")
+        else artifact.artifact_type,
         content=artifact.content,
         version=artifact.version,
         is_confirmed=artifact.is_confirmed,

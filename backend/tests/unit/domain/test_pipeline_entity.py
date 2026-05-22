@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from arc.domain.pipeline.entity import InvalidPhaseTransition, PipelinePhase
+from arc.domain.pipeline.entity import InvalidPhaseTransitionError, PipelinePhase
 from arc.domain.pipeline.value_objects import (
     PHASE_ORDER,
     PhaseStatus,
@@ -62,10 +62,10 @@ class TestPipelinePhaseTransitions:
 
     def test_invalid_transition(self) -> None:
         phase = self._make_phase(PhaseStatus.PENDING)
-        with pytest.raises(InvalidPhaseTransition):
+        with pytest.raises(InvalidPhaseTransitionError):
             phase.confirm()
 
     def test_cannot_confirm_from_pending(self) -> None:
         phase = self._make_phase(PhaseStatus.PENDING)
-        with pytest.raises(InvalidPhaseTransition):
+        with pytest.raises(InvalidPhaseTransitionError):
             phase.mark_awaiting_confirm()

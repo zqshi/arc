@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True, slots=True)
 class LLMMessage:
     """A single message in a chat conversation."""
@@ -44,6 +45,7 @@ class LLMResponse:
 # ---------------------------------------------------------------------------
 # Abstract adapter
 # ---------------------------------------------------------------------------
+
 
 class LLMAdapter(ABC):
     """Abstract interface that all LLM backends must implement."""
@@ -80,6 +82,7 @@ class LLMAdapter(ABC):
 # ---------------------------------------------------------------------------
 # OpenAI / DeepSeek adapter (compatible API)
 # ---------------------------------------------------------------------------
+
 
 class OpenAIAdapter(LLMAdapter):
     """Adapter for OpenAI-compatible APIs (also used by DeepSeek)."""
@@ -171,6 +174,7 @@ class OpenAIAdapter(LLMAdapter):
         except Exception as exc:
             logger.warning("OpenAI embed failed: %s, using local model", exc)
             from arc.application.ai.local_embedding import embed_local
+
             return embed_local(text)
 
     # -- lifecycle ------------------------------------------------------------
@@ -182,6 +186,7 @@ class OpenAIAdapter(LLMAdapter):
 # ---------------------------------------------------------------------------
 # Anthropic adapter
 # ---------------------------------------------------------------------------
+
 
 class AnthropicAdapter(LLMAdapter):
     """Adapter for the Anthropic Messages API.
@@ -298,6 +303,7 @@ class AnthropicAdapter(LLMAdapter):
         if self._embedding_api_key:
             if self._embed_client is None:
                 from openai import AsyncOpenAI
+
                 self._embed_client = AsyncOpenAI(
                     api_key=self._embedding_api_key,
                     base_url=self._embedding_base_url,
@@ -312,6 +318,7 @@ class AnthropicAdapter(LLMAdapter):
                 logger.warning("OpenAI embedding fallback failed: %s, using local model", exc)
 
         from arc.application.ai.local_embedding import embed_local
+
         return embed_local(text)
 
     # -- lifecycle ------------------------------------------------------------
@@ -325,6 +332,7 @@ class AnthropicAdapter(LLMAdapter):
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+
 
 def create_llm_adapter() -> LLMAdapter:
     """Create an :class:`LLMAdapter` based on ``settings.llm_provider``.

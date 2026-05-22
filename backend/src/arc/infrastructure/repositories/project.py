@@ -44,7 +44,9 @@ class ProjectRepository:
         return project
 
     async def get_by_id(
-        self, project_id: uuid.UUID, user_id: uuid.UUID | None = None,
+        self,
+        project_id: uuid.UUID,
+        user_id: uuid.UUID | None = None,
     ) -> Project | None:
         stmt = select(ProjectModel).where(ProjectModel.id == project_id)
         if user_id:
@@ -89,9 +91,7 @@ class ProjectRepository:
         return [self._to_entity(m) for m in result.scalars().all()]
 
     async def update(self, project: Project) -> None:
-        result = await self.db.execute(
-            select(ProjectModel).where(ProjectModel.id == project.id)
-        )
+        result = await self.db.execute(select(ProjectModel).where(ProjectModel.id == project.id))
         model = result.scalar_one_or_none()
         if not model:
             return
@@ -110,9 +110,7 @@ class ProjectRepository:
         await self.db.flush()
 
     async def delete(self, project_id: uuid.UUID) -> bool:
-        result = await self.db.execute(
-            select(ProjectModel).where(ProjectModel.id == project_id)
-        )
+        result = await self.db.execute(select(ProjectModel).where(ProjectModel.id == project_id))
         model = result.scalar_one_or_none()
         if not model:
             return False
@@ -133,7 +131,9 @@ class ProjectRepository:
             codebase_summary=model.codebase_summary or "",
             scan_fingerprint=model.scan_fingerprint or "",
             status=ProjectStatus(model.status),
-            execution_mode=ExecutionMode(model.execution_mode) if model.execution_mode else ExecutionMode.PIPELINE,
+            execution_mode=ExecutionMode(model.execution_mode)
+            if model.execution_mode
+            else ExecutionMode.PIPELINE,
             pipeline_config=model.pipeline_config or dict(DEFAULT_PIPELINE_CONFIG),
             conversation_config=model.conversation_config or dict(DEFAULT_CONVERSATION_CONFIG),
             created_at=model.created_at,
@@ -181,9 +181,7 @@ class VersionRepository:
         return result.scalar_one()
 
     async def get_by_id(self, version_id: uuid.UUID) -> Version | None:
-        result = await self.db.execute(
-            select(VersionModel).where(VersionModel.id == version_id)
-        )
+        result = await self.db.execute(select(VersionModel).where(VersionModel.id == version_id))
         model = result.scalar_one_or_none()
         if not model:
             return None
@@ -198,9 +196,7 @@ class VersionRepository:
         return [self._to_entity(m) for m in result.scalars().all()]
 
     async def update(self, version: Version) -> None:
-        result = await self.db.execute(
-            select(VersionModel).where(VersionModel.id == version.id)
-        )
+        result = await self.db.execute(select(VersionModel).where(VersionModel.id == version.id))
         model = result.scalar_one_or_none()
         if not model:
             return
@@ -234,7 +230,8 @@ class VersionRepository:
         return dict(result.all())
 
     async def batch_count_todos_by_status(
-        self, version_ids: list[uuid.UUID],
+        self,
+        version_ids: list[uuid.UUID],
     ) -> dict[uuid.UUID, dict[str, int]]:
         if not version_ids:
             return {}
@@ -250,16 +247,14 @@ class VersionRepository:
 
     async def count_by_project(self, project_id: uuid.UUID) -> int:
         result = await self.db.execute(
-            select(func.count()).select_from(VersionModel).where(
-                VersionModel.project_id == project_id
-            )
+            select(func.count())
+            .select_from(VersionModel)
+            .where(VersionModel.project_id == project_id)
         )
         return result.scalar_one()
 
     async def delete(self, version_id: uuid.UUID) -> bool:
-        result = await self.db.execute(
-            select(VersionModel).where(VersionModel.id == version_id)
-        )
+        result = await self.db.execute(select(VersionModel).where(VersionModel.id == version_id))
         model = result.scalar_one_or_none()
         if not model:
             return False

@@ -6,11 +6,10 @@ They only check that: (1) unauthenticated requests return 401,
 """
 from __future__ import annotations
 
-import uuid
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock
 
 from arc.interface.deps import get_current_user, get_db
 
@@ -47,7 +46,9 @@ PROTECTED_ROUTES = [
 
 class TestAuthEnforcement:
     @pytest.mark.parametrize("method,path", PROTECTED_ROUTES)
-    async def test_unauthenticated_returns_401(self, unauth_client: AsyncClient, method: str, path: str):
+    async def test_unauthenticated_returns_401(
+        self, unauth_client: AsyncClient, method: str, path: str
+    ):
         resp = await unauth_client.request(method, path)
         assert resp.status_code == 401, f"{method} {path} returned {resp.status_code}, expected 401"
 

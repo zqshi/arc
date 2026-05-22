@@ -2,9 +2,7 @@ from __future__ import annotations
 
 
 class AppError(Exception):
-    def __init__(
-        self, detail: str, error_code: str = "APP_ERROR", status_code: int = 400
-    ):
+    def __init__(self, detail: str, error_code: str = "APP_ERROR", status_code: int = 400):
         self.detail = detail
         self.error_code = error_code
         self.status_code = status_code

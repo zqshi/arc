@@ -45,10 +45,12 @@ class ArtifactService:
             return None
 
         messages = []
-        messages.append(LLMMessage(
-            role="system",
-            content="你是一个信息提取助手，根据对话内容生成结构化输出。",
-        ))
+        messages.append(
+            LLMMessage(
+                role="system",
+                content="你是一个信息提取助手，根据对话内容生成结构化输出。",
+            )
+        )
         for msg in conv.messages:
             if msg.role.value != "system":
                 messages.append(LLMMessage(role=msg.role.value, content=msg.content))
@@ -66,6 +68,7 @@ class ArtifactService:
             return None
 
         from arc.application.pipeline.prompt_registry import prompt_registry
+
         content["_meta"] = {
             "prompt_version": prompt_registry.get_version(phase_type, "extraction"),
             "model": response.model,
@@ -87,9 +90,7 @@ class ArtifactService:
             )
             return await self.artifact_repo.create(artifact)
 
-    async def update_content(
-        self, artifact_id: uuid.UUID, new_content: dict
-    ) -> Artifact | None:
+    async def update_content(self, artifact_id: uuid.UUID, new_content: dict) -> Artifact | None:
         """User edits artifact content."""
         artifact = await self.artifact_repo.get_by_id(artifact_id)
         if not artifact:
@@ -116,4 +117,3 @@ class ArtifactService:
         if not phase:
             return None
         return await self.artifact_repo.get_by_phase_id(phase.id)
-

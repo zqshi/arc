@@ -1,24 +1,28 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, UploadFile
 
 from arc.application.project.service import VersionService
 from arc.domain.project.entity import Project, Version
+from arc.domain.user.entity import User as UserEntity
+from arc.domain.user.value_objects import UserRole
 from arc.infrastructure.repositories.project import (
     ProjectRepository,
     VersionRepository,
 )
-from arc.domain.user.entity import User as UserEntity
-from arc.domain.user.value_objects import UserRole
-from arc.interface.deps import CurrentUser, DbSession
-from arc.interface.deps import require_project_role
+from arc.interface.deps import CurrentUser, DbSession, require_project_role
+from arc.interface.schemas.experience import ExperienceListResponse, ExperienceResponse
 from arc.interface.schemas.project import (
     AddMemberRequest,
     ApplyWithDiffRequest,
+    DocumentResponse,
     MemberResponse,
+    PlanningSessionCreate,
+    PlanningSessionResponse,
     ProjectCreate,
     ProjectResponse,
     ProjectUpdate,
@@ -26,13 +30,7 @@ from arc.interface.schemas.project import (
     VersionCreate,
     VersionResponse,
     VersionUpdate,
-    PlanningSessionCreate,
-    PlanningSessionResponse,
-    DocumentResponse,
 )
-from arc.interface.schemas.experience import ExperienceListResponse, ExperienceResponse
-
-import re
 
 router = APIRouter()
 
@@ -173,6 +171,7 @@ async def update_project(
 
     if "execution_mode" in updates and updates["execution_mode"]:
         from arc.domain.project.value_objects import ExecutionMode
+
         project.set_execution_mode(ExecutionMode(updates.pop("execution_mode")))
 
     if "pipeline_config" in updates and updates["pipeline_config"]:
@@ -223,6 +222,7 @@ async def scan_codebase(
 
     task_id = await scan_manager.start_scan(pid, str(path))
     from starlette.responses import JSONResponse
+
     return JSONResponse(
         status_code=202,
         content={"task_id": task_id, "status": "running"},
@@ -235,7 +235,6 @@ async def scan_codebase_stream(
     db: DbSession,
     user: CurrentUser,
 ):
-    import asyncio
     import json
 
     from starlette.responses import StreamingResponse
@@ -250,8 +249,6 @@ async def scan_codebase_stream(
     pid = str(project_id)
 
     async def event_generator():
-        keepalive_interval = 15
-
         async for event in scan_manager.subscribe(pid):
             event_type = event.get("event", "message")
             data = json.dumps(event, ensure_ascii=False)
@@ -300,11 +297,13 @@ async def batch_start_conversations(
                 results.append({"todo_id": tid, "status": "error", "detail": "Todo not found"})
                 continue
             conv, _ = await svc.initialize(uuid.UUID(tid))
-            results.append({
-                "todo_id": tid,
-                "status": "started",
-                "conversation_id": str(conv.id),
-            })
+            results.append(
+                {
+                    "todo_id": tid,
+                    "status": "started",
+                    "conversation_id": str(conv.id),
+                }
+            )
         except Exception as e:
             results.append({"todo_id": tid, "status": "error", "detail": str(e)})
 
@@ -318,7 +317,6 @@ async def project_task_stream_endpoint(
     db: DbSession,
     user: CurrentUser,
 ):
-    import asyncio
     import json
 
     from starlette.responses import StreamingResponse
@@ -499,6 +497,7 @@ async def mode_switch_impact(
     user: CurrentUser,
 ):
     from arc.infrastructure.repositories.todo import TodoRepository
+
     repo = TodoRepository(db)
     active_todos, _ = await repo.list_all(project_id=project_id, limit=1000)
     active_count = sum(1 for t in active_todos if t.status.value == "active")
@@ -546,9 +545,7 @@ async def list_versions(
     return [_version_resp(v, all_stats.get(v.id, {})) for v in versions_page]
 
 
-@router.post(
-    "/{project_id}/versions", response_model=VersionResponse, status_code=201
-)
+@router.post("/{project_id}/versions", response_model=VersionResponse, status_code=201)
 async def create_version(
     project_id: uuid.UUID,
     body: VersionCreate,
@@ -579,9 +576,7 @@ async def create_version(
     return _version_resp(version, stats)
 
 
-@router.patch(
-    "/{project_id}/versions/{version_id}", response_model=VersionResponse
-)
+@router.patch("/{project_id}/versions/{version_id}", response_model=VersionResponse)
 async def update_version(
     project_id: uuid.UUID,
     version_id: uuid.UUID,
@@ -639,6 +634,7 @@ async def release_version(
 
     try:
         from arc.application.planning.planning_service import PlanningService
+
         planning_svc = PlanningService(db)
         await planning_svc.extract_release_experience(project_id, version_id)
     except Exception:
@@ -687,7 +683,11 @@ async def list_project_experiences(
     from arc.infrastructure.repositories.experience import ExperienceRepository
 
     repo = ExperienceRepository(db)
-    st = ExperienceStatus(status) if status and status in ("draft", "confirmed", "archived") else None
+    st = (
+        ExperienceStatus(status)
+        if status and status in ("draft", "confirmed", "archived")
+        else None
+    )
     experiences, total = await repo.list_all(project_id=project_id, status=st, user_id=user.id)
 
     if category:
@@ -769,6 +769,7 @@ async def upload_document(
     user: CurrentUser,
 ):
     from arc.application.planning.document_service import DocumentService
+
     svc = DocumentService(db)
 
     data = await file.read()
@@ -799,6 +800,7 @@ async def list_documents(
     page_size: int = Query(default=50, le=200),
 ):
     from arc.application.planning.document_service import DocumentService
+
     svc = DocumentService(db)
     docs = await svc.list_by_project(project_id)
     offset = (page - 1) * page_size
@@ -826,6 +828,7 @@ async def delete_document(
     user: CurrentUser,
 ):
     from arc.application.planning.document_service import DocumentService
+
     svc = DocumentService(db)
     await svc.delete(doc_id)
 
@@ -845,6 +848,7 @@ async def create_planning_session(
     user: CurrentUser,
 ):
     from arc.application.planning.planning_service import PlanningService
+
     svc = PlanningService(db)
     session = await svc.create_session(
         project_id=project_id,
@@ -867,6 +871,7 @@ async def list_planning_sessions(
     page_size: int = Query(default=50, le=200),
 ):
     from arc.infrastructure.repositories.planning import PlanningSessionRepository
+
     repo = PlanningSessionRepository(db)
     sessions = await repo.list_by_project(project_id)
     offset = (page - 1) * page_size
@@ -884,9 +889,11 @@ async def generate_roadmap(
     user: CurrentUser,
 ):
     from arc.application.planning.planning_service import PlanningService
+
     svc = PlanningService(db)
     await svc.generate_roadmap(session_id)
     from arc.infrastructure.repositories.planning import PlanningSessionRepository
+
     repo = PlanningSessionRepository(db)
     session = await repo.get_by_id(session_id)
     if not session:
@@ -905,6 +912,7 @@ async def confirm_roadmap(
     user: CurrentUser,
 ):
     from arc.infrastructure.repositories.planning import PlanningSessionRepository
+
     repo = PlanningSessionRepository(db)
     session = await repo.get_by_id(session_id)
     if not session:
@@ -924,6 +932,7 @@ async def apply_roadmap(
     user: CurrentUser,
 ):
     from arc.application.planning.planning_service import PlanningService
+
     svc = PlanningService(db)
     versions = await svc.apply_roadmap(session_id)
     return {
@@ -942,6 +951,7 @@ async def preview_apply_diff(
     user: CurrentUser,
 ):
     from arc.application.planning.planning_service import PlanningService
+
     svc = PlanningService(db)
     try:
         diff = await svc.preview_apply_diff(session_id)
@@ -961,6 +971,7 @@ async def apply_with_diff(
     user: CurrentUser,
 ):
     from arc.application.planning.planning_service import PlanningService
+
     svc = PlanningService(db)
     try:
         result = await svc.apply_with_diff(
@@ -983,6 +994,7 @@ async def revise_planning_session(
     user: CurrentUser,
 ):
     from arc.infrastructure.repositories.planning import PlanningSessionRepository
+
     repo = PlanningSessionRepository(db)
     session = await repo.get_by_id(session_id)
     if not session:
@@ -1005,6 +1017,7 @@ async def list_version_planning_sessions(
     page_size: int = Query(default=50, le=200),
 ):
     from arc.infrastructure.repositories.planning import PlanningSessionRepository
+
     repo = PlanningSessionRepository(db)
     sessions = await repo.list_by_version(version_id)
     offset = (page - 1) * page_size
@@ -1021,6 +1034,7 @@ async def analyze_iteration(
     user: CurrentUser,
 ):
     from arc.application.planning.planning_service import PlanningService
+
     svc = PlanningService(db)
     analysis = await svc.analyze_iteration(project_id, version_id)
     return {"analysis": analysis}

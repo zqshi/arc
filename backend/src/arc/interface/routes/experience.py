@@ -28,6 +28,7 @@ async def search_experiences(
     project_id: str | None = None,
 ):
     from arc.application.experience.service import ExperienceService
+
     svc = ExperienceService(db)
     pid = UUID(project_id) if project_id else None
     results = await svc.search_similar(q, limit=5, project_id=pid, user_id=user.id)
@@ -47,11 +48,15 @@ async def list_experiences(
     page: int = 1,
     page_size: int = Query(default=50, le=200),
 ):
-    from arc.domain.todo.value_objects import ExperienceScope, ExperienceStatus
+    from arc.domain.todo.value_objects import ExperienceStatus
 
     repo = ExperienceRepository(db)
     pid = UUID(project_id) if project_id else None
-    st = ExperienceStatus(status) if status and status in ("draft", "confirmed", "archived") else None
+    st = (
+        ExperienceStatus(status)
+        if status and status in ("draft", "confirmed", "archived")
+        else None
+    )
     offset = (page - 1) * page_size
 
     experiences, total = await repo.list_all(
@@ -101,7 +106,9 @@ async def create_experience(req: CreateExperienceRequest, db: DbSession, user: C
 
     exp = Experience(
         title=req.title,
-        scope=ExperienceScope(req.scope) if req.scope in ("personal", "project") else ExperienceScope.PROJECT,
+        scope=ExperienceScope(req.scope)
+        if req.scope in ("personal", "project")
+        else ExperienceScope.PROJECT,
         problem=req.problem,
         solution=req.solution,
         decisions=req.decisions,
@@ -113,6 +120,7 @@ async def create_experience(req: CreateExperienceRequest, db: DbSession, user: C
     embedding_text = f"{exp.title} {exp.problem} {exp.solution} {exp.applicable_scenarios}"
     try:
         from arc.application.ai.resilience import create_resilient_adapter
+
         adapter = create_resilient_adapter()
         try:
             exp.embedding = await adapter.embed(embedding_text)
@@ -127,8 +135,15 @@ async def create_experience(req: CreateExperienceRequest, db: DbSession, user: C
 
 
 @router.patch("/{experience_id}", response_model=ExperienceResponse)
-async def update_experience(experience_id: str, req: UpdateExperienceRequest, db: DbSession, user: CurrentUser):
-    from arc.domain.todo.value_objects import ExperienceCategory, ExperienceScope, ExperienceSource, Tag
+async def update_experience(
+    experience_id: str, req: UpdateExperienceRequest, db: DbSession, user: CurrentUser
+):
+    from arc.domain.todo.value_objects import (
+        ExperienceCategory,
+        ExperienceScope,
+        ExperienceSource,
+        Tag,
+    )
 
     repo = ExperienceRepository(db)
     exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
@@ -151,6 +166,7 @@ async def update_experience(experience_id: str, req: UpdateExperienceRequest, db
     embedding_text = f"{exp.title} {exp.problem} {exp.solution} {exp.applicable_scenarios}"
     try:
         from arc.application.ai.resilience import create_resilient_adapter
+
         adapter = create_resilient_adapter()
         try:
             exp.embedding = await adapter.embed(embedding_text)
@@ -199,6 +215,7 @@ async def promote_experience(experience_id: str, db: DbSession, user: CurrentUse
 @router.post("/{experience_id}/distill", response_model=ExperienceResponse)
 async def distill_experience(experience_id: str, db: DbSession, user: CurrentUser):
     from arc.application.experience.service import ExperienceService
+
     svc = ExperienceService(db)
     try:
         personal = await svc.distill_to_personal(UUID(experience_id), user_id=user.id)
@@ -208,7 +225,9 @@ async def distill_experience(experience_id: str, db: DbSession, user: CurrentUse
 
 
 @router.post("/{experience_id}/feedback", status_code=204)
-async def feedback_experience(experience_id: str, req: ExperienceFeedbackRequest, db: DbSession, user: CurrentUser):
+async def feedback_experience(
+    experience_id: str, req: ExperienceFeedbackRequest, db: DbSession, user: CurrentUser
+):
     repo = ExperienceRepository(db)
     exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
     if not exp:

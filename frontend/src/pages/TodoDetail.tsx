@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Menu } from 'lucide-react';
 import { useBreakpoint } from '../hooks/useMediaQuery';
 import { api, ApiError } from '../api/client';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';

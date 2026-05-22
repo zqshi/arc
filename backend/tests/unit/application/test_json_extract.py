@@ -37,7 +37,10 @@ class TestExtractJson:
         assert result["问题"] == "用户登录失败"
 
     def test_json_with_leading_text(self):
-        text = "根据分析结果，输出如下：\n\n```json\n{\"passed\": true, \"score\": 9}\n```\n\n以上是评审结果。"
+        text = (
+            "根据分析结果，输出如下：\n\n```json\n"
+            '{"passed": true, "score": 9}\n```\n\n以上是评审结果。'
+        )
         result = extract_json(text)
         assert result["passed"] is True
         assert result["score"] == 9

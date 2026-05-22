@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.application.pipeline.prompts import (
     PHASE_GREETINGS,
 )
+from arc.domain.agent.entity import AgentSession
+from arc.domain.agent.value_objects import AgentType
 from arc.domain.artifact.entity import Artifact
 from arc.domain.conversation.entity import Conversation
 from arc.domain.pipeline.entity import PipelinePhase
@@ -18,8 +20,6 @@ from arc.domain.pipeline.value_objects import (
     PhaseType,
     next_phase,
 )
-from arc.domain.agent.entity import AgentSession
-from arc.domain.agent.value_objects import AgentType
 from arc.domain.todo.value_objects import ConversationPurpose, MessageRole, TodoStatus
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.conversation import ConversationRepository
@@ -82,9 +82,7 @@ class PipelineService:
 
         return created
 
-    async def start_phase(
-        self, todo_id: uuid.UUID, phase_type: PhaseType
-    ) -> PipelinePhase:
+    async def start_phase(self, todo_id: uuid.UUID, phase_type: PhaseType) -> PipelinePhase:
         """Activate a phase and create its conversation."""
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase:
@@ -98,7 +96,10 @@ class PipelineService:
             current_order = PHASE_ORDER[phase_type]
             for p in all_phases:
                 p_order = PHASE_ORDER[p.phase_type]
-                if p_order < current_order and p.status not in (PhaseStatus.CONFIRMED, PhaseStatus.SKIPPED):
+                if p_order < current_order and p.status not in (
+                    PhaseStatus.CONFIRMED,
+                    PhaseStatus.SKIPPED,
+                ):
                     raise ValueError(
                         f"请先完成「{PHASE_LABELS[p.phase_type]}」阶段后再开始「{PHASE_LABELS[phase_type]}」"
                     )
@@ -132,9 +133,7 @@ class PipelineService:
 
         return phase
 
-    async def generate_artifact(
-        self, todo_id: uuid.UUID, phase_type: PhaseType
-    ) -> Artifact | None:
+    async def generate_artifact(self, todo_id: uuid.UUID, phase_type: PhaseType) -> Artifact | None:
         """AI extracts artifact from the phase conversation."""
         from arc.application.artifact.service import ArtifactService
 
@@ -166,12 +165,18 @@ class PipelineService:
         artifact = await self.artifact_repo.get_by_phase_id(phase.id)
         if not artifact:
             from arc.application.pipeline.gate import GateResult
-            raise PhaseGateError(GateResult(
-                passed=False, score=0, gaps=["尚未生成产出物"],
-                suggestion="请先与AI对话并生成产出物，再进行确认。",
-            ))
+
+            raise PhaseGateError(
+                GateResult(
+                    passed=False,
+                    score=0,
+                    gaps=["尚未生成产出物"],
+                    suggestion="请先与AI对话并生成产出物，再进行确认。",
+                )
+            )
 
         from arc.application.context.provider import ProjectContextProvider
+
         project_ctx = await ProjectContextProvider(self.db).get_context(todo_id)
         conventions = project_ctx.conventions if project_ctx.has_project else ""
 
@@ -209,9 +214,7 @@ class PipelineService:
 
         return phase
 
-    async def skip_phase(
-        self, todo_id: uuid.UUID, phase_type: PhaseType
-    ) -> PipelinePhase | None:
+    async def skip_phase(self, todo_id: uuid.UUID, phase_type: PhaseType) -> PipelinePhase | None:
         """Skip a phase and activate the next one.
 
         Raises ValueError if the phase is not skippable.
@@ -257,7 +260,11 @@ class PipelineService:
                 await self.phase_repo.update(p)
                 target = p
             elif order > target_order:
-                if p.status in (PhaseStatus.CONFIRMED, PhaseStatus.ACTIVE, PhaseStatus.AWAITING_CONFIRM):
+                if p.status in (
+                    PhaseStatus.CONFIRMED,
+                    PhaseStatus.ACTIVE,
+                    PhaseStatus.AWAITING_CONFIRM,
+                ):
                     p.status = PhaseStatus.PENDING
                     p.updated_at = p.updated_at  # trigger update
                     await self.phase_repo.update(p)
@@ -292,6 +299,7 @@ class PipelineService:
             await self.start_phase(todo_id, phase_type)
 
         from arc.application.agent.session_manager import AgentSessionManager
+
         manager = AgentSessionManager(self.db)
         return await manager.start_session(todo_id, phase_type, agent_type)
 
@@ -304,18 +312,18 @@ class PipelineService:
             return None
 
         from arc.infrastructure.repositories.agent import AgentSessionRepository
+
         agent_repo = AgentSessionRepository(self.db)
         return await agent_repo.get_by_id(phase.agent_session_id)
 
-    async def cancel_agent(
-        self, todo_id: uuid.UUID, phase_type: PhaseType
-    ) -> AgentSession | None:
+    async def cancel_agent(self, todo_id: uuid.UUID, phase_type: PhaseType) -> AgentSession | None:
         """Cancel the running agent session for a phase."""
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase or not phase.agent_session_id:
             return None
 
         from arc.application.agent.session_manager import AgentSessionManager
+
         manager = AgentSessionManager(self.db)
         return await manager.cancel_session(phase.agent_session_id)
 
@@ -371,9 +379,7 @@ class PipelineService:
             normalized = gate_score / 10.0
             for exp in reused:
                 old = exp.confidence
-                exp.update_confidence(
-                    round(old * 0.7 + normalized * 0.3, 3)
-                )
+                exp.update_confidence(round(old * 0.7 + normalized * 0.3, 3))
                 await exp_repo.update(exp)
         except Exception as exc:
             logger.warning("Experience confidence feedback failed: %s", exc)

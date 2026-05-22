@@ -9,7 +9,7 @@ from arc.domain.project.value_objects import ExecutionMode
 from arc.domain.todo.value_objects import VALID_TRANSITIONS, Tag, TodoStatus
 
 
-class InvalidStatusTransition(Exception):
+class InvalidStatusTransitionError(Exception):
     def __init__(self, current: TodoStatus, target: TodoStatus) -> None:
         self.current = current
         self.target = target
@@ -38,7 +38,7 @@ class Todo:
     def _transition_to(self, target: TodoStatus) -> None:
         allowed = VALID_TRANSITIONS.get(self.status, set())
         if target not in allowed:
-            raise InvalidStatusTransition(self.status, target)
+            raise InvalidStatusTransitionError(self.status, target)
         self.status = target
         self.updated_at = datetime.now(UTC)
 
@@ -52,7 +52,7 @@ class Todo:
 
     def update_phase(self, phase: PhaseType) -> None:
         if self.status != TodoStatus.ACTIVE:
-            raise InvalidStatusTransition(self.status, TodoStatus.ACTIVE)
+            raise InvalidStatusTransitionError(self.status, TodoStatus.ACTIVE)
         self.current_phase = phase
         self.updated_at = datetime.now(UTC)
 

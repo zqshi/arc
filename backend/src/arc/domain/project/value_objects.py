@@ -39,11 +39,20 @@ VALID_VERSION_TRANSITIONS: dict[VersionStatus, set[VersionStatus]] = {
 
 DEFAULT_PIPELINE_CONFIG: dict = {
     "enabled_phases": [
-        "clarification", "ui_design", "architecture",
-        "development", "testing", "deployment", "extraction",
+        "clarification",
+        "ui_design",
+        "architecture",
+        "development",
+        "testing",
+        "deployment",
+        "extraction",
     ],
     "required_phases": [
-        "clarification", "architecture", "development", "testing", "extraction",
+        "clarification",
+        "architecture",
+        "development",
+        "testing",
+        "extraction",
     ],
     "gate_strictness": "strict",
     "auto_advance": False,
@@ -51,8 +60,11 @@ DEFAULT_PIPELINE_CONFIG: dict = {
 
 DEFAULT_CONVERSATION_CONFIG: dict = {
     "required_deliverables": [
-        "requirement_spec", "tech_architecture", "dev_report",
-        "test_report", "experience_card",
+        "requirement_spec",
+        "tech_architecture",
+        "dev_report",
+        "test_report",
+        "experience_card",
     ],
     "agent_autonomy": "supervised",
     "auto_archive": True,

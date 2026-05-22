@@ -18,18 +18,14 @@ class TodoDependency(Base):
     depends_on_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("todos.id", ondelete="CASCADE"), nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Todo(TimestampMixin, Base):
     __tablename__ = "todos"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True
-    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
@@ -47,6 +43,4 @@ class Todo(TimestampMixin, Base):
         ForeignKey("planning_sessions.id", ondelete="SET NULL"), nullable=True
     )
     source_feature_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    last_seen_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
