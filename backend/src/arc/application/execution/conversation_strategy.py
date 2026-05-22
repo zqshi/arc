@@ -66,6 +66,10 @@ class ConversationExecutionService:
             tracker = await self.tracker_repo.get_by_todo_id(todo_id)
             if not tracker:
                 tracker = await self._create_tracker(todo_id, required_deliverables)
+            else:
+                tracker = await self._sync_tracker_required(
+                    tracker, todo, required_deliverables
+                )
             return existing_conv, tracker
 
         conv = Conversation(
@@ -196,10 +200,13 @@ class ConversationExecutionService:
             }
 
     async def get_tracker_state(self, todo_id: uuid.UUID) -> dict:
-        """获取交付物追踪器状态。"""
+        """获取交付物追踪器状态，自动同步最新 required 列表。"""
         tracker = await self.tracker_repo.get_by_todo_id(todo_id)
         if not tracker:
             return {"required": [], "deliverables": {}, "completion_pct": 0}
+
+        todo = await self.todo_repo.get_by_id(todo_id)
+        tracker = await self._sync_tracker_required(tracker, todo, None)
 
         return {
             "required": tracker.required,
@@ -315,3 +322,49 @@ class ConversationExecutionService:
             required_types = DEFAULT_CONVERSATION_CONFIG["required_deliverables"]
 
         return await self.extractor.get_or_create_tracker(todo_id, required_types)
+
+    async def _sync_tracker_required(
+        self,
+        tracker: DeliverableTracker,
+        todo,
+        override: list[str] | None,
+    ) -> DeliverableTracker:
+        """Ensure tracker.required matches the current canonical list.
+
+        Adds missing deliverable types without resetting existing status.
+        """
+        canonical = override
+        if not canonical:
+            if todo and todo.project_id:
+                from arc.infrastructure.repositories.project import ProjectRepository
+
+                project = await ProjectRepository(self.db).get_by_id(
+                    todo.project_id
+                )
+                if project and project.conversation_config:
+                    canonical = project.conversation_config.get(
+                        "required_deliverables"
+                    )
+        if not canonical:
+            from arc.domain.project.value_objects import DEFAULT_CONVERSATION_CONFIG
+
+            canonical = DEFAULT_CONVERSATION_CONFIG["required_deliverables"]
+
+        from arc.domain.planning.value_objects import DeliverableStatus
+
+        existing = set(tracker.required)
+        added = [t for t in canonical if t not in existing]
+        if not added:
+            return tracker
+
+        for t in added:
+            tracker.required.append(t)
+            tracker.deliverables[t] = DeliverableStatus.PENDING
+
+        await self.tracker_repo.update(tracker)
+        logger.info(
+            "Synced tracker %s: added deliverables %s",
+            tracker.id,
+            added,
+        )
+        return tracker

@@ -135,10 +135,29 @@ class ProjectRepository:
             if model.execution_mode
             else ExecutionMode.PIPELINE,
             pipeline_config=model.pipeline_config or dict(DEFAULT_PIPELINE_CONFIG),
-            conversation_config=model.conversation_config or dict(DEFAULT_CONVERSATION_CONFIG),
+            conversation_config=ProjectRepository._merge_conversation_config(
+                model.conversation_config
+            ),
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
+
+    @staticmethod
+    def _merge_conversation_config(stored: dict | None) -> dict:
+        """Merge stored config with defaults, ensuring required_deliverables is complete."""
+        base = dict(DEFAULT_CONVERSATION_CONFIG)
+        if not stored:
+            return base
+        merged = {**base, **stored}
+        default_deliverables = DEFAULT_CONVERSATION_CONFIG["required_deliverables"]
+        stored_deliverables = stored.get("required_deliverables") or []
+        seen = set(stored_deliverables)
+        full = list(stored_deliverables)
+        for d in default_deliverables:
+            if d not in seen:
+                full.append(d)
+        merged["required_deliverables"] = full
+        return merged
 
 
 class VersionRepository:
