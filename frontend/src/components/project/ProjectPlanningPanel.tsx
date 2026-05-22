@@ -53,7 +53,7 @@ export function ProjectPlanningPanel({ projectId, onRoadmapApplied, onClose, onP
     } finally {
       setLoaded(true);
     }
-  }, [projectId]);
+  }, [projectId, toast]);
 
   if (!loaded) {
     fetchData();

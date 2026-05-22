@@ -1,5 +1,6 @@
 import { Server, Database, Globe, GitBranch, ListChecks } from 'lucide-react';
-import { SectionCard, TextBlock, CodeBlock, asString, asArray } from './shared';
+import { SectionCard, TextBlock, CodeBlock } from './shared';
+import { asString, asArray } from './utils';
 
 interface Props {
   content: Record<string, unknown>;

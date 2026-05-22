@@ -41,7 +41,7 @@ export function VersionPlanningPanel({ projectId, versionId, onTodosCreated, onP
     } finally {
       setLoaded(true);
     }
-  }, [projectId, versionId]);
+  }, [projectId, versionId, toast]);
 
   if (!loaded) {
     fetchData();

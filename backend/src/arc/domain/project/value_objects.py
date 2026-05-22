@@ -61,6 +61,7 @@ DEFAULT_PIPELINE_CONFIG: dict = {
 DEFAULT_CONVERSATION_CONFIG: dict = {
     "required_deliverables": [
         "requirement_spec",
+        "ui_design",
         "tech_architecture",
         "dev_report",
         "test_report",

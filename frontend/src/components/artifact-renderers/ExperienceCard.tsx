@@ -1,5 +1,6 @@
 import { Target, Lightbulb, AlertTriangle, BookOpen, Tag } from 'lucide-react';
-import { SectionCard, TextBlock, asString, asArray } from './shared';
+import { SectionCard, TextBlock } from './shared';
+import { asString, asArray } from './utils';
 
 interface Props {
   content: Record<string, unknown>;

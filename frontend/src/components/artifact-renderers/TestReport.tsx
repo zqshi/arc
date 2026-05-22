@@ -1,5 +1,6 @@
 import { CheckCircle, XCircle, HelpCircle, Bug, BarChart3 } from 'lucide-react';
-import { SectionCard, TextBlock, StatusDot, Badge, asString, asArray } from './shared';
+import { SectionCard, TextBlock, StatusDot, Badge } from './shared';
+import { asString, asArray } from './utils';
 
 interface Props {
   content: Record<string, unknown>;

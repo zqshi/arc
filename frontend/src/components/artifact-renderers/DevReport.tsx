@@ -1,5 +1,6 @@
 import { Terminal, GitCommit, TestTube, Lightbulb } from 'lucide-react';
-import { SectionCard, TerminalBlock, TextBlock, NumberedList, asString, asArray } from './shared';
+import { SectionCard, TerminalBlock, TextBlock, NumberedList } from './shared';
+import { asString, asArray } from './utils';
 
 interface Props {
   content: Record<string, unknown>;
