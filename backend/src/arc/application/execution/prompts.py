@@ -70,25 +70,80 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你是一位全栈AI工程师+产品分析�
 ARTIFACT_SCHEMAS: dict[str, str] = {
     "requirement_spec": """{
   "background": "需求背景和问题描述",
-  "user_scenarios": "用户场景和交互流程",
-  "goals": "目标和期望结果",
-  "boundaries": "边界条件和约束",
-  "acceptance_criteria": "验收标准（可量化）",
-  "risk_assessment": "风险评估和应对"
+  "target_users": [
+    {"type": "用户类型", "traits": "关键特征", "core_need": "核心诉求"}
+  ],
+  "core_value": {
+    "user_value": "用户价值",
+    "business_value": "业务价值",
+    "tech_value": "技术价值"
+  },
+  "user_stories": [
+    {"role": "角色", "goal": "目标", "benefit": "收益",
+     "priority": "P0/P1/P2", "acceptance": "验收条件"}
+  ],
+  "user_scenarios": "典型使用场景和交互流程",
+  "boundaries": {
+    "in_scope": ["明确要做的"],
+    "out_of_scope": ["明确不做的"],
+    "constraints": ["技术/业务/合规约束"]
+  },
+  "acceptance_criteria": [
+    {"id": "AC-1", "scenario": "场景", "steps": "操作步骤",
+     "expected": "预期结果", "priority": "P0/P1/P2"}
+  ],
+  "risk_assessment": [
+    {"risk": "风险描述", "probability": "高/中/低",
+     "impact": "高/中/低", "mitigation": "应对策略"}
+  ],
+  "assumptions": [
+    {"assumption": "假设内容", "confidence": "高/中/低",
+     "validation_method": "验证方式"}
+  ]
 }""",
     "ui_design": """{
   "flow_diagram": "Mermaid flowchart代码",
-  "wireframes": [{"page_name": "", "description": "", "html": ""}],
-  "component_specs": [{"name": "", "purpose": "", "behavior": "", "states": ""}],
+  "wireframes": [
+    {"page_name": "", "description": "", "html": ""}
+  ],
+  "component_specs": [
+    {"name": "", "purpose": "", "behavior": "", "states": ""}
+  ],
   "interaction_rules": "交互规则",
   "responsive_notes": "响应式说明"
 }""",
     "tech_architecture": """{
-  "architecture_overview": "整体架构",
-  "data_model": "数据模型",
-  "api_design": "API设计",
-  "tech_decisions": [{"decision": "", "options": "", "chosen": "", "reason": ""}],
-  "implementation_plan": "实现步骤"
+  "architecture_overview": "整体架构描述",
+  "data_model": {
+    "entities": [
+      {"name": "实体名",
+       "fields": [{"name": "", "type": "", "required": true,
+                   "description": ""}],
+       "relations": "与其他实体的关系"}
+    ],
+    "erd_description": "实体关系概述"
+  },
+  "api_design": [
+    {"method": "HTTP方法", "path": "/api/路径",
+     "description": "接口说明",
+     "request_params": ["参数说明"],
+     "response_example": "响应示例"}
+  ],
+  "tech_decisions": [
+    {"decision": "决策点",
+     "options_considered": ["方案A", "方案B"],
+     "chosen": "选择的方案", "reason": "选择理由",
+     "trade_offs": "代价与取舍"}
+  ],
+  "implementation_plan": [
+    {"step": "步骤名", "description": "详细描述",
+     "estimated_effort": "预估工作量", "priority": "P0/P1/P2"}
+  ],
+  "non_functional": {
+    "performance": "性能要求和方案",
+    "security": "安全要求和方案",
+    "scalability": "可扩展性考虑"
+  }
 }""",
     "dev_report": """{
   "execution_log": "执行过程",
@@ -97,16 +152,34 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   "decisions_made": [{"decision": "", "reason": ""}]
 }""",
     "test_report": """{
-  "criteria_verification": [{"criteria": "", "status": "pass/fail", "evidence": ""}],
-  "issues_found": [{"description": "", "severity": "high/medium/low", "suggestion": ""}],
+  "criteria_verification": [
+    {"criteria": "", "status": "pass/fail", "evidence": ""}
+  ],
+  "issues_found": [
+    {"description": "", "severity": "high/medium/low",
+     "suggestion": ""}
+  ],
   "coverage_summary": "覆盖总结"
 }""",
     "experience_card": """{
   "problem": "解决了什么问题",
   "solution": "最终方案",
-  "decisions": [{"point": "", "chosen": "", "reason": ""}],
-  "pitfalls": [{"issue": "", "cause": "", "fix": ""}],
+  "decisions": [
+    {"point": "决策点",
+     "options_considered": ["方案A", "方案B"],
+     "chosen": "选择的方案", "reason": "选择理由",
+     "outcome": "实际效果"}
+  ],
+  "pitfalls": [
+    {"issue": "遇到的问题", "cause": "根因分析",
+     "fix": "修复方式", "prevention": "如何预防"}
+  ],
+  "assumptions_validated": [
+    {"assumption": "假设内容", "was_correct": true,
+     "lesson": "从验证/推翻中学到什么"}
+  ],
   "applicable_scenarios": "适用场景",
+  "reuse_checklist": ["复用前需要检查的条件"],
   "tags": ["标签"]
 }""",
 }
