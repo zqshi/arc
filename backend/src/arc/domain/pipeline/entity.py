@@ -11,7 +11,7 @@ from arc.domain.pipeline.value_objects import (
 )
 
 
-class InvalidPhaseTransition(Exception):
+class InvalidPhaseTransitionError(Exception):
     def __init__(self, current: PhaseStatus, target: PhaseStatus) -> None:
         self.current = current
         self.target = target
@@ -32,7 +32,7 @@ class PipelinePhase:
     def _transition_to(self, target: PhaseStatus) -> None:
         allowed = VALID_PHASE_TRANSITIONS.get(self.status, set())
         if target not in allowed:
-            raise InvalidPhaseTransition(self.status, target)
+            raise InvalidPhaseTransitionError(self.status, target)
         self.status = target
         self.updated_at = datetime.now(UTC)
 

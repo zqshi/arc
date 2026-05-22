@@ -26,6 +26,7 @@ _RETRY_BACKOFF_BASE = 1.0  # seconds; doubles each attempt
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 class OpenHandsSessionStatus(StrEnum):
     CREATED = "created"
     RUNNING = "running"
@@ -58,6 +59,7 @@ class OpenHandsSession:
 # Exceptions
 # ---------------------------------------------------------------------------
 
+
 class OpenHandsError(Exception):
     """Base exception for OpenHands client errors."""
 
@@ -78,6 +80,7 @@ class OpenHandsAPIError(OpenHandsError):
 # ---------------------------------------------------------------------------
 # Client
 # ---------------------------------------------------------------------------
+
 
 class OpenHandsClient:
     """Async client for the OpenHands coding-agent REST API.
@@ -129,33 +132,42 @@ class OpenHandsClient:
         for attempt in range(self._max_retries + 1):
             try:
                 resp = await self._client.request(
-                    method, path, json=json, params=params,
+                    method,
+                    path,
+                    json=json,
+                    params=params,
                 )
             except httpx.ConnectError as exc:
                 last_exc = exc
                 logger.warning(
                     "OpenHands connection error (attempt %d/%d): %s",
-                    attempt + 1, self._max_retries + 1, exc,
+                    attempt + 1,
+                    self._max_retries + 1,
+                    exc,
                 )
                 if attempt < self._max_retries:
-                    await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** attempt))
+                    await asyncio.sleep(_RETRY_BACKOFF_BASE * (2**attempt))
                 continue
             except httpx.TimeoutException as exc:
                 last_exc = exc
                 logger.warning(
                     "OpenHands timeout (attempt %d/%d): %s",
-                    attempt + 1, self._max_retries + 1, exc,
+                    attempt + 1,
+                    self._max_retries + 1,
+                    exc,
                 )
                 if attempt < self._max_retries:
-                    await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** attempt))
+                    await asyncio.sleep(_RETRY_BACKOFF_BASE * (2**attempt))
                 continue
 
             if resp.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
                 logger.warning(
                     "OpenHands retryable status %d (attempt %d/%d)",
-                    resp.status_code, attempt + 1, self._max_retries + 1,
+                    resp.status_code,
+                    attempt + 1,
+                    self._max_retries + 1,
                 )
-                await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** attempt))
+                await asyncio.sleep(_RETRY_BACKOFF_BASE * (2**attempt))
                 continue
 
             if resp.status_code >= 400:
@@ -248,6 +260,7 @@ class OpenHandsClient:
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+
 
 def create_openhands_client() -> OpenHandsClient:
     """Create an :class:`OpenHandsClient` from application settings."""

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2, Sparkles, Loader2, Users } from 'lucide-react';
+import { ArrowLeft, FileText, Lightbulb, Settings, Archive, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';

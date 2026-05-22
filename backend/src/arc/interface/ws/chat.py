@@ -82,11 +82,13 @@ async def _stream_ai_response(
     project_id = None
     if todo_id:
         try:
-            project_id = str(getattr(conv, '_project_id', '')) or None
+            project_id = str(getattr(conv, "_project_id", "")) or None
             if not project_id:
+                from uuid import UUID
+
                 from arc.infrastructure.database import async_session_factory
                 from arc.infrastructure.repositories.todo import TodoRepository
-                from uuid import UUID
+
                 async with async_session_factory() as _db:
                     _todo = await TodoRepository(_db).get_by_id(UUID(todo_id))
                     if _todo and _todo.project_id:
@@ -99,74 +101,105 @@ async def _stream_ai_response(
         async for chunk in svc.generate_response_stream(conv):
             event_type = chunk.get("event")
             if event_type == "artifacts_extracted":
-                await manager.broadcast(conversation_id, {
-                    "type": "artifacts_extracted",
-                    "artifacts": chunk.get("artifacts", []),
-                    "artifact_names": chunk.get("artifact_names", []),
-                })
+                await manager.broadcast(
+                    conversation_id,
+                    {
+                        "type": "artifacts_extracted",
+                        "artifacts": chunk.get("artifacts", []),
+                        "artifact_names": chunk.get("artifact_names", []),
+                    },
+                )
                 if project_id and todo_id:
-                    await project_task_stream.emit(project_id, {
-                        "event": "task_done",
-                        "todo_id": todo_id,
-                        "artifacts": chunk.get("artifact_names", []),
-                    })
+                    await project_task_stream.emit(
+                        project_id,
+                        {
+                            "event": "task_done",
+                            "todo_id": todo_id,
+                            "artifacts": chunk.get("artifact_names", []),
+                        },
+                    )
                 continue
 
             if ai_msg_id is None:
                 ai_msg_id = chunk.get("message_id")
-                await manager.broadcast(conversation_id, {
-                    "type": "stream_start",
-                    "message_id": ai_msg_id,
-                })
+                await manager.broadcast(
+                    conversation_id,
+                    {
+                        "type": "stream_start",
+                        "message_id": ai_msg_id,
+                    },
+                )
                 if project_id and todo_id:
-                    await project_task_stream.emit(project_id, {
-                        "event": "task_status",
-                        "todo_id": todo_id,
-                        "status": "running",
-                        "stage": "AI 正在生成回复...",
-                    })
+                    await project_task_stream.emit(
+                        project_id,
+                        {
+                            "event": "task_status",
+                            "todo_id": todo_id,
+                            "status": "running",
+                            "stage": "AI 正在生成回复...",
+                        },
+                    )
 
-            await manager.broadcast(conversation_id, {
-                "type": "stream_chunk",
-                "message_id": ai_msg_id,
-                "content": chunk.get("content", ""),
-            })
-            if project_id and todo_id:
-                await project_task_stream.emit(project_id, {
-                    "event": "task_chunk",
-                    "todo_id": todo_id,
+            await manager.broadcast(
+                conversation_id,
+                {
+                    "type": "stream_chunk",
+                    "message_id": ai_msg_id,
                     "content": chunk.get("content", ""),
-                })
+                },
+            )
+            if project_id and todo_id:
+                await project_task_stream.emit(
+                    project_id,
+                    {
+                        "event": "task_chunk",
+                        "todo_id": todo_id,
+                        "content": chunk.get("content", ""),
+                    },
+                )
     except Exception as exc:
         logger.error("AI response generation failed: %s", exc, exc_info=True)
         error_msg = "AI响应生成失败"
         from arc.application.ai.resilience import CircuitOpenError
+
         if isinstance(exc, CircuitOpenError):
             error_msg = "AI服务暂时不可用，请稍后重试"
-        await manager.broadcast(conversation_id, {
-            "type": "error",
-            "detail": error_msg,
-        })
+        await manager.broadcast(
+            conversation_id,
+            {
+                "type": "error",
+                "detail": error_msg,
+            },
+        )
         if project_id and todo_id:
-            await project_task_stream.emit(project_id, {
-                "event": "task_status",
-                "todo_id": todo_id,
-                "status": "error",
-                "stage": error_msg,
-            })
+            await project_task_stream.emit(
+                project_id,
+                {
+                    "event": "task_status",
+                    "todo_id": todo_id,
+                    "status": "error",
+                    "stage": error_msg,
+                },
+            )
 
     if ai_msg_id:
-        await manager.broadcast(conversation_id, {
-            "type": "stream_end",
-            "message_id": ai_msg_id,
-        })
+        await manager.broadcast(
+            conversation_id,
+            {
+                "type": "stream_end",
+                "message_id": ai_msg_id,
+            },
+        )
         if project_id and todo_id:
-            await project_task_stream.emit(project_id, {
-                "event": "task_status",
-                "todo_id": todo_id,
-                "status": "idle",
-                "stage": "等待用户输入",
-            })
+            await project_task_stream.emit(
+                project_id,
+                {
+                    "event": "task_status",
+                    "todo_id": todo_id,
+                    "status": "idle",
+                    "stage": "等待用户输入",
+                },
+            )
 
 
 async def _heartbeat(ws: WebSocket, cancel_event: asyncio.Event, token: str | None = None):
@@ -185,6 +218,7 @@ async def _heartbeat(ws: WebSocket, cancel_event: asyncio.Event, token: str | No
                 ticks = 0
                 try:
                     from arc.application.auth.jwt import verify_access_token
+
                     verify_access_token(token)
                 except Exception:
                     await ws.send_json({"type": "token_expired"})
@@ -223,17 +257,19 @@ async def conversation_ws(
                 return
 
             for msg in conv.messages:
-                await ws.send_json({
-                    "type": "message",
-                    "message": {
-                        "id": str(msg.id),
-                        "conversation_id": str(msg.conversation_id),
-                        "role": msg.role.value,
-                        "content": msg.content,
-                        "metadata": msg.metadata,
-                        "created_at": msg.created_at.isoformat(),
-                    },
-                })
+                await ws.send_json(
+                    {
+                        "type": "message",
+                        "message": {
+                            "id": str(msg.id),
+                            "conversation_id": str(msg.conversation_id),
+                            "role": msg.role.value,
+                            "content": msg.content,
+                            "metadata": msg.metadata,
+                            "created_at": msg.created_at.isoformat(),
+                        },
+                    }
+                )
 
         while True:
             raw = await ws.receive_text()
@@ -255,10 +291,14 @@ async def conversation_ws(
                         continue
 
                     if conv.purpose.value == "unified":
-                        from arc.application.execution.conversation_strategy import ConversationExecutionService
+                        from arc.application.execution.conversation_strategy import (
+                            ConversationExecutionService,
+                        )
+
                         svc = ConversationExecutionService(db)
                     else:
                         from arc.application.conversation.service import ConversationService
+
                         svc = ConversationService(db)
                     await _stream_ai_response(manager, conversation_id, svc, conv)
                     await db.commit()
@@ -282,22 +322,29 @@ async def conversation_ws(
                 await repo.add_message(conv.id, user_msg)
                 await db.commit()
 
-                await manager.broadcast(conversation_id, {
-                    "type": "message",
-                    "message": {
-                        "id": str(user_msg.id),
-                        "conversation_id": str(user_msg.conversation_id),
-                        "role": "user",
-                        "content": user_msg.content,
-                        "created_at": user_msg.created_at.isoformat(),
+                await manager.broadcast(
+                    conversation_id,
+                    {
+                        "type": "message",
+                        "message": {
+                            "id": str(user_msg.id),
+                            "conversation_id": str(user_msg.conversation_id),
+                            "role": "user",
+                            "content": user_msg.content,
+                            "created_at": user_msg.created_at.isoformat(),
+                        },
                     },
-                })
+                )
 
                 if conv.purpose.value == "unified":
-                    from arc.application.execution.conversation_strategy import ConversationExecutionService
+                    from arc.application.execution.conversation_strategy import (
+                        ConversationExecutionService,
+                    )
+
                     svc = ConversationExecutionService(db)
                 else:
                     from arc.application.conversation.service import ConversationService
+
                     svc = ConversationService(db)
                 await _stream_ai_response(manager, conversation_id, svc, conv)
                 await db.commit()

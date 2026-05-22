@@ -9,7 +9,6 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.planning.entity import Document
-from arc.domain.planning.value_objects import DocumentStatus
 from arc.infrastructure.repositories.planning import DocumentRepository
 
 logger = logging.getLogger(__name__)
@@ -94,6 +93,7 @@ class DocumentService:
     async def _extract_pdf(path: str) -> str:
         try:
             import pypdf
+
             reader = pypdf.PdfReader(path)
             pages = [page.extract_text() or "" for page in reader.pages]
             return "\n\n".join(pages)
@@ -105,6 +105,7 @@ class DocumentService:
     async def _extract_docx(path: str) -> str:
         try:
             import docx
+
             doc = docx.Document(path)
             return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except ImportError:
@@ -116,9 +117,9 @@ class DocumentService:
         if not text or len(text.strip()) < 50:
             return []
 
+        from arc.application.ai.json_extract import extract_json
         from arc.application.ai.llm_adapter import LLMMessage
         from arc.application.ai.resilience import create_resilient_adapter
-        from arc.application.ai.json_extract import extract_json
 
         prompt = f"""你是一个专业的需求分析师。从以下文档中提取所有功能需求/Feature。
 

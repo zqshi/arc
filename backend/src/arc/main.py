@@ -1,7 +1,7 @@
+import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
-import asyncio
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,29 +9,32 @@ from fastapi.responses import JSONResponse
 
 from arc.config import settings
 from arc.domain.errors import AppError
-from arc.domain.pipeline.entity import InvalidPhaseTransition
-from arc.domain.todo.entity import InvalidStatusTransition
+from arc.domain.pipeline.entity import InvalidPhaseTransitionError
+from arc.domain.todo.entity import InvalidStatusTransitionError
 from arc.interface.middleware.request_id import RequestIdFilter
 
 _BASE_ATTRS: frozenset[str] | None = None
 
 
 class StructuredFormatter(logging.Formatter):
-
     def format(self, record: logging.LogRecord) -> str:
         global _BASE_ATTRS
         if _BASE_ATTRS is None:
-            _BASE_ATTRS = frozenset(
-                logging.LogRecord("", 0, "", 0, "", (), None).__dict__
-            ) | {"message", "msg", "args", "exc_info", "exc_text", "stack_info", "taskName"}
+            _BASE_ATTRS = frozenset(logging.LogRecord("", 0, "", 0, "", (), None).__dict__) | {
+                "message",
+                "msg",
+                "args",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "taskName",
+            }
 
         ts = self.formatTime(record)
         rid = getattr(record, "request_id", "")
         rid_tag = f" [{rid}]" if rid else ""
         base = f"{ts} {record.levelname:<8} {record.name}{rid_tag} — {record.getMessage()}"
-        extras = {
-            k: v for k, v in record.__dict__.items() if k not in _BASE_ATTRS
-        }
+        extras = {k: v for k, v in record.__dict__.items() if k not in _BASE_ATTRS}
         if extras:
             pairs = " ".join(f"{k}={v}" for k, v in extras.items())
             base += f" | {pairs}"
@@ -55,12 +58,14 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("ARC_JWT_SECRET must be set in production mode")
     await _cleanup_orphan_agent_sessions()
     from arc.seeds import ensure_seed_users
+
     await ensure_seed_users()
 
     decay_task = asyncio.create_task(_experience_decay_loop())
     yield
     decay_task.cancel()
     from arc.application.ai.adapter_pool import adapter_pool
+
     await adapter_pool.shutdown()
     logger.info("Arc backend shut down")
 
@@ -114,8 +119,10 @@ app = FastAPI(
 )
 
 _DEV_ORIGINS = [
-    "http://localhost:5173", "http://localhost:5174",
-    "http://localhost:5175", "http://localhost:5176",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
     "http://localhost:3001",
 ]
 
@@ -148,16 +155,16 @@ async def handle_app_error(request: Request, exc: AppError):
     )
 
 
-@app.exception_handler(InvalidStatusTransition)
-async def handle_invalid_transition(request: Request, exc: InvalidStatusTransition):
+@app.exception_handler(InvalidStatusTransitionError)
+async def handle_invalid_transition(request: Request, exc: InvalidStatusTransitionError):
     return JSONResponse(
         status_code=400,
         content={"detail": str(exc), "error_code": "INVALID_STATUS_TRANSITION"},
     )
 
 
-@app.exception_handler(InvalidPhaseTransition)
-async def handle_invalid_phase_transition(request: Request, exc: InvalidPhaseTransition):
+@app.exception_handler(InvalidPhaseTransitionError)
+async def handle_invalid_phase_transition(request: Request, exc: InvalidPhaseTransitionError):
     return JSONResponse(
         status_code=400,
         content={"detail": str(exc), "error_code": "INVALID_PHASE_TRANSITION"},

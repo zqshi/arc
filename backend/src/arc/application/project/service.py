@@ -15,9 +15,7 @@ class VersionService:
         self.version_repo = VersionRepository(db)
         self.todo_repo = TodoRepository(db)
 
-    async def activate_version(
-        self, project_id: uuid.UUID, version_id: uuid.UUID
-    ) -> Version:
+    async def activate_version(self, project_id: uuid.UUID, version_id: uuid.UUID) -> Version:
         version = await self._get_version(project_id, version_id)
 
         stats = await self.version_repo.count_todos_by_status(version_id)
@@ -73,9 +71,7 @@ class VersionService:
 
         return target
 
-    async def _get_version(
-        self, project_id: uuid.UUID, version_id: uuid.UUID
-    ) -> Version:
+    async def _get_version(self, project_id: uuid.UUID, version_id: uuid.UUID) -> Version:
         version = await self.version_repo.get_by_id(version_id)
         if not version or version.project_id != project_id:
             raise ValueError("版本不存在")

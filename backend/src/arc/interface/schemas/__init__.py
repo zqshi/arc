@@ -41,6 +41,7 @@ __all__ = [
     "ExperienceResponse",
     "UpdateExperienceRequest",
     "MessageResponse",
+    "PhaseResponse",
     "PipelineStateResponse",
     "RollbackRequest",
     "SendMessageRequest",

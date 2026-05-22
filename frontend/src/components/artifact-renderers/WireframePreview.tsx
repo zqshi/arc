@@ -14,7 +14,7 @@ function buildSrcDoc(html: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="${TAILWIND_CDN}"><\/script>
+<script src="${TAILWIND_CDN}"></script>
 <style>
   body { margin: 0; padding: 16px; background: #1E1E2E; color: #E8E6E3; font-family: system-ui, sans-serif; }
   * { box-sizing: border-box; }

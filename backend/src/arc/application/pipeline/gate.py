@@ -72,7 +72,9 @@ def can_skip(phase_type: PhaseType) -> bool:
 
 
 async def evaluate_gate(
-    phase_type: PhaseType, content: dict, conventions: str = "",
+    phase_type: PhaseType,
+    content: dict,
+    conventions: str = "",
 ) -> GateResult:
     """Full gate evaluation: structural check + LLM quality assessment."""
     structural_gaps = check_required_fields(phase_type, content)
@@ -102,9 +104,11 @@ async def evaluate_gate(
 
     adapter = create_resilient_adapter()
     try:
-        response = await adapter.chat([
-            LLMMessage(role="user", content=prompt),
-        ])
+        response = await adapter.chat(
+            [
+                LLMMessage(role="user", content=prompt),
+            ]
+        )
     finally:
         await adapter.close()
 

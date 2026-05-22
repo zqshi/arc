@@ -29,7 +29,9 @@ async def get_conversation(conversation_id: str, db: DbSession, user: CurrentUse
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)
-async def send_message(conversation_id: str, req: SendMessageRequest, db: DbSession, user: CurrentUser):
+async def send_message(
+    conversation_id: str, req: SendMessageRequest, db: DbSession, user: CurrentUser
+):
     """Send a user message and trigger AI response (non-streaming)."""
     repo = ConversationRepository(db)
     conv = await repo.get_by_id(UUID(conversation_id))
@@ -40,11 +42,13 @@ async def send_message(conversation_id: str, req: SendMessageRequest, db: DbSess
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     from arc.domain.todo.value_objects import MessageRole
+
     message = conv.add_message(role=MessageRole.USER, content=req.content)
     await repo.add_message(conv.id, message)
 
     # Trigger AI response asynchronously
     from arc.application.conversation.service import ConversationService
+
     ai_service = ConversationService(db)
     ai_message = await ai_service.generate_response(conv)
     await repo.add_message(conv.id, ai_message)

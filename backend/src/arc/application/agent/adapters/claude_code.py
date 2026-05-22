@@ -5,7 +5,6 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
 from arc.application.agent.adapter import CodingAgentAdapter
 from arc.application.agent.context_builder import TaskContext
@@ -79,7 +78,9 @@ class ClaudeCodeAdapter(CodingAgentAdapter):
 
         logger.info(
             "Claude Code session %s started (pid=%s, cwd=%s)",
-            session_id, process.pid, cwd,
+            session_id,
+            process.pid,
+            cwd,
         )
         return session_id
 
@@ -145,11 +146,13 @@ class ClaudeCodeAdapter(CodingAgentAdapter):
         if session.finished and session.stderr_lines:
             stderr_combined = "\n".join(session.stderr_lines[-20:])
             if stderr_combined.strip():
-                events.append(AgentEvent(
-                    event_id=f"stderr-{session_id}",
-                    event_type=EventType.LOG,
-                    content=f"[stderr]\n{stderr_combined}",
-                ))
+                events.append(
+                    AgentEvent(
+                        event_id=f"stderr-{session_id}",
+                        event_type=EventType.LOG,
+                        content=f"[stderr]\n{stderr_combined}",
+                    )
+                )
                 session.stderr_lines.clear()
 
         return events

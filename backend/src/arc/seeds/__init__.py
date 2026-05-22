@@ -2,6 +2,7 @@
 
 All seed logic is centralised here. Called from main.py lifespan on DEBUG startup.
 """
+
 from __future__ import annotations
 
 import logging

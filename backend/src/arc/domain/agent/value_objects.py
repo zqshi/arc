@@ -21,7 +21,12 @@ class SessionStatus(StrEnum):
 
 VALID_SESSION_TRANSITIONS: dict[SessionStatus, set[SessionStatus]] = {
     SessionStatus.PENDING: {SessionStatus.RUNNING, SessionStatus.CANCELLED},
-    SessionStatus.RUNNING: {SessionStatus.PAUSED, SessionStatus.COMPLETED, SessionStatus.ERROR, SessionStatus.CANCELLED},
+    SessionStatus.RUNNING: {
+        SessionStatus.PAUSED,
+        SessionStatus.COMPLETED,
+        SessionStatus.ERROR,
+        SessionStatus.CANCELLED,
+    },
     SessionStatus.PAUSED: {SessionStatus.RUNNING, SessionStatus.CANCELLED},
     SessionStatus.COMPLETED: set(),
     SessionStatus.ERROR: {SessionStatus.PENDING},

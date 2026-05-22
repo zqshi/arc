@@ -82,8 +82,6 @@ class Version:
     def _transition_to(self, target: VersionStatus) -> None:
         allowed = VALID_VERSION_TRANSITIONS.get(self.status, set())
         if target not in allowed:
-            raise ValueError(
-                f"Cannot transition version from {self.status!r} to {target!r}"
-            )
+            raise ValueError(f"Cannot transition version from {self.status!r} to {target!r}")
         self.status = target
         self.updated_at = datetime.now(UTC)

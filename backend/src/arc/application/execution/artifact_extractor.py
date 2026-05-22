@@ -33,7 +33,9 @@ class ArtifactExtractor:
         self.tracker_repo = DeliverableTrackerRepository(db)
 
     async def process_message(
-        self, content: str, todo_id: uuid.UUID,
+        self,
+        content: str,
+        todo_id: uuid.UUID,
     ) -> list[Artifact]:
         """扫描AI回复内容中的 [DELIVERABLE:type] 标记，提取并归档。"""
         matches = DELIVERABLE_PATTERN.findall(content)
@@ -75,7 +77,9 @@ class ArtifactExtractor:
         return extracted
 
     async def get_or_create_tracker(
-        self, todo_id: uuid.UUID, required_types: list[str],
+        self,
+        todo_id: uuid.UUID,
+        required_types: list[str],
     ) -> DeliverableTracker:
         """获取或创建DeliverableTracker。"""
         tracker = await self.tracker_repo.get_by_todo_id(todo_id)

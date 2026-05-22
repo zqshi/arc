@@ -35,9 +35,11 @@ async def get_current_user(
     token = authorization[7:]
 
     from arc.application.auth.jwt import verify_access_token
+
     payload = verify_access_token(token)
 
     from arc.infrastructure.repositories.user import UserRepository
+
     user = await UserRepository(db).get_by_id(UUID(payload["sub"]))
     if not user or not user.is_active:
         raise AuthenticationError("用户不存在或已禁用")
@@ -56,16 +58,17 @@ def require_project_role(min_role: UserRole = UserRole.VIEWER):
         user: UserEntity = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ) -> UserEntity:
-        from arc.infrastructure.models.project import ProjectModel
         from sqlalchemy import select
-        result = await db.execute(
-            select(ProjectModel.user_id).where(ProjectModel.id == project_id)
-        )
+
+        from arc.infrastructure.models.project import ProjectModel
+
+        result = await db.execute(select(ProjectModel.user_id).where(ProjectModel.id == project_id))
         owner_id = result.scalar_one_or_none()
         if owner_id and owner_id == user.id:
             return user
 
         from arc.infrastructure.repositories.project_member import ProjectMemberRepository
+
         member_repo = ProjectMemberRepository(db)
         member = await member_repo.get_member(project_id, user.id)
         if not member:

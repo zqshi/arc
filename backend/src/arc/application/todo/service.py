@@ -88,10 +88,12 @@ class TodoService:
         tags = []
         for item in raw[:4]:
             if isinstance(item, dict) and "label" in item:
-                tags.append(Tag(
-                    label=str(item["label"])[:10],
-                    color=str(item.get("color", "#4A9FD8")),
-                ))
+                tags.append(
+                    Tag(
+                        label=str(item["label"])[:10],
+                        color=str(item.get("color", "#4A9FD8")),
+                    )
+                )
         return tags
 
     async def start_analysis(self, todo_id: uuid.UUID) -> tuple[Todo, Conversation]:

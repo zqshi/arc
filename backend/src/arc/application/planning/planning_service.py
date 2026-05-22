@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.application.ai.json_extract import extract_json
 from arc.domain.conversation.entity import Conversation
 from arc.domain.experience.entity import Experience
-from arc.domain.planning.entity import Document, PlanningSession
+from arc.domain.planning.entity import PlanningSession
 from arc.domain.planning.value_objects import PlanningStatus
 from arc.domain.project.entity import Version
 from arc.domain.todo.entity import Todo
@@ -33,7 +33,8 @@ from arc.infrastructure.repositories.todo import TodoRepository
 logger = logging.getLogger(__name__)
 
 
-PLANNING_SYSTEM_PROMPT = """你是一位资深产品经理 + 技术项目经理，负责将功能需求拆分为合理的版本路线图。
+PLANNING_SYSTEM_PROMPT = """\
+你是一位资深产品经理 + 技术项目经理，负责将功能需求拆分为合理的版本路线图。
 
 ## 你的规划方法论
 1. **理解全貌**：先理清所有功能点及其依赖关系
@@ -184,9 +185,12 @@ class PlanningService:
         if session.conversation_id:
             conv = await self.conv_repo.get_by_id(session.conversation_id)
             if conv:
+                roadmap_json = json.dumps(
+                    roadmap, ensure_ascii=False, indent=2
+                )
                 conv.add_message(
                     role=MessageRole.ASSISTANT,
-                    content=f"已生成版本路线图：\n```json\n{json.dumps(roadmap, ensure_ascii=False, indent=2)}\n```",
+                    content=f"已生成版本路线图：\n```json\n{roadmap_json}\n```",
                 )
                 await self.conv_repo.add_message(conv.id, conv.messages[-1])
 
@@ -208,7 +212,9 @@ class PlanningService:
         return await self._apply_create_versions(session, versions_data)
 
     async def _apply_to_version(
-        self, session: PlanningSession, versions_data: list[dict],
+        self,
+        session: PlanningSession,
+        versions_data: list[dict],
     ) -> list[Version]:
         """版本级规划：在指定Version下创建Todos。"""
         version = await self.version_repo.get_by_id(session.version_id)
@@ -237,7 +243,9 @@ class PlanningService:
         return [version]
 
     async def _apply_create_versions(
-        self, session: PlanningSession, versions_data: list[dict],
+        self,
+        session: PlanningSession,
+        versions_data: list[dict],
     ) -> list[Version]:
         """全局规划：创建多个Version + Todos。"""
         if not versions_data:
@@ -275,7 +283,9 @@ class PlanningService:
         return created_versions
 
     async def analyze_iteration(
-        self, project_id: uuid.UUID, version_id: uuid.UUID,
+        self,
+        project_id: uuid.UUID,
+        version_id: uuid.UUID,
     ) -> str:
         """分析当前迭代状态并给出建议。"""
         version = await self.version_repo.get_by_id(version_id)
@@ -342,26 +352,28 @@ class PlanningService:
         return {
             "is_first_apply": False,
             "added": [
-                {"title": f.get("title", ""), "complexity": f.get("complexity")}
-                for f in added
+                {"title": f.get("title", ""), "complexity": f.get("complexity")} for f in added
             ],
             "removed_active": [
                 {"id": str(t.id), "title": t.title}
-                for t in removed if t.status == TodoStatus.ACTIVE
+                for t in removed
+                if t.status == TodoStatus.ACTIVE
             ],
             "removed_pending": [
                 {"id": str(t.id), "title": t.title}
-                for t in removed if t.status == TodoStatus.PENDING
+                for t in removed
+                if t.status == TodoStatus.PENDING
             ],
             "removed_done": [
-                {"id": str(t.id), "title": t.title}
-                for t in removed if t.status == TodoStatus.DONE
+                {"id": str(t.id), "title": t.title} for t in removed if t.status == TodoStatus.DONE
             ],
             "unchanged_count": len(existing_map) - len(removed),
         }
 
     async def apply_with_diff(
-        self, session_id: uuid.UUID, abandon_todo_ids: list[uuid.UUID],
+        self,
+        session_id: uuid.UUID,
+        abandon_todo_ids: list[uuid.UUID],
     ) -> dict:
         """带 diff 的 re-apply：废弃指定 Todos，只创建新增的。"""
         session = await self.session_repo.get_by_id(session_id)
@@ -413,7 +425,9 @@ class PlanningService:
         }
 
     async def _record_scope_change_experience(
-        self, session: PlanningSession, abandon_todo_ids: list[uuid.UUID],
+        self,
+        session: PlanningSession,
+        abandon_todo_ids: list[uuid.UUID],
     ) -> None:
         """记录范围变更经验。"""
         from arc.infrastructure.repositories.experience import ExperienceRepository
@@ -426,10 +440,7 @@ class PlanningService:
         titles = [t.title for t in abandoned_todos]
 
         roadmap = session.roadmap or {}
-        original_count = sum(
-            len(v.get("features", []))
-            for v in roadmap.get("versions", [])
-        )
+        original_count = sum(len(v.get("features", [])) for v in roadmap.get("versions", []))
 
         truncated = ", ".join(titles[:5])
         if len(titles) > 5:
@@ -454,7 +465,9 @@ class PlanningService:
             logger.warning("Failed to record scope change experience: %s", exc)
 
     async def extract_release_experience(
-        self, project_id: uuid.UUID, version_id: uuid.UUID,
+        self,
+        project_id: uuid.UUID,
+        version_id: uuid.UUID,
     ) -> None:
         """版本发布时提取估算校准经验。"""
         from arc.infrastructure.repositories.experience import ExperienceRepository
@@ -475,10 +488,7 @@ class PlanningService:
         planned_count = 0
         if sessions:
             roadmap = sessions[0].roadmap or {}
-            planned_count = sum(
-                len(v.get("features", []))
-                for v in roadmap.get("versions", [])
-            )
+            planned_count = sum(len(v.get("features", [])) for v in roadmap.get("versions", []))
 
         completion_rate = done_count / total if total > 0 else 0
 
@@ -511,15 +521,18 @@ class PlanningService:
 
         if not all_features:
             existing_todos, _ = await self.todo_repo.list_all(
-                project_id=session.project_id, limit=500,
+                project_id=session.project_id,
+                limit=500,
             )
             for t in existing_todos:
-                all_features.append({
-                    "title": t.title,
-                    "description": t.description,
-                    "complexity": "M",
-                    "priority_hint": "medium",
-                })
+                all_features.append(
+                    {
+                        "title": t.title,
+                        "description": t.description,
+                        "complexity": "M",
+                        "priority_hint": "medium",
+                    }
+                )
 
         return all_features
 
@@ -547,7 +560,12 @@ class PlanningService:
             return "暂无需求"
         lines = []
         for t in todos:
-            status_label = {"pending": "待启动", "active": "进行中", "done": "已完成", "error": "异常"}.get(t.status.value, t.status.value)
+            status_label = {
+                "pending": "待启动",
+                "active": "进行中",
+                "done": "已完成",
+                "error": "异常",
+            }.get(t.status.value, t.status.value)
             phase_label = f" [{t.current_phase.value}]" if t.current_phase else ""
             lines.append(f"- [{status_label}]{phase_label} {t.title}")
         return "\n".join(lines)

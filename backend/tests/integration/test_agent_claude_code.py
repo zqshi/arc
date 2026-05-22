@@ -3,7 +3,6 @@ using a mock subprocess to simulate the claude CLI."""
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 
 import pytest

@@ -128,9 +128,9 @@ async def get_agent_events(todo_id: str, phase_type: str, db: DbSession, user: C
             "metadata": msg.metadata or {},
         }
         for msg in conv.messages
-        if msg.role.value == "system" and msg.metadata and (
-            "agent_event_id" in msg.metadata or "agent_type" in msg.metadata
-        )
+        if msg.role.value == "system"
+        and msg.metadata
+        and ("agent_event_id" in msg.metadata or "agent_type" in msg.metadata)
     ]
 
 
@@ -142,10 +142,7 @@ async def list_agent_types(user: CurrentUser):
 
     available = agent_registry.available_agents()
     return AvailableAgentsResponse(
-        agents=[
-            AgentTypeInfo(value=a.value, label=AGENT_LABELS[a])
-            for a in available
-        ],
+        agents=[AgentTypeInfo(value=a.value, label=AGENT_LABELS[a]) for a in available],
         default=settings.agent_default,
     )
 

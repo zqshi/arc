@@ -54,7 +54,7 @@ export function PipelineModeView({ todo, setTodo, isNarrow, isCompact }: {
   const [editingArtifact, setEditingArtifact] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [relatedExps, setRelatedExps] = useState<Experience[]>([]);
+  const [, setRelatedExps] = useState<Experience[]>([]);
   const [selectedExp, setSelectedExp] = useState<Experience | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(isNarrow);
@@ -77,7 +77,7 @@ export function PipelineModeView({ todo, setTodo, isNarrow, isCompact }: {
   } = useConversationSocket(currentPhaseData?.conversation_id || null);
 
   const wsSocketRef = useRef({ setMessages: setWsMessages });
-  wsSocketRef.current.setMessages = setWsMessages;
+  useEffect(() => { wsSocketRef.current.setMessages = setWsMessages; });
 
   const fetchPipeline = useCallback(async () => {
     if (!id) return;
@@ -97,26 +97,12 @@ export function PipelineModeView({ todo, setTodo, isNarrow, isCompact }: {
 
   const fetchTodo = useCallback(async () => {
     if (!id) return;
-    try { const data = await api.getTodo(id); setTodo(data); } catch {}
+    try { const data = await api.getTodo(id); setTodo(data); } catch { /* ignore */ }
   }, [id, setTodo]);
 
   useEffect(() => { fetchPipeline(); }, [fetchPipeline]);
 
-  const autoInitRef = useRef(false);
-  useEffect(() => {
-    if (autoInitRef.current || pipelineLoading || !id || !todo) return;
-    if (pipeline && pipeline.phases.length === 0) {
-      autoInitRef.current = true;
-      handleStartPipeline();
-    }
-  }, [pipelineLoading, pipeline, todo]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!todo) return;
-    api.searchExperiences(todo.title, todo.project_id || undefined).then(setRelatedExps).catch(() => setRelatedExps([]));
-  }, [todo?.title]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleStartPipeline = async () => {
+  const handleStartPipeline = useCallback(async () => {
     if (!id) return;
     setActionLoading(true);
     try {
@@ -130,7 +116,21 @@ export function PipelineModeView({ todo, setTodo, isNarrow, isCompact }: {
     } finally {
       setActionLoading(false);
     }
-  };
+  }, [id, fetchPipeline, fetchTodo, toast]);
+
+  const autoInitRef = useRef(false);
+  useEffect(() => {
+    if (autoInitRef.current || pipelineLoading || !id || !todo) return;
+    if (pipeline && pipeline.phases.length === 0) {
+      autoInitRef.current = true;
+      handleStartPipeline();
+    }
+  }, [pipelineLoading, pipeline, todo, id, handleStartPipeline]);
+
+  useEffect(() => {
+    if (!todo) return;
+    api.searchExperiences(todo.title, todo.project_id || undefined).then(setRelatedExps).catch(() => setRelatedExps([]));
+  }, [todo?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartPhase = async () => {
     if (!id) return;

@@ -23,7 +23,7 @@ from arc.application.execution.prompts import (
     build_deliverable_checklist,
 )
 from arc.domain.artifact.value_objects import ARTIFACT_LABELS, ArtifactType
-from arc.domain.conversation.entity import Conversation, Message
+from arc.domain.conversation.entity import Conversation
 from arc.domain.planning.entity import DeliverableTracker
 from arc.domain.todo.value_objects import ConversationPurpose, MessageRole, TodoStatus
 from arc.infrastructure.repositories.artifact import ArtifactRepository
@@ -46,7 +46,9 @@ class ConversationExecutionService:
         self.extractor = ArtifactExtractor(db)
 
     async def initialize(
-        self, todo_id: uuid.UUID, required_deliverables: list[str] | None = None,
+        self,
+        todo_id: uuid.UUID,
+        required_deliverables: list[str] | None = None,
     ) -> tuple[Conversation, DeliverableTracker]:
         """初始化对话模式：创建统一对话 + 交付物追踪器。"""
         todo = await self.todo_repo.get_by_id(todo_id)
@@ -54,7 +56,8 @@ class ConversationExecutionService:
             raise ValueError(f"Todo {todo_id} not found")
 
         existing_conv = await self.conv_repo.get_by_todo_and_purpose(
-            todo_id, ConversationPurpose.UNIFIED,
+            todo_id,
+            ConversationPurpose.UNIFIED,
         )
         if existing_conv:
             if todo.status == TodoStatus.PENDING:
@@ -95,11 +98,11 @@ class ConversationExecutionService:
         return conv, tracker
 
     async def generate_response_stream(
-        self, conversation: Conversation,
+        self,
+        conversation: Conversation,
     ) -> AsyncIterator[dict]:
         """生成AI流式回复，完成后自动提取产出物。"""
         from arc.application.ai.adapter_pool import adapter_pool
-        from arc.application.ai.llm_adapter import LLMMessage
 
         llm_messages = await self._build_llm_messages(conversation)
 
@@ -119,10 +122,13 @@ class ConversationExecutionService:
         await self.conv_repo.add_message(conversation.id, ai_message)
 
         extracted = await self.extractor.process_message(
-            full_content, conversation.todo_id,
+            full_content,
+            conversation.todo_id,
         )
         if extracted:
-            artifact_names = [ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value) for a in extracted]
+            artifact_names = [
+                ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value) for a in extracted
+            ]
             yield {
                 "message_id": message_id,
                 "event": "artifacts_extracted",
@@ -161,7 +167,8 @@ class ConversationExecutionService:
         tracker = await self.tracker_repo.get_by_todo_id(conversation.todo_id)
         required = tracker.required if tracker else []
         completed = [
-            k for k, v in (tracker.deliverables if tracker else {}).items()
+            k
+            for k, v in (tracker.deliverables if tracker else {}).items()
             if v.value in ("produced", "confirmed")
         ]
 
@@ -179,8 +186,10 @@ class ConversationExecutionService:
 
 可用的artifact_type及其schema：
 """ + "\n".join(
-            f"- **{ARTIFACT_LABELS.get(ArtifactType(t), t)}** (`{t}`):\n```\n{ARTIFACT_SCHEMAS.get(t, '{}')}\n```"
-            for t in required if t not in completed
+            f"- **{ARTIFACT_LABELS.get(ArtifactType(t), t)}** (`{t}`):"
+            f"\n```\n{ARTIFACT_SCHEMAS.get(t, '{}')}\n```"
+            for t in required
+            if t not in completed
         )
 
         project_context = ""
@@ -189,6 +198,7 @@ class ConversationExecutionService:
 
         if todo and todo.project_id:
             from arc.application.context.provider import ProjectContextProvider
+
             ctx_provider = ProjectContextProvider(self.db)
             project_ctx = await ctx_provider.get_context(conversation.todo_id)
             project_context = project_ctx.to_prompt_section()
@@ -208,6 +218,7 @@ class ConversationExecutionService:
 
         if todo:
             from arc.application.conversation.service import ConversationService
+
             conv_svc = ConversationService(self.db)
             try:
                 exp_text, _ = await conv_svc._build_experience_context(todo, None)
@@ -226,10 +237,13 @@ class ConversationExecutionService:
         )
 
     async def _create_tracker(
-        self, todo_id: uuid.UUID, required_types: list[str] | None,
+        self,
+        todo_id: uuid.UUID,
+        required_types: list[str] | None,
     ) -> DeliverableTracker:
         if not required_types:
             from arc.domain.project.value_objects import DEFAULT_CONVERSATION_CONFIG
+
             required_types = DEFAULT_CONVERSATION_CONFIG["required_deliverables"]
 
         return await self.extractor.get_or_create_tracker(todo_id, required_types)

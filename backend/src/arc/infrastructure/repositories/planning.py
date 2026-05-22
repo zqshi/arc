@@ -39,9 +39,7 @@ class DocumentRepository:
         return doc
 
     async def get_by_id(self, doc_id: uuid.UUID) -> Document | None:
-        result = await self.db.execute(
-            select(DocumentModel).where(DocumentModel.id == doc_id)
-        )
+        result = await self.db.execute(select(DocumentModel).where(DocumentModel.id == doc_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
@@ -54,9 +52,7 @@ class DocumentRepository:
         return [self._to_entity(m) for m in result.scalars().all()]
 
     async def update(self, doc: Document) -> None:
-        result = await self.db.execute(
-            select(DocumentModel).where(DocumentModel.id == doc.id)
-        )
+        result = await self.db.execute(select(DocumentModel).where(DocumentModel.id == doc.id))
         model = result.scalar_one_or_none()
         if not model:
             return
@@ -66,9 +62,7 @@ class DocumentRepository:
         await self.db.flush()
 
     async def delete(self, doc_id: uuid.UUID) -> bool:
-        result = await self.db.execute(
-            select(DocumentModel).where(DocumentModel.id == doc_id)
-        )
+        result = await self.db.execute(select(DocumentModel).where(DocumentModel.id == doc_id))
         model = result.scalar_one_or_none()
         if not model:
             return False
@@ -185,18 +179,14 @@ class DeliverableTrackerRepository:
 
     async def get_by_todo_id(self, todo_id: uuid.UUID) -> DeliverableTracker | None:
         result = await self.db.execute(
-            select(DeliverableTrackerModel).where(
-                DeliverableTrackerModel.todo_id == todo_id
-            )
+            select(DeliverableTrackerModel).where(DeliverableTrackerModel.todo_id == todo_id)
         )
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def update(self, tracker: DeliverableTracker) -> None:
         result = await self.db.execute(
-            select(DeliverableTrackerModel).where(
-                DeliverableTrackerModel.id == tracker.id
-            )
+            select(DeliverableTrackerModel).where(DeliverableTrackerModel.id == tracker.id)
         )
         model = result.scalar_one_or_none()
         if not model:
@@ -217,9 +207,7 @@ class DeliverableTrackerRepository:
     def _to_entity(model: DeliverableTrackerModel) -> DeliverableTracker:
         deliverables = {}
         if model.deliverables:
-            deliverables = {
-                k: DeliverableStatus(v) for k, v in model.deliverables.items()
-            }
+            deliverables = {k: DeliverableStatus(v) for k, v in model.deliverables.items()}
         return DeliverableTracker(
             id=model.id,
             todo_id=model.todo_id,

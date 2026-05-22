@@ -39,9 +39,7 @@ class AuthService:
         )
         return await self.user_repo.create(user)
 
-    async def register_with_phone(
-        self, phone: str, display_name: str | None = None
-    ) -> User:
+    async def register_with_phone(self, phone: str, display_name: str | None = None) -> User:
         existing = await self.user_repo.get_by_phone(phone)
         if existing:
             raise ConflictError("该手机号已注册")
@@ -52,9 +50,7 @@ class AuthService:
         )
         return await self.user_repo.create(user)
 
-    async def login_with_password(
-        self, username: str, password: str
-    ) -> dict:
+    async def login_with_password(self, username: str, password: str) -> dict:
         user = await self.user_repo.get_by_username(username)
         if not user:
             raise AuthenticationError("用户名或密码错误")
@@ -68,7 +64,7 @@ class AuthService:
         return self._generate_tokens(user)
 
     async def send_sms_code(self, phone: str) -> None:
-        code = await self.sms.send_code(phone)
+        await self.sms.send_code(phone)
         logger.info("SMS code sent to ***%s", phone[-4:])
 
     async def login_with_sms(self, phone: str, code: str) -> dict:

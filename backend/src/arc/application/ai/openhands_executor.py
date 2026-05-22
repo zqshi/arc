@@ -99,9 +99,7 @@ class OpenHandsExecutor:
                         continue
 
                     try:
-                        events = await client.get_events(
-                            session.session_id, since_id=last_event_id
-                        )
+                        events = await client.get_events(session.session_id, since_id=last_event_id)
                     except OpenHandsError as exc:
                         logger.warning("Poll events failed: %s", exc)
                         events = []
@@ -129,13 +127,15 @@ class OpenHandsExecutor:
                             else "OpenHands执行出错"
                         )
                         done_msg = dev_conv.add_message(
-                            role=MessageRole.SYSTEM, content=final_msg,
+                            role=MessageRole.SYSTEM,
+                            content=final_msg,
                         )
                         await conv_repo.add_message(dev_conv.id, done_msg)
                         await db.commit()
                         logger.info(
                             "OpenHands session %s finished with status %s",
-                            session.session_id, status,
+                            session.session_id,
+                            status,
                         )
                         return
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +9,8 @@ from arc.domain.pipeline.value_objects import PhaseType
 from arc.domain.project.value_objects import ExecutionMode
 from arc.domain.todo.entity import Todo as TodoEntity
 from arc.domain.todo.value_objects import Tag, TodoStatus
-from arc.infrastructure.models.todo import Todo as TodoModel, TodoDependency
+from arc.infrastructure.models.todo import Todo as TodoModel
+from arc.infrastructure.models.todo import TodoDependency
 
 
 class TodoDependencyRepository:
@@ -71,7 +71,10 @@ class TodoRepository:
         self.db = db
 
     async def get_by_id(
-        self, todo_id: uuid.UUID, *, user_id: uuid.UUID | None = None,
+        self,
+        todo_id: uuid.UUID,
+        *,
+        user_id: uuid.UUID | None = None,
     ) -> TodoEntity | None:
         stmt = select(TodoModel).where(TodoModel.id == todo_id)
         if user_id:
@@ -104,8 +107,11 @@ class TodoRepository:
         return [self._to_entity(r) for r in result.scalars().all()], total
 
     async def list_by_status(
-        self, status: TodoStatus, user_id: uuid.UUID | None = None,
-        offset: int = 0, limit: int = 50,
+        self,
+        status: TodoStatus,
+        user_id: uuid.UUID | None = None,
+        offset: int = 0,
+        limit: int = 50,
     ) -> tuple[list[TodoEntity], int]:
         base = select(TodoModel).where(TodoModel.status == status.value)
         if user_id:
@@ -161,6 +167,7 @@ class TodoRepository:
 
     async def mark_seen(self, todo_id: uuid.UUID) -> None:
         from sqlalchemy import update
+
         await self.db.execute(
             update(TodoModel)
             .where(TodoModel.id == todo_id)
@@ -189,7 +196,10 @@ class TodoRepository:
         return [self._to_entity(r) for r in result.scalars().all()]
 
     async def list_by_version(
-        self, version_id: uuid.UUID, *, exclude_id: uuid.UUID | None = None,
+        self,
+        version_id: uuid.UUID,
+        *,
+        exclude_id: uuid.UUID | None = None,
     ) -> list[TodoEntity]:
         stmt = select(TodoModel).where(TodoModel.version_id == version_id)
         if exclude_id:
@@ -212,7 +222,9 @@ class TodoRepository:
             status=TodoStatus(model.status),
             priority=model.priority if model.priority is not None else 2,
             current_phase=PhaseType(model.current_phase) if model.current_phase else None,
-            execution_mode=ExecutionMode(model.execution_mode) if model.execution_mode else ExecutionMode.PIPELINE,
+            execution_mode=ExecutionMode(model.execution_mode)
+            if model.execution_mode
+            else ExecutionMode.PIPELINE,
             tags=tags,
             source_session_id=model.source_session_id,
             source_feature_key=model.source_feature_key or "",

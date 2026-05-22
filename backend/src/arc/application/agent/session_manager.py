@@ -7,7 +7,6 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.agent.context_builder import TaskContextBuilder
-from arc.application.agent.events import AgentEvent
 from arc.application.agent.registry import agent_registry
 from arc.domain.agent.entity import AgentSession
 from arc.domain.agent.value_objects import AgentType, SessionStatus
@@ -43,7 +42,9 @@ class AgentSessionManager:
 
         if agent_type is None:
             phase_agent = getattr(settings, f"agent_{phase_type.value}", "")
-            agent_type = AgentType(phase_agent) if phase_agent else AgentType(settings.agent_default)
+            agent_type = (
+                AgentType(phase_agent) if phase_agent else AgentType(settings.agent_default)
+            )
 
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase:
@@ -129,7 +130,9 @@ class AgentSessionManager:
                 await db.commit()
 
                 await self._write_to_conversation(
-                    conv_repo, phase_repo, session,
+                    conv_repo,
+                    phase_repo,
+                    session,
                     f"已启动 {session.agent_type.value} 执行 (session: {external_id})",
                 )
                 await db.commit()
@@ -160,7 +163,9 @@ class AgentSessionManager:
                     for event in events:
                         last_event_id = event.event_id
                         await self._write_to_conversation(
-                            conv_repo, phase_repo, session,
+                            conv_repo,
+                            phase_repo,
+                            session,
                             f"[{event.event_type.value}] {event.content}",
                             metadata={"agent_event_id": event.event_id},
                         )
@@ -172,13 +177,17 @@ class AgentSessionManager:
                         if status == SessionStatus.COMPLETED:
                             session.complete()
                             await self._write_to_conversation(
-                                conv_repo, phase_repo, session,
+                                conv_repo,
+                                phase_repo,
+                                session,
                                 f"{session.agent_type.value} 执行完成",
                             )
                         else:
                             session.mark_error("Agent reported error status")
                             await self._write_to_conversation(
-                                conv_repo, phase_repo, session,
+                                conv_repo,
+                                phase_repo,
+                                session,
                                 f"{session.agent_type.value} 执行出错",
                             )
                         await repo.update(session)
@@ -188,7 +197,9 @@ class AgentSessionManager:
                 session.mark_error("执行超时（30分钟）")
                 await repo.update(session)
                 await self._write_to_conversation(
-                    conv_repo, phase_repo, session,
+                    conv_repo,
+                    phase_repo,
+                    session,
                     f"{session.agent_type.value} 执行超时，已停止",
                 )
                 await db.commit()
@@ -205,7 +216,9 @@ class AgentSessionManager:
                     session.mark_error(str(exc))
                     await repo.update(session)
                     await self._write_to_conversation(
-                        conv_repo, phase_repo, session,
+                        conv_repo,
+                        phase_repo,
+                        session,
                         f"Agent执行异常: {exc}",
                     )
                     await db.commit()

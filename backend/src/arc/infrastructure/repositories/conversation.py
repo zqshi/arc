@@ -42,7 +42,9 @@ class ConversationRepository(IConversationRepository):
         return entities
 
     async def get_by_todo_and_purpose(
-        self, todo_id: uuid.UUID, purpose: ConversationPurpose,
+        self,
+        todo_id: uuid.UUID,
+        purpose: ConversationPurpose,
     ) -> ConvEntity | None:
         result = await self.db.execute(
             select(ConvModel).where(

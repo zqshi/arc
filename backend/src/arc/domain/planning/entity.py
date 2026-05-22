@@ -53,9 +53,7 @@ class PlanningSession:
     def _transition_to(self, target: PlanningStatus) -> None:
         allowed = VALID_PLANNING_TRANSITIONS.get(self.status, set())
         if target not in allowed:
-            raise ValueError(
-                f"Cannot transition planning from {self.status!r} to {target!r}"
-            )
+            raise ValueError(f"Cannot transition planning from {self.status!r} to {target!r}")
         self.status = target
         self.updated_at = datetime.now(UTC)
 
@@ -109,14 +107,19 @@ class DeliverableTracker:
         if not self.deliverables:
             return 0.0
         done = sum(
-            1 for s in self.deliverables.values()
+            1
+            for s in self.deliverables.values()
             if s in (DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED)
         )
         return round(done / len(self.deliverables), 2)
 
     @property
     def is_complete(self) -> bool:
-        return all(
-            s in (DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED)
-            for s in self.deliverables.values()
-        ) if self.deliverables else False
+        return (
+            all(
+                s in (DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED)
+                for s in self.deliverables.values()
+            )
+            if self.deliverables
+            else False
+        )

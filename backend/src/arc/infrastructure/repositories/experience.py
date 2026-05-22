@@ -27,7 +27,9 @@ class ExperienceRepository(IExperienceRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_by_id(self, exp_id: uuid.UUID, *, user_id: uuid.UUID | None = None) -> ExpEntity | None:
+    async def get_by_id(
+        self, exp_id: uuid.UUID, *, user_id: uuid.UUID | None = None
+    ) -> ExpEntity | None:
         stmt = select(ExpModel).where(ExpModel.id == exp_id)
         if user_id:
             stmt = stmt.where(ExpModel.user_id == user_id)
@@ -69,7 +71,9 @@ class ExperienceRepository(IExperienceRepository):
         return [self._to_entity(r) for r in result.scalars().all()], total
 
     async def search_by_embedding(
-        self, embedding: list[float], limit: int = 10,
+        self,
+        embedding: list[float],
+        limit: int = 10,
         project_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
     ) -> list[ExpEntity]:
@@ -106,7 +110,10 @@ class ExperienceRepository(IExperienceRepository):
         return [self._to_entity(r) for r in result.scalars().all()]
 
     async def list_by_scope(
-        self, scope: ExperienceScope, limit: int = 50, project_id: uuid.UUID | None = None,
+        self,
+        scope: ExperienceScope,
+        limit: int = 50,
+        project_id: uuid.UUID | None = None,
     ) -> list[ExpEntity]:
         stmt = (
             select(ExpModel)
@@ -120,7 +127,10 @@ class ExperienceRepository(IExperienceRepository):
         return [self._to_entity(r) for r in result.scalars().all()]
 
     async def list_high_confidence(
-        self, project_id: uuid.UUID, min_confidence: float = 0.8, min_reuse: int = 3,
+        self,
+        project_id: uuid.UUID,
+        min_confidence: float = 0.8,
+        min_reuse: int = 3,
     ) -> list[ExpEntity]:
         stmt = (
             select(ExpModel)
@@ -143,7 +153,10 @@ class ExperienceRepository(IExperienceRepository):
         return result.scalar_one_or_none() is not None
 
     async def add_feedback(
-        self, experience_id: uuid.UUID, todo_id: uuid.UUID, helpful: bool,
+        self,
+        experience_id: uuid.UUID,
+        todo_id: uuid.UUID,
+        helpful: bool,
     ) -> None:
         fb = FeedbackModel(
             experience_id=experience_id,
@@ -256,7 +269,7 @@ class ExperienceRepository(IExperienceRepository):
             pitfalls=model.pitfalls or [],
             applicable_scenarios=model.applicable_scenarios,
             tags=tags,
-            embedding=list(model.embedding) if model.embedding else None,
+            embedding=list(model.embedding) if model.embedding is not None else None,
             confidence=model.confidence,
             reuse_count=model.reuse_count,
             half_life_days=getattr(model, "half_life_days", 180),
@@ -277,34 +290,26 @@ class ExperienceRepository(IExperienceRepository):
 
     async def batch_update_confidence(self, updates: list[tuple[uuid.UUID, float]]) -> int:
         from sqlalchemy import update
+
         count = 0
         for exp_id, new_conf in updates:
             result = await self.db.execute(
-                update(ExpModel)
-                .where(ExpModel.id == exp_id)
-                .values(confidence=new_conf)
+                update(ExpModel).where(ExpModel.id == exp_id).values(confidence=new_conf)
             )
             count += result.rowcount
         await self.db.flush()
         return count
 
     async def get_reuse_analytics(self, project_id: uuid.UUID | None = None) -> dict:
-        from sqlalchemy import case
-
         base = select(ExpModel).where(ExpModel.status.in_(["draft", "confirmed"]))
         if project_id:
-            base = base.where(
-                (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
-            )
+            base = base.where((ExpModel.project_id == project_id) | (ExpModel.scope == "personal"))
 
-        cat_stmt = (
-            select(
-                ExpModel.category,
-                func.count().label("count"),
-                func.sum(ExpModel.reuse_count).label("total_reuse"),
-            )
-            .where(ExpModel.status.in_(["draft", "confirmed"]))
-        )
+        cat_stmt = select(
+            ExpModel.category,
+            func.count().label("count"),
+            func.sum(ExpModel.reuse_count).label("total_reuse"),
+        ).where(ExpModel.status.in_(["draft", "confirmed"]))
         if project_id:
             cat_stmt = cat_stmt.where(
                 (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")

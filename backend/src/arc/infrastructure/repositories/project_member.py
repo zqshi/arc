@@ -4,10 +4,9 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import delete, select, and_
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from arc.domain.user.value_objects import UserRole
 from arc.infrastructure.models.user import ProjectMemberModel, UserModel
 
 
@@ -39,9 +38,7 @@ class ProjectMemberRepository:
         await self.db.flush()
         return model
 
-    async def remove_member(
-        self, project_id: uuid.UUID, user_id: uuid.UUID
-    ) -> bool:
+    async def remove_member(self, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         result = await self.db.execute(
             delete(ProjectMemberModel).where(
                 and_(
@@ -52,9 +49,7 @@ class ProjectMemberRepository:
         )
         return result.rowcount > 0
 
-    async def update_role(
-        self, project_id: uuid.UUID, user_id: uuid.UUID, role: str
-    ) -> bool:
+    async def update_role(self, project_id: uuid.UUID, user_id: uuid.UUID, role: str) -> bool:
         result = await self.db.execute(
             select(ProjectMemberModel).where(
                 and_(
@@ -109,19 +104,19 @@ class ProjectMemberRepository:
 
     async def list_project_ids_for_user(self, user_id: uuid.UUID) -> list[uuid.UUID]:
         result = await self.db.execute(
-            select(ProjectMemberModel.project_id).where(
-                ProjectMemberModel.user_id == user_id
-            )
+            select(ProjectMemberModel.project_id).where(ProjectMemberModel.user_id == user_id)
         )
         return list(result.scalars().all())
 
     async def is_member(self, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         result = await self.db.execute(
-            select(ProjectMemberModel.id).where(
+            select(ProjectMemberModel.id)
+            .where(
                 and_(
                     ProjectMemberModel.project_id == project_id,
                     ProjectMemberModel.user_id == user_id,
                 )
-            ).limit(1)
+            )
+            .limit(1)
         )
         return result.scalar_one_or_none() is not None

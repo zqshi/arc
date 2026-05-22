@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-
 from dataclasses import dataclass, field
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.artifact.value_objects import ArtifactType
@@ -43,7 +43,10 @@ class TaskContext:
             for key, val in self.requirement_spec.items():
                 if key.startswith("_"):
                     continue
-                parts.append(f"### {key}\n{val if isinstance(val, str) else json.dumps(val, ensure_ascii=False)}\n")
+                val_str = val if isinstance(val, str) else json.dumps(
+                    val, ensure_ascii=False
+                )
+                parts.append(f"### {key}\n{val_str}\n")
 
         if self.ui_design:
             parts.append("## UI设计")
@@ -60,7 +63,10 @@ class TaskContext:
             for key, val in self.tech_architecture.items():
                 if key.startswith("_"):
                     continue
-                parts.append(f"### {key}\n{val if isinstance(val, str) else json.dumps(val, ensure_ascii=False)}\n")
+                val_str = val if isinstance(val, str) else json.dumps(
+                    val, ensure_ascii=False
+                )
+                parts.append(f"### {key}\n{val_str}\n")
 
         if self.dev_report:
             parts.append("## 开发报告")
@@ -142,9 +148,11 @@ class TaskContextBuilder:
     async def _fetch_related_experiences(self, todo) -> list[dict]:
         try:
             from arc.application.experience.service import ExperienceService
+
             exp_svc = ExperienceService(self.db)
             exps = await exp_svc.search_similar(
-                f"{todo.title} {todo.description or ''}", limit=3,
+                f"{todo.title} {todo.description or ''}",
+                limit=3,
                 project_id=todo.project_id,
             )
             return [

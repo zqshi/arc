@@ -9,25 +9,55 @@ from pathlib import Path
 from typing import AsyncIterator
 
 IGNORE_DIRS = {
-    "node_modules", ".git", "__pycache__", ".venv", "venv", "env",
-    "dist", "build", ".next", ".nuxt", "target", ".idea", ".vscode",
-    ".mypy_cache", ".pytest_cache", ".tox", "coverage", ".cache",
-    "vendor", "Pods", ".gradle", "out",
+    "node_modules",
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    "target",
+    ".idea",
+    ".vscode",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    "coverage",
+    ".cache",
+    "vendor",
+    "Pods",
+    ".gradle",
+    "out",
 }
 
 KEY_FILES = [
-    "README.md", "README.rst", "README",
-    "package.json", "pyproject.toml", "requirements.txt",
-    "go.mod", "Cargo.toml", "pom.xml", "build.gradle",
-    "Makefile", "CMakeLists.txt",
-    "docker-compose.yml", "docker-compose.yaml", "Dockerfile",
-    ".env.example", "tsconfig.json",
+    "README.md",
+    "README.rst",
+    "README",
+    "package.json",
+    "pyproject.toml",
+    "requirements.txt",
+    "go.mod",
+    "Cargo.toml",
+    "pom.xml",
+    "build.gradle",
+    "Makefile",
+    "CMakeLists.txt",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "Dockerfile",
+    ".env.example",
+    "tsconfig.json",
 ]
 
 MAX_FILE_CHARS = 6000
 MAX_TREE_LINES = 200
 
-SCAN_PROMPT = """你是一个代码库分析专家。请根据以下项目结构和关键文件内容，生成一份全面的项目概况分析。
+SCAN_PROMPT = """\
+你是一个代码库分析专家。请根据以下项目结构和关键文件内容，生成一份全面的项目概况分析。
 
 ## 要求输出（Markdown 格式）
 1. **项目概述** — 一句话描述项目做什么
@@ -82,7 +112,9 @@ class CodebaseScanner:
             lines.append("... (已截断)")
         return "\n".join(lines)
 
-    def _walk(self, directory: Path, prefix: str, lines: list[str], depth: int, max_depth: int) -> None:
+    def _walk(
+        self, directory: Path, prefix: str, lines: list[str], depth: int, max_depth: int
+    ) -> None:
         if depth > max_depth:
             return
         try:
@@ -90,7 +122,11 @@ class CodebaseScanner:
         except PermissionError:
             return
 
-        dirs = [e for e in entries if e.is_dir() and e.name not in IGNORE_DIRS and not e.name.startswith(".")]
+        dirs = [
+            e
+            for e in entries
+            if e.is_dir() and e.name not in IGNORE_DIRS and not e.name.startswith(".")
+        ]
         files = [e for e in entries if e.is_file() and not e.name.startswith(".")]
 
         items = dirs + files
@@ -129,7 +165,9 @@ async def compute_scan_fingerprint(path: str) -> str:
     if git_dir.exists():
         try:
             proc = await asyncio.create_subprocess_exec(
-                "git", "rev-parse", "HEAD",
+                "git",
+                "rev-parse",
+                "HEAD",
                 cwd=str(root),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,

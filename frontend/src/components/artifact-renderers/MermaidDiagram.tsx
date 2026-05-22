@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 let counter = 0;
 let mermaidReady: Promise<typeof import('mermaid')> | null = null;
@@ -35,8 +35,8 @@ export default function MermaidDiagram({ code }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const reactId = useId();
-  const seqRef = useRef(++counter);
-  const renderKey = `mmd-${reactId.replace(/:/g, '')}-${seqRef.current}`;
+  const seq = useMemo(() => ++counter, []);
+  const renderKey = `mmd-${reactId.replace(/:/g, '')}-${seq}`;
 
   useEffect(() => {
     if (!containerRef.current || !code.trim()) return;
