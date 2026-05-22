@@ -23,7 +23,7 @@ export default function ExperienceList() {
 
   useEffect(() => {
     api.listProjects().then(setProjects).catch(() => setProjects([]));
-    api.getReuseAnalytics().then((data) => setStaleCount(data.stale_count)).catch(() => {});
+    api.getReuseAnalytics().then((data) => setStaleCount(data.stale_count)).catch((err) => { console.warn('Failed to load reuse analytics:', err); });
   }, []);
 
   const fetchExperiences = useCallback(async () => {

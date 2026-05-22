@@ -97,6 +97,9 @@ async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
     blocked_by = await dep_repo.get_blocked_by(UUID(todo_id))
     blocks = await dep_repo.get_blocks(UUID(todo_id))
     return _to_response(todo, project_name=project_name, version_name=version_name, blocked_by=blocked_by, blocks=blocks)
+
+
+@router.get("/{todo_id}/dependencies", response_model=DependencyListResponse)
 async def get_dependencies(todo_id: str, db: DbSession, user: CurrentUser):
     repo = TodoRepository(db)
     todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)

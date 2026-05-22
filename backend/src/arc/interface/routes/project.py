@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 
 from arc.application.project.service import VersionService
 from arc.domain.project.entity import Project, Version
@@ -535,11 +535,15 @@ async def list_versions(
     project_id: uuid.UUID,
     db: DbSession,
     user: CurrentUser,
+    page: int = 1,
+    page_size: int = Query(default=50, le=200),
 ):
     repo = VersionRepository(db)
     versions = await repo.list_by_project(project_id)
-    all_stats = await repo.batch_count_todos_by_status([v.id for v in versions])
-    return [_version_resp(v, all_stats.get(v.id, {})) for v in versions]
+    offset = (page - 1) * page_size
+    versions_page = versions[offset : offset + page_size]
+    all_stats = await repo.batch_count_todos_by_status([v.id for v in versions_page])
+    return [_version_resp(v, all_stats.get(v.id, {})) for v in versions_page]
 
 
 @router.post(
@@ -676,6 +680,8 @@ async def list_project_experiences(
     user: CurrentUser,
     status: str | None = None,
     category: str | None = None,
+    page: int = 1,
+    page_size: int = Query(default=50, le=200),
 ):
     from arc.domain.todo.value_objects import ExperienceCategory, ExperienceStatus
     from arc.infrastructure.repositories.experience import ExperienceRepository
@@ -692,8 +698,10 @@ async def list_project_experiences(
         except ValueError:
             pass
 
+    offset = (page - 1) * page_size
+    experiences_page = experiences[offset : offset + page_size]
     return ExperienceListResponse(
-        items=[_exp_resp(e) for e in experiences],
+        items=[_exp_resp(e) for e in experiences_page],
         total=total,
     )
 
@@ -787,10 +795,14 @@ async def list_documents(
     project_id: uuid.UUID,
     db: DbSession,
     user: CurrentUser,
+    page: int = 1,
+    page_size: int = Query(default=50, le=200),
 ):
     from arc.application.planning.document_service import DocumentService
     svc = DocumentService(db)
     docs = await svc.list_by_project(project_id)
+    offset = (page - 1) * page_size
+    docs_page = docs[offset : offset + page_size]
     return [
         DocumentResponse(
             id=str(d.id),
@@ -802,7 +814,7 @@ async def list_documents(
             parsed_features=d.parsed_features,
             created_at=d.created_at.isoformat(),
         )
-        for d in docs
+        for d in docs_page
     ]
 
 
@@ -851,11 +863,14 @@ async def list_planning_sessions(
     project_id: uuid.UUID,
     db: DbSession,
     user: CurrentUser,
+    page: int = 1,
+    page_size: int = Query(default=50, le=200),
 ):
     from arc.infrastructure.repositories.planning import PlanningSessionRepository
     repo = PlanningSessionRepository(db)
     sessions = await repo.list_by_project(project_id)
-    return [_planning_session_resp(s) for s in sessions]
+    offset = (page - 1) * page_size
+    return [_planning_session_resp(s) for s in sessions[offset : offset + page_size]]
 
 
 @router.post(
@@ -986,11 +1001,14 @@ async def list_version_planning_sessions(
     version_id: uuid.UUID,
     db: DbSession,
     user: CurrentUser,
+    page: int = 1,
+    page_size: int = Query(default=50, le=200),
 ):
     from arc.infrastructure.repositories.planning import PlanningSessionRepository
     repo = PlanningSessionRepository(db)
     sessions = await repo.list_by_version(version_id)
-    return [_planning_session_resp(s) for s in sessions]
+    offset = (page - 1) * page_size
+    return [_planning_session_resp(s) for s in sessions[offset : offset + page_size]]
 
 
 @router.post(
