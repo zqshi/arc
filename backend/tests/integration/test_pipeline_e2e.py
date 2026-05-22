@@ -14,11 +14,24 @@ from httpx import AsyncClient
 
 MOCK_CLARIFICATION_ARTIFACT = json.dumps({
     "background": "用户需要一个批量导出功能来处理大量数据",
+    "target_users": [
+        {"type": "后台管理员", "traits": "日均处理200+数据请求", "core_need": "批量导出用户数据"},
+    ],
     "user_scenarios": "管理员在后台选择日期范围，点击导出，系统生成CSV文件",
-    "goals": "支持10万行级别的数据导出，5分钟内完成",
-    "boundaries": "不支持自定义列选择（v2考虑），不做实时流式下载",
-    "acceptance_criteria": "导出100k行数据耗时<5min; CSV格式正确; 支持中文",
-    "risk_assessment": "大数据量可能OOM，需流式写入; 并发导出需队列控制",
+    "boundaries": {
+        "in_scope": ["按日期范围导出", "CSV格式", "支持中文"],
+        "out_of_scope": ["自定义列选择（v2考虑）", "实时流式下载"],
+        "constraints": ["数据量上限10万行"],
+    },
+    "acceptance_criteria": [
+        {"id": "AC-1", "scenario": "大数据量导出",
+         "steps": "选择全量日期范围并导出",
+         "expected": "100k行数据耗时<5min", "priority": "P0"},
+    ],
+    "risk_assessment": [
+        {"risk": "大数据量OOM", "probability": "中",
+         "impact": "高", "mitigation": "流式写入"},
+    ],
 })
 
 MOCK_GATE_PASS = json.dumps({
@@ -129,8 +142,8 @@ class TestPipelineE2E:
         mock_llm.chat.return_value = LLMResponse(
             content=json.dumps({
                 "background": "需要做个功能",
+                "target_users": [],
                 "user_scenarios": "",
-                "goals": "",
                 "boundaries": "待补充",
                 "acceptance_criteria": "待补充",
                 "risk_assessment": "",
@@ -147,8 +160,8 @@ class TestPipelineE2E:
             content=json.dumps({
                 "passed": False,
                 "score": 3,
-                "gaps": ["goals为空", "acceptance_criteria为占位符"],
-                "suggestion": "请补充目标和验收标准",
+                "gaps": ["target_users列表为空", "acceptance_criteria为占位符"],
+                "suggestion": "请补充目标用户和验收标准",
             }),
             model="mock-model",
             usage={},
