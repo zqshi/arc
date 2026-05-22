@@ -1,4 +1,5 @@
-import { CodeBlock, asString } from './shared';
+import { CodeBlock } from './shared';
+import { asString } from './utils';
 import RequirementSpec from './RequirementSpec';
 import UIDesign from './UIDesign';
 import TechArchitecture from './TechArchitecture';

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { GitBranch, Layout, Component, MousePointer, Smartphone } from 'lucide-react';
-import { SectionCard, TextBlock, asString, asArray } from './shared';
+import { SectionCard, TextBlock } from './shared';
+import { asString, asArray } from './utils';
 import WireframePreview from './WireframePreview';
 
 const MermaidDiagram = lazy(() => import('./MermaidDiagram'));

@@ -46,7 +46,7 @@ export default function TodoDetail() {
     } finally {
       setTodoLoading(false);
     }
-  }, [id, navigate]);
+  }, [id, navigate, setCurrentProject]);
 
   useEffect(() => { fetchTodo(); }, [fetchTodo]);
   useEffect(() => () => setCurrentProject(null), [setCurrentProject]);
