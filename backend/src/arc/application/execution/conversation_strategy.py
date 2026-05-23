@@ -117,13 +117,7 @@ class ConversationExecutionService:
 
         llm_messages = await self._build_llm_messages(conversation)
         validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)
-        config = LoopConfig(
-            max_continuations=3,
-            max_validation_retries=2,
-            max_tokens_per_call=16384,
-            token_budget=80000,
-            wall_timeout_seconds=300.0,
-        )
+        config = LoopConfig()
 
         message_id = None
         full_content = ""
