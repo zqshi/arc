@@ -36,12 +36,16 @@ class LoopState(StrEnum):
 
 @dataclass
 class LoopConfig:
-    max_continuations: int = 3
+    max_continuations: int = 5
     max_validation_retries: int = 2
-    max_tokens_per_call: int = 16384
-    token_budget: int = 80000
+    max_tokens_per_call: int = 32768
+    token_budget: int = 120000
     wall_timeout_seconds: float = 300.0
-    continuation_prompt: str = "继续输出，从上次中断处接续，不要重复已输出的内容。"
+    continuation_prompt: str = (
+        "你的输出被截断了。请从上次中断处精确接续，"
+        "注意保持JSON结构的完整性（括号/引号配对）。"
+        "不要重复已输出的内容，直接续写。"
+    )
     validation_prompt_template: str = (
         "你之前输出的交付物格式有误：\n{errors}\n\n"
         "请重新输出该交付物，确保JSON格式完整且包含所有必需字段。"
@@ -376,7 +380,7 @@ DELIVERABLE_REQUIRED_FIELDS: dict[str, list[str]] = {
     "ui_spec": ["design_tokens", "component_specs"],
     "prototype": ["pages"],
     "tech_architecture": ["data_model", "api_design", "tech_decisions"],
-    "dev_report": ["execution_log", "code_changes"],
+    "dev_report": ["test_design", "implementation", "validation"],
     "test_report": ["criteria_verification"],
     "experience_card": ["problem", "solution", "decisions"],
 }
