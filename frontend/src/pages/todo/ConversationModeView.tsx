@@ -24,12 +24,16 @@ import type {
 
 const DELIVERABLE_LABELS: Record<string, string> = {
   requirement_spec: '需求规格',
-  ui_design: 'UI设计',
+  interaction_design: '交互设计',
+  ui_spec: '视觉规范',
+  prototype: '原型设计',
   tech_architecture: '技术架构',
   dev_report: '开发报告',
   test_report: '测试报告',
   deploy_report: '部署报告',
   experience_card: '经验卡片',
+  // Legacy
+  ui_design: 'UI设计(旧)',
 };
 
 export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {

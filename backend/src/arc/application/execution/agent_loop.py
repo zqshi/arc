@@ -372,7 +372,9 @@ class DeliverableValidator(_Validator):
 
 DELIVERABLE_REQUIRED_FIELDS: dict[str, list[str]] = {
     "requirement_spec": ["background", "user_stories", "acceptance_criteria", "boundaries"],
-    "ui_design": ["flow_diagram", "wireframes"],
+    "interaction_design": ["user_flows", "page_map"],
+    "ui_spec": ["design_tokens", "component_specs"],
+    "prototype": ["pages"],
     "tech_architecture": ["data_model", "api_design", "tech_decisions"],
     "dev_report": ["execution_log", "code_changes"],
     "test_report": ["criteria_verification"],

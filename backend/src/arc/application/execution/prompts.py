@@ -6,12 +6,16 @@ from arc.domain.artifact.value_objects import ARTIFACT_LABELS, ArtifactType
 
 ARTIFACT_TYPE_MARKERS: dict[str, ArtifactType] = {
     "requirement_spec": ArtifactType.REQUIREMENT_SPEC,
-    "ui_design": ArtifactType.UI_DESIGN,
+    "interaction_design": ArtifactType.INTERACTION_DESIGN,
+    "ui_spec": ArtifactType.UI_SPEC,
+    "prototype": ArtifactType.PROTOTYPE,
     "tech_architecture": ArtifactType.TECH_ARCHITECTURE,
     "dev_report": ArtifactType.DEV_REPORT,
     "test_report": ArtifactType.TEST_REPORT,
     "deploy_report": ArtifactType.DEPLOY_REPORT,
     "experience_card": ArtifactType.EXPERIENCE_CARD,
+    # Legacy
+    "ui_design": ArtifactType.UI_DESIGN,
 }
 
 DELIVERABLE_CHECKLIST_TEMPLATE = """## 交付物清单（渐进式完成）
@@ -54,22 +58,33 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你是一位全栈AI工程师+产品分析�
    - 明确边界（做什么/不做什么）和验收标准
    - 信息充分后立即产出需求规格
 
-2. **交互设计** → 产出 `ui_design`
-   - 基于已确认的需求，设计用户流程（Mermaid flowchart）
-   - 输出页面线框（HTML+Tailwind灰色调wireframe）
-   - 定义关键组件的交互行为和状态
+2. **交互设计** → 产出 `interaction_design`
+   - 基于已确认的需求，设计用户操作流程
+   - 输出 Mermaid flowchart 表达完整用户路径
+   - 定义关键页面间的跳转逻辑和触发条件
+   - 标注异常分支和错误处理流
 
-3. **技术架构** → 产出 `tech_architecture`
+3. **视觉规范** → 产出 `ui_spec`
+   - 基于交互设计，定义视觉风格、色彩体系、字体层级
+   - 输出核心组件的设计规范（按钮、表单、卡片等）
+   - 定义间距系统、响应式断点
+
+4. **原型设计** → 产出 `prototype`
+   - 基于交互设计+视觉规范，输出可渲染的 HTML+Tailwind 线框页面
+   - 每个关键页面/状态都有对应 wireframe
+   - 考虑响应式和异常状态的呈现
+
+5. **技术架构** → 产出 `tech_architecture`
    - 基于需求和设计，规划数据模型、API、技术选型
-   - 记录每个关键决策的推理过程（考虑了什么、选了什么、为什么）
+   - 记录每个关键决策的推理过程
 
-4. **开发实现** → 产出 `dev_report`
+6. **开发实现** → 产出 `dev_report`
    - 记录实现过程、代码变更、测试结果
 
-5. **测试验证** → 产出 `test_report`
+7. **测试验证** → 产出 `test_report`
    - 逐条验证验收标准，记录通过/未通过
 
-6. **经验沉淀** → 产出 `experience_card`
+8. **经验沉淀** → 产出 `experience_card`
    - 提炼可复用的决策、踩坑和适用场景
 
 ## 行为准则
@@ -78,13 +93,8 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你是一位全栈AI工程师+产品分析�
 - **渐进输出**：每当某个交付物内容已经充分，立即输出结构化内容
 - **经验注入**：如果有相关历史经验，主动提及并说明如何借鉴
 - **风险预警**：发现潜在风险时主动标记
-- **不跳过设计**：即使用户急于写代码，也要确保先有交互设计方案再进入架构阶段
-
-## ui_design 产出要求
-- `flow_diagram` 必须是合法的 Mermaid flowchart 语法（graph TD/LR）
-- `wireframes[].html` 必须是可直接渲染的 HTML+Tailwind CSS，使用灰色调
-- 每个关键页面/状态都要有对应的 wireframe
-- 考虑响应式和异常状态
+- **不跳过设计**：即使用户急于写代码，也要确保先有交互→视觉→原型再进入架构阶段
+- **逐步确认**：交互设计确认后再出视觉规范，视觉确认后再出原型，避免返工
 
 {deliverable_section}
 
@@ -134,16 +144,65 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
      "validation_method": "验证方式"}
   ]
 }""",
-    "ui_design": """{
-  "flow_diagram": "Mermaid flowchart代码",
-  "wireframes": [
-    {"page_name": "", "description": "", "html": ""}
+    "interaction_design": """{
+  "user_flows": [
+    {"name": "流程名称", "description": "流程描述",
+     "mermaid": "graph TD/LR 完整Mermaid代码"}
   ],
+  "page_map": [
+    {"page": "页面名", "entry_from": "从哪进入",
+     "exits_to": ["可跳转的页面"], "triggers": "触发条件"}
+  ],
+  "interaction_rules": [
+    {"component": "组件/区域", "action": "用户操作",
+     "response": "系统响应", "feedback": "反馈方式"}
+  ],
+  "error_flows": [
+    {"scenario": "异常场景", "handling": "处理方式",
+     "user_message": "用户提示"}
+  ],
+  "state_definitions": [
+    {"page": "页面名", "states": ["空态", "加载中", "有数据", "错误"],
+     "transitions": "状态转换说明"}
+  ]
+}""",
+    "ui_spec": """{
+  "design_tokens": {
+    "colors": {"primary": "", "secondary": "", "accent": "",
+               "background": "", "surface": "", "error": ""},
+    "typography": {
+      "heading": {"font": "", "sizes": ""},
+      "body": {"font": "", "sizes": ""},
+      "mono": {"font": "", "sizes": ""}
+    },
+    "spacing": {"unit": 4, "scale": [4, 8, 12, 16, 24, 32, 48]},
+    "radius": {"sm": "", "md": "", "lg": ""},
+    "shadows": {"sm": "", "md": "", "lg": ""}
+  },
   "component_specs": [
-    {"name": "", "purpose": "", "behavior": "", "states": ""}
+    {"name": "组件名", "variants": ["变体"],
+     "states": ["默认", "悬浮", "按下", "禁用"],
+     "sizing": "尺寸规范", "usage": "使用场景"}
   ],
-  "interaction_rules": "交互规则",
-  "responsive_notes": "响应式说明"
+  "layout_grid": {
+    "columns": 12,
+    "gutter": "间距",
+    "breakpoints": {"mobile": "", "tablet": "", "desktop": ""}
+  },
+  "iconography": "图标风格说明",
+  "motion": "动效原则"
+}""",
+    "prototype": """{
+  "pages": [
+    {"name": "页面名", "description": "页面说明",
+     "html": "完整可渲染HTML+Tailwind代码",
+     "responsive_notes": "响应式说明"}
+  ],
+  "component_library": [
+    {"name": "组件名", "html": "组件HTML代码",
+     "props": "可配置项"}
+  ],
+  "navigation": "页面间导航结构说明"
 }""",
     "tech_architecture": """{
   "architecture_overview": "整体架构描述",
