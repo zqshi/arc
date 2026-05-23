@@ -21,6 +21,7 @@ from arc.application.execution.prompts import (
     ARTIFACT_SCHEMAS,
     CONVERSATION_MODE_SYSTEM_PROMPT,
     build_deliverable_checklist,
+    build_ddd_tdd_section,
 )
 from arc.domain.artifact.value_objects import ARTIFACT_LABELS, ArtifactType
 from arc.domain.conversation.entity import Conversation
@@ -260,14 +261,20 @@ class ConversationExecutionService:
 
         project_context = ""
         experience_context = ""
+        ddd_tdd_context = ""
         completed_artifacts_text = "暂无"
 
         if todo and todo.project_id:
             from arc.application.context.provider import ProjectContextProvider
+            from arc.infrastructure.repositories.project import ProjectRepository
 
             ctx_provider = ProjectContextProvider(self.db)
             project_ctx = await ctx_provider.get_context(conversation.todo_id)
             project_context = project_ctx.to_prompt_section()
+
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if project and project.domain_model:
+                ddd_tdd_context = build_ddd_tdd_section(project.domain_model)
 
         if completed:
             artifacts = await self.artifact_repo.list_by_todo_id(conversation.todo_id)
@@ -292,6 +299,9 @@ class ConversationExecutionService:
                     experience_context = f"## 相关历史经验\n{exp_text}"
             except Exception:
                 pass
+
+        if ddd_tdd_context:
+            project_context = project_context + "\n\n" + ddd_tdd_context
 
         return CONVERSATION_MODE_SYSTEM_PROMPT.format(
             title=todo.title if todo else "",
