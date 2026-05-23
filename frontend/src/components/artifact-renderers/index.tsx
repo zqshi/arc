@@ -1,6 +1,9 @@
 import { CodeBlock } from './shared';
 import { asString } from './utils';
 import RequirementSpec from './RequirementSpec';
+import InteractionDesign from './InteractionDesign';
+import UISpec from './UISpec';
+import Prototype from './Prototype';
 import UIDesign from './UIDesign';
 import TechArchitecture from './TechArchitecture';
 import DevReport from './DevReport';
@@ -15,12 +18,16 @@ interface Props {
 
 const RENDERERS: Record<string, React.ComponentType<{ content: Record<string, unknown> }>> = {
   requirement_spec: RequirementSpec,
-  ui_design: UIDesign,
+  interaction_design: InteractionDesign,
+  ui_spec: UISpec,
+  prototype: Prototype,
   tech_architecture: TechArchitecture,
   dev_report: DevReport,
   test_report: TestReport,
   deploy_report: DeployReport,
   experience_card: ExperienceCard,
+  // Legacy
+  ui_design: UIDesign,
 };
 
 export default function ArtifactRenderer({ artifactType, content }: Props) {

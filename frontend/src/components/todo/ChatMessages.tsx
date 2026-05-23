@@ -6,12 +6,15 @@ import type { Message, ExperienceRef } from '../../types/api';
 
 const DELIVERABLE_LABELS: Record<string, string> = {
   requirement_spec: '需求规格',
-  ui_design: 'UI设计',
+  interaction_design: '交互设计',
+  ui_spec: '视觉规范',
+  prototype: '原型设计',
   tech_architecture: '技术架构',
   dev_report: '开发报告',
   test_report: '测试报告',
   deploy_report: '部署报告',
   experience_card: '经验卡片',
+  ui_design: 'UI设计',
 };
 
 const DELIVERABLE_BLOCK_RE = /\[DELIVERABLE:([\w_]+)\]\s*```(?:json)?\s*[\s\S]*?```/g;

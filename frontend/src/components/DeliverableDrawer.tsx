@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { X, FileText, Code, TestTube, Rocket, BookOpen, Layout, Package } from 'lucide-react';
+import { X, FileText, Code, TestTube, Rocket, BookOpen, Layout, Package, Palette, Monitor, GitBranch } from 'lucide-react';
 import MarkdownContent from './MarkdownContent';
 import ArtifactRenderer from './artifact-renderers';
 import type { Artifact, PlanningSession } from '../types/api';
@@ -16,22 +16,28 @@ interface DeliverableDrawerProps {
 
 const ARTIFACT_TYPE_ICONS: Record<string, typeof FileText> = {
   requirement_spec: FileText,
-  ui_design: Layout,
+  interaction_design: GitBranch,
+  ui_spec: Palette,
+  prototype: Monitor,
   tech_architecture: Code,
   dev_report: Package,
   test_report: TestTube,
   deploy_report: Rocket,
   experience_card: BookOpen,
+  ui_design: Layout,
 };
 
 const ARTIFACT_TYPE_LABELS: Record<string, string> = {
   requirement_spec: '需求规格',
-  ui_design: 'UI 设计',
+  interaction_design: '交互设计',
+  ui_spec: '视觉规范',
+  prototype: '原型设计',
   tech_architecture: '技术架构',
   dev_report: '开发报告',
   test_report: '测试报告',
   deploy_report: '部署报告',
   experience_card: '经验卡片',
+  ui_design: 'UI设计(旧)',
 };
 
 export default function DeliverableDrawer({ open, onClose, content }: DeliverableDrawerProps) {
