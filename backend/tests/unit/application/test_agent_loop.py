@@ -56,7 +56,7 @@ class FakeAdapter(LLMAdapter):
 @pytest.mark.asyncio
 async def test_normal_completion():
     adapter = FakeAdapter([("Hello, world!", "stop")])
-    loop = AgentLoop(adapter, LoopConfig(max_continuations=3))
+    loop = AgentLoop(adapter, LoopConfig())
 
     events = []
     async for event in loop.run([LLMMessage(role="user", content="hi")]):
@@ -65,6 +65,7 @@ async def test_normal_completion():
     complete_events = [e for e in events if e.type == "complete"]
     assert len(complete_events) == 1
     assert complete_events[0].content == "Hello, world!"
+    assert complete_events[0].metadata["terminated_by"] == "goal"
     assert loop.metrics.continuations == 0
     assert loop.metrics.final_state == "complete"
 
@@ -75,7 +76,7 @@ async def test_truncation_then_continuation():
         ("First part of the response...", "length"),
         (" and here is the rest.", "stop"),
     ])
-    loop = AgentLoop(adapter, LoopConfig(max_continuations=3))
+    loop = AgentLoop(adapter, LoopConfig())
 
     events = []
     async for event in loop.run([LLMMessage(role="user", content="hi")]):
@@ -91,24 +92,25 @@ async def test_truncation_then_continuation():
 
 
 @pytest.mark.asyncio
-async def test_max_continuations_respected():
+async def test_continues_until_budget_not_count():
+    """Without max_continuations, loop continues until budget runs out."""
     adapter = FakeAdapter([
         ("chunk1", "length"),
         ("chunk2", "length"),
         ("chunk3", "length"),
         ("chunk4", "length"),
     ])
-    config = LoopConfig(max_continuations=2)
+    config = LoopConfig(token_budget=20)
     loop = AgentLoop(adapter, config)
 
     events = []
     async for event in loop.run([LLMMessage(role="user", content="hi")]):
         events.append(event)
 
-    assert loop.metrics.continuations == 2
-    assert loop.metrics.iterations == 3
-    complete = [e for e in events if e.type == "complete"]
-    assert len(complete) == 1
+    budget_events = [e for e in events if e.type == "budget_warning"]
+    assert len(budget_events) == 1
+    assert loop.metrics.final_state == "budget_exceeded"
+    assert loop.metrics.terminated_by == "budget"
 
 
 @pytest.mark.asyncio
@@ -117,7 +119,7 @@ async def test_heuristic_truncation_detection():
         ('{"data": {', "stop"),
         ('"value": 1}}', "stop"),
     ])
-    loop = AgentLoop(adapter, LoopConfig(max_continuations=3))
+    loop = AgentLoop(adapter, LoopConfig())
 
     events = []
     async for event in loop.run([LLMMessage(role="user", content="hi")]):
@@ -126,6 +128,7 @@ async def test_heuristic_truncation_detection():
     assert loop.metrics.continuations == 1
     complete = [e for e in events if e.type == "complete"]
     assert complete[0].content == '{"data": {"value": 1}}'
+    assert complete[0].metadata["structurally_complete"] is True
 
 
 @pytest.mark.asyncio
@@ -190,10 +193,7 @@ async def test_budget_exceeded():
         (long_text, "length"),
         (long_text, "length"),
     ])
-    config = LoopConfig(
-        max_continuations=5,
-        token_budget=500,
-    )
+    config = LoopConfig(token_budget=500)
     loop = AgentLoop(adapter, config)
 
     events = []
@@ -203,6 +203,7 @@ async def test_budget_exceeded():
     budget_events = [e for e in events if e.type == "budget_warning"]
     assert len(budget_events) == 1
     assert loop.metrics.final_state == "budget_exceeded"
+    assert loop.metrics.terminated_by == "budget"
 
 
 @pytest.mark.asyncio
@@ -227,6 +228,7 @@ async def test_timeout():
         events.append(event)
 
     assert loop.metrics.final_state == "timed_out"
+    assert loop.metrics.terminated_by == "timeout"
 
 
 @pytest.mark.asyncio
@@ -244,6 +246,7 @@ async def test_metrics_populated():
     assert m.total_tokens > 0
     assert m.elapsed_ms >= 0
     assert m.final_state == "complete"
+    assert m.terminated_by == "goal"
     assert m.finish_reasons == ["stop"]
 
 

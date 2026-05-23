@@ -1,11 +1,8 @@
-"""Production-grade Agent Loop engine for conversation-driven execution.
+"""Goal-driven Agent Loop engine for conversation-driven execution.
 
-Handles multi-turn LLM streaming with:
-- Automatic continuation on truncated output (finish_reason=length)
-- Deliverable validation with feedback retry
-- Token budget enforcement
-- Wall-clock timeout
-- Structured observability
+Exit condition = structurally complete output + semantic validation pass.
+Budget and wall-clock timeout are the only safety guards; there is NO
+arbitrary continuation count limit.
 """
 
 from __future__ import annotations
@@ -36,20 +33,10 @@ class LoopState(StrEnum):
 
 @dataclass
 class LoopConfig:
-    max_continuations: int = 5
-    max_validation_retries: int = 2
-    max_tokens_per_call: int = 32768
     token_budget: int = 120000
     wall_timeout_seconds: float = 300.0
-    continuation_prompt: str = (
-        "你的输出被截断了。请从上次中断处精确接续，"
-        "注意保持JSON结构的完整性（括号/引号配对）。"
-        "不要重复已输出的内容，直接续写。"
-    )
-    validation_prompt_template: str = (
-        "你之前输出的交付物格式有误：\n{errors}\n\n"
-        "请重新输出该交付物，确保JSON格式完整且包含所有必需字段。"
-    )
+    max_tokens_per_call: int = 16384
+    max_validation_retries: int = 2
 
 
 @dataclass
@@ -62,38 +49,21 @@ class LoopMetrics:
     total_chunks: int = 0
     elapsed_ms: int = 0
     final_state: str = ""
+    terminated_by: str = ""
     finish_reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
 class LoopEvent:
-    """Event yielded from the agent loop to the caller."""
-
     type: str  # chunk | continuation | validation_retry | complete | error | budget_warning
     content: str = ""
     metadata: dict = field(default_factory=dict)
 
 
 class AgentLoop:
-    """Runs a multi-turn LLM generation loop with continuation and validation.
+    """Runs LLM generation until output is structurally complete or resources exhausted."""
 
-    Usage::
-
-        loop = AgentLoop(adapter, config)
-        async for event in loop.run(messages, validator):
-            if event.type == "chunk":
-                # stream delta to client
-            elif event.type == "continuation":
-                # notify client of auto-continue
-            elif event.type == "complete":
-                # final content in event.content
-    """
-
-    def __init__(
-        self,
-        adapter: LLMAdapter,
-        config: LoopConfig | None = None,
-    ):
+    def __init__(self, adapter: LLMAdapter, config: LoopConfig | None = None):
         self._adapter = adapter
         self._config = config or LoopConfig()
         self._metrics = LoopMetrics()
@@ -113,6 +83,7 @@ class AgentLoop:
         message_id = str(uuid.uuid4())
         full_content = ""
         base_messages = list(messages)
+        terminated_by = "goal"
 
         try:
             while True:
@@ -161,32 +132,14 @@ class AgentLoop:
                 self._update_token_count(stream_result)
                 self._metrics.finish_reasons.append(stream_result.finish_reason)
 
-                if stream_result.finish_reason == "length":
-                    if self._metrics.continuations >= self._config.max_continuations:
-                        logger.warning(
-                            "agent_loop.max_continuations_reached loop=%s continuations=%d",
-                            self._metrics.loop_id,
-                            self._metrics.continuations,
-                        )
-                        break
+                if self._needs_continuation(stream_result, full_content):
                     self._metrics.continuations += 1
                     self._state = LoopState.CONTINUING
                     logger.info(
-                        "agent_loop.continuing loop=%s iteration=%d reason=length",
+                        "agent_loop.continuing loop=%s iteration=%d reason=%s",
                         self._metrics.loop_id,
                         self._metrics.iterations,
-                    )
-                    continue
-
-                if self._is_heuristic_truncated(full_content):
-                    if self._metrics.continuations >= self._config.max_continuations:
-                        break
-                    self._metrics.continuations += 1
-                    self._state = LoopState.CONTINUING
-                    logger.info(
-                        "agent_loop.continuing loop=%s iteration=%d reason=heuristic",
-                        self._metrics.loop_id,
-                        self._metrics.iterations,
+                        "length" if stream_result.finish_reason == "length" else "heuristic",
                     )
                     continue
 
@@ -216,11 +169,10 @@ class AgentLoop:
                 break
 
             self._state = LoopState.COMPLETE
-            self._metrics.final_state = self._state.value
 
         except _BudgetExceededError:
             self._state = LoopState.BUDGET_EXCEEDED
-            self._metrics.final_state = self._state.value
+            terminated_by = "budget"
             yield LoopEvent(
                 type="budget_warning",
                 metadata={
@@ -230,15 +182,17 @@ class AgentLoop:
             )
         except asyncio.TimeoutError:
             self._state = LoopState.TIMED_OUT
-            self._metrics.final_state = self._state.value
+            terminated_by = "timeout"
             yield LoopEvent(type="error", content="生成超时，已保存部分结果")
         except Exception as exc:
             self._state = LoopState.FAILED
-            self._metrics.final_state = self._state.value
+            terminated_by = "error"
             logger.error("agent_loop.error loop=%s: %s", self._metrics.loop_id, exc, exc_info=True)
             raise
         finally:
             self._metrics.elapsed_ms = int((time.monotonic() - start) * 1000)
+            self._metrics.final_state = self._state.value
+            self._metrics.terminated_by = terminated_by
             self._log_summary()
 
         yield LoopEvent(
@@ -254,8 +208,15 @@ class AgentLoop:
                     "elapsed_ms": self._metrics.elapsed_ms,
                     "final_state": self._metrics.final_state,
                 },
+                "structurally_complete": not self._is_structurally_incomplete(full_content),
+                "terminated_by": terminated_by,
             },
         )
+
+    def _needs_continuation(self, result: StreamResult, content: str) -> bool:
+        if result.finish_reason == "length":
+            return True
+        return self._is_structurally_incomplete(content)
 
     def _build_messages(
         self,
@@ -269,12 +230,24 @@ class AgentLoop:
         msgs = list(base)
         if state == LoopState.CONTINUING and accumulated:
             msgs.append(LLMMessage(role="assistant", content=accumulated))
-            msgs.append(LLMMessage(role="user", content=self._config.continuation_prompt))
+            msgs.append(LLMMessage(role="user", content=self._build_continuation_prompt(accumulated)))
         elif state == LoopState.RETRYING:
             error_text = getattr(self, "_validation_errors", "格式不正确")
-            feedback = self._config.validation_prompt_template.format(errors=error_text)
+            feedback = (
+                f"你之前输出的交付物格式有误：\n{error_text}\n\n"
+                "请重新输出该交付物，确保JSON格式完整且包含所有必需字段。"
+            )
             msgs.append(LLMMessage(role="user", content=feedback))
         return msgs
+
+    @staticmethod
+    def _build_continuation_prompt(accumulated: str) -> str:
+        tail = accumulated[-500:] if len(accumulated) > 500 else accumulated
+        return (
+            f"你的输出被截断了。最后输出的内容是：\n"
+            f"```\n...{tail}\n```\n\n"
+            f"请从截断处精确接续，保持JSON结构完整（括号/引号配对），不要重复已有内容。"
+        )
 
     def _check_budget(self):
         if self._metrics.total_tokens >= self._config.token_budget:
@@ -296,7 +269,7 @@ class AgentLoop:
         self._metrics.total_tokens += completion + prompt
 
     @staticmethod
-    def _is_heuristic_truncated(content: str) -> bool:
+    def _is_structurally_incomplete(content: str) -> bool:
         stripped = content.rstrip()
         if not stripped:
             return False
@@ -319,6 +292,7 @@ class AgentLoop:
                 "total_tokens": self._metrics.total_tokens,
                 "elapsed_ms": self._metrics.elapsed_ms,
                 "final_state": self._metrics.final_state,
+                "terminated_by": self._metrics.terminated_by,
                 "finish_reasons": self._metrics.finish_reasons,
             },
         )
@@ -332,7 +306,6 @@ class _Validator:
     """Base validator interface for agent loop output."""
 
     def validate(self, content: str) -> str | None:
-        """Return error description if invalid, None if valid."""
         return None
 
 

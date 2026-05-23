@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.application.execution.artifact_extractor import ArtifactExtractor
 from arc.application.execution.prompts import (
     ARTIFACT_SCHEMAS,
+    AUTOPILOT_SECTION,
     CONVERSATION_MODE_SYSTEM_PROMPT,
     build_deliverable_checklist,
     build_ddd_tdd_section,
@@ -117,7 +118,7 @@ class ConversationExecutionService:
 
         llm_messages = await self._build_llm_messages(conversation)
         validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)
-        config = LoopConfig()
+        config = await self._build_loop_config(conversation.todo_id)
 
         message_id = None
         full_content = ""
@@ -158,10 +159,11 @@ class ConversationExecutionService:
                     if message_id is None:
                         message_id = event.metadata.get("message_id", str(uuid.uuid4()))
                     logger.info(
-                        "Agent loop complete: %d iterations, %d continuations, %dms",
+                        "Agent loop complete: %d iterations, %d continuations, %dms, terminated_by=%s",
                         metrics.get("iterations", 0),
                         metrics.get("continuations", 0),
                         metrics.get("elapsed_ms", 0),
+                        event.metadata.get("terminated_by", "unknown"),
                     )
 
         if not message_id:
@@ -194,6 +196,57 @@ class ConversationExecutionService:
                 "artifact_names": artifact_names,
             }
 
+    async def run_autopilot(
+        self,
+        conversation: Conversation,
+    ) -> AsyncIterator[dict]:
+        """自驾模式：持续生成直到任务完成或需要用户澄清。"""
+        max_rounds = 12
+
+        for round_num in range(max_rounds):
+            async for chunk in self.generate_response_stream(conversation):
+                yield chunk
+
+            tracker = await self.tracker_repo.get_by_todo_id(conversation.todo_id)
+            if tracker and tracker.is_complete:
+                yield {"event": "autopilot_complete", "reason": "all_deliverables_done"}
+                return
+
+            last_msg = conversation.messages[-1] if conversation.messages else None
+            if last_msg and self._needs_user_input(last_msg.content):
+                yield {"event": "autopilot_paused", "reason": "needs_user_input"}
+                return
+
+            advance_msg = conversation.add_message(
+                role=MessageRole.USER,
+                content="继续推进下一个阶段。",
+                metadata={"auto_advance": True, "round": round_num + 1},
+            )
+            await self.conv_repo.add_message(conversation.id, advance_msg)
+
+        yield {"event": "autopilot_paused", "reason": "max_rounds_reached"}
+
+    async def get_autonomy(self, todo_id: uuid.UUID) -> str:
+        """获取当前 todo 所属项目的 agent_autonomy 配置。"""
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return "supervised"
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.conversation_config:
+            return "supervised"
+        return project.conversation_config.get("agent_autonomy", "supervised")
+
+    @staticmethod
+    def _needs_user_input(content: str) -> bool:
+        """检测 AI 输出是否需要用户确认/澄清。"""
+        if "[NEEDS_INPUT]" in content:
+            return True
+        last_paragraph = content.strip().split("\n\n")[-1] if content.strip() else ""
+        question_indicators = ["？", "?", "你觉得", "你希望", "请确认", "你选择", "你倾向"]
+        return any(ind in last_paragraph for ind in question_indicators)
+
     async def get_tracker_state(self, todo_id: uuid.UUID) -> dict:
         """获取交付物追踪器状态，自动同步最新 required 列表。"""
         tracker = await self.tracker_repo.get_by_todo_id(todo_id)
@@ -209,6 +262,27 @@ class ConversationExecutionService:
             "completion_pct": tracker.completion_pct,
             "is_complete": tracker.is_complete,
         }
+
+    async def _build_loop_config(self, todo_id: uuid.UUID):
+        """从项目 conversation_config 构建 LoopConfig。"""
+        from arc.application.execution.agent_loop import LoopConfig
+
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return LoopConfig()
+
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.conversation_config:
+            return LoopConfig()
+
+        loop_cfg = project.conversation_config.get("loop_config", {})
+        return LoopConfig(
+            token_budget=loop_cfg.get("token_budget", 120000),
+            wall_timeout_seconds=loop_cfg.get("wall_timeout_seconds", 300.0),
+            max_tokens_per_call=loop_cfg.get("max_tokens_per_call", 16384),
+        )
 
     async def _build_llm_messages(self, conversation: Conversation) -> list:
         from arc.application.ai.llm_adapter import LLMMessage
@@ -297,11 +371,14 @@ class ConversationExecutionService:
         if ddd_tdd_context:
             project_context = project_context + "\n\n" + ddd_tdd_context
 
+        autonomy = await self.get_autonomy(conversation.todo_id)
+        autopilot_section = AUTOPILOT_SECTION if autonomy == "full" else ""
+
         return CONVERSATION_MODE_SYSTEM_PROMPT.format(
             title=todo.title if todo else "",
             description=todo.description if todo else "",
             deliverable_section=deliverable_section,
-            project_context=project_context,
+            project_context=project_context + ("\n\n" + autopilot_section if autopilot_section else ""),
             experience_context=experience_context,
             completed_artifacts=completed_artifacts_text,
         )

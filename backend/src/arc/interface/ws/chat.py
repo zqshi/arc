@@ -96,10 +96,22 @@ async def _stream_ai_response(
         except Exception:
             pass
 
+    use_autopilot = False
+    if hasattr(svc, "get_autonomy") and todo_id:
+        from uuid import UUID
+        try:
+            autonomy = await svc.get_autonomy(UUID(todo_id))
+            use_autopilot = autonomy == "full"
+        except Exception:
+            pass
+
+    stream = svc.run_autopilot(conv) if use_autopilot else svc.generate_response_stream(conv)
+
     ai_msg_id = None
     try:
-        async for chunk in svc.generate_response_stream(conv):
+        async for chunk in stream:
             event_type = chunk.get("event")
+
             if event_type == "artifacts_extracted":
                 await manager.broadcast(
                     conversation_id,
@@ -116,6 +128,24 @@ async def _stream_ai_response(
                             "event": "task_done",
                             "todo_id": todo_id,
                             "artifacts": chunk.get("artifact_names", []),
+                        },
+                    )
+                continue
+
+            if event_type in ("autopilot_complete", "autopilot_paused"):
+                await manager.broadcast(
+                    conversation_id,
+                    {"type": event_type, "reason": chunk.get("reason", "")},
+                )
+                if project_id and todo_id:
+                    status = "done" if event_type == "autopilot_complete" else "idle"
+                    await project_task_stream.emit(
+                        project_id,
+                        {
+                            "event": "task_status",
+                            "todo_id": todo_id,
+                            "status": status,
+                            "stage": chunk.get("reason", ""),
                         },
                     )
                 continue
