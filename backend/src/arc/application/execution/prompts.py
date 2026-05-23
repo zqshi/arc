@@ -79,7 +79,10 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你是一位全栈AI工程师+产品分析�
    - 记录每个关键决策的推理过程
 
 6. **开发实现** → 产出 `dev_report`
-   - 记录实现过程、代码变更、测试结果
+   - [TDD] 先从 requirement_spec.acceptance_criteria 派生测试用例（Given/When/Then）
+   - [DDD] 按 tech_architecture.data_model 的聚合边界组织代码结构
+   - [红→绿→重构] 先写失败测试 → 实现最小代码使其通过 → 重构优化
+   - 记录每个聚合的不变量如何被代码保护
 
 7. **测试验证** → 产出 `test_report`
    - 逐条验证验收标准，记录通过/未通过
@@ -238,10 +241,33 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   }
 }""",
     "dev_report": """{
-  "execution_log": "执行过程",
-  "code_changes": ["变更列表"],
-  "test_results": "测试结果",
-  "decisions_made": [{"decision": "", "reason": ""}]
+  "methodology": "ddd_tdd 或 lightweight",
+  "test_design": {
+    "derived_from": ["引用的验收标准ID，如AC-1"],
+    "test_cases": [
+      {"name": "测试名称", "type": "unit|integration|acceptance",
+       "target_aggregate": "所属聚合(DDD模式)",
+       "given": "前置条件", "when": "操作", "then": "断言",
+       "status": "pass|fail|pending"}
+    ]
+  },
+  "implementation": {
+    "aggregates_touched": ["聚合名"],
+    "code_changes": [
+      {"file": "文件路径", "change_type": "add|modify|delete",
+       "description": "变更说明", "aggregate": "所属聚合"}
+    ],
+    "invariants_enforced": ["不变量描述"]
+  },
+  "validation": {
+    "all_tests_pass": true,
+    "coverage_notes": "覆盖说明",
+    "refactoring_done": ["重构项"]
+  },
+  "decisions_made": [
+    {"decision": "决策点", "reason": "原因",
+     "ddd_rationale": "领域建模角度的考虑(可选)"}
+  ]
 }""",
     "test_report": """{
   "criteria_verification": [
@@ -275,3 +301,53 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   "tags": ["标签"]
 }""",
 }
+
+
+DDD_TDD_GUIDANCE = """## 开发方法论：DDD + TDD（本项目已启用）
+
+本项目领域模型已有 {aggregate_count} 个聚合，需遵循：
+
+### TDD 流程
+1. 从已确认的验收标准(acceptance_criteria)派生测试用例
+2. 每个测试对应一个明确的业务不变量
+3. 先写失败测试 → 实现最小代码使其通过 → 重构
+
+### DDD 结构约束
+当前聚合列表：
+{aggregate_summary}
+
+实现时必须：
+- 代码目录/模块按聚合边界划分
+- 聚合间只通过 ID 引用，不直接持有
+- 不变量在聚合根的方法中维护
+- 跨聚合操作通过领域服务协调
+
+### dev_report 产出要求
+methodology 字段设为 "ddd_tdd"，必须体现 test_design → implementation → validation 三段式。
+"""
+
+
+def build_ddd_tdd_section(domain_model: dict) -> str:
+    """根据项目领域模型复杂度决定是否注入 DDD+TDD 引导。"""
+    aggregates = domain_model.get("aggregates", [])
+    relations = domain_model.get("relations", [])
+
+    if len(aggregates) < 3 and len(relations) == 0:
+        return ""
+
+    agg_lines = []
+    for agg in aggregates[:10]:
+        name = agg.get("name", "")
+        ctx = agg.get("context", "")
+        entities = ", ".join(agg.get("entities", [])[:5])
+        line = f"- **{name}**"
+        if ctx:
+            line += f" ({ctx})"
+        if entities:
+            line += f" — 实体: {entities}"
+        agg_lines.append(line)
+
+    return DDD_TDD_GUIDANCE.format(
+        aggregate_count=len(aggregates),
+        aggregate_summary="\n".join(agg_lines) if agg_lines else "（暂无详细聚合定义）",
+    )
