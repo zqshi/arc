@@ -375,6 +375,51 @@ export interface DeliverableTracker {
   is_complete: boolean;
 }
 
+export interface DomainModelSubdomain {
+  name: string;
+  type: '核心域' | '支撑域' | '通用域';
+  description: string;
+  priority?: number;
+}
+
+export interface DomainModelContext {
+  name: string;
+  subdomain: string;
+  description: string;
+  team?: string;
+}
+
+export interface DomainModelAggregate {
+  name: string;
+  context: string;
+  description: string;
+  root: string;
+  entities: string[];
+  value_objects: string[];
+  events: string[];
+  methods: string[];
+  fields?: string[];
+  source?: string;
+}
+
+export interface DomainModelRelation {
+  from: string;
+  to: string;
+  type: string;
+  description: string;
+  integration?: string;
+}
+
+export interface DomainModel {
+  subdomains: DomainModelSubdomain[];
+  contexts: DomainModelContext[];
+  aggregates: DomainModelAggregate[];
+  relations: DomainModelRelation[];
+  aggregate_relations: DomainModelRelation[];
+  updated_at?: string;
+  version?: number;
+}
+
 export const EXECUTION_MODE_LABELS: Record<ExecutionMode, string> = {
   pipeline: 'Pipeline 模式',
   conversation: '对话模式',

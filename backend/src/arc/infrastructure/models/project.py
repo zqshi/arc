@@ -24,6 +24,7 @@ class ProjectModel(TimestampMixin, Base):
     execution_mode: Mapped[str] = mapped_column(String(20), default="pipeline")
     pipeline_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     conversation_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    domain_model: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class VersionModel(TimestampMixin, Base):

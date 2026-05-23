@@ -22,6 +22,7 @@ import type {
   PlanningDocument,
   PlanningSession,
   DeliverableTracker,
+  DomainModel,
   ScopeDiff,
   BatchStartResult,
   QuickMessageResponse,
@@ -187,6 +188,17 @@ class ApiClient {
 
   async deleteProject(id: string): Promise<void> {
     return this.request<void>(`/api/projects/${id}`, { method: 'DELETE' });
+  }
+
+  async getDomainModel(projectId: string): Promise<DomainModel> {
+    return this.request<DomainModel>(`/api/projects/${projectId}/domain-model`);
+  }
+
+  async updateDomainModel(projectId: string, data: DomainModel): Promise<DomainModel> {
+    return this.request<DomainModel>(`/api/projects/${projectId}/domain-model`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
   // ─── Project Members ──────────────────────────────────

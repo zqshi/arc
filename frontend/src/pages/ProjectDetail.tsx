@@ -1,17 +1,18 @@
-import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Boxes } from 'lucide-react';
 import ActionMenu from '../components/ActionMenu';
 import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
 import MarkdownContent from '../components/MarkdownContent';
 import DeliverableDrawer from '../components/DeliverableDrawer';
-import { TodosTab, SettingsTab, ExperiencesTab } from '../components/project';
+import { TodosTab, SettingsTab, ExperiencesTab, DomainModelTab } from '../components/project';
 import { useProjectDetail } from '../hooks/useProjectDetail';
 
-type TabKey = 'todos' | 'experiences' | 'settings';
+type TabKey = 'todos' | 'experiences' | 'domain_model' | 'settings';
 
 const TAB_ITEMS: { key: TabKey; label: string; icon: typeof FileText }[] = [
   { key: 'todos', label: '需求', icon: FileText },
   { key: 'experiences', label: '经验', icon: Lightbulb },
+  { key: 'domain_model', label: '领域模型', icon: Boxes },
   { key: 'settings', label: '设置', icon: Settings },
 ];
 
@@ -113,6 +114,13 @@ export default function ProjectDetail() {
               onArchive={s.handleArchiveExp}
               onPromote={s.handlePromoteExp}
               onDistill={s.handleDistillExp}
+            />
+          )}
+
+          {s.activeTab === 'domain_model' && (
+            <DomainModelTab
+              domainModel={s.domainModel}
+              loading={s.domainModelLoading}
             />
           )}
 

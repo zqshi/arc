@@ -74,7 +74,26 @@ class ArtifactExtractor:
         if tracker and extracted:
             await self.tracker_repo.update(tracker)
 
+        for art in extracted:
+            if art.artifact_type == ArtifactType.TECH_ARCHITECTURE:
+                await self._try_extract_domain_model(todo_id, art.content)
+
         return extracted
+
+    async def _try_extract_domain_model(
+        self, todo_id: uuid.UUID, content: dict
+    ) -> None:
+        from arc.application.execution.domain_model_extractor import (
+            DomainModelExtractor,
+        )
+
+        try:
+            extractor = DomainModelExtractor(self.db)
+            await extractor.extract_and_merge(todo_id, content)
+        except Exception:
+            logger.warning(
+                "Domain model extraction failed for todo %s", todo_id, exc_info=True
+            )
 
     async def get_or_create_tracker(
         self,
