@@ -327,6 +327,15 @@ methodology 字段设为 "ddd_tdd"，必须体现 test_design → implementation
 """
 
 
+AUTOPILOT_SECTION = """## 自驾模式规则（当前已启用）
+- 无需等待用户确认即可推进下一阶段
+- 产出一个交付物后立即推进下一个，直到所有交付物完成
+- 只有在遇到真正无法决策的分歧时才停下来问用户（此时输出 [NEEDS_INPUT] 标记）
+- 不要问"需要我继续吗"、"你觉得怎么样"这类确认性问题
+- 每轮输出至少一个交付物，效率优先
+"""
+
+
 def build_ddd_tdd_section(domain_model: dict) -> str:
     """根据项目领域模型复杂度决定是否注入 DDD+TDD 引导。"""
     aggregates = domain_model.get("aggregates", [])

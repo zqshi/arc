@@ -71,4 +71,9 @@ DEFAULT_CONVERSATION_CONFIG: dict = {
     ],
     "agent_autonomy": "supervised",
     "auto_archive": True,
+    "loop_config": {
+        "token_budget": 120000,
+        "wall_timeout_seconds": 300,
+        "max_tokens_per_call": 16384,
+    },
 }
