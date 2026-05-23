@@ -8,9 +8,9 @@ import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjectTaskStream } from './useProjectTaskStream';
 import type { ActionMenuItem } from '../components/ActionMenu';
-import type { Project, Version, VersionType, Todo, Experience, ExperienceCategory, PlanningSession, UserRole } from '../types/api';
+import type { Project, Version, VersionType, Todo, Experience, ExperienceCategory, PlanningSession, UserRole, DomainModel } from '../types/api';
 
-type TabKey = 'todos' | 'experiences' | 'settings';
+type TabKey = 'todos' | 'experiences' | 'domain_model' | 'settings';
 
 export function useProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -47,6 +47,9 @@ export function useProjectDetail() {
   const [expLoading, setExpLoading] = useState(false);
 
   const [insights, setInsights] = useState<Array<{ id: string; title: string; solution: string; confidence: number; reuse_count: number }>>([]);
+
+  const [domainModel, setDomainModel] = useState<DomainModel | null>(null);
+  const [domainModelLoading, setDomainModelLoading] = useState(false);
 
   const [myRole, setMyRole] = useState<UserRole>('admin');
 
@@ -116,6 +119,19 @@ export function useProjectDetail() {
     }
   }, [id]);
 
+  const fetchDomainModel = useCallback(async () => {
+    if (!id) return;
+    setDomainModelLoading(true);
+    try {
+      const dm = await api.getDomainModel(id);
+      setDomainModel(dm);
+    } catch {
+      setDomainModel(null);
+    } finally {
+      setDomainModelLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => () => setCurrentProject(null), [setCurrentProject]);
 
@@ -126,6 +142,10 @@ export function useProjectDetail() {
   useEffect(() => {
     if (activeTab === 'settings') { fetchInsights(); }
   }, [activeTab, fetchInsights]);
+
+  useEffect(() => {
+    if (activeTab === 'domain_model') { fetchDomainModel(); }
+  }, [activeTab, fetchDomainModel]);
 
   useEffect(() => {
     if (!id || versions.length === 0) return;
@@ -362,6 +382,7 @@ export function useProjectDetail() {
     expCategoryFilter, setExpCategoryFilter,
     handleConfirmExp, handleArchiveExp, handlePromoteExp, handleDistillExp,
     insights, handleAppendConvention,
+    domainModel, domainModelLoading,
     analysisResult, analyzing, closeAnalysis, handleAnalyzeVersion,
     drawerSession, setDrawerSession,
     fetchData,

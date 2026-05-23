@@ -38,6 +38,7 @@ class ProjectRepository:
             execution_mode=project.execution_mode.value,
             pipeline_config=project.pipeline_config,
             conversation_config=project.conversation_config,
+            domain_model=project.domain_model or None,
         )
         self.db.add(model)
         await self.db.flush()
@@ -107,6 +108,7 @@ class ProjectRepository:
         model.execution_mode = project.execution_mode.value
         model.pipeline_config = project.pipeline_config
         model.conversation_config = project.conversation_config
+        model.domain_model = project.domain_model or None
         await self.db.flush()
 
     async def delete(self, project_id: uuid.UUID) -> bool:
@@ -138,23 +140,23 @@ class ProjectRepository:
             conversation_config=ProjectRepository._merge_conversation_config(
                 model.conversation_config
             ),
+            domain_model=model.domain_model or {},
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
 
     @staticmethod
     def _merge_conversation_config(stored: dict | None) -> dict:
-        """Merge stored config with defaults, ensuring required_deliverables is complete."""
+        """Merge stored config with defaults, using canonical order from defaults."""
         base = dict(DEFAULT_CONVERSATION_CONFIG)
         if not stored:
             return base
         merged = {**base, **stored}
         default_deliverables = DEFAULT_CONVERSATION_CONFIG["required_deliverables"]
-        stored_deliverables = stored.get("required_deliverables") or []
-        seen = set(stored_deliverables)
-        full = list(stored_deliverables)
-        for d in default_deliverables:
-            if d not in seen:
+        stored_deliverables = set(stored.get("required_deliverables") or [])
+        full = list(default_deliverables)
+        for d in stored_deliverables:
+            if d not in full:
                 full.append(d)
         merged["required_deliverables"] = full
         return merged
