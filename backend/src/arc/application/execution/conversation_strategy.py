@@ -331,7 +331,7 @@ class ConversationExecutionService:
     ) -> DeliverableTracker:
         """Ensure tracker.required matches the current canonical list.
 
-        Adds missing deliverable types without resetting existing status.
+        Adds missing types and reorders to match canonical sequence.
         """
         canonical = override
         if not canonical:
@@ -354,12 +354,17 @@ class ConversationExecutionService:
 
         existing = set(tracker.required)
         added = [t for t in canonical if t not in existing]
-        if not added:
+        needs_reorder = tracker.required != [
+            t for t in canonical if t in existing
+        ] + added
+
+        if not added and not needs_reorder:
             return tracker
 
         for t in added:
-            tracker.required.append(t)
             tracker.deliverables[t] = DeliverableStatus.PENDING
+
+        tracker.required = list(canonical)
 
         await self.tracker_repo.update(tracker)
         logger.info(
