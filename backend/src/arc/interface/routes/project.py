@@ -377,7 +377,31 @@ async def get_domain_model(
     project = await repo.get_by_id(project_id, user_id=user.id)
     if not project:
         raise HTTPException(404, "Project not found")
-    return project.domain_model or {
+
+    dm = project.domain_model
+    if not dm or not dm.get("aggregates"):
+        from arc.application.execution.domain_model_extractor import DomainModelExtractor
+        from arc.infrastructure.repositories.artifact import ArtifactRepository
+        from arc.infrastructure.repositories.todo import TodoRepository
+
+        todo_repo = TodoRepository(db)
+        art_repo = ArtifactRepository(db)
+        todos, _ = await todo_repo.list_all(project_id=project_id, user_id=user.id, offset=0, limit=100)
+        for todo in todos:
+            arts = await art_repo.list_by_todo_id(todo.id)
+            for art in arts:
+                if art.artifact_type.value == "tech_architecture" and art.content.get("data_model", {}).get("entities"):
+                    extractor = DomainModelExtractor(db)
+                    updated = await extractor.extract_and_merge(todo.id, art.content)
+                    if updated:
+                        await db.commit()
+                        project = await repo.get_by_id(project_id, user_id=user.id)
+                        dm = project.domain_model
+                        break
+            if dm and dm.get("aggregates"):
+                break
+
+    return dm or {
         "subdomains": [],
         "contexts": [],
         "aggregates": [],

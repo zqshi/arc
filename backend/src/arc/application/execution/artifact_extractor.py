@@ -19,8 +19,8 @@ from arc.infrastructure.repositories.planning import DeliverableTrackerRepositor
 logger = logging.getLogger(__name__)
 
 DELIVERABLE_PATTERN = re.compile(
-    r"\[DELIVERABLE:([\w_]+)\]\s*```(?:json)?\s*(.*?)```",
-    re.DOTALL,
+    r"\[DELIVERABLE:([\w_]+)\]\s*```(?:json)?\s*(.*?)^```",
+    re.DOTALL | re.MULTILINE,
 )
 
 
@@ -55,7 +55,7 @@ class ArtifactExtractor:
             parsed = extract_json(json_str.strip())
             if not isinstance(parsed, dict):
                 try:
-                    parsed = json.loads(json_str.strip())
+                    parsed = json.loads(json_str.strip(), strict=False)
                 except (json.JSONDecodeError, ValueError):
                     logger.warning("Failed to parse DELIVERABLE content for %s", artifact_type_str)
                     continue
