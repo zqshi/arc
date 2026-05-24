@@ -52,6 +52,7 @@ export function useConversationSocket(conversationId: string | null) {
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [artifactsVersion, setArtifactsVersion] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
@@ -203,6 +204,7 @@ export function useConversationSocket(conversationId: string | null) {
             break;
 
           case 'artifacts_extracted':
+            setArtifactsVersion((v) => v + 1);
             break;
         }
       };
@@ -243,5 +245,5 @@ export function useConversationSocket(conversationId: string | null) {
     return () => clearTimeout(retryTimer.current);
   }, []);
 
-  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled };
+  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion };
 }

@@ -248,13 +248,27 @@ class ConversationExecutionService:
         return any(ind in last_paragraph for ind in question_indicators)
 
     async def get_tracker_state(self, todo_id: uuid.UUID) -> dict:
-        """获取交付物追踪器状态，自动同步最新 required 列表。"""
+        """获取交付物追踪器状态，自动同步最新 required 列表并修复不一致。"""
         tracker = await self.tracker_repo.get_by_todo_id(todo_id)
         if not tracker:
             return {"required": [], "deliverables": {}, "completion_pct": 0}
 
         todo = await self.todo_repo.get_by_id(todo_id)
         tracker = await self._sync_tracker_required(tracker, todo, None)
+
+        from arc.domain.planning.value_objects import DeliverableStatus
+
+        artifacts = await self.artifact_repo.list_by_todo_id(todo_id)
+        produced_types = {a.artifact_type.value for a in artifacts}
+        reconciled = False
+        for atype in produced_types:
+            status = tracker.deliverables.get(atype)
+            if status and status not in (DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED):
+                tracker.deliverables[atype] = DeliverableStatus.PRODUCED
+                reconciled = True
+        if reconciled:
+            await self.tracker_repo.update(tracker)
+            await self.db.commit()
 
         return {
             "required": tracker.required,
@@ -443,7 +457,8 @@ class ConversationExecutionService:
             return tracker
 
         for t in added:
-            tracker.deliverables[t] = DeliverableStatus.PENDING
+            if t not in tracker.deliverables:
+                tracker.deliverables[t] = DeliverableStatus.PENDING
 
         tracker.required = list(canonical)
 

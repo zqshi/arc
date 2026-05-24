@@ -48,7 +48,7 @@ def extract_json(text: str) -> dict | list | None:
 
 def _try_parse(text: str) -> dict | list | None:
     try:
-        parsed = json.loads(text)
+        parsed = json.loads(text, strict=False)
         if isinstance(parsed, (dict, list)):
             return parsed
     except (json.JSONDecodeError, ValueError):

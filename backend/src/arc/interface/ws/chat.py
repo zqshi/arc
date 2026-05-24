@@ -212,6 +212,9 @@ async def _stream_ai_response(
                 },
             )
 
+    # Commit before stream_end so the frontend reads committed tracker state
+    await svc.db.commit()
+
     if ai_msg_id:
         await manager.broadcast(
             conversation_id,
