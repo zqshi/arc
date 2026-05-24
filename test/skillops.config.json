@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "sourceDir": "skills",
+  "teamRepo": "github.com/zqshi/arc/tree/main/test",
+  "shareTargetMode": "namedProject",
+  "shareProjectName": "test",
+  "applyTargets": [
+    {
+      "id": "apply-mph0boco-l70wox",
+      "name": "ios-project-sync",
+      "profile": "ios",
+      "agentTargetIds": [
+        "codex"
+      ],
+      "projectTargetDirs": [
+        "/Users/Glare/Library/Developer/ModularProgram/hoewo/yueya-melody"
+      ],
+      "customTargetDirs": []
+    },
+    {
+      "id": "apply-mph0fssj-kdwaay",
+      "name": "idea-project-sync",
+      "profile": "idea",
+      "agentTargetIds": [],
+      "projectTargetDirs": [
+        "/Users/Glare/Library/Developer/ModularProgram/hoewo/knowledge"
+      ],
+      "customTargetDirs": []
+    }
+  ],
+  "shareTargets": [
+    {
+      "id": "share-mph0cmri-t3s143",
+      "name": "idea-to-arckit",
+      "profile": "idea",
+      "remoteUrl": "https://github.com/feitianchengzi/arckit/tree/main/idea/skills",
+      "targetMode": "direct",
+      "projectName": "arc-kit"
+    },
+    {
+      "id": "share-mph0e8h9-x04knp",
+      "name": "ios-to-arckit",
+      "profile": "ios",
+      "remoteUrl": "https://github.com/feitianchengzi/arckit/tree/main/engineering/skills",
+      "targetMode": "direct",
+      "projectName": "arc-kit"
+    },
+    {
+      "id": "share-mpk0jcck-5l6a29",
+      "name": "ios-test-to-zqshi",
+      "profile": "ios",
+      "remoteUrl": "https://github.com/zqshi/arc",
+      "targetMode": "namedProject",
+      "projectName": "test"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "test/ios",
+      "skills": [
+        "arckit-code-swiftui"
+      ],
+      "targets": [
+        "codex",
+        "claude",
+        "cursor"
+      ]
+    }
+  ]
+}
