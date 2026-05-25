@@ -75,8 +75,9 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你是一位全栈AI工程师+产品分析�
    - 考虑响应式和异常状态的呈现
 
 5. **技术架构** → 产出 `tech_architecture`
-   - 基于需求和设计，规划数据模型、API、技术选型
-   - 记录每个关键决策的推理过程
+   - 先做战略设计：识别子域（核心域/支撑域/通用域）、划定限界上下文、定义上下文间协作关系
+   - 基于限界上下文划分数据模型，每个实体标注所属上下文
+   - 规划 API 设计、技术选型，记录关键决策推理过程
 
 6. **开发实现** → 产出 `dev_report`
    - [TDD] 先从 requirement_spec.acceptance_criteria 派生测试用例（Given/When/Then）
@@ -209,12 +210,26 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
 }""",
     "tech_architecture": """{
   "architecture_overview": "整体架构描述",
+  "domain_design": {
+    "subdomains": [
+      {"name": "子域名称", "type": "核心域|支撑域|通用域", "description": "职责描述"}
+    ],
+    "bounded_contexts": [
+      {"name": "上下文名称", "subdomain": "所属子域", "description": "边界与职责"}
+    ],
+    "context_relations": [
+      {"from": "上游上下文", "to": "下游上下文",
+       "type": "partnership|shared_kernel|customer_supplier|conformist|anticorruption_layer|open_host_service|published_language|separate_ways",
+       "description": "协作方式说明"}
+    ]
+  },
   "data_model": {
     "entities": [
       {"name": "实体名",
        "fields": [{"name": "", "type": "", "required": true,
                    "description": ""}],
-       "relations": "与其他实体的关系"}
+       "relations": "与其他实体的关系",
+       "bounded_context": "所属限界上下文"}
     ],
     "erd_description": "实体关系概述"
   },
