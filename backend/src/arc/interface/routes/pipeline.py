@@ -227,6 +227,21 @@ async def confirm_artifact(todo_id: str, artifact_id: str, db: DbSession, user: 
     return _artifact_response(artifact)
 
 
+@router.post("/{todo_id}/artifacts/{artifact_id}/publish")
+async def publish_artifact(todo_id: str, artifact_id: str, db: DbSession, user: CurrentUser):
+    """Publish a prototype artifact to object storage and return its public URL."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
+    from arc.application.artifact.publish_service import PublishService
+
+    svc = PublishService(db)
+    try:
+        url = await svc.publish_prototype(UUID(artifact_id))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"preview_url": url}
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -265,6 +280,7 @@ def _artifact_response(artifact) -> ArtifactResponse:
         version=artifact.version,
         is_confirmed=artifact.is_confirmed,
         confirmed_at=artifact.confirmed_at,
+        preview_url=artifact.preview_url,
         created_at=artifact.created_at,
         updated_at=artifact.updated_at,
     )

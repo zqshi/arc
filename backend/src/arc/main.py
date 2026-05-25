@@ -230,5 +230,16 @@ def register_routes():
     app.include_router(filesystem_router, prefix="/api/filesystem", tags=["filesystem"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
+    from arc.config import settings
+
+    if not settings.storage_endpoint:
+        from pathlib import Path
+
+        from fastapi.staticfiles import StaticFiles
+
+        static_dir = Path(__file__).resolve().parent.parent / "static" / "previews"
+        static_dir.mkdir(parents=True, exist_ok=True)
+        app.mount("/static/previews", StaticFiles(directory=str(static_dir)), name="previews")
+
 
 register_routes()

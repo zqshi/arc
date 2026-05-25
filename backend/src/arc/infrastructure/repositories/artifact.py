@@ -24,6 +24,7 @@ class ArtifactRepository:
             version=artifact.version,
             is_confirmed=artifact.is_confirmed,
             confirmed_at=artifact.confirmed_at,
+            preview_url=artifact.preview_url,
         )
         self.db.add(model)
         await self.db.flush()
@@ -88,6 +89,7 @@ class ArtifactRepository:
         model.version = artifact.version
         model.is_confirmed = artifact.is_confirmed
         model.confirmed_at = artifact.confirmed_at
+        model.preview_url = artifact.preview_url
         await self.db.flush()
         await self.db.refresh(model)
         return self._to_entity(model)
@@ -111,6 +113,7 @@ class ArtifactRepository:
             version=model.version,
             is_confirmed=model.is_confirmed,
             confirmed_at=model.confirmed_at,
+            preview_url=model.preview_url,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

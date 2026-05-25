@@ -147,6 +147,7 @@ export interface Artifact {
   version: number;
   is_confirmed: boolean;
   confirmed_at: string | null;
+  preview_url: string | null;
   created_at: string;
   updated_at: string;
 }
