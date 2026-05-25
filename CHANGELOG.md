@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-25
+
+### Added
+- auth service 单元测试 — 覆盖注册/登录/token刷新/密码校验
+- route 冒烟测试 — 全路由 404/401 基本响应验证
+
+### Fixed
+- todo.py get_dependencies 缺失路由装饰器
+- 前端静默 .catch(() => {}) 错误处理改为 Toast 通知
+- 硬编码 localhost 统一走环境变量
+
+### Changed
+- 所有列表 API 统一支持 page/page_size 分页参数
+- Docker 密码外部化, 通过 .env 注入
+- TodoDetail.tsx 拆分为 pages/todo/ 下独立子组件
+
 ## [1.0.0] - 2026-05-21
 
 ### Added
