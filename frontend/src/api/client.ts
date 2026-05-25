@@ -153,6 +153,11 @@ class ApiClient {
 
       if (resp.status === 204) return undefined as T;
       return resp.json();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new ApiError(0, 'Request aborted');
+      }
+      throw err;
     } finally {
       clearTimeout(timeoutId);
     }

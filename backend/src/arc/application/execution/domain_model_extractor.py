@@ -26,16 +26,21 @@ class DomainModelExtractor:
         todo_id: uuid.UUID,
         tech_arch_content: dict,
     ) -> bool:
-        """从 tech_architecture 内容提取实体，合并到项目 domain_model。
+        """从 tech_architecture 内容提取战略设计+实体，合并到项目 domain_model。
 
         Returns True if domain_model was updated.
         """
         data_model = tech_arch_content.get("data_model")
-        if not data_model:
-            return False
+        domain_design = tech_arch_content.get("domain_design")
 
-        entities = data_model.get("entities")
-        if not entities or not isinstance(entities, list):
+        has_entities = (
+            data_model
+            and isinstance(data_model.get("entities"), list)
+            and len(data_model["entities"]) > 0
+        )
+        has_strategic = domain_design and isinstance(domain_design, dict)
+
+        if not has_entities and not has_strategic:
             return False
 
         todo_repo = TodoRepository(self.db)
@@ -48,17 +53,30 @@ class DomainModelExtractor:
         if not project:
             return False
 
-        new_aggregates = self._entities_to_aggregates(entities, todo.title)
-        if not new_aggregates:
+        dm = project.domain_model or {}
+        updated = False
+
+        if has_entities:
+            entities = data_model["entities"]
+            contexts_map = self._build_entity_context_map(entities)
+            new_aggregates = self._entities_to_aggregates(
+                entities, todo.title, contexts_map
+            )
+            if new_aggregates:
+                existing_aggs = dm.get("aggregates", [])
+                dm["aggregates"] = self._merge_aggregates(existing_aggs, new_aggregates)
+                updated = True
+
+        if has_strategic:
+            self._merge_strategic_design(dm, domain_design)
+            updated = True
+
+        if not updated:
             return False
 
-        dm = project.domain_model or {}
-        existing_aggs = dm.get("aggregates", [])
-        merged = self._merge_aggregates(existing_aggs, new_aggregates)
-
-        dm["aggregates"] = merged
         dm.setdefault("subdomains", [])
         dm.setdefault("contexts", [])
+        dm.setdefault("aggregates", [])
         dm.setdefault("relations", [])
         dm.setdefault("aggregate_relations", [])
         dm["updated_at"] = datetime.now(UTC).isoformat()
@@ -68,16 +86,31 @@ class DomainModelExtractor:
         await project_repo.update(project)
 
         logger.info(
-            "Domain model updated for project %s: %d aggregates (from todo %s)",
+            "Domain model updated for project %s: %d subdomains, %d contexts, %d aggregates (from todo %s)",
             project.id,
-            len(merged),
+            len(dm.get("subdomains", [])),
+            len(dm.get("contexts", [])),
+            len(dm.get("aggregates", [])),
             todo_id,
         )
         return True
 
     @staticmethod
+    def _build_entity_context_map(entities: list[dict]) -> dict[str, str]:
+        """从 entities 的 bounded_context 字段构建 name→context 映射。"""
+        mapping: dict[str, str] = {}
+        for entity in entities:
+            if not isinstance(entity, dict):
+                continue
+            name = entity.get("name", "")
+            ctx = entity.get("bounded_context", "")
+            if name and ctx:
+                mapping[name] = ctx
+        return mapping
+
+    @staticmethod
     def _entities_to_aggregates(
-        entities: list[dict], source_label: str
+        entities: list[dict], source_label: str, contexts_map: dict[str, str] | None = None
     ) -> list[dict]:
         aggregates = []
         for entity in entities:
@@ -92,10 +125,11 @@ class DomainModelExtractor:
                 f.get("name", "") for f in fields if isinstance(f, dict)
             ]
             relations_desc = entity.get("relations", "")
+            context = (contexts_map or {}).get(name, "")
 
             aggregates.append({
                 "name": name,
-                "context": "",
+                "context": context,
                 "description": relations_desc or f"来自: {source_label}",
                 "root": name,
                 "entities": [],
@@ -106,6 +140,54 @@ class DomainModelExtractor:
                 "source": source_label,
             })
         return aggregates
+
+    @staticmethod
+    def _merge_strategic_design(dm: dict, domain_design: dict) -> None:
+        """合并战略设计数据到领域模型。"""
+        subdomains = domain_design.get("subdomains")
+        if isinstance(subdomains, list) and subdomains:
+            existing = {s.get("name"): s for s in dm.get("subdomains", [])}
+            for sd in subdomains:
+                if not isinstance(sd, dict) or not sd.get("name"):
+                    continue
+                existing[sd["name"]] = {
+                    "name": sd["name"],
+                    "type": sd.get("type", "核心域"),
+                    "description": sd.get("description", ""),
+                }
+            dm["subdomains"] = list(existing.values())
+
+        contexts = domain_design.get("bounded_contexts")
+        if isinstance(contexts, list) and contexts:
+            existing = {c.get("name"): c for c in dm.get("contexts", [])}
+            for ctx in contexts:
+                if not isinstance(ctx, dict) or not ctx.get("name"):
+                    continue
+                existing[ctx["name"]] = {
+                    "name": ctx["name"],
+                    "subdomain": ctx.get("subdomain", ""),
+                    "description": ctx.get("description", ""),
+                }
+            dm["contexts"] = list(existing.values())
+
+        relations = domain_design.get("context_relations")
+        if isinstance(relations, list) and relations:
+            existing = {
+                (r.get("from"), r.get("to")): r for r in dm.get("relations", [])
+            }
+            for rel in relations:
+                if not isinstance(rel, dict):
+                    continue
+                fr, to = rel.get("from", ""), rel.get("to", "")
+                if not fr or not to:
+                    continue
+                existing[(fr, to)] = {
+                    "from": fr,
+                    "to": to,
+                    "type": rel.get("type", ""),
+                    "description": rel.get("description", ""),
+                }
+            dm["relations"] = list(existing.values())
 
     @staticmethod
     def _merge_aggregates(
