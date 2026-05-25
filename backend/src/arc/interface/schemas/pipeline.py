@@ -25,6 +25,7 @@ class ArtifactResponse(BaseModel):
     version: int
     is_confirmed: bool
     confirmed_at: datetime | None = None
+    preview_url: str | None = None
     created_at: datetime
     updated_at: datetime
 

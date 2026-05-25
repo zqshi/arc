@@ -23,3 +23,4 @@ class ArtifactModel(TimestampMixin, Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    preview_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

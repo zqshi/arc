@@ -38,6 +38,11 @@ services:
       ARC_OPENHANDS_URL: http://openhands:3000
       ARC_OPENHANDS_API_KEY: ${ARC_OPENHANDS_API_KEY:-}
       ARC_CORS_ORIGINS: '["http://localhost:5173","http://localhost:3001"]'
+      ARC_STORAGE_ENDPOINT: ${ARC_STORAGE_ENDPOINT:-http://minio:9000}
+      ARC_STORAGE_ACCESS_KEY: ${ARC_STORAGE_ACCESS_KEY:-minioadmin}
+      ARC_STORAGE_SECRET_KEY: ${ARC_STORAGE_SECRET_KEY:-minioadmin}
+      ARC_STORAGE_BUCKET: ${ARC_STORAGE_BUCKET:-arc-previews}
+      ARC_STORAGE_PUBLIC_URL: ${ARC_STORAGE_PUBLIC_URL:-http://localhost:9000/arc-previews}
     ports:
       - "8000:8000"
     depends_on:
@@ -77,6 +82,24 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - openhands_data:/opt/workspace_base
 
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${ARC_STORAGE_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${ARC_STORAGE_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
 volumes:
   pgdata:
   openhands_data:
+  minio_data:

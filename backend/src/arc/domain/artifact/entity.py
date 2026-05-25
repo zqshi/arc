@@ -17,6 +17,7 @@ class Artifact:
     version: int = 1
     is_confirmed: bool = False
     confirmed_at: datetime | None = None
+    preview_url: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -39,4 +40,8 @@ class Artifact:
     def unconfirm(self) -> None:
         self.is_confirmed = False
         self.confirmed_at = None
+        self.updated_at = datetime.now(UTC)
+
+    def set_preview_url(self, url: str) -> None:
+        self.preview_url = url
         self.updated_at = datetime.now(UTC)

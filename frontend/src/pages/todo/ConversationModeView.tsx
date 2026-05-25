@@ -234,8 +234,24 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                               try {
                                 const artifacts = await api.listArtifacts(id);
                                 const match = artifacts.find((a) => a.artifact_type === 'prototype');
-                                if (match?.content) openPrototypeInNewTab(match.content as Record<string, unknown>);
-                              } catch { /* ignore */ }
+                                if (!match) return;
+                                if (match.preview_url) {
+                                  window.open(match.preview_url, '_blank');
+                                } else {
+                                  const result = await api.publishArtifact(id, match.id);
+                                  if (result.preview_url) {
+                                    window.open(result.preview_url, '_blank');
+                                  } else if (match.content) {
+                                    openPrototypeInNewTab(match.content as Record<string, unknown>);
+                                  }
+                                }
+                              } catch {
+                                try {
+                                  const artifacts = await api.listArtifacts(id);
+                                  const match = artifacts.find((a) => a.artifact_type === 'prototype');
+                                  if (match?.content) openPrototypeInNewTab(match.content as Record<string, unknown>);
+                                } catch { /* ignore */ }
+                              }
                             }}
                             className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-accent transition-colors hover:bg-accent/10"
                           >

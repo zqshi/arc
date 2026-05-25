@@ -386,6 +386,12 @@ class ApiClient {
     });
   }
 
+  async publishArtifact(todoId: string, artifactId: string): Promise<{ preview_url: string }> {
+    return this.request<{ preview_url: string }>(`/api/todos/${todoId}/artifacts/${artifactId}/publish`, {
+      method: 'POST',
+    });
+  }
+
   // ─── Conversations ─────────────────────────────────────
 
   async listConversations(todoId: string): Promise<Conversation[]> {

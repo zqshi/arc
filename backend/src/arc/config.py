@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     agent_testing: str = ""
     agent_deployment: str = ""
 
+    # Object Storage (S3-compatible: MinIO / AWS S3 / Aliyun OSS)
+    storage_endpoint: str = ""
+    storage_access_key: str = ""
+    storage_secret_key: str = ""
+    storage_bucket: str = "arc-previews"
+    storage_public_url: str = ""
+
     model_config = {"env_prefix": "ARC_", "env_file": ".env"}
 
 
