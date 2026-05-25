@@ -15,6 +15,10 @@
 
 ---
 
+## ~~v1.1.0~~ → 已完成, 见 [v1.1.0-snapshot.md](v1.1.0-snapshot.md)
+
+---
+
 ## v2.0.0 — 商业化
 
 **核心目标:** 可售卖的产品。Phase 3 in product vision.
