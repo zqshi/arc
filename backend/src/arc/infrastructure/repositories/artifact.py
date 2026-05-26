@@ -72,6 +72,22 @@ class ArtifactRepository:
         )
         return [self._to_entity(r) for r in result.scalars().all()]
 
+    async def list_by_todo_ids(
+        self, todo_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, list[Artifact]]:
+        if not todo_ids:
+            return {}
+        result = await self.db.execute(
+            select(ArtifactModel)
+            .where(ArtifactModel.todo_id.in_(todo_ids))
+            .order_by(ArtifactModel.created_at)
+        )
+        grouped: dict[uuid.UUID, list[Artifact]] = {}
+        for model in result.scalars().all():
+            art = self._to_entity(model)
+            grouped.setdefault(art.todo_id, []).append(art)
+        return grouped
+
     async def list_confirmed_by_todo(self, todo_id: uuid.UUID) -> list[Artifact]:
         result = await self.db.execute(
             select(ArtifactModel)
