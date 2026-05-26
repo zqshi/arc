@@ -21,8 +21,8 @@ from arc.application.execution.prompts import (
     ARTIFACT_SCHEMAS,
     AUTOPILOT_SECTION,
     CONVERSATION_MODE_SYSTEM_PROMPT,
-    build_deliverable_checklist,
     build_ddd_tdd_section,
+    build_deliverable_checklist,
 )
 from arc.domain.artifact.value_objects import ARTIFACT_LABELS, ArtifactType
 from arc.domain.conversation.entity import Conversation
@@ -113,7 +113,6 @@ class ConversationExecutionService:
             DELIVERABLE_REQUIRED_FIELDS,
             AgentLoop,
             DeliverableValidator,
-            LoopConfig,
         )
 
         llm_messages = await self._build_llm_messages(conversation)
@@ -159,7 +158,7 @@ class ConversationExecutionService:
                     if message_id is None:
                         message_id = event.metadata.get("message_id", str(uuid.uuid4()))
                     logger.info(
-                        "Agent loop complete: %d iterations, %d continuations, %dms, terminated_by=%s",
+                        "Agent loop complete: %d iters, %d conts, %dms, by=%s",
                         metrics.get("iterations", 0),
                         metrics.get("continuations", 0),
                         metrics.get("elapsed_ms", 0),
@@ -396,7 +395,9 @@ class ConversationExecutionService:
             title=todo.title if todo else "",
             description=todo.description if todo else "",
             deliverable_section=deliverable_section,
-            project_context=project_context + ("\n\n" + autopilot_section if autopilot_section else ""),
+            project_context=(
+                project_context + ("\n\n" + autopilot_section if autopilot_section else "")
+            ),
             experience_context=experience_context,
             completed_artifacts=completed_artifacts_text,
         )

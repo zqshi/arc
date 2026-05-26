@@ -85,7 +85,6 @@ class GitHubService:
         finally:
             await client.close()
 
-        from arc.domain.project.value_objects import ExecutionMode
 
         results = []
         for issue in issues:

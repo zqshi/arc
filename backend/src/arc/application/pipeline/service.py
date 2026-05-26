@@ -372,8 +372,8 @@ class PipelineService:
         if not todo.github_issue_number or not todo.project_id:
             return
         try:
-            from arc.infrastructure.repositories.project import ProjectRepository
             from arc.application.integration.github_service import GitHubService
+            from arc.infrastructure.repositories.project import ProjectRepository
 
             project = await ProjectRepository(self.db).get_by_id(todo.project_id)
             if project and project.github_token:

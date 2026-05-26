@@ -72,8 +72,9 @@ async def _authenticate_ws(token: str | None):
 
 async def _get_org_id_for_todo(db, todo_id: UUID) -> UUID | None:
     from sqlalchemy import select
-    from arc.infrastructure.models.todo import Todo as TodoModel
+
     from arc.infrastructure.models.project import ProjectModel
+    from arc.infrastructure.models.todo import Todo as TodoModel
 
     result = await db.execute(
         select(ProjectModel.organization_id)
@@ -85,8 +86,8 @@ async def _get_org_id_for_todo(db, todo_id: UUID) -> UUID | None:
 
 async def _mark_todo_complete(todo_id: UUID) -> None:
     from arc.infrastructure.database import async_session_factory
-    from arc.infrastructure.repositories.todo import TodoRepository
     from arc.infrastructure.repositories.project import ProjectRepository
+    from arc.infrastructure.repositories.todo import TodoRepository
 
     try:
         async with async_session_factory() as db:
@@ -442,8 +443,8 @@ async def conversation_ws(
                 await _stream_ai_response(manager, conversation_id, svc, conv)
 
                 if org_id:
-                    from arc.application.billing.quota_service import QuotaService as QS
-                    await QS(db).increment_ai_calls(org_id)
+                    from arc.application.billing.quota_service import QuotaService
+                    await QuotaService(db).increment_ai_calls(org_id)
 
                 await db.commit()
 
