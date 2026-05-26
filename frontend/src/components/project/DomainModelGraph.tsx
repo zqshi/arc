@@ -34,7 +34,7 @@ export function DomainModelGraph({ domainModel, view }: Props) {
 
   const activeId = selected || hovered;
 
-  const subTypeMap = Object.fromEntries(
+  const subTypeMapBase = Object.fromEntries(
     domainModel.subdomains.map((s) => [s.name, s.type || '支撑域']),
   );
 
@@ -104,15 +104,40 @@ export function DomainModelGraph({ domainModel, view }: Props) {
 
   const getCol = (sub: string) => SUBDOMAIN_COLORS[subTypeMap[sub] || '支撑域'] || SUBDOMAIN_COLORS['支撑域'];
 
-  const ctxBySub = domainModel.subdomains.map((sd) => ({
+  // When contexts are missing, derive virtual contexts from aggregate.context field
+  const effectiveContexts = domainModel.contexts.length > 0
+    ? domainModel.contexts
+    : (() => {
+        const ctxNames = new Set(domainModel.aggregates.map((a) => a.context || '未分组'));
+        return Array.from(ctxNames).map((name) => ({ name, description: '', subdomain: '' }));
+      })();
+
+  // When subdomains are missing, derive virtual subdomains from context.subdomain field
+  const effectiveSubdomains = domainModel.subdomains.length > 0
+    ? domainModel.subdomains
+    : (() => {
+        const sdNames = new Set(effectiveContexts.map((c) => c.subdomain || '通用'));
+        return Array.from(sdNames).map((name) => ({
+          name,
+          type: name === '通用' ? '通用域' : '支撑域',
+          description: '',
+        }));
+      })();
+
+  const subTypeMap = {
+    ...subTypeMapBase,
+    ...Object.fromEntries(effectiveSubdomains.map((s) => [s.name, s.type || '支撑域'])),
+  };
+
+  const ctxBySub = effectiveSubdomains.map((sd) => ({
     info: sd,
-    ctxs: domainModel.contexts.filter((c) => c.subdomain === sd.name),
+    ctxs: effectiveContexts.filter((c) => (c.subdomain || '通用') === sd.name),
   }));
 
-  const aggByCtx = domainModel.contexts
+  const aggByCtx = effectiveContexts
     .map((ctx) => ({
       info: ctx,
-      aggs: domainModel.aggregates.filter((a) => a.context === ctx.name),
+      aggs: domainModel.aggregates.filter((a) => (a.context || '未分组') === ctx.name),
     }))
     .filter((g) => g.aggs.length > 0);
 
