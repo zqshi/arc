@@ -32,6 +32,7 @@ class DomainModelExtractor:
         """
         data_model = tech_arch_content.get("data_model")
         domain_design = tech_arch_content.get("domain_design")
+        event_storming = tech_arch_content.get("event_storming")
 
         has_entities = (
             data_model
@@ -39,8 +40,9 @@ class DomainModelExtractor:
             and len(data_model["entities"]) > 0
         )
         has_strategic = domain_design and isinstance(domain_design, dict)
+        has_events = event_storming and isinstance(event_storming, dict)
 
-        if not has_entities and not has_strategic:
+        if not has_entities and not has_strategic and not has_events:
             return False
 
         todo_repo = TodoRepository(self.db)
@@ -69,6 +71,10 @@ class DomainModelExtractor:
 
         if has_strategic:
             self._merge_strategic_design(dm, domain_design)
+            updated = True
+
+        if has_events:
+            self._merge_event_storming(dm, event_storming)
             updated = True
 
         if not updated:
@@ -208,3 +214,38 @@ class DomainModelExtractor:
                 by_name[name] = agg
 
         return list(by_name.values())
+
+    @staticmethod
+    def _merge_event_storming(dm: dict, event_storming: dict) -> None:
+        """将事件风暴数据合并到对应聚合的 events/methods 字段。"""
+        agg_by_name: dict[str, dict] = {
+            a.get("name", ""): a for a in dm.get("aggregates", [])
+        }
+
+        events = event_storming.get("events")
+        if isinstance(events, list):
+            for evt in events:
+                if not isinstance(evt, dict):
+                    continue
+                agg_name = evt.get("aggregate", "")
+                event_name = evt.get("name", "")
+                if not event_name:
+                    continue
+                if agg_name and agg_name in agg_by_name:
+                    agg_events = agg_by_name[agg_name].setdefault("events", [])
+                    if event_name not in agg_events:
+                        agg_events.append(event_name)
+
+        commands = event_storming.get("commands")
+        if isinstance(commands, list):
+            for cmd in commands:
+                if not isinstance(cmd, dict):
+                    continue
+                agg_name = cmd.get("target_aggregate", "")
+                cmd_name = cmd.get("name", "")
+                if not cmd_name:
+                    continue
+                if agg_name and agg_name in agg_by_name:
+                    agg_methods = agg_by_name[agg_name].setdefault("methods", [])
+                    if cmd_name not in agg_methods:
+                        agg_methods.append(cmd_name)

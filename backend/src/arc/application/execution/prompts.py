@@ -75,9 +75,12 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你是一位全栈AI工程师+产品分析�
    - 考虑响应式和异常状态的呈现
 
 5. **技术架构** → 产出 `tech_architecture`
-   - 先做战略设计：识别子域（核心域/支撑域/通用域）、划定限界上下文、定义上下文间协作关系
-   - 基于限界上下文划分数据模型，每个实体标注所属上下文
-   - 规划 API 设计、技术选型，记录关键决策推理过程
+   **DDD 三阶段建模（自主驱动，一次性完成，不等用户确认）**：
+   - **战略设计**：识别子域（核心域 1-3 个/支撑域/通用域），划定限界上下文（职责单一、边界清晰），定义上下文间协作关系（ACL/OHS/SharedKernel/CustomerSupplier），通用域优先评估外采
+   - **事件风暴**：在每个上下文内识别领域事件（过去时态命名）、触发命令和角色，通过事件流识别聚合边界
+   - **战术建模**：设计聚合根（事务边界 + 不变量），区分实体/值对象（不可变优先值对象），聚合 < 5 实体，聚合间 ID 引用，跨聚合用领域服务
+   - 将以上三阶段结果完整填入 domain_design + event_storming + data_model 字段
+   - 规划 API 设计、技术选型，记录关键 tech_decisions 推理过程
 
 6. **开发实现** → 产出 `dev_report`
    - [TDD] 先从 requirement_spec.acceptance_criteria 派生测试用例（Given/When/Then）
@@ -233,6 +236,17 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
     ],
     "erd_description": "实体关系概述"
   },
+  "event_storming": {
+    "events": [
+      {"name": "领域事件名（过去时态）", "context": "所属限界上下文",
+       "trigger": "触发方式（命令/事件/定时）", "actor": "触发角色",
+       "aggregate": "关联聚合"}
+    ],
+    "commands": [
+      {"name": "命令名", "actor": "操作角色",
+       "target_aggregate": "目标聚合", "events_produced": ["产生的事件"]}
+    ]
+  },
   "api_design": [
     {"method": "HTTP方法", "path": "/api/路径",
      "description": "接口说明",
@@ -320,22 +334,27 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
 
 DDD_TDD_GUIDANCE = """## 开发方法论：DDD + TDD（本项目已启用）
 
-本项目领域模型已有 {aggregate_count} 个聚合，需遵循：
+本项目领域模型已有 {aggregate_count} 个聚合、{subdomain_count} 个子域、{context_count} 个限界上下文。
+
+### 战略设计上下文
+{strategic_section}
+
+### 战术设计上下文
+{tactical_section}
+
+### DDD 设计原则（你必须遵守）
+- 聚合是事务一致性边界，聚合间只通过 ID 引用，不直接持有
+- 每个聚合维护自己的不变量，不依赖外部状态
+- 核心域聚焦投入，通用域优先外采
+- 限界上下文间通过 ACL/OHS 等模式协作，禁止直接耦合
+- 领域事件驱动跨上下文通信
+- 值对象优先于实体（不可变 = 更安全）
+- 新增/修改实体时必须明确其所属聚合和限界上下文
 
 ### TDD 流程
 1. 从已确认的验收标准(acceptance_criteria)派生测试用例
 2. 每个测试对应一个明确的业务不变量
 3. 先写失败测试 → 实现最小代码使其通过 → 重构
-
-### DDD 结构约束
-当前聚合列表：
-{aggregate_summary}
-
-实现时必须：
-- 代码目录/模块按聚合边界划分
-- 聚合间只通过 ID 引用，不直接持有
-- 不变量在聚合根的方法中维护
-- 跨聚合操作通过领域服务协调
 
 ### dev_report 产出要求
 methodology 字段设为 "ddd_tdd"，必须体现 test_design → implementation → validation 三段式。
@@ -355,23 +374,81 @@ def build_ddd_tdd_section(domain_model: dict) -> str:
     """根据项目领域模型复杂度决定是否注入 DDD+TDD 引导。"""
     aggregates = domain_model.get("aggregates", [])
     relations = domain_model.get("relations", [])
+    subdomains = domain_model.get("subdomains", [])
+    contexts = domain_model.get("contexts", [])
+    aggregate_relations = domain_model.get("aggregate_relations", [])
 
     if len(aggregates) < 3 and len(relations) == 0:
         return ""
 
-    agg_lines = []
-    for agg in aggregates[:10]:
+    # Strategic section
+    strategic_lines = []
+    if subdomains:
+        strategic_lines.append("**子域划分：**")
+        for sd in subdomains:
+            strategic_lines.append(f"- {sd.get('name', '')} ({sd.get('type', '支撑域')})")
+            if sd.get("description"):
+                strategic_lines.append(f"  {sd['description']}")
+
+    if contexts:
+        strategic_lines.append("\n**限界上下文：**")
+        for ctx in contexts:
+            line = f"- {ctx.get('name', '')}"
+            if ctx.get("subdomain"):
+                line += f" → {ctx['subdomain']}"
+            strategic_lines.append(line)
+
+    if relations:
+        strategic_lines.append("\n**上下文间关系：**")
+        for rel in relations:
+            line = f"- {rel.get('from', '')} → {rel.get('to', '')} [{rel.get('type', '')}]"
+            if rel.get("description"):
+                line += f" — {rel['description']}"
+            strategic_lines.append(line)
+
+    if not strategic_lines:
+        strategic_lines.append("（尚未建立战略设计，产出 tech_architecture 时需完成子域划分和上下文映射）")
+
+    # Tactical section
+    tactical_lines = []
+    for agg in aggregates[:15]:
         name = agg.get("name", "")
         ctx = agg.get("context", "")
         entities = ", ".join(agg.get("entities", [])[:5])
+        value_objects = ", ".join(agg.get("value_objects", [])[:5])
+        events = ", ".join(agg.get("events", [])[:3])
+        methods = ", ".join(agg.get("methods", [])[:3])
+
         line = f"- **{name}**"
         if ctx:
             line += f" ({ctx})"
+        parts = []
         if entities:
-            line += f" — 实体: {entities}"
-        agg_lines.append(line)
+            parts.append(f"实体: {entities}")
+        if value_objects:
+            parts.append(f"值对象: {value_objects}")
+        if events:
+            parts.append(f"事件: {events}")
+        if methods:
+            parts.append(f"方法: {methods}")
+        if parts:
+            line += f" — {'; '.join(parts)}"
+        tactical_lines.append(line)
+
+    if aggregate_relations:
+        tactical_lines.append("\n**聚合间引用：**")
+        for rel in aggregate_relations[:10]:
+            tactical_lines.append(
+                f"- {rel.get('from', '')} → {rel.get('to', '')} [{rel.get('type', '')}]"
+            )
+
+    if not tactical_lines:
+        tactical_lines.append("（尚未建立战术模型）")
 
     return DDD_TDD_GUIDANCE.format(
         aggregate_count=len(aggregates),
-        aggregate_summary="\n".join(agg_lines) if agg_lines else "（暂无详细聚合定义）",
+        subdomain_count=len(subdomains),
+        context_count=len(contexts),
+        strategic_section="\n".join(strategic_lines),
+        tactical_section="\n".join(tactical_lines),
     )
