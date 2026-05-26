@@ -115,8 +115,11 @@ UI/UE 设计（AI 出方案，人选择）
 
 **领域建模**
 - 项目级领域模型自动提取（从技术架构交付物沉淀）
-- 战略设计（子域划分 + 限界上下文）+ 战术设计（聚合 / 实体 / 值对象）
-- 依赖关系图可视化（SVG 连线 + hover 高亮 + 点击锁定）
+- DDD 三阶段自主建模（战略设计 → 事件风暴 → 战术建模，AI 自主驱动无需人工干预）
+- 事件风暴数据提取（领域事件 + 命令自动合并到聚合模型）
+- LLM 驱动领域模型质量评审（战略 / 战术 / 命名 / 完整度四维度，评分 + 问题列表 + 改进建议）
+- 战略设计（子域划分 + 限界上下文）+ 战术设计（聚合 / 实体 / 值对象 / 领域事件）
+- 依赖关系图可视化（SVG 连线 + hover 高亮 + 点击锁定 + 空状态 fallback 分组）
 - 增量合并刷新（手动触发 + 自动提取，持续累积不丢弃）
 
 **经验引擎**
@@ -258,7 +261,7 @@ arc/
 │       │   ├── agent/           #   多 Agent 编排（Registry + Adapter）
 │       │   ├── ai/              #   LLM 适配器 + 韧性层
 │       │   ├── auth/            #   认证（JWT + SMS + 速率限制）
-│       │   ├── execution/       #   AgentLoop + DomainModelExtractor
+│       │   ├── execution/       #   AgentLoop + DomainModelExtractor + Validator
 │       │   ├── pipeline/        #   七阶段 Pipeline 服务
 │       │   ├── planning/        #   规划引擎（文档 + 路线图）
 │       │   └── experience/      #   经验引擎（向量搜索 + 双维度积累）
@@ -304,6 +307,7 @@ arc/
 | v1.1 | 工程加固 — 测试覆盖 + 分页统一 + Docker 安全化 | done |
 | v1.2 | 交付增强 — AgentLoop + 领域建模 + 原型预览 + S3 存储 | done |
 | v2.0 | 商业化 — 多租户 + 计费 + GitHub 集成 + 云部署 | done |
+| v2.1 | DDD 工程化 — 三阶段自主建模 + 事件风暴 + LLM 质量评审 + schema 对齐 | done |
 
 ## 许可
 
