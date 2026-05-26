@@ -2,7 +2,97 @@
 export type TodoStatus = 'pending' | 'active' | 'done' | 'error' | 'abandoned';
 export type PhaseType = 'clarification' | 'ui_design' | 'architecture' | 'development' | 'testing' | 'deployment' | 'extraction';
 export type PhaseStatus = 'pending' | 'active' | 'awaiting_confirm' | 'confirmed' | 'skipped';
-export type ArtifactType = 'requirement_spec' | 'ui_design' | 'tech_architecture' | 'dev_report' | 'test_report' | 'deploy_report' | 'experience_card';
+export type ArtifactType = 'requirement_spec' | 'ui_design' | 'tech_architecture' | 'dev_report' | 'test_report' | 'deploy_report' | 'experience_card' | 'interaction_design' | 'ui_spec' | 'prototype';
+
+// ─── Artifact Content Types (discriminated union) ────────
+
+export interface RequirementSpecContent {
+  background?: string;
+  target_users?: Array<{ type: string; traits: string; core_need: string }>;
+  core_value?: Record<string, string>;
+  user_stories?: Array<{ role: string; goal: string; benefit: string; priority: string; acceptance: string }>;
+  acceptance_criteria?: Array<{ id: string; scenario: string; steps: string; expected: string; priority: string }>;
+  risks?: Array<{ risk: string; probability: string; impact: string; mitigation: string }>;
+  assumptions?: Array<{ assumption: string; confidence: string; validation_method: string }>;
+  scope?: string;
+  non_functional?: string;
+}
+
+export interface InteractionDesignContent {
+  user_flows?: Array<{ name?: string; description?: string; mermaid?: string }>;
+  page_map?: Array<{ page?: string; entry_from?: string; exits_to?: string[]; triggers?: string }>;
+  interaction_rules?: Array<{ component?: string; action?: string; response?: string; feedback?: string }>;
+  edge_cases?: string;
+}
+
+export interface UISpecContent {
+  design_tokens?: Record<string, string>;
+  color_palette?: Array<{ name?: string; value?: string; usage?: string }>;
+  typography?: string;
+  spacing?: string;
+  component_specs?: Array<{ name?: string; states?: string; notes?: string }>;
+}
+
+export interface PrototypeContent {
+  overview?: string;
+  pages?: Array<{ name?: string; description?: string; html?: string; responsive_notes?: string }>;
+  components?: Array<{ name?: string; html?: string; props?: string }>;
+  navigation?: string;
+}
+
+export interface TechArchitectureContent {
+  architecture_overview?: string;
+  data_model?: string;
+  api_design?: string;
+  tech_decisions?: Array<{ decision?: string; options?: string; chosen?: string; reason?: string }>;
+  implementation_plan?: string;
+}
+
+export interface DevReportContent {
+  summary?: string;
+  code_changes?: Array<{ file?: string; change_type?: string; description?: string; aggregate?: string }>;
+  decisions_made?: Array<{ decision?: string; reason?: string; ddd_rationale?: string }>;
+  test_cases?: Array<{ name?: string; type?: string; target_aggregate?: string; given?: string; when?: string; then?: string; status?: 'pass' | 'fail' | 'pending' }>;
+  technical_debt?: string;
+  next_steps?: string;
+}
+
+export interface TestReportContent {
+  criteria_verification?: Array<{ criteria?: string; status?: string; evidence?: string }>;
+  issues_found?: Array<{ description?: string; severity?: string; suggestion?: string }>;
+  coverage_summary?: string;
+}
+
+export interface DeployReportContent {
+  deploy_log?: string;
+  service_url?: string;
+  health_check_result?: string;
+  rollback_plan?: string;
+}
+
+export interface ExperienceCardContent {
+  problem?: string;
+  solution?: string;
+  decisions?: Array<{ point?: string; chosen?: string; reason?: string }>;
+  pitfalls?: Array<{ issue?: string; cause?: string; fix?: string }>;
+  applicable_scenarios?: string;
+  tags?: string[];
+}
+
+export type ArtifactContentMap = {
+  requirement_spec: RequirementSpecContent;
+  interaction_design: InteractionDesignContent;
+  ui_spec: UISpecContent;
+  ui_design: UISpecContent;
+  prototype: PrototypeContent;
+  tech_architecture: TechArchitectureContent;
+  dev_report: DevReportContent;
+  test_report: TestReportContent;
+  deploy_report: DeployReportContent;
+  experience_card: ExperienceCardContent;
+};
+
+export type ArtifactContent = ArtifactContentMap[keyof ArtifactContentMap];
 export type ConversationPurpose = 'clarification' | 'ui_design' | 'architecture' | 'development' | 'testing' | 'deployment' | 'review' | 'unified' | 'planning';
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type ProjectStatus = 'active' | 'archived';
@@ -30,6 +120,8 @@ export interface Project {
   execution_mode: ExecutionMode;
   pipeline_config?: Record<string, unknown>;
   conversation_config?: Record<string, unknown>;
+  github_connected?: boolean;
+  github_repo?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,7 +235,7 @@ export interface Artifact {
   todo_id: string;
   phase_id: string | null;
   artifact_type: ArtifactType;
-  content: Record<string, unknown>;
+  content: ArtifactContent;
   version: number;
   is_confirmed: boolean;
   confirmed_at: string | null;
@@ -354,13 +446,39 @@ export interface PlanningDocument {
   created_at: string;
 }
 
+export interface RoadmapFeature {
+  title?: string;
+  complexity?: string | number;
+  priority?: string | number;
+  [key: string]: unknown;
+}
+
+export interface RoadmapVersion {
+  name?: string;
+  goal?: string;
+  estimated_sprints?: number;
+  scope_rationale?: string;
+  features?: RoadmapFeature[];
+  risks?: string[];
+  [key: string]: unknown;
+}
+
+export interface RoadmapData {
+  strategy?: string;
+  strategy_rationale?: string;
+  total_estimated_weeks?: number;
+  timeline_mermaid?: string;
+  versions?: RoadmapVersion[];
+  [key: string]: unknown;
+}
+
 export interface PlanningSession {
   id: string;
   project_id: string;
   version_id: string | null;
   document_ids: string[];
   constraints: Record<string, unknown>;
-  roadmap: Record<string, unknown>;
+  roadmap: RoadmapData;
   conversation_id: string | null;
   status: string;
   created_at: string;
@@ -461,5 +579,22 @@ export interface BatchStartResult {
 export interface QuickMessageResponse {
   message_id: string;
   status: 'accepted';
+}
+
+// ─── Billing ─────────────────────────────────────────────
+export interface UsageResponse {
+  plan: string;
+  projects_used: number;
+  projects_limit: number;
+  members_used: number;
+  members_limit: number;
+  ai_calls_today: number;
+  ai_calls_limit: number;
+}
+
+export interface PlanLimitsResponse {
+  free: Record<string, number>;
+  pro: Record<string, number>;
+  team: Record<string, number>;
 }
 

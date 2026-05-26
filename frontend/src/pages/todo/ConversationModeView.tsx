@@ -103,11 +103,13 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     fetchTracker();
   }, [fetchConversation, fetchTracker]);
 
+  const todoTitle = todo?.title;
+  const todoProjectId = todo?.project_id;
   useEffect(() => {
-    if (!todo) return;
-    api.searchExperiences(todo.title, todo.project_id || undefined)
+    if (!todoTitle) return;
+    api.searchExperiences(todoTitle, todoProjectId || undefined)
       .then(setRelatedExps).catch(() => setRelatedExps([]));
-  }, [todo?.title]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [todoTitle, todoProjectId]);
 
   useEffect(() => {
     if (!isStreaming && conversationId) fetchTracker();
@@ -448,5 +450,10 @@ render();
 </script></body></html>`;
 
   const shellBlob = new Blob([shell], { type: 'text/html;charset=utf-8' });
-  window.open(URL.createObjectURL(shellBlob), '_blank');
+  const shellUrl = URL.createObjectURL(shellBlob);
+  window.open(shellUrl, '_blank');
+  setTimeout(() => {
+    URL.revokeObjectURL(shellUrl);
+    blobUrls.forEach(u => URL.revokeObjectURL(u));
+  }, 60_000);
 }

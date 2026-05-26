@@ -70,7 +70,7 @@ export default function UISpec({ content }: Props) {
               </div>
             ))}
           </div>
-          {spacing.unit && <p className="mt-2 text-[10px] text-text-muted">基础单位: {String(spacing.unit)}px</p>}
+          {spacing.unit != null && <p className="mt-2 text-[10px] text-text-muted">基础单位: {String(spacing.unit)}px</p>}
         </SectionCard>
       )}
 
@@ -101,9 +101,9 @@ export default function UISpec({ content }: Props) {
       {layoutGrid && (
         <SectionCard icon={<Grid3X3 size={13} />} title="布局栅格">
           <div className="space-y-1 text-[11px] text-text-secondary">
-            {layoutGrid.columns && <p>列数: {String(layoutGrid.columns)}</p>}
-            {layoutGrid.gutter && <p>间距: {String(layoutGrid.gutter)}</p>}
-            {layoutGrid.breakpoints && (
+            {layoutGrid.columns != null && <p>列数: {String(layoutGrid.columns)}</p>}
+            {layoutGrid.gutter != null && <p>间距: {String(layoutGrid.gutter)}</p>}
+            {layoutGrid.breakpoints != null && (
               <div className="mt-1">
                 {Object.entries(layoutGrid.breakpoints as Record<string, string>).map(([bp, val]) => (
                   <span key={bp} className="mr-3 text-[10px]"><b>{bp}</b>: {val}</span>

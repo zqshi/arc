@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 import logging
-import os
 import uuid
+from io import BytesIO
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.planning.entity import Document
 from arc.infrastructure.repositories.planning import DocumentRepository
+from arc.infrastructure.storage import get_storage
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = os.environ.get("ARC_UPLOAD_DIR", "uploads/documents")
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",
     "text/markdown",
@@ -21,6 +21,19 @@ ALLOWED_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+
+
+def _sanitize_filename(filename: str) -> str:
+    from pathlib import PurePosixPath
+    name = PurePosixPath(filename).name
+    if not name or name in (".", ".."):
+        raise ValueError("Invalid filename")
+    return name
+
+
+def _storage_key(project_id: uuid.UUID, doc_id: uuid.UUID, filename: str) -> str:
+    safe_name = _sanitize_filename(filename)
+    return f"documents/{project_id}/{doc_id}/{safe_name}"
 
 
 class DocumentService:
@@ -47,17 +60,16 @@ class DocumentService:
             size=len(data),
         )
 
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        storage_path = os.path.join(UPLOAD_DIR, f"{doc.id}_{filename}")
-        with open(storage_path, "wb") as f:
-            f.write(data)
-        doc.storage_path = storage_path
+        storage = get_storage()
+        key = _storage_key(project_id, doc.id, filename)
+        await storage.async_upload(key, data, content_type, max_size=MAX_FILE_SIZE)
+        doc.storage_path = key
 
         doc.mark_processing()
         await self.doc_repo.create(doc)
 
         try:
-            text = await self._extract_text(storage_path, content_type)
+            text = await self._extract_text(data, content_type)
             features = await self._parse_features(text, filename)
             doc.mark_ready(text, features)
         except Exception as exc:
@@ -67,34 +79,33 @@ class DocumentService:
         await self.doc_repo.update(doc)
         return doc
 
-    async def list_by_project(self, project_id: uuid.UUID) -> list[Document]:
-        return await self.doc_repo.list_by_project(project_id)
+    async def list_by_project(
+        self, project_id: uuid.UUID, *, skip: int = 0, limit: int = 100
+    ) -> list[Document]:
+        return await self.doc_repo.list_by_project(project_id, skip=skip, limit=limit)
 
     async def delete(self, doc_id: uuid.UUID) -> bool:
         doc = await self.doc_repo.get_by_id(doc_id)
-        if doc and doc.storage_path and os.path.exists(doc.storage_path):
-            try:
-                os.remove(doc.storage_path)
-            except OSError:
-                pass
+        if doc and doc.storage_path:
+            storage = get_storage()
+            await storage.async_delete(doc.storage_path)
         return await self.doc_repo.delete(doc_id)
 
-    async def _extract_text(self, path: str, content_type: str) -> str:
+    async def _extract_text(self, data: bytes, content_type: str) -> str:
         if content_type in ("text/markdown", "text/plain"):
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                return f.read()
+            return data.decode("utf-8", errors="replace")
         if content_type == "application/pdf":
-            return await self._extract_pdf(path)
+            return await self._extract_pdf(data)
         if "wordprocessingml" in content_type:
-            return await self._extract_docx(path)
+            return await self._extract_docx(data)
         return ""
 
     @staticmethod
-    async def _extract_pdf(path: str) -> str:
+    async def _extract_pdf(data: bytes) -> str:
         try:
             import pypdf
 
-            reader = pypdf.PdfReader(path)
+            reader = pypdf.PdfReader(BytesIO(data))
             pages = [page.extract_text() or "" for page in reader.pages]
             return "\n\n".join(pages)
         except ImportError:
@@ -102,11 +113,11 @@ class DocumentService:
             return "[PDF文件 - 需安装pypdf库进行文本提取]"
 
     @staticmethod
-    async def _extract_docx(path: str) -> str:
+    async def _extract_docx(data: bytes) -> str:
         try:
             import docx
 
-            doc = docx.Document(path)
+            doc = docx.Document(BytesIO(data))
             return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except ImportError:
             logger.warning("python-docx not installed, DOCX extraction unavailable")

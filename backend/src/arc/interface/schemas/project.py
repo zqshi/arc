@@ -39,6 +39,8 @@ class ProjectResponse(BaseModel):
     execution_mode: str
     pipeline_config: dict | None = None
     conversation_config: dict | None = None
+    github_connected: bool = False
+    github_repo: str | None = None
     created_at: str
     updated_at: str
 

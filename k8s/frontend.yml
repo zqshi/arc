@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arc-frontend-nginx
+  namespace: arc
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        gzip on;
+        gzip_types text/plain text/css application/json application/javascript text/xml image/svg+xml;
+        gzip_min_length 256;
+        gzip_vary on;
+
+        location ~* \.(js|css|woff2?|ttf|eot|svg|png|jpg|ico)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            try_files $uri =404;
+        }
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arc-frontend
+  namespace: arc
+  labels:
+    app.kubernetes.io/name: arc-frontend
+    app.kubernetes.io/part-of: arc
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: arc-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: arc-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/YOUR_ORG/arc-frontend:latest
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: arc-frontend-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arc-frontend
+  namespace: arc
+spec:
+  selector:
+    app.kubernetes.io/name: arc-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP

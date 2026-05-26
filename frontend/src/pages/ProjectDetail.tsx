@@ -134,6 +134,8 @@ export default function ProjectDetail() {
               onRefresh={s.fetchData}
               insights={s.insights}
               onAppendConvention={s.handleAppendConvention}
+              githubConnected={s.project?.github_connected}
+              githubRepo={s.project?.github_repo}
             />
           )}
         </div>

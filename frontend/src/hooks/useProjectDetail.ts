@@ -7,8 +7,10 @@ import { useToast } from '../components/Toast';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjectTaskStream } from './useProjectTaskStream';
+import { useExperiences } from './useExperiences';
+import { useDomainModel } from './useDomainModel';
 import type { ActionMenuItem } from '../components/ActionMenu';
-import type { Project, Version, VersionType, Todo, Experience, ExperienceCategory, PlanningSession, UserRole, DomainModel } from '../types/api';
+import type { Project, Version, VersionType, Todo, PlanningSession, UserRole } from '../types/api';
 
 type TabKey = 'todos' | 'experiences' | 'domain_model' | 'settings';
 
@@ -41,15 +43,13 @@ export function useProjectDetail() {
 
   const [createForVersion, setCreateForVersion] = useState<string | null>(null);
 
-  const [experiences, setExperiences] = useState<Experience[]>([]);
-  const [expFilter, setExpFilter] = useState<'all' | 'draft' | 'confirmed'>('all');
-  const [expCategoryFilter, setExpCategoryFilter] = useState<ExperienceCategory | 'all'>('all');
-  const [expLoading, setExpLoading] = useState(false);
+  const {
+    experiences, expLoading, expFilter, setExpFilter,
+    expCategoryFilter, setExpCategoryFilter,
+    insights, fetchExperiences,
+  } = useExperiences(id, activeTab);
 
-  const [insights, setInsights] = useState<Array<{ id: string; title: string; solution: string; confidence: number; reuse_count: number }>>([]);
-
-  const [domainModel, setDomainModel] = useState<DomainModel | null>(null);
-  const [domainModelLoading, setDomainModelLoading] = useState(false);
+  const { domainModel, domainModelLoading } = useDomainModel(id, activeTab);
 
   const [myRole, setMyRole] = useState<UserRole>('admin');
 
@@ -94,58 +94,8 @@ export function useProjectDetail() {
     }
   }, [id, navigate, authUser, setCurrentProject]);
 
-  const fetchExperiences = useCallback(async () => {
-    if (!id) return;
-    setExpLoading(true);
-    try {
-      const status = expFilter === 'all' ? undefined : expFilter;
-      const category = expCategoryFilter === 'all' ? undefined : expCategoryFilter;
-      const exps = await api.listProjectExperiences(id, { status, category });
-      setExperiences(exps);
-    } catch {
-      setExperiences([]);
-    } finally {
-      setExpLoading(false);
-    }
-  }, [id, expFilter, expCategoryFilter]);
-
-  const fetchInsights = useCallback(async () => {
-    if (!id) return;
-    try {
-      const data = await api.getProjectExperienceInsights(id);
-      setInsights(data.suggestions);
-    } catch {
-      setInsights([]);
-    }
-  }, [id]);
-
-  const fetchDomainModel = useCallback(async () => {
-    if (!id) return;
-    setDomainModelLoading(true);
-    try {
-      const dm = await api.getDomainModel(id);
-      setDomainModel(dm);
-    } catch {
-      setDomainModel(null);
-    } finally {
-      setDomainModelLoading(false);
-    }
-  }, [id]);
-
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => () => setCurrentProject(null), [setCurrentProject]);
-
-  useEffect(() => {
-    if (activeTab === 'experiences') { fetchExperiences(); }
-  }, [activeTab, fetchExperiences]);
-
-  useEffect(() => {
-    if (activeTab === 'settings') { fetchInsights(); }
-  }, [activeTab, fetchInsights]);
-
-  useEffect(() => {
-    if (activeTab === 'domain_model') { fetchDomainModel(); }
-  }, [activeTab, fetchDomainModel]);
 
   useEffect(() => {
     if (!id || versions.length === 0) return;
@@ -238,7 +188,8 @@ export function useProjectDetail() {
         }));
       }).catch((err) => { console.warn('Failed to extract tags:', err); });
       navigate(`/todo/${todo.id}`);
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) return;
       toast('创建需求失败', 'error');
     }
   };

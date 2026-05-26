@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-05-21
+> 最后更新: 2026-05-25
 
 ---
 
@@ -19,16 +19,26 @@
 
 ---
 
-## v2.0.0 — 商业化
+## ~~v1.2.0~~ → 已完成, 见 [v1.2.0-snapshot.md](v1.2.0-snapshot.md)
 
-**核心目标:** 可售卖的产品。Phase 3 in product vision.
+---
 
-| 工作项 | 来源 |
-|--------|------|
-| 云端部署方案 | 产品愿景 Phase 3 |
-| 定价模型(Free/Pro/Team) | 产品愿景 7.1 |
-| 集成市场(GitHub/GitLab/CI) | 产品愿景 Phase 3 |
-| 经验模板市场(可选) | 产品愿景 Phase 3 |
+## ~~v2.0.0~~ → 已完成, 见 [v2.0.0-snapshot.md](v2.0.0-snapshot.md)
+
+---
+
+## 技术债务 — 架构改善 (可穿插在任何版本中)
+
+| 工作项 | 优先级 | 来源 | 状态 |
+|--------|--------|------|------|
+| ~~路由层 → Application Service 收口 (14+ 路由文件直接操作 Repository)~~ | P1 | 2026-05 审计 | 核心收口已完成, 剩余渐进 |
+| ~~核心模块测试覆盖 (storage/publish/document/WS/pipeline routes)~~ | P1 | 2026-05 审计 | 36 cases 已覆盖 |
+| ~~内存分页改 SQL 分页 (project.py:762,876,947,611)~~ | P2 | 2026-05 审计 | done |
+| ~~Artifact content discriminated union 类型化 (前后端)~~ | P2 | 2026-05 审计 | done |
+| ~~ChatMessages 虚拟列表 (200+ 消息滚动性能)~~ | P2 | 2026-05 审计 | done |
+| ~~DeliverableDrawer 类型断言消除 (定义 RoadmapData 接口)~~ | P3 | 2026-05 审计 | done |
+| ~~ErrorBoundary key-based remount~~ | P3 | 2026-05 审计 | done |
+| ~~Toast ARIA live region~~ | P3 | 2026-05 审计 | done |
 
 ---
 

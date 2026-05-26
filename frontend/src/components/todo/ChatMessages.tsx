@@ -1,4 +1,5 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Bot, RefreshCw, Package } from 'lucide-react';
 import MarkdownContent from '../MarkdownContent';
 import { ExperienceRefBadge } from './ExperienceRefBadge';
@@ -38,6 +39,8 @@ interface ChatMessagesProps {
   retryDisabled: boolean;
 }
 
+const VIRTUAL_THRESHOLD = 80;
+
 export function ChatMessages({
   messages,
   isStreaming,
@@ -47,12 +50,6 @@ export function ChatMessages({
   onRetry,
   retryDisabled,
 }: ChatMessagesProps) {
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
   const filtered = messages.filter((m) => m.role !== 'system');
 
   if (filtered.length === 0) {
@@ -66,65 +63,206 @@ export function ChatMessages({
     );
   }
 
+  if (filtered.length >= VIRTUAL_THRESHOLD) {
+    return (
+      <VirtualizedMessages
+        filtered={filtered}
+        isStreaming={isStreaming}
+        error={error}
+        todoId={todoId}
+        onRetry={onRetry}
+        retryDisabled={retryDisabled}
+      />
+    );
+  }
+
+  return (
+    <SimpleMessages
+      filtered={filtered}
+      isStreaming={isStreaming}
+      error={error}
+      todoId={todoId}
+      onRetry={onRetry}
+      retryDisabled={retryDisabled}
+    />
+  );
+}
+
+function SimpleMessages({
+  filtered,
+  isStreaming,
+  error,
+  todoId,
+  onRetry,
+  retryDisabled,
+}: {
+  filtered: Message[];
+  isStreaming: boolean;
+  error: string | null;
+  todoId: string;
+  onRetry: () => void;
+  retryDisabled: boolean;
+}) {
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [filtered]);
+
   return (
     <div className="flex flex-col gap-3">
-      {filtered.map((msg) => {
-        const isAssistant = msg.role === 'assistant';
-        const { cleanContent, deliverables } = isAssistant
-          ? processDeliverableMarkers(msg.content)
-          : { cleanContent: msg.content, deliverables: [] };
+      {filtered.map((msg) => (
+        <MessageBubble key={msg.id} msg={msg} todoId={todoId} />
+      ))}
+      <StreamingAndError
+        isStreaming={isStreaming}
+        error={error}
+        onRetry={onRetry}
+        retryDisabled={retryDisabled}
+      />
+      <div ref={chatEndRef} />
+    </div>
+  );
+}
 
-        return (
-          <div
-            key={msg.id}
-            className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-          >
-            {isAssistant && (
-              <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-accent/15">
-                <Bot size={11} className="text-accent" />
-              </div>
-            )}
-            <div className="max-w-[85%]">
-              {cleanContent && (
-                <div
-                  className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
-                    isAssistant
-                      ? 'bg-bg-card text-text-secondary'
-                      : 'bg-accent-subtle text-text-primary'
-                  }`}
-                >
-                  {isAssistant ? (
-                    <MarkdownContent content={cleanContent} />
-                  ) : (
-                    <div className="whitespace-pre-wrap">{cleanContent}</div>
-                  )}
-                </div>
-              )}
-              {deliverables.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {deliverables.map((type) => (
-                    <div
-                      key={type}
-                      className="flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent/5 px-2.5 py-1.5"
-                    >
-                      <Package size={11} className="text-accent" />
-                      <span className="text-[11px] font-medium text-accent">
-                        {DELIVERABLE_LABELS[type] || type} 已生成
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {isAssistant && Array.isArray(msg.metadata?.referenced_experiences) && (
-                <ExperienceRefBadge
-                  refs={msg.metadata.referenced_experiences as ExperienceRef[]}
-                  todoId={todoId}
+function VirtualizedMessages({
+  filtered,
+  isStreaming,
+  error,
+  todoId,
+  onRetry,
+  retryDisabled,
+}: {
+  filtered: Message[];
+  isStreaming: boolean;
+  error: string | null;
+  todoId: string;
+  onRetry: () => void;
+  retryDisabled: boolean;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const totalCount = filtered.length + (isStreaming || error ? 1 : 0);
+
+  const virtualizer = useVirtualizer({
+    count: totalCount,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 80,
+    overscan: 10,
+  });
+
+  const scrollToBottom = useCallback(() => {
+    if (totalCount > 0) {
+      virtualizer.scrollToIndex(totalCount - 1, { align: 'end', behavior: 'smooth' });
+    }
+  }, [virtualizer, totalCount]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [filtered.length, isStreaming, scrollToBottom]);
+
+  return (
+    <div ref={parentRef} className="h-full overflow-auto">
+      <div
+        className="relative w-full"
+        style={{ height: `${virtualizer.getTotalSize()}px` }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const isLast = virtualRow.index >= filtered.length;
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              className="absolute left-0 top-0 w-full py-1.5"
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
+            >
+              {isLast ? (
+                <StreamingAndError
+                  isStreaming={isStreaming}
+                  error={error}
+                  onRetry={onRetry}
+                  retryDisabled={retryDisabled}
                 />
+              ) : (
+                <MessageBubble msg={filtered[virtualRow.index]} todoId={todoId} />
               )}
             </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ msg, todoId }: { msg: Message; todoId: string }) {
+  const isAssistant = msg.role === 'assistant';
+  const { cleanContent, deliverables } = isAssistant
+    ? processDeliverableMarkers(msg.content)
+    : { cleanContent: msg.content, deliverables: [] };
+
+  return (
+    <div className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+      {isAssistant && (
+        <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-accent/15">
+          <Bot size={11} className="text-accent" />
+        </div>
+      )}
+      <div className="max-w-[85%]">
+        {cleanContent && (
+          <div
+            className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
+              isAssistant
+                ? 'bg-bg-card text-text-secondary'
+                : 'bg-accent-subtle text-text-primary'
+            }`}
+          >
+            {isAssistant ? (
+              <MarkdownContent content={cleanContent} />
+            ) : (
+              <div className="whitespace-pre-wrap">{cleanContent}</div>
+            )}
           </div>
-        );
-      })}
+        )}
+        {deliverables.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {deliverables.map((type) => (
+              <div
+                key={type}
+                className="flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent/5 px-2.5 py-1.5"
+              >
+                <Package size={11} className="text-accent" />
+                <span className="text-[11px] font-medium text-accent">
+                  {DELIVERABLE_LABELS[type] || type} 已生成
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {isAssistant && Array.isArray(msg.metadata?.referenced_experiences) && (
+          <ExperienceRefBadge
+            refs={msg.metadata.referenced_experiences as ExperienceRef[]}
+            todoId={todoId}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StreamingAndError({
+  isStreaming,
+  error,
+  onRetry,
+  retryDisabled,
+}: {
+  isStreaming: boolean;
+  error: string | null;
+  onRetry: () => void;
+  retryDisabled: boolean;
+}) {
+  return (
+    <>
       {isStreaming && (
         <div className="flex gap-2">
           <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-accent/15">
@@ -152,7 +290,6 @@ export function ChatMessages({
           </button>
         </div>
       )}
-      <div ref={chatEndRef} />
-    </div>
+    </>
   );
 }

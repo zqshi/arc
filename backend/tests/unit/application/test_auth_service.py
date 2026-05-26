@@ -43,10 +43,11 @@ class TestJWT:
 
     def test_create_and_verify_refresh_token(self):
         user_id = str(uuid.uuid4())
-        token = create_refresh_token(user_id)
+        token, jti = create_refresh_token(user_id)
         payload = verify_refresh_token(token)
         assert payload["sub"] == user_id
         assert payload["type"] == "refresh"
+        assert payload["jti"] == jti
 
     def test_access_token_rejected_as_refresh(self):
         token = create_access_token(str(uuid.uuid4()))
@@ -54,7 +55,7 @@ class TestJWT:
             verify_refresh_token(token)
 
     def test_refresh_token_rejected_as_access(self):
-        token = create_refresh_token(str(uuid.uuid4()))
+        token, _ = create_refresh_token(str(uuid.uuid4()))
         with pytest.raises(AuthenticationError, match="类型错误"):
             verify_access_token(token)
 

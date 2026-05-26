@@ -181,35 +181,38 @@ async def update_experience(
 
 @router.post("/{experience_id}/confirm", response_model=ExperienceResponse)
 async def confirm_experience(experience_id: str, db: DbSession, user: CurrentUser):
-    repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
-    if not exp:
-        raise HTTPException(status_code=404, detail="Experience not found")
-    exp.confirm()
-    updated = await repo.update(exp)
-    return _to_response(updated)
+    from arc.application.experience.service import ExperienceService
+
+    svc = ExperienceService(db)
+    try:
+        exp = await svc.confirm(UUID(experience_id), user_id=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return _to_response(exp)
 
 
 @router.post("/{experience_id}/archive", response_model=ExperienceResponse)
 async def archive_experience(experience_id: str, db: DbSession, user: CurrentUser):
-    repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
-    if not exp:
-        raise HTTPException(status_code=404, detail="Experience not found")
-    exp.archive()
-    updated = await repo.update(exp)
-    return _to_response(updated)
+    from arc.application.experience.service import ExperienceService
+
+    svc = ExperienceService(db)
+    try:
+        exp = await svc.archive(UUID(experience_id), user_id=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return _to_response(exp)
 
 
 @router.post("/{experience_id}/promote", response_model=ExperienceResponse)
 async def promote_experience(experience_id: str, db: DbSession, user: CurrentUser):
-    repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
-    if not exp:
-        raise HTTPException(status_code=404, detail="Experience not found")
-    exp.promote_to_personal()
-    updated = await repo.update(exp)
-    return _to_response(updated)
+    from arc.application.experience.service import ExperienceService
+
+    svc = ExperienceService(db)
+    try:
+        exp = await svc.promote(UUID(experience_id), user_id=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return _to_response(exp)
 
 
 @router.post("/{experience_id}/distill", response_model=ExperienceResponse)
@@ -228,18 +231,15 @@ async def distill_experience(experience_id: str, db: DbSession, user: CurrentUse
 async def feedback_experience(
     experience_id: str, req: ExperienceFeedbackRequest, db: DbSession, user: CurrentUser
 ):
-    repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
-    if not exp:
-        raise HTTPException(status_code=404, detail="Experience not found")
+    from arc.application.experience.service import ExperienceService
 
-    todo_id = UUID(req.todo_id)
-    if await repo.has_feedback(exp.id, todo_id):
-        raise HTTPException(status_code=409, detail="Feedback already submitted")
-
-    exp.apply_feedback(req.helpful)
-    await repo.update(exp)
-    await repo.add_feedback(exp.id, todo_id, req.helpful)
+    svc = ExperienceService(db)
+    try:
+        await svc.submit_feedback(UUID(experience_id), UUID(req.todo_id), req.helpful, user_id=user.id)
+    except ValueError as e:
+        detail = str(e)
+        code = 409 if "already" in detail.lower() else 404
+        raise HTTPException(status_code=code, detail=detail)
 
 
 def _to_response(exp) -> ExperienceResponse:

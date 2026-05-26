@@ -49,6 +49,22 @@ async def get_current_user(
 CurrentUser = Annotated[UserEntity, Depends(get_current_user)]
 
 
+async def get_current_org_id(
+    authorization: str | None = Header(None, alias="Authorization"),
+) -> UUID | None:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization[7:]
+    from arc.application.auth.jwt import verify_access_token
+
+    payload = verify_access_token(token)
+    org_id_str = payload.get("org_id")
+    return UUID(org_id_str) if org_id_str else None
+
+
+CurrentOrgId = Annotated[UUID | None, Depends(get_current_org_id)]
+
+
 _ROLE_LEVEL = {UserRole.VIEWER: 0, UserRole.MEMBER: 1, UserRole.ADMIN: 2}
 
 

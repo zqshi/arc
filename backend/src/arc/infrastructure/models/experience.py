@@ -12,12 +12,12 @@ class Experience(TimestampMixin, Base):
     __tablename__ = "experiences"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     todo_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("todos.id", ondelete="CASCADE"), nullable=True
+        ForeignKey("todos.id", ondelete="CASCADE"), nullable=True, index=True
     )
     project_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
     version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("versions.id", ondelete="SET NULL"), nullable=True

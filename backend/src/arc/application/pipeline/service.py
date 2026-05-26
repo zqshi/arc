@@ -211,6 +211,7 @@ class PipelineService:
                     await self._extract_experience(todo)
                     todo.complete()
                     await self.todo_repo.update(todo)
+                    await self._notify_github(todo)
 
         return phase
 
@@ -366,6 +367,19 @@ class PipelineService:
             await svc.extract_from_todo(todo)
         except Exception as exc:
             logger.warning("Experience extraction failed for todo %s: %s", todo.id, exc)
+
+    async def _notify_github(self, todo) -> None:
+        if not todo.github_issue_number or not todo.project_id:
+            return
+        try:
+            from arc.infrastructure.repositories.project import ProjectRepository
+            from arc.application.integration.github_service import GitHubService
+
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if project and project.github_token:
+                await GitHubService(self.db).notify_issue_complete(todo, project)
+        except Exception as exc:
+            logger.warning("GitHub notify failed for todo %s: %s", todo.id, exc)
 
     async def _feedback_experience_confidence(self, gate_score: int) -> None:
         """Update confidence of recently-reused experiences based on gate score."""

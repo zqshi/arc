@@ -11,6 +11,9 @@ class ProjectModel(TimestampMixin, Base):
     __tablename__ = "projects"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -25,6 +28,9 @@ class ProjectModel(TimestampMixin, Base):
     pipeline_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     conversation_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     domain_model: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    github_token: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    github_webhook_secret: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    github_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class VersionModel(TimestampMixin, Base):

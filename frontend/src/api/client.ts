@@ -27,7 +27,10 @@ import type {
   BatchStartResult,
   QuickMessageResponse,
   TaskStreamEvent,
+  UsageResponse,
+  PlanLimitsResponse,
 } from '../types/api';
+import { quotaEvents } from '../lib/quota-events';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -143,6 +146,17 @@ class ApiClient {
         throw new ApiError(401, '登录已过期');
       }
 
+      if (resp.status === 403) {
+        const error = await resp.json().catch(() => ({ detail: resp.statusText }));
+        const detail = typeof error.detail === 'string'
+          ? error.detail
+          : JSON.stringify(error.detail);
+        if (detail.includes('套餐') || detail.includes('上限')) {
+          quotaEvents.emit(detail);
+        }
+        throw new ApiError(403, detail || '无权限');
+      }
+
       if (!resp.ok) {
         const error = await resp.json().catch(() => ({ detail: resp.statusText }));
         const detail = typeof error.detail === 'string'
@@ -193,6 +207,21 @@ class ApiClient {
 
   async deleteProject(id: string): Promise<void> {
     return this.request<void>(`/api/projects/${id}`, { method: 'DELETE' });
+  }
+
+  async connectGitHub(projectId: string, token: string): Promise<{ status: string; repo: string; webhook_url: string; webhook_secret: string }> {
+    return this.request(`/api/projects/${projectId}/github/connect`, {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  }
+
+  async disconnectGitHub(projectId: string): Promise<void> {
+    return this.request(`/api/projects/${projectId}/github/disconnect`, { method: 'DELETE' });
+  }
+
+  async syncGitHubIssues(projectId: string): Promise<{ synced: number; created: number; updated: number }> {
+    return this.request(`/api/projects/${projectId}/github/sync`, { method: 'POST' });
   }
 
   async getDomainModel(projectId: string): Promise<DomainModel> {
@@ -388,6 +417,12 @@ class ApiClient {
 
   async publishArtifact(todoId: string, artifactId: string): Promise<{ preview_url: string }> {
     return this.request<{ preview_url: string }>(`/api/todos/${todoId}/artifacts/${artifactId}/publish`, {
+      method: 'POST',
+    });
+  }
+
+  async unpublishArtifact(todoId: string, artifactId: string): Promise<void> {
+    await this.request<void>(`/api/todos/${todoId}/artifacts/${artifactId}/unpublish`, {
       method: 'POST',
     });
   }
@@ -696,45 +731,88 @@ class ApiClient {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch(url, { headers, signal }).then(async (resp) => {
-      if (!resp.ok || !resp.body) {
-        onEvent({ event: 'error', detail: `HTTP ${resp.status}` });
-        return;
-      }
+    let retries = 0;
+    const maxRetries = 5;
+    const baseDelay = 2000;
 
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let currentEvent = '';
+    const connect = () => {
+      if (signal?.aborted) return;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            try {
-              const parsed = JSON.parse(data);
-              onEvent({ event: (currentEvent || 'connected') as TaskStreamEvent['event'], ...parsed });
-            } catch {
-              // skip malformed
-            }
-            currentEvent = '';
-          }
+      fetch(url, { headers, signal }).then(async (resp) => {
+        if (!resp.ok || !resp.body) {
+          onEvent({ event: 'error', detail: `HTTP ${resp.status}` });
+          return;
         }
-      }
-    }).catch((err) => {
-      if (err.name !== 'AbortError') {
+
+        retries = 0;
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEvent = '';
+        let lastActivity = Date.now();
+
+        const heartbeatCheck = setInterval(() => {
+          if (Date.now() - lastActivity > 60_000) {
+            clearInterval(heartbeatCheck);
+            reader.cancel();
+          }
+        }, 15_000);
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            lastActivity = Date.now();
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                currentEvent = line.slice(7).trim();
+              } else if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (currentEvent === 'ping') { currentEvent = ''; continue; }
+                try {
+                  const parsed = JSON.parse(data);
+                  onEvent({ event: (currentEvent || 'connected') as TaskStreamEvent['event'], ...parsed });
+                } catch {
+                  // skip malformed
+                }
+                currentEvent = '';
+              }
+            }
+          }
+        } finally {
+          clearInterval(heartbeatCheck);
+        }
+
+        if (!signal?.aborted && retries < maxRetries) {
+          retries++;
+          setTimeout(connect, baseDelay * retries);
+        }
+      }).catch((err) => {
+        if (err.name === 'AbortError') return;
         onEvent({ event: 'error', detail: err.message || '连接失败' });
-      }
-    });
+        if (retries < maxRetries) {
+          retries++;
+          setTimeout(connect, baseDelay * retries);
+        }
+      });
+    };
+
+    connect();
+  }
+
+  // ─── Billing ──────────────────────────────────────────
+
+  async getUsage(): Promise<UsageResponse> {
+    return this.request<UsageResponse>('/api/billing/usage');
+  }
+
+  async getPlanLimits(): Promise<PlanLimitsResponse> {
+    return this.request<PlanLimitsResponse>('/api/billing/plans');
   }
 }
 

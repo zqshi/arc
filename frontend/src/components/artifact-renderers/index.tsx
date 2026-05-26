@@ -10,13 +10,17 @@ import DevReport from './DevReport';
 import TestReport from './TestReport';
 import DeployReport from './DeployReport';
 import ExperienceCard from './ExperienceCard';
+import type { ArtifactType, ArtifactContent } from '../../types/api';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyContent = any;
 
 interface Props {
-  artifactType: string;
-  content: Record<string, unknown>;
+  artifactType: ArtifactType;
+  content: ArtifactContent;
 }
 
-const RENDERERS: Record<string, React.ComponentType<{ content: Record<string, unknown> }>> = {
+const RENDERERS: Record<string, React.ComponentType<{ content: AnyContent }>> = {
   requirement_spec: RequirementSpec,
   interaction_design: InteractionDesign,
   ui_spec: UISpec,
@@ -26,7 +30,6 @@ const RENDERERS: Record<string, React.ComponentType<{ content: Record<string, un
   test_report: TestReport,
   deploy_report: DeployReport,
   experience_card: ExperienceCard,
-  // Legacy
   ui_design: UIDesign,
 };
 

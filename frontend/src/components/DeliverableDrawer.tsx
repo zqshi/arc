@@ -102,16 +102,12 @@ export default function DeliverableDrawer({ open, onClose, content }: Deliverabl
 }
 
 function ArtifactContent({ artifact }: { artifact: Artifact }) {
-  return <ArtifactRenderer artifactType={artifact.artifact_type} content={artifact.content || {}} />;
+  return <ArtifactRenderer artifactType={artifact.artifact_type} content={artifact.content ?? {}} />;
 }
 
 function RoadmapContent({ session }: { session: PlanningSession }) {
   const roadmap = session.roadmap || {};
-  const versions = (roadmap as Record<string, unknown>).versions as Array<Record<string, unknown>> | undefined;
-  const strategy = (roadmap as Record<string, unknown>).strategy as string | undefined;
-  const strategyRationale = (roadmap as Record<string, unknown>).strategy_rationale as string | undefined;
-  const totalWeeks = (roadmap as Record<string, unknown>).total_estimated_weeks as number | undefined;
-  const timelineMermaid = (roadmap as Record<string, unknown>).timeline_mermaid as string | undefined;
+  const { versions, strategy, strategy_rationale: strategyRationale, total_estimated_weeks: totalWeeks, timeline_mermaid: timelineMermaid } = roadmap;
 
   return (
     <div className="space-y-4">
@@ -138,32 +134,31 @@ function RoadmapContent({ session }: { session: PlanningSession }) {
           <h3 className="mb-2 text-xs font-semibold text-text-tertiary uppercase tracking-wide">版本计划</h3>
           <div className="space-y-3">
             {versions.map((v, i) => {
-              const features = v.features as Array<Record<string, unknown>> | undefined;
-              const risks = v.risks as string[] | undefined;
+              const { features, risks } = v;
               return (
                 <div key={i} className="rounded-lg border border-border bg-bg-elevated p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-white">{i + 1}</span>
-                    <span className="text-xs font-semibold text-text-primary">{v.name as string}</span>
-                    {v.estimated_sprints && (
-                      <span className="text-[10px] text-text-muted">{v.estimated_sprints as number} 个迭代</span>
+                    <span className="text-xs font-semibold text-text-primary">{v.name}</span>
+                    {v.estimated_sprints != null && (
+                      <span className="text-[10px] text-text-muted">{String(v.estimated_sprints)} 个迭代</span>
                     )}
                   </div>
-                  <p className="mb-2 text-[11px] text-text-secondary">{v.goal as string}</p>
-                  {v.scope_rationale && (
-                    <p className="mb-2 text-[10px] italic text-text-muted">{v.scope_rationale as string}</p>
+                  <p className="mb-2 text-[11px] text-text-secondary">{String(v.goal ?? '')}</p>
+                  {v.scope_rationale != null && (
+                    <p className="mb-2 text-[10px] italic text-text-muted">{String(v.scope_rationale)}</p>
                   )}
                   {features && features.length > 0 && (
                     <div className="mb-2 space-y-1">
                       {features.map((feat, fi) => (
                         <div key={fi} className="flex items-center gap-2 text-[11px]">
                           <span className="text-text-muted">-</span>
-                          <span className="flex-1 text-text-primary">{feat.title as string}</span>
-                          {feat.complexity && (
-                            <span className="rounded bg-bg-card px-1.5 py-0.5 text-[9px] text-text-muted">{feat.complexity as string}</span>
+                          <span className="flex-1 text-text-primary">{feat.title}</span>
+                          {feat.complexity != null && (
+                            <span className="rounded bg-bg-card px-1.5 py-0.5 text-[9px] text-text-muted">{String(feat.complexity)}</span>
                           )}
-                          {feat.priority && (
-                            <span className="text-[9px] text-text-muted">P{feat.priority as number}</span>
+                          {feat.priority != null && (
+                            <span className="text-[9px] text-text-muted">P{String(feat.priority)}</span>
                           )}
                         </div>
                       ))}

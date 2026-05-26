@@ -42,6 +42,6 @@ class Artifact:
         self.confirmed_at = None
         self.updated_at = datetime.now(UTC)
 
-    def set_preview_url(self, url: str) -> None:
+    def set_preview_url(self, url: str | None) -> None:
         self.preview_url = url
         self.updated_at = datetime.now(UTC)

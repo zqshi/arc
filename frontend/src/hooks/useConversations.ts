@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type { Conversation } from '../types/api';
 
@@ -7,6 +7,8 @@ export function useConversations(todoId: string) {
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const activeConvRef = useRef(activeConversation);
+  activeConvRef.current = activeConversation;
 
   const fetchConversations = useCallback(async () => {
     if (!todoId) return;
@@ -18,11 +20,9 @@ export function useConversations(todoId: string) {
       const data = await api.listConversations(todoId);
       setConversations(data);
 
-      // Auto-select the latest conversation if none is active,
-      // or if the currently active one no longer exists in the list
       if (data.length > 0) {
         const activeStillExists =
-          activeConversation && data.some((c) => c.id === activeConversation.id);
+          activeConvRef.current && data.some((c) => c.id === activeConvRef.current!.id);
 
         if (!activeStillExists) {
           setActiveConversation(data[data.length - 1]);
@@ -38,8 +38,7 @@ export function useConversations(todoId: string) {
     } finally {
       setLoading(false);
     }
-  }, [todoId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // activeConversation intentionally excluded to prevent infinite fetch loops
+  }, [todoId]);
 
   useEffect(() => {
     fetchConversations();

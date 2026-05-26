@@ -70,6 +70,46 @@ async def _authenticate_ws(token: str | None):
     return None
 
 
+async def _get_org_id_for_todo(db, todo_id: UUID) -> UUID | None:
+    from sqlalchemy import select
+    from arc.infrastructure.models.todo import Todo as TodoModel
+    from arc.infrastructure.models.project import ProjectModel
+
+    result = await db.execute(
+        select(ProjectModel.organization_id)
+        .join(TodoModel, TodoModel.project_id == ProjectModel.id)
+        .where(TodoModel.id == todo_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _mark_todo_complete(todo_id: UUID) -> None:
+    from arc.infrastructure.database import async_session_factory
+    from arc.infrastructure.repositories.todo import TodoRepository
+    from arc.infrastructure.repositories.project import ProjectRepository
+
+    try:
+        async with async_session_factory() as db:
+            todo_repo = TodoRepository(db)
+            todo = await todo_repo.get_by_id(todo_id)
+            if not todo or todo.status.value == "done":
+                return
+            todo.complete()
+            await todo_repo.update(todo)
+
+            if todo.github_issue_number and todo.project_id:
+                proj_repo = ProjectRepository(db)
+                project = await proj_repo.get_by_id(todo.project_id)
+                if project and project.github_token:
+                    from arc.application.integration.github_service import GitHubService
+                    svc = GitHubService(db)
+                    await svc.notify_issue_complete(todo, project)
+
+            await db.commit()
+    except Exception as exc:
+        logger.warning("Failed to mark todo %s complete: %s", todo_id, exc)
+
+
 async def _stream_ai_response(
     manager: ConnectionManager,
     conversation_id: str,
@@ -137,6 +177,8 @@ async def _stream_ai_response(
                     conversation_id,
                     {"type": event_type, "reason": chunk.get("reason", "")},
                 )
+                if event_type == "autopilot_complete" and todo_id:
+                    await _mark_todo_complete(UUID(todo_id))
                 if project_id and todo_id:
                     status = "done" if event_type == "autopilot_complete" else "idle"
                     await project_task_stream.emit(
@@ -289,6 +331,14 @@ async def conversation_ws(
                 await ws.close()
                 return
 
+            from arc.infrastructure.repositories.todo import TodoRepository
+            todo_repo = TodoRepository(db)
+            todo = await todo_repo.get_by_id(conv.todo_id, user_id=user.id)
+            if not todo:
+                await ws.send_json({"type": "error", "detail": "Access denied"})
+                await ws.close()
+                return
+
             for msg in conv.messages:
                 await ws.send_json(
                     {
@@ -369,6 +419,16 @@ async def conversation_ws(
                     },
                 )
 
+                org_id = await _get_org_id_for_todo(db, conv.todo_id)
+                if org_id:
+                    from arc.application.billing.quota_service import QuotaService
+                    try:
+                        await QuotaService(db).check_ai_call_limit(org_id)
+                    except Exception as quota_err:
+                        await ws.send_json({"type": "quota_exceeded", "detail": str(quota_err)})
+                        await db.commit()
+                        continue
+
                 if conv.purpose.value == "unified":
                     from arc.application.execution.conversation_strategy import (
                         ConversationExecutionService,
@@ -380,6 +440,11 @@ async def conversation_ws(
 
                     svc = ConversationService(db)
                 await _stream_ai_response(manager, conversation_id, svc, conv)
+
+                if org_id:
+                    from arc.application.billing.quota_service import QuotaService as QS
+                    await QS(db).increment_ai_calls(org_id)
+
                 await db.commit()
 
     except WebSocketDisconnect:

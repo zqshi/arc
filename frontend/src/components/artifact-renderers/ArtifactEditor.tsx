@@ -73,15 +73,16 @@ export default function ArtifactEditor({ artifactType, content, onSave, onCancel
 
   useEffect(() => {
     const initial: Record<string, string> = {};
-    if (fields) {
-      for (const f of fields) {
+    const schema = ARTIFACT_FIELDS[artifactType];
+    if (schema) {
+      for (const f of schema) {
         const val = content[f.key];
         initial[f.key] = typeof val === 'string' ? val : val ? JSON.stringify(val, null, 2) : '';
       }
     }
     setDraft(initial);
     setJsonDraft(JSON.stringify(content, null, 2));
-  }, [content, artifactType]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [content, artifactType]);
 
   const handleFieldChange = (key: string, value: string) => {
     setDraft((prev) => ({ ...prev, [key]: value }));

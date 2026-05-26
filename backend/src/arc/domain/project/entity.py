@@ -18,6 +18,7 @@ from arc.domain.project.value_objects import (
 class Project:
     name: str
     id: uuid.UUID = field(default_factory=uuid.uuid4)
+    organization_id: uuid.UUID | None = None
     description: str = ""
     tech_stack: str = ""
     repo_url: str = ""
@@ -30,6 +31,9 @@ class Project:
     pipeline_config: dict = field(default_factory=lambda: dict(DEFAULT_PIPELINE_CONFIG))
     conversation_config: dict = field(default_factory=lambda: dict(DEFAULT_CONVERSATION_CONFIG))
     domain_model: dict = field(default_factory=dict)
+    github_token: str = ""
+    github_webhook_secret: str = ""
+    github_config: dict = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -51,6 +55,18 @@ class Project:
 
     def update_conversation_config(self, config: dict) -> None:
         self.conversation_config = {**DEFAULT_CONVERSATION_CONFIG, **config}
+        self.updated_at = datetime.now(UTC)
+
+    def configure_github(self, token: str, owner: str, repo: str, webhook_secret: str) -> None:
+        self.github_token = token
+        self.github_webhook_secret = webhook_secret
+        self.github_config = {"owner": owner, "repo": repo}
+        self.updated_at = datetime.now(UTC)
+
+    def disconnect_github(self) -> None:
+        self.github_token = ""
+        self.github_webhook_secret = ""
+        self.github_config = {}
         self.updated_at = datetime.now(UTC)
 
 
