@@ -192,6 +192,7 @@ class ExperienceRepository(IExperienceRepository):
             confidence=entity.confidence,
             reuse_count=entity.reuse_count,
             half_life_days=entity.half_life_days,
+            last_reused_at=entity.last_reused_at,
             metadata_=entity.metadata or None,
         )
         self.db.add(model)
@@ -220,6 +221,7 @@ class ExperienceRepository(IExperienceRepository):
         model.confidence = entity.confidence
         model.reuse_count = entity.reuse_count
         model.half_life_days = entity.half_life_days
+        model.last_reused_at = entity.last_reused_at
         model.metadata_ = entity.metadata or None
         await self.db.flush()
         await self.db.refresh(model)
@@ -276,6 +278,7 @@ class ExperienceRepository(IExperienceRepository):
             confidence=model.confidence,
             reuse_count=model.reuse_count,
             half_life_days=getattr(model, "half_life_days", 180),
+            last_reused_at=getattr(model, "last_reused_at", None),
             metadata=model.metadata_ or {},
             created_at=model.created_at,
             updated_at=model.updated_at,
@@ -303,20 +306,36 @@ class ExperienceRepository(IExperienceRepository):
         await self.db.flush()
         return count
 
-    async def get_reuse_analytics(self, project_id: uuid.UUID | None = None) -> dict:
-        base = select(ExpModel).where(ExpModel.status.in_(["draft", "confirmed"]))
-        if project_id:
-            base = base.where((ExpModel.project_id == project_id) | (ExpModel.scope == "personal"))
+    async def get_reuse_analytics(
+        self,
+        project_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
+    ) -> dict:
+        def _apply_user_filter(stmt):
+            if not user_id:
+                return stmt
+            user_project_ids = (
+                select(ProjectMemberModel.project_id)
+                .where(ProjectMemberModel.user_id == user_id)
+                .scalar_subquery()
+            )
+            return stmt.where(
+                or_(ExpModel.user_id == user_id, ExpModel.project_id.in_(user_project_ids))
+            )
+
+        def _apply_project_filter(stmt):
+            if project_id:
+                return stmt.where(
+                    (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
+                )
+            return stmt
 
         cat_stmt = select(
             ExpModel.category,
             func.count().label("count"),
             func.sum(ExpModel.reuse_count).label("total_reuse"),
         ).where(ExpModel.status.in_(["draft", "confirmed"]))
-        if project_id:
-            cat_stmt = cat_stmt.where(
-                (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
-            )
+        cat_stmt = _apply_user_filter(_apply_project_filter(cat_stmt))
         cat_stmt = cat_stmt.group_by(ExpModel.category)
         cat_result = await self.db.execute(cat_stmt)
         by_category = [
@@ -329,10 +348,7 @@ class ExperienceRepository(IExperienceRepository):
             .where(ExpModel.reuse_count > 0)
             .where(ExpModel.status.in_(["draft", "confirmed"]))
         )
-        if project_id:
-            top_stmt = top_stmt.where(
-                (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
-            )
+        top_stmt = _apply_user_filter(_apply_project_filter(top_stmt))
         top_stmt = top_stmt.order_by(ExpModel.reuse_count.desc()).limit(10)
         top_result = await self.db.execute(top_stmt)
         top_reused = [self._to_entity(r) for r in top_result.scalars().all()]
@@ -343,10 +359,7 @@ class ExperienceRepository(IExperienceRepository):
             .where(ExpModel.status.in_(["draft", "confirmed"]))
             .where(ExpModel.confidence < 0.3)
         )
-        if project_id:
-            stale_stmt = stale_stmt.where(
-                (ExpModel.project_id == project_id) | (ExpModel.scope == "personal")
-            )
+        stale_stmt = _apply_user_filter(_apply_project_filter(stale_stmt))
         stale_result = await self.db.execute(stale_stmt)
         stale_count = stale_result.scalar() or 0
 

@@ -38,6 +38,7 @@ class Experience:
     confidence: float = 0.0
     reuse_count: int = 0
     half_life_days: int = 180
+    last_reused_at: datetime | None = None
     metadata: dict = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -50,7 +51,8 @@ class Experience:
         base = original_confidence if original_confidence is not None else self.confidence
         if self.half_life_days <= 0:
             return base
-        days_elapsed = (datetime.now(UTC) - self.created_at).days
+        anchor = self.last_reused_at or self.created_at
+        days_elapsed = (datetime.now(UTC) - anchor).days
         if days_elapsed <= 0:
             return base
         decay = math.pow(0.5, days_elapsed / self.half_life_days)
@@ -74,6 +76,7 @@ class Experience:
 
     def increment_reuse(self) -> None:
         self.reuse_count += 1
+        self.last_reused_at = datetime.now(UTC)
         self.updated_at = datetime.now(UTC)
 
     def update_confidence(self, score: float) -> None:
@@ -86,6 +89,7 @@ class Experience:
         if helpful:
             self.confidence = min(1.0, round(self.confidence + 0.05, 3))
             self.reuse_count += 1
+            self.last_reused_at = datetime.now(UTC)
         else:
             self.confidence = max(0.0, round(self.confidence - 0.1, 3))
         self.updated_at = datetime.now(UTC)

@@ -82,7 +82,7 @@ async def reuse_analytics(
 ):
     repo = ExperienceRepository(db)
     pid = UUID(project_id) if project_id else None
-    data = await repo.get_reuse_analytics(project_id=pid)
+    data = await repo.get_reuse_analytics(project_id=pid, user_id=user.id)
     return {
         "by_category": data["by_category"],
         "top_reused": [_to_response(e) for e in data["top_reused"]],
