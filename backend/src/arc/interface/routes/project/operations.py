@@ -39,18 +39,22 @@ async def get_domain_model(
         todos, _ = await todo_repo.list_all(
             project_id=project_id, user_id=user.id, offset=0, limit=100,
         )
+        arts_map = await art_repo.list_by_todo_ids([t.id for t in todos])
         for todo in todos:
-            arts = await art_repo.list_by_todo_id(todo.id)
-            for art in arts:
+            for art in arts_map.get(todo.id, []):
                 if art.artifact_type.value == "tech_architecture" and (
                     art.content.get("data_model", {}).get("entities")
                     or art.content.get("domain_design")
                 ):
                     extractor = DomainModelExtractor(db)
-                    updated = await extractor.extract_and_merge(todo.id, art.content)
+                    updated = await extractor.extract_and_merge(
+                        todo.id, art.content,
+                    )
                     if updated:
                         await db.commit()
-                        project = await repo.get_by_id(project_id, user_id=user.id)
+                        project = await repo.get_by_id(
+                            project_id, user_id=user.id,
+                        )
                         dm = project.domain_model
                         break
             if dm and (dm.get("aggregates") or dm.get("subdomains")):
@@ -84,11 +88,15 @@ async def refresh_domain_model(
     art_repo = ArtifactRepository(db)
     extractor = DomainModelExtractor(db)
 
-    todos, _ = await todo_repo.list_all(project_id=project_id, user_id=user.id, offset=0, limit=500)
+    todos, _ = await todo_repo.list_all(
+        project_id=project_id, user_id=user.id, offset=0, limit=500,
+    )
+    todo_ids = [t.id for t in todos]
+    arts_by_todo = await art_repo.list_by_todo_ids(todo_ids)
+
     merged = 0
     for todo in todos:
-        arts = await art_repo.list_by_todo_id(todo.id)
-        for art in arts:
+        for art in arts_by_todo.get(todo.id, []):
             if art.artifact_type.value != "tech_architecture":
                 continue
             has_model = (
@@ -97,7 +105,9 @@ async def refresh_domain_model(
             )
             if not has_model:
                 continue
-            updated = await extractor.extract_and_merge(todo.id, art.content)
+            updated = await extractor.extract_and_merge(
+                todo.id, art.content,
+            )
             if updated:
                 merged += 1
 
