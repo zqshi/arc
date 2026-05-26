@@ -210,16 +210,21 @@ async def health():
 def register_routes():
     from arc.interface.routes.agent import router as agent_router
     from arc.interface.routes.auth import router as auth_router
+    from arc.interface.routes.billing import router as billing_router
     from arc.interface.routes.conversation import router as conversation_router
     from arc.interface.routes.experience import router as experience_router
     from arc.interface.routes.filesystem import router as filesystem_router
+    from arc.interface.routes.organization import router as org_router
     from arc.interface.routes.pipeline import router as pipeline_router
     from arc.interface.routes.project import router as project_router
     from arc.interface.routes.settings import router as settings_router
     from arc.interface.routes.todo import router as todo_router
+    from arc.interface.routes.webhook import router as webhook_router
     from arc.interface.ws.chat import router as ws_router
 
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+    app.include_router(org_router, prefix="/api/orgs", tags=["organizations"])
+    app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
     app.include_router(project_router, prefix="/api/projects", tags=["projects"])
     app.include_router(todo_router, prefix="/api/todos", tags=["todos"])
     app.include_router(pipeline_router, prefix="/api/todos", tags=["pipeline"])
@@ -228,6 +233,7 @@ def register_routes():
     app.include_router(experience_router, prefix="/api/experiences", tags=["experiences"])
     app.include_router(settings_router, prefix="/api/settings", tags=["settings"])
     app.include_router(filesystem_router, prefix="/api/filesystem", tags=["filesystem"])
+    app.include_router(webhook_router, prefix="/api/webhooks", tags=["webhooks"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
     from arc.config import settings

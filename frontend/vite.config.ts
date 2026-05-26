@@ -62,6 +62,7 @@ export default defineConfig({
           {
             urlPattern: /\/api\/.*/i,
             handler: 'NetworkFirst',
+            method: 'GET',
             options: {
               cacheName: 'api-cache',
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },

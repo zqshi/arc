@@ -25,6 +25,7 @@ class ProjectRepository:
     async def create(self, project: Project, user_id: uuid.UUID | None = None) -> Project:
         model = ProjectModel(
             id=project.id,
+            organization_id=project.organization_id,
             user_id=user_id,
             name=project.name,
             description=project.description,
@@ -48,8 +49,11 @@ class ProjectRepository:
         self,
         project_id: uuid.UUID,
         user_id: uuid.UUID | None = None,
+        organization_id: uuid.UUID | None = None,
     ) -> Project | None:
         stmt = select(ProjectModel).where(ProjectModel.id == project_id)
+        if organization_id:
+            stmt = stmt.where(ProjectModel.organization_id == organization_id)
         if user_id:
             member_project_ids = (
                 select(ProjectMemberModel.project_id)
@@ -72,8 +76,11 @@ class ProjectRepository:
         self,
         include_archived: bool = False,
         user_id: uuid.UUID | None = None,
+        organization_id: uuid.UUID | None = None,
     ) -> list[Project]:
         stmt = select(ProjectModel).order_by(ProjectModel.created_at.desc())
+        if organization_id:
+            stmt = stmt.where(ProjectModel.organization_id == organization_id)
         if user_id:
             member_project_ids = (
                 select(ProjectMemberModel.project_id)
@@ -124,6 +131,7 @@ class ProjectRepository:
     def _to_entity(model: ProjectModel) -> Project:
         return Project(
             id=model.id,
+            organization_id=model.organization_id,
             name=model.name,
             description=model.description or "",
             tech_stack=model.tech_stack or "",
@@ -141,6 +149,9 @@ class ProjectRepository:
                 model.conversation_config
             ),
             domain_model=model.domain_model or {},
+            github_token=model.github_token or "",
+            github_webhook_secret=model.github_webhook_secret or "",
+            github_config=model.github_config or {},
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
@@ -208,11 +219,15 @@ class VersionRepository:
             return None
         return self._to_entity(model)
 
-    async def list_by_project(self, project_id: uuid.UUID) -> list[Version]:
+    async def list_by_project(
+        self, project_id: uuid.UUID, *, skip: int = 0, limit: int = 200
+    ) -> list[Version]:
         result = await self.db.execute(
             select(VersionModel)
             .where(VersionModel.project_id == project_id)
             .order_by(VersionModel.order.desc())
+            .offset(skip)
+            .limit(limit)
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 

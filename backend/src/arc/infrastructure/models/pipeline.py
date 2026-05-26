@@ -11,7 +11,7 @@ class PipelinePhaseModel(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     todo_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("todos.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("todos.id", ondelete="CASCADE"), nullable=False, index=True
     )
     phase_type: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")

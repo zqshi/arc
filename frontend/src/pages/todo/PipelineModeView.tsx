@@ -127,10 +127,12 @@ export function PipelineModeView({ todo, setTodo, isNarrow, isCompact }: {
     }
   }, [pipelineLoading, pipeline, todo, id, handleStartPipeline]);
 
+  const todoTitle = todo?.title;
+  const todoProjectId = todo?.project_id;
   useEffect(() => {
-    if (!todo) return;
-    api.searchExperiences(todo.title, todo.project_id || undefined).then(setRelatedExps).catch(() => setRelatedExps([]));
-  }, [todo?.title]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!todoTitle) return;
+    api.searchExperiences(todoTitle, todoProjectId || undefined).then(setRelatedExps).catch(() => setRelatedExps([]));
+  }, [todoTitle, todoProjectId]);
 
   const handleStartPhase = async () => {
     if (!id) return;
@@ -292,7 +294,7 @@ export function PipelineModeView({ todo, setTodo, isNarrow, isCompact }: {
               <div className="flex-1 overflow-y-auto px-5 py-4">
                 {editingArtifact ? (
                   currentArtifact && (
-                    <ArtifactEditor artifactType={currentArtifact.artifact_type} content={currentArtifact.content} onSave={handleSaveArtifact} onCancel={() => setEditingArtifact(false)} />
+                    <ArtifactEditor artifactType={currentArtifact.artifact_type} content={currentArtifact.content as Record<string, unknown>} onSave={handleSaveArtifact} onCancel={() => setEditingArtifact(false)} />
                   )
                 ) : currentArtifact ? (
                   <div className="space-y-4">

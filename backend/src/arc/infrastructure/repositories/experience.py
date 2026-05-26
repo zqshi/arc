@@ -41,6 +41,7 @@ class ExperienceRepository(IExperienceRepository):
         self,
         project_id: uuid.UUID | None = None,
         status: ExperienceStatus | None = None,
+        category: ExperienceCategory | None = None,
         user_id: uuid.UUID | None = None,
         offset: int = 0,
         limit: int = 50,
@@ -62,6 +63,8 @@ class ExperienceRepository(IExperienceRepository):
             base = base.where(ExpModel.project_id == project_id)
         if status:
             base = base.where(ExpModel.status == status.value)
+        if category:
+            base = base.where(ExpModel.category == category.value)
 
         count_result = await self.db.execute(select(func.count()).select_from(base.subquery()))
         total = count_result.scalar() or 0

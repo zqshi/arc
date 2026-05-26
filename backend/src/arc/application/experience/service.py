@@ -343,3 +343,36 @@ class ExperienceService:
             "distill_to_personal: created personal exp %s from %s", created.id, experience_id
         )
         return created
+
+    async def confirm(self, experience_id: uuid.UUID, user_id: uuid.UUID) -> Experience:
+        exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
+        if not exp:
+            raise ValueError("Experience not found")
+        exp.confirm()
+        return await self.exp_repo.update(exp)
+
+    async def archive(self, experience_id: uuid.UUID, user_id: uuid.UUID) -> Experience:
+        exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
+        if not exp:
+            raise ValueError("Experience not found")
+        exp.archive()
+        return await self.exp_repo.update(exp)
+
+    async def promote(self, experience_id: uuid.UUID, user_id: uuid.UUID) -> Experience:
+        exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
+        if not exp:
+            raise ValueError("Experience not found")
+        exp.promote_to_personal()
+        return await self.exp_repo.update(exp)
+
+    async def submit_feedback(
+        self, experience_id: uuid.UUID, todo_id: uuid.UUID, helpful: bool, user_id: uuid.UUID
+    ) -> None:
+        exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
+        if not exp:
+            raise ValueError("Experience not found")
+        if await self.exp_repo.has_feedback(exp.id, todo_id):
+            raise ValueError("Feedback already submitted")
+        exp.apply_feedback(helpful)
+        await self.exp_repo.update(exp)
+        await self.exp_repo.add_feedback(exp.id, todo_id, helpful)

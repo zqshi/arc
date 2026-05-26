@@ -13,7 +13,7 @@ class AgentSessionModel(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     todo_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("todos.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("todos.id", ondelete="CASCADE"), nullable=False, index=True
     )
     phase_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("pipeline_phases.id", ondelete="CASCADE"), nullable=False

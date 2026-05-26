@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.auth.jwt import (
@@ -12,8 +14,12 @@ from arc.application.auth.jwt import (
 )
 from arc.application.auth.password import hash_password, verify_password
 from arc.application.auth.sms import SMSService
+from arc.application.organization.service import OrganizationService
+from arc.config import settings
 from arc.domain.errors import AuthenticationError, ConflictError
 from arc.domain.user.entity import User
+from arc.infrastructure.models.user import RevokedTokenModel
+from arc.infrastructure.repositories.organization import OrganizationMemberRepository
 from arc.infrastructure.repositories.user import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -24,6 +30,8 @@ class AuthService:
         self.db = db
         self.user_repo = UserRepository(db)
         self.sms = SMSService.get_instance()
+        self.org_svc = OrganizationService(db)
+        self.org_member_repo = OrganizationMemberRepository(db)
 
     async def register_with_password(
         self, username: str, password: str, display_name: str | None = None
@@ -37,7 +45,12 @@ class AuthService:
             hashed_password=hash_password(password),
             display_name=display_name or username,
         )
-        return await self.user_repo.create(user)
+        user = await self.user_repo.create(user)
+        await self.org_svc.create_org(
+            name=f"{user.display_name}的工作区",
+            owner_id=user.id,
+        )
+        return user
 
     async def register_with_phone(self, phone: str, display_name: str | None = None) -> User:
         existing = await self.user_repo.get_by_phone(phone)
@@ -48,7 +61,12 @@ class AuthService:
             phone=phone,
             display_name=display_name or f"用户{phone[-4:]}",
         )
-        return await self.user_repo.create(user)
+        user = await self.user_repo.create(user)
+        await self.org_svc.create_org(
+            name=f"{user.display_name}的工作区",
+            owner_id=user.id,
+        )
+        return user
 
     async def login_with_password(self, username: str, password: str) -> dict:
         user = await self.user_repo.get_by_username(username)
@@ -61,7 +79,7 @@ class AuthService:
         if not user.is_active:
             raise AuthenticationError("账号已被禁用")
 
-        return self._generate_tokens(user)
+        return await self._generate_tokens(user)
 
     async def send_sms_code(self, phone: str) -> None:
         await self.sms.send_code(phone)
@@ -79,30 +97,61 @@ class AuthService:
                 display_name=f"用户{phone[-4:]}",
             )
             user = await self.user_repo.create(user)
+            await self.org_svc.create_org(
+                name=f"{user.display_name}的工作区",
+                owner_id=user.id,
+            )
 
         if not user.is_active:
             raise AuthenticationError("账号已被禁用")
 
-        return self._generate_tokens(user)
+        return await self._generate_tokens(user)
 
-    async def refresh_token(self, refresh_token: str) -> dict:
-        payload = verify_refresh_token(refresh_token)
+    async def refresh_token(self, refresh_token_str: str) -> dict:
+        payload = verify_refresh_token(refresh_token_str)
         user_id = payload["sub"]
+        jti = payload.get("jti")
+
+        if jti and await self._is_revoked(jti):
+            raise AuthenticationError("Token 已被撤销")
+
         user = await self.user_repo.get_by_id(UUID(user_id))
         if not user or not user.is_active:
             raise AuthenticationError("用户不存在或已禁用")
-        access_token = create_access_token(str(user.id), user.username)
+        org_id = await self.get_default_org_id(user.id)
+        access_token = create_access_token(str(user.id), user.username, org_id=org_id)
         return {"access_token": access_token, "token_type": "bearer"}
+
+    async def logout(self, refresh_token_str: str) -> None:
+        """Revoke the given refresh token."""
+        try:
+            payload = verify_refresh_token(refresh_token_str)
+        except AuthenticationError:
+            return
+        jti = payload.get("jti")
+        if not jti:
+            return
+        user_id = payload["sub"]
+        exp = payload.get("exp", 0)
+        expires_at = datetime.fromtimestamp(exp, tz=UTC)
+        await self._revoke_jti(jti, UUID(user_id), expires_at)
+
+    async def revoke_all_tokens(self, user_id: UUID) -> None:
+        """Revoke all active refresh tokens for a user (e.g. on password change)."""
+        # Since we can't enumerate stateless tokens, we rely on individual revocation.
+        # Future: store all issued jtis and revoke them all here.
+        pass
 
     async def get_user(self, user_id: UUID) -> User | None:
         return await self.user_repo.get_by_id(user_id)
 
-    def _generate_tokens(self, user: User) -> dict:
-        access_token = create_access_token(str(user.id), user.username)
-        refresh_token = create_refresh_token(str(user.id))
+    async def _generate_tokens(self, user: User) -> dict:
+        org_id = await self.get_default_org_id(user.id)
+        access_token = create_access_token(str(user.id), user.username, org_id=org_id)
+        refresh_token_str, _jti = create_refresh_token(str(user.id))
         return {
             "access_token": access_token,
-            "refresh_token": refresh_token,
+            "refresh_token": refresh_token_str,
             "token_type": "bearer",
             "user": {
                 "id": str(user.id),
@@ -111,4 +160,24 @@ class AuthService:
                 "display_name": user.display_name,
                 "role": user.role.value,
             },
+            "org_id": org_id,
         }
+
+    async def get_default_org_id(self, user_id: UUID) -> str | None:
+        memberships = await self.org_member_repo.list_orgs_for_user(user_id)
+        if memberships:
+            return str(memberships[0].organization_id)
+        return None
+
+    async def _is_revoked(self, jti: str) -> bool:
+        result = await self.db.execute(
+            select(RevokedTokenModel).where(RevokedTokenModel.jti == jti)
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def _revoke_jti(self, jti: str, user_id: UUID, expires_at: datetime) -> None:
+        if await self._is_revoked(jti):
+            return
+        model = RevokedTokenModel(jti=jti, user_id=user_id, expires_at=expires_at)
+        self.db.add(model)
+        await self.db.flush()

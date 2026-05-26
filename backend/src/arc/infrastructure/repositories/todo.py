@@ -139,6 +139,8 @@ class TodoRepository:
             tags=[{"label": t.label, "color": t.color} for t in entity.tags],
             source_session_id=entity.source_session_id,
             source_feature_key=entity.source_feature_key or None,
+            github_issue_number=entity.github_issue_number,
+            github_pr_url=entity.github_pr_url or None,
         )
         self.db.add(model)
         await self.db.flush()
@@ -161,6 +163,8 @@ class TodoRepository:
         model.tags = [{"label": t.label, "color": t.color} for t in entity.tags]
         model.source_session_id = entity.source_session_id
         model.source_feature_key = entity.source_feature_key or None
+        model.github_issue_number = entity.github_issue_number
+        model.github_pr_url = entity.github_pr_url or None
         await self.db.flush()
         await self.db.refresh(model)
         return self._to_entity(model)
@@ -208,6 +212,17 @@ class TodoRepository:
         result = await self.db.execute(stmt)
         return [self._to_entity(r) for r in result.scalars().all()]
 
+    async def find_by_github_issue(
+        self, project_id: uuid.UUID, issue_number: int
+    ) -> TodoEntity | None:
+        stmt = select(TodoModel).where(
+            TodoModel.project_id == project_id,
+            TodoModel.github_issue_number == issue_number,
+        )
+        result = await self.db.execute(stmt)
+        model = result.scalar_one_or_none()
+        return self._to_entity(model) if model else None
+
     @staticmethod
     def _to_entity(model: TodoModel) -> TodoEntity:
         tags = []
@@ -228,6 +243,8 @@ class TodoRepository:
             tags=tags,
             source_session_id=model.source_session_id,
             source_feature_key=model.source_feature_key or "",
+            github_issue_number=model.github_issue_number,
+            github_pr_url=model.github_pr_url or "",
             created_at=model.created_at,
             updated_at=model.updated_at,
             last_seen_at=model.last_seen_at,

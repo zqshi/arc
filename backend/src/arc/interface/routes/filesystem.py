@@ -36,6 +36,8 @@ class MkdirResponse(BaseModel):
 
 @router.get("/browse", response_model=BrowseResponse)
 async def browse_directory(user: CurrentUser, path: str = "~"):
+    import asyncio
+
     resolved = Path(os.path.expanduser(path)).resolve()
     _validate_path(resolved)
     if not resolved.exists():
@@ -43,14 +45,15 @@ async def browse_directory(user: CurrentUser, path: str = "~"):
     if not resolved.is_dir():
         raise HTTPException(400, f"不是目录: {resolved}")
 
-    try:
-        dirs = sorted(
-            [
-                entry.name
-                for entry in resolved.iterdir()
-                if entry.is_dir() and not entry.name.startswith(".")
-            ]
+    def _list_dirs():
+        return sorted(
+            entry.name
+            for entry in resolved.iterdir()
+            if entry.is_dir() and not entry.name.startswith(".")
         )
+
+    try:
+        dirs = await asyncio.to_thread(_list_dirs)
     except PermissionError:
         raise HTTPException(403, f"无权限访问: {resolved}")
 
@@ -60,12 +63,14 @@ async def browse_directory(user: CurrentUser, path: str = "~"):
 
 @router.post("/mkdir", response_model=MkdirResponse)
 async def create_directory(user: CurrentUser, body: MkdirRequest):
+    import asyncio
+
     target = Path(os.path.expanduser(body.path)).resolve()
     _validate_path(target)
     if target.exists():
         raise HTTPException(409, f"目录已存在: {target}")
     try:
-        target.mkdir(parents=True, exist_ok=False)
+        await asyncio.to_thread(target.mkdir, parents=True, exist_ok=False)
     except PermissionError:
         raise HTTPException(403, f"无权限创建: {target}")
     except OSError as e:

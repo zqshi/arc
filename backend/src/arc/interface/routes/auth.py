@@ -32,10 +32,10 @@ async def register(req: RegisterRequest, db: DbSession):
         if not req.password:
             raise HTTPException(400, "账号注册需要提供密码")
         user = await svc.register_with_password(req.username, req.password, req.display_name)
-        result = svc._generate_tokens(user)
+        result = await svc._generate_tokens(user)
     else:
         user = await svc.register_with_phone(req.phone, req.display_name)
-        result = svc._generate_tokens(user)
+        result = await svc._generate_tokens(user)
 
     return TokenResponse(
         access_token=result["access_token"],
@@ -77,6 +77,12 @@ async def refresh(req: RefreshRequest, db: DbSession):
     svc = AuthService(db)
     result = await svc.refresh_token(req.refresh_token)
     return TokenResponse(access_token=result["access_token"])
+
+
+@router.post("/logout", status_code=204)
+async def logout(req: RefreshRequest, db: DbSession):
+    svc = AuthService(db)
+    await svc.logout(req.refresh_token)
 
 
 @router.get("/me", response_model=UserResponse)

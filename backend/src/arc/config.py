@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     jwt_access_expire_minutes: int = 30
     jwt_refresh_expire_days: int = 7
-    sms_mock_mode: bool = True
+    sms_mock_mode: bool = False
 
     # LLM
     llm_provider: str = "openai"  # openai | anthropic | deepseek

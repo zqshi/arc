@@ -33,9 +33,9 @@ export default function AgentExecutionPanel({ todoId, phaseType, onSessionChange
     api.getAvailableAgents().then((resp) => {
       setAgents(resp.agents);
       setDefaultAgent(resp.default);
-      if (!selectedAgent) setSelectedAgent(resp.default);
+      setSelectedAgent((prev) => prev || resp.default);
     }).catch((err) => { console.warn('Failed to load agents:', err); });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -52,15 +52,17 @@ export default function AgentExecutionPanel({ todoId, phaseType, onSessionChange
     fetchSession();
   }, [fetchSession]);
 
+  const sessionStatus = session?.status;
+
   useEffect(() => {
-    if (!session || session.status === 'completed' || session.status === 'error' || session.status === 'cancelled') {
+    if (!sessionStatus || sessionStatus === 'completed' || sessionStatus === 'error' || sessionStatus === 'cancelled') {
       setPolling(false);
       return;
     }
     setPolling(true);
     const timer = setInterval(fetchSession, 5000);
     return () => clearInterval(timer);
-  }, [session?.status, fetchSession]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessionStatus, fetchSession]);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -72,13 +74,13 @@ export default function AgentExecutionPanel({ todoId, phaseType, onSessionChange
   }, [todoId, phaseType]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!sessionStatus) return;
     fetchEvents();
-    if (session.status === 'running' || session.status === 'pending') {
+    if (sessionStatus === 'running' || sessionStatus === 'pending') {
       const timer = setInterval(fetchEvents, 5000);
       return () => clearInterval(timer);
     }
-  }, [session?.status, fetchEvents]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessionStatus, fetchEvents]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });

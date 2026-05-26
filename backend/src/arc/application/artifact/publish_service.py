@@ -125,6 +125,8 @@ document.addEventListener('submit',function(e){
 },true);
 </script>"""
 
+CSP_META = '<meta http-equiv="Content-Security-Policy" content="default-src \'self\' \'unsafe-inline\' data: blob:; script-src \'unsafe-inline\'; connect-src \'none\';">'
+
 
 class PublishService:
     def __init__(self, db: AsyncSession):
@@ -145,6 +147,9 @@ class PublishService:
         storage = get_storage()
         prefix = f"previews/{artifact.todo_id}/{artifact.id}"
 
+        # Clean old objects before republish
+        await storage.async_delete_prefix(prefix)
+
         slugs = []
         names = []
         for i, page in enumerate(pages):
@@ -152,12 +157,17 @@ class PublishService:
             slug = f"page_{i}"
             html = page.get("html", "")
 
+            if "<head>" in html:
+                html = html.replace("<head>", f"<head>{CSP_META}", 1)
+            elif "<html" in html:
+                html = html.replace("<html", f"<html><head>{CSP_META}</head><html", 1).replace("<html><head>", f"<head>{CSP_META}</head>", 1)
+
             if "</body>" in html:
                 html = html.replace("</body>", INTERCEPTOR_SCRIPT + "</body>")
             else:
                 html += INTERCEPTOR_SCRIPT
 
-            storage.upload(f"{prefix}/{slug}.html", html.encode("utf-8"), "text/html; charset=utf-8")
+            await storage.async_upload(f"{prefix}/{slug}.html", html.encode("utf-8"), "text/html; charset=utf-8")
             slugs.append(slug)
             names.append(name)
 
@@ -167,7 +177,7 @@ class PublishService:
             slugs_json=json.dumps(slugs),
             names_json=json.dumps(names),
         )
-        storage.upload(f"{prefix}/index.html", shell_html.encode("utf-8"), "text/html; charset=utf-8")
+        await storage.async_upload(f"{prefix}/index.html", shell_html.encode("utf-8"), "text/html; charset=utf-8")
 
         public_url = f"{self._get_public_base()}/{prefix}/index.html"
         artifact.set_preview_url(public_url)
@@ -175,6 +185,21 @@ class PublishService:
 
         logger.info("Published prototype %s → %s", artifact_id, public_url)
         return public_url
+
+    async def unpublish_prototype(self, artifact_id: uuid.UUID) -> None:
+        """Remove published files from storage and clear preview_url."""
+        artifact = await self.repo.get_by_id(artifact_id)
+        if not artifact:
+            return
+
+        if artifact.preview_url:
+            storage = get_storage()
+            prefix = f"previews/{artifact.todo_id}/{artifact.id}"
+            deleted = await storage.async_delete_prefix(prefix)
+            logger.info("Unpublished artifact %s, deleted %d objects", artifact_id, deleted)
+
+            artifact.set_preview_url(None)
+            await self.repo.update(artifact)
 
     @staticmethod
     def _get_public_base() -> str:

@@ -162,6 +162,9 @@ async def create_todo(req: CreateTodoRequest, db: DbSession, user: CurrentUser):
         project = await ProjectRepository(db).get_by_id(UUID(req.project_id))
         if project:
             execution_mode = project.execution_mode
+            if project.organization_id:
+                from arc.application.billing.quota_service import QuotaService
+                await QuotaService(db).check_todo_limit(project.organization_id, project.id)
 
     todo = Todo(
         title=req.title,
@@ -205,6 +208,11 @@ async def update_todo(todo_id: str, req: UpdateTodoRequest, db: DbSession, user:
 
 @router.delete("/{todo_id}", status_code=204)
 async def delete_todo(todo_id: str, db: DbSession, user: CurrentUser):
+    from arc.infrastructure.storage import get_storage
+
+    storage = get_storage()
+    await storage.async_delete_prefix(f"previews/{todo_id}")
+
     repo = TodoRepository(db)
     await repo.delete(UUID(todo_id), user_id=user.id)
 
@@ -375,7 +383,12 @@ async def send_quick_message(todo_id: str, db: DbSession, user: CurrentUser, bod
                     )
                 await _db.commit()
 
-    asyncio.create_task(_run_ai())
+    def _on_ai_done(t: asyncio.Task) -> None:
+        if not t.cancelled() and t.exception():
+            logger.error("Background AI task failed: %s", t.exception())
+
+    task = asyncio.create_task(_run_ai())
+    task.add_done_callback(_on_ai_done)
 
     return {
         "message_id": str(user_msg.id),

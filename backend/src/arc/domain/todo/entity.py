@@ -31,6 +31,8 @@ class Todo:
     error_reason: str = ""
     source_session_id: uuid.UUID | None = None
     source_feature_key: str = ""
+    github_issue_number: int | None = None
+    github_pr_url: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_seen_at: datetime | None = None

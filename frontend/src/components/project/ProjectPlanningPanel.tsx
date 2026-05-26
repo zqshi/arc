@@ -263,11 +263,7 @@ function RoadmapCard({
   applying: boolean;
 }) {
   const roadmap = session.roadmap || {};
-  const versions = (roadmap as Record<string, unknown>).versions as Array<Record<string, unknown>> | undefined;
-  const strategy = (roadmap as Record<string, unknown>).strategy as string | undefined;
-  const strategyRationale = (roadmap as Record<string, unknown>).strategy_rationale as string | undefined;
-  const totalWeeks = (roadmap as Record<string, unknown>).total_estimated_weeks as number | undefined;
-  const timelineMermaid = (roadmap as Record<string, unknown>).timeline_mermaid as string | undefined;
+  const { versions, strategy, strategy_rationale: strategyRationale, total_estimated_weeks: totalWeeks, timeline_mermaid: timelineMermaid } = roadmap;
 
   const statusLabel: Record<string, string> = {
     draft: '草稿', reviewing: '待确认', confirmed: '已确认', applied: '已应用',
@@ -327,14 +323,14 @@ function RoadmapCard({
             <div key={i} className="rounded border border-border bg-bg-card p-2.5">
               <div className="mb-1 flex items-center gap-2">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[8px] font-bold text-white">{i + 1}</span>
-                <span className="text-[11px] font-medium text-text-primary">{v.name as string}</span>
-                {v.estimated_sprints && <span className="text-[9px] text-text-muted">{v.estimated_sprints as number} 个迭代</span>}
+                <span className="text-[11px] font-medium text-text-primary">{v.name}</span>
+                {v.estimated_sprints != null && <span className="text-[9px] text-text-muted">{String(v.estimated_sprints)} 个迭代</span>}
               </div>
-              <p className="mb-1 text-[10px] text-text-secondary">{v.goal as string}</p>
-              {(v.features as Array<Record<string, unknown>> | undefined)?.slice(0, 5).map((feat, fi) => (
+              <p className="mb-1 text-[10px] text-text-secondary">{v.goal}</p>
+              {v.features?.slice(0, 5).map((feat, fi) => (
                 <div key={fi} className="flex items-center gap-2 pl-6 text-[10px] text-text-secondary">
                   <span className="text-text-muted">-</span>
-                  <span>{feat.title as string}</span>
+                  <span>{feat.title}</span>
                 </div>
               ))}
             </div>

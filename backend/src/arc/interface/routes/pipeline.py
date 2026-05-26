@@ -242,6 +242,17 @@ async def publish_artifact(todo_id: str, artifact_id: str, db: DbSession, user: 
     return {"preview_url": url}
 
 
+@router.post("/{todo_id}/artifacts/{artifact_id}/unpublish", status_code=204)
+async def unpublish_artifact(todo_id: str, artifact_id: str, db: DbSession, user: CurrentUser):
+    """Remove published files from storage and clear preview_url."""
+    await _verify_todo_ownership(db, todo_id, user.id)
+
+    from arc.application.artifact.publish_service import PublishService
+
+    svc = PublishService(db)
+    await svc.unpublish_prototype(UUID(artifact_id))
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Server, Bot, Cpu, CheckCircle, XCircle } from 'lucide-react';
-import { api } from '../api/client';
-import type { SystemSettings } from '../types/api';
+import { Settings as SettingsIcon, Server, Bot, Cpu, CheckCircle, XCircle, CreditCard } from 'lucide-react';
+import { api, ApiError } from '../api/client';
+import type { SystemSettings, UsageResponse } from '../types/api';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [healthStatus, setHealthStatus] = useState<Record<string, string>>({});
+  const [usage, setUsage] = useState<UsageResponse | null>(null);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -18,6 +19,11 @@ export default function SettingsPage() {
         ]);
         setSettings(s);
         setHealthStatus(h);
+        try {
+          setUsage(await api.getUsage());
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 400)) throw e;
+        }
       } catch {
         setSettings(null);
       } finally {
@@ -99,6 +105,26 @@ export default function SettingsPage() {
               />
             </div>
           </section>
+
+          {/* Usage & Plan */}
+          {usage && (
+            <section className="rounded-lg border border-border bg-bg-card p-4">
+              <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+                <CreditCard size={13} /> 用量与套餐
+              </h2>
+              <div className="mb-3 rounded-md bg-accent/10 px-3 py-2">
+                <span className="text-xs text-text-secondary">
+                  当前套餐:{' '}
+                  <span className="font-semibold text-accent uppercase">{usage.plan}</span>
+                </span>
+              </div>
+              <div className="space-y-2">
+                <UsageBar label="项目" used={usage.projects_used} limit={usage.projects_limit} />
+                <UsageBar label="成员" used={usage.members_used} limit={usage.members_limit} />
+                <UsageBar label="今日 AI 调用" used={usage.ai_calls_today} limit={usage.ai_calls_limit} />
+              </div>
+            </section>
+          )}
 
           {/* LLM Provider */}
           <section className="rounded-lg border border-border bg-bg-card p-4">
@@ -202,6 +228,28 @@ function InfoRow({ label, value, ok }: { label: string; value: string; ok?: bool
             {ok ? <CheckCircle size={11} /> : <XCircle size={11} />}
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+  const nearLimit = pct >= 80;
+  const atLimit = pct >= 100;
+  return (
+    <div className="rounded-md border border-border/50 px-3 py-2">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[11px] text-text-secondary">{label}</span>
+        <span className={`text-[11px] font-medium ${atLimit ? 'text-status-error' : nearLimit ? 'text-amber-500' : 'text-text-primary'}`}>
+          {used} / {limit}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/30">
+        <div
+          className={`h-full rounded-full transition-all ${atLimit ? 'bg-status-error' : nearLimit ? 'bg-amber-400' : 'bg-accent'}`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );

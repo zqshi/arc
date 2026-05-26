@@ -1,7 +1,6 @@
 import { Terminal, Globe, HeartPulse, RotateCcw } from 'lucide-react';
 import { SectionCard, TerminalBlock, TextBlock, Badge } from './shared';
 import { asString } from './utils';
-
 interface Props {
   content: Record<string, unknown>;
 }

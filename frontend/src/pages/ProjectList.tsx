@@ -48,7 +48,8 @@ export default function ProjectList() {
       setNewName('');
       setNewDesc('');
       navigate(`/project/${project.id}`);
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) return;
       toast('创建失败，请检查后端服务是否启动', 'error');
     }
   };

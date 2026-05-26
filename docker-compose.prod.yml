@@ -1,0 +1,88 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-arc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-arc}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  backend:
+    image: ${ARC_BACKEND_IMAGE:-arc-backend:latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      ARC_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-arc}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-arc}
+      ARC_DEBUG: "false"
+      ARC_JWT_SECRET: ${ARC_JWT_SECRET:?ARC_JWT_SECRET is required}
+      ARC_SMS_MOCK_MODE: "false"
+      ARC_LLM_PROVIDER: ${ARC_LLM_PROVIDER:-openai}
+      ARC_OPENAI_API_KEY: ${ARC_OPENAI_API_KEY:-}
+      ARC_OPENAI_BASE_URL: ${ARC_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      ARC_OPENAI_MODEL: ${ARC_OPENAI_MODEL:-gpt-4o}
+      ARC_ANTHROPIC_API_KEY: ${ARC_ANTHROPIC_API_KEY:-}
+      ARC_ANTHROPIC_BASE_URL: ${ARC_ANTHROPIC_BASE_URL:-}
+      ARC_ANTHROPIC_MODEL: ${ARC_ANTHROPIC_MODEL:-claude-sonnet-4-20250514}
+      ARC_DEEPSEEK_API_KEY: ${ARC_DEEPSEEK_API_KEY:-}
+      ARC_DEEPSEEK_BASE_URL: ${ARC_DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      ARC_DEEPSEEK_MODEL: ${ARC_DEEPSEEK_MODEL:-deepseek-chat}
+      ARC_CORS_ORIGINS: ${ARC_CORS_ORIGINS:-'["https://your-domain.com"]'}
+      ARC_STORAGE_ENDPOINT: ${ARC_STORAGE_ENDPOINT:-}
+      ARC_STORAGE_ACCESS_KEY: ${ARC_STORAGE_ACCESS_KEY:-}
+      ARC_STORAGE_SECRET_KEY: ${ARC_STORAGE_SECRET_KEY:-}
+      ARC_STORAGE_BUCKET: ${ARC_STORAGE_BUCKET:-arc-previews}
+      ARC_STORAGE_PUBLIC_URL: ${ARC_STORAGE_PUBLIC_URL:-}
+      ARC_OPENHANDS_URL: ${ARC_OPENHANDS_URL:-}
+      ARC_OPENHANDS_API_KEY: ${ARC_OPENHANDS_API_KEY:-}
+      ARC_AGENT_DEFAULT: ${ARC_AGENT_DEFAULT:-openhands}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  frontend:
+    image: ${ARC_FRONTEND_IMAGE:-arc-frontend:latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+        VITE_WS_URL: ""
+    restart: always
+    ports:
+      - "${ARC_PORT:-80}:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:80 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  pgdata:

@@ -276,8 +276,8 @@ function SessionCard({
   applying: boolean;
 }) {
   const roadmap = session.roadmap || {};
-  const versions = (roadmap as Record<string, unknown>).versions as Array<Record<string, unknown>> | undefined;
-  const features = versions?.flatMap((v) => (v.features as Array<Record<string, unknown>> | undefined) || []) || [];
+  const { versions } = roadmap;
+  const features = versions?.flatMap((v) => v.features || []) || [];
 
   const statusLabel: Record<string, string> = {
     draft: '草稿',
@@ -333,9 +333,9 @@ function SessionCard({
           {features.slice(0, 8).map((feat, i) => (
             <div key={i} className="flex items-center gap-2 text-[11px] text-text-secondary">
               <span className="text-text-muted">-</span>
-              <span className="flex-1 truncate">{feat.title as string}</span>
-              {feat.complexity && (
-                <span className="rounded bg-bg-card px-1 py-0.5 text-[9px] text-text-muted">{feat.complexity as string}</span>
+              <span className="flex-1 truncate">{feat.title}</span>
+              {feat.complexity != null && (
+                <span className="rounded bg-bg-card px-1 py-0.5 text-[9px] text-text-muted">{String(feat.complexity)}</span>
               )}
             </div>
           ))}

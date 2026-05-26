@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -25,7 +26,7 @@ def _get_secret() -> str:
     return secret
 
 
-def create_access_token(user_id: str, username: str | None = None) -> str:
+def create_access_token(user_id: str, username: str | None = None, org_id: str | None = None) -> str:
     expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_access_expire_minutes)
     payload: dict[str, Any] = {
         "sub": user_id,
@@ -34,17 +35,22 @@ def create_access_token(user_id: str, username: str | None = None) -> str:
     }
     if username:
         payload["username"] = username
+    if org_id:
+        payload["org_id"] = org_id
     return jwt.encode(payload, _get_secret(), algorithm=ALGORITHM)
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str) -> tuple[str, str]:
+    """Returns (token_string, jti)."""
+    jti = uuid.uuid4().hex
     expire = datetime.now(UTC) + timedelta(days=settings.jwt_refresh_expire_days)
     payload: dict[str, Any] = {
         "sub": user_id,
         "type": "refresh",
+        "jti": jti,
         "exp": expire,
     }
-    return jwt.encode(payload, _get_secret(), algorithm=ALGORITHM)
+    return jwt.encode(payload, _get_secret(), algorithm=ALGORITHM), jti
 
 
 def verify_access_token(token: str) -> dict[str, Any]:

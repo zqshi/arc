@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-05-26
+
+### Added
+- 多租户隔离架构 (Organization domain + membership + org-scoped 查询)
+- Free/Pro/Team 三级定价模型 (QuotaService + UsageDaily + 前端用量展示)
+- GitHub 集成 (Issue↔Todo 双向同步, Webhook HMAC-SHA256 验证, 前端连接 UI)
+- 云端部署方案 (docker-compose.prod.yml, K8s manifests, GHCR CI/CD)
+- project.py 路由拆分为子模块 (8 文件, 每文件 ≤300 行)
+- Frontend nginx.conf (gzip + API/WS 反向代理 + SPA 路由)
+- 前端 403 配额拦截 + quotaEvents 事件总线 + Toast warning 类型
+- WebSocket quota_exceeded 实时配额通知
+
+### Changed
+- Frontend Dockerfile 改用外部 nginx.conf 配置
+
+## [1.2.0] - 2026-05-25
+
+### Added
+- AgentLoop 生产级引擎 — finish_reason 续写/交付物验证重试/预算超时
+- AgentLoop 目标驱动改造 + AutoPilot 自驾模式 (最大12轮)
+- 交付物拆分为8环节 (交互设计/视觉规范/原型设计独立)
+- DDD+TDD 方法论条件注入 (conversation_strategy)
+- 项目级领域模型视图 (DomainModelTab 战略战术可视化)
+- DDD 战略设计注入 tech_architecture schema (domain_design 字段)
+- 原型产品预览 (Blob URL + S3 持久化发布)
+- S3+BaaS 存储层统一 (StorageAdapter: upload/download/delete/delete_prefix)
+- JWT refresh token 吊销机制 (jti + DB blacklist)
+- SSE 自动重连 + 心跳检测 (max 5 retries, exponential backoff)
+- ChatMessages 虚拟列表 (@tanstack/react-virtual, 80+ 消息阈值)
+- Artifact content discriminated union 类型定义 (10 个 content interface)
+- 核心模块单元测试 (storage/publish/document/version service, 36 cases)
+- WebSocket IDOR 防护 (资源所有权验证)
+- 路径遍历防护 (storage key + filename sanitization)
+- CSP meta 注入 (已发布原型 connect-src 'none')
+- FK 列索引优化 (11 个高频外键列)
+
+### Fixed
+- 交付物状态不一致 (regex/JSON解析/race condition 三层修复)
+- 前端 AbortError 处理 (SSE/fetch 取消不再弹错误 Toast)
+- auth test 适配 create_refresh_token 返回 tuple
+- PWA Workbox 缓存规则限制 method: 'GET'
+- Blob URL 内存泄漏 (60s 后自动 revokeObjectURL)
+
+### Changed
+- 内存分页全部改为 SQL 分页 (version/experience/document/planning repos)
+- Experience 状态转换收口到 ExperienceService (confirm/archive/promote/feedback)
+- Version 创建/删除收口到 VersionService
+- useProjectDetail God Hook 拆分 (useExperiences + useDomainModel)
+- DocumentService 统一走 StorageAdapter (不再依赖本地文件系统)
+
 ## [1.1.0] - 2026-05-25
 
 ### Added

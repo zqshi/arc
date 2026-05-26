@@ -4,6 +4,7 @@ import {
   GitBranch,
   Play,
   CheckCircle,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Trash2,
@@ -11,6 +12,9 @@ import {
   Map,
   Loader2,
   Rocket,
+  Circle,
+  AlertCircle,
+  XCircle,
 } from 'lucide-react';
 import type { Version, VersionStatus, VersionType, Todo, TodoStatus, PlanningSession } from '../../types/api';
 import { STATUS_LABELS } from '../../types/api';
@@ -26,14 +30,6 @@ const VERSION_STATUS_STYLE: Record<VersionStatus, { bg: string; label: string }>
   planning: { bg: 'bg-status-pending/15 text-status-pending', label: '规划中' },
   active: { bg: 'bg-accent/15 text-accent', label: '进行中' },
   released: { bg: 'bg-status-done/15 text-status-done', label: '已发布' },
-};
-
-const statusDotColor: Record<TodoStatus, string> = {
-  pending: 'bg-status-pending',
-  active: 'bg-emerald-400',
-  done: 'bg-status-done',
-  error: 'bg-status-error',
-  abandoned: 'bg-text-muted',
 };
 
 const statusBadgeBg: Record<TodoStatus, string> = {
@@ -357,20 +353,24 @@ function TodoList({
 }) {
   return (
     <div className="divide-y divide-border/30">
-      {todos.map((todo) => (
+      {todos.map((todo) => {
+        const isDone = todo.status === 'done';
+        const isAbandoned = todo.status === 'abandoned';
+        const dimmed = isDone || isAbandoned;
+        return (
         <div
           key={todo.id}
           onClick={() => navigate(`/todo/${todo.id}`)}
-          className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-elevated"
+          className={`group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-elevated ${dimmed ? 'opacity-60' : ''}`}
         >
           <span className="relative flex-shrink-0">
             {todo.needs_attention ? (
               <span className="block h-2 w-2 rounded-full bg-accent shadow-[0_0_4px_rgba(74,159,216,0.6)]" />
             ) : (
-              <span className={`block h-1.5 w-1.5 rounded-full ${statusDotColor[todo.status]}`} />
+              <StatusIcon status={todo.status} />
             )}
           </span>
-          <span className="min-w-0 flex-1 truncate text-xs text-text-primary">{todo.title}</span>
+          <span className={`min-w-0 flex-1 truncate text-xs ${isDone ? 'text-text-muted line-through' : isAbandoned ? 'text-text-muted line-through' : 'text-text-primary'}`}>{todo.title}</span>
           <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusBadgeBg[todo.status]}`}>
             {STATUS_LABELS[todo.status]}
           </span>
@@ -399,9 +399,25 @@ function TodoList({
             <Trash2 size={12} />
           </button>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
+}
+
+function StatusIcon({ status }: { status: TodoStatus }) {
+  switch (status) {
+    case 'done':
+      return <CheckCircle2 size={14} className="text-status-done" />;
+    case 'active':
+      return <Play size={14} className="text-accent fill-accent" />;
+    case 'error':
+      return <AlertCircle size={14} className="text-status-error" />;
+    case 'abandoned':
+      return <XCircle size={14} className="text-text-muted" />;
+    default:
+      return <Circle size={14} className="text-text-muted" />;
+  }
 }
 
 function ConversationTodoList({

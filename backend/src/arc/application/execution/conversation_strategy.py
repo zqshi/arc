@@ -195,6 +195,9 @@ class ConversationExecutionService:
                 "artifacts": [str(a.id) for a in extracted],
                 "artifact_names": artifact_names,
             }
+            tracker = await self.tracker_repo.get_by_todo_id(conversation.todo_id)
+            if tracker and tracker.is_complete:
+                await self._extract_experience(conversation.todo_id)
 
     async def run_autopilot(
         self,
@@ -209,6 +212,7 @@ class ConversationExecutionService:
 
             tracker = await self.tracker_repo.get_by_todo_id(conversation.todo_id)
             if tracker and tracker.is_complete:
+                await self._extract_experience(conversation.todo_id)
                 yield {"event": "autopilot_complete", "reason": "all_deliverables_done"}
                 return
 
@@ -469,3 +473,15 @@ class ConversationExecutionService:
             added,
         )
         return tracker
+
+    async def _extract_experience(self, todo_id: uuid.UUID) -> None:
+        from arc.application.experience.service import ExperienceService
+
+        try:
+            todo = await self.todo_repo.get_by_id(todo_id)
+            if not todo:
+                return
+            svc = ExperienceService(self.db)
+            await svc.extract_from_todo(todo)
+        except Exception as exc:
+            logger.warning("Experience extraction failed for todo %s: %s", todo_id, exc)

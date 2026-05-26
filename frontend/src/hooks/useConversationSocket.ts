@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Message } from '../types/api';
+import { quotaEvents } from '../lib/quota-events';
 
 const WS_BASE = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
 
@@ -35,6 +36,11 @@ interface WsArtifactsExtractedEvent {
   artifact_names: string[];
 }
 
+interface WsQuotaExceededEvent {
+  type: 'quota_exceeded';
+  detail: string;
+}
+
 type WsEvent =
   | WsMessageEvent
   | WsStreamStartEvent
@@ -42,6 +48,7 @@ type WsEvent =
   | WsStreamEndEvent
   | WsErrorEvent
   | WsArtifactsExtractedEvent
+  | WsQuotaExceededEvent
   | { type: 'token_expired' }
   | { type: 'ping' };
 
@@ -195,6 +202,11 @@ export function useConversationSocket(conversationId: string | null) {
             break;
 
           case 'stream_end':
+            setIsStreaming(false);
+            break;
+
+          case 'quota_exceeded':
+            quotaEvents.emit(data.detail);
             setIsStreaming(false);
             break;
 
