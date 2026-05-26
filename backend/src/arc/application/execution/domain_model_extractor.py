@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -56,7 +57,7 @@ class DomainModelExtractor:
             return False
 
         dm = project.domain_model or {}
-        updated = False
+        snapshot = copy.deepcopy(dm)
 
         if has_entities:
             entities = data_model["entities"]
@@ -66,18 +67,17 @@ class DomainModelExtractor:
             )
             if new_aggregates:
                 existing_aggs = dm.get("aggregates", [])
-                dm["aggregates"] = self._merge_aggregates(existing_aggs, new_aggregates)
-                updated = True
+                dm["aggregates"] = self._merge_aggregates(
+                    existing_aggs, new_aggregates,
+                )
 
         if has_strategic:
             self._merge_strategic_design(dm, domain_design)
-            updated = True
 
         if has_events:
             self._merge_event_storming(dm, event_storming)
-            updated = True
 
-        if not updated:
+        if self._models_equal(snapshot, dm):
             return False
 
         dm.setdefault("subdomains", [])
@@ -249,3 +249,13 @@ class DomainModelExtractor:
                     agg_methods = agg_by_name[agg_name].setdefault("methods", [])
                     if cmd_name not in agg_methods:
                         agg_methods.append(cmd_name)
+
+    @staticmethod
+    def _models_equal(before: dict, after: dict) -> bool:
+        """比较合并前后领域模型是否实质相同（忽略元数据字段）。"""
+        keys = ("subdomains", "contexts", "aggregates",
+                "relations", "aggregate_relations")
+        for k in keys:
+            if before.get(k, []) != after.get(k, []):
+                return False
+        return True
