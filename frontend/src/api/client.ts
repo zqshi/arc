@@ -228,6 +228,15 @@ class ApiClient {
     return this.request<DomainModel>(`/api/projects/${projectId}/domain-model`);
   }
 
+  async refreshDomainModel(projectId: string): Promise<{ merged: number; domain_model: DomainModel }> {
+    return this.request(`/api/projects/${projectId}/domain-model/refresh`, { method: 'POST' });
+  }
+
+  async extractProjectExperiences(projectId: string, versionId?: string): Promise<{ extracted: number; skipped: number; failed: number }> {
+    const qs = versionId ? `?version_id=${versionId}` : '';
+    return this.request(`/api/projects/${projectId}/extract-experiences${qs}`, { method: 'POST' });
+  }
+
   async updateDomainModel(projectId: string, data: DomainModel): Promise<DomainModel> {
     return this.request<DomainModel>(`/api/projects/${projectId}/domain-model`, {
       method: 'PUT',

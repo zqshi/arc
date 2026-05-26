@@ -49,7 +49,7 @@ export function useProjectDetail() {
     insights, fetchExperiences,
   } = useExperiences(id, activeTab);
 
-  const { domainModel, domainModelLoading } = useDomainModel(id, activeTab);
+  const { domainModel, domainModelLoading, fetchDomainModel } = useDomainModel(id, activeTab);
 
   const [myRole, setMyRole] = useState<UserRole>('admin');
 
@@ -244,6 +244,37 @@ export function useProjectDetail() {
     toast('已添加到规范，记得保存', 'success');
   };
 
+  const [extracting, setExtracting] = useState(false);
+  const [refreshingDM, setRefreshingDM] = useState(false);
+
+  const handleExtractExperiences = async () => {
+    if (!id) return;
+    setExtracting(true);
+    try {
+      const result = await api.extractProjectExperiences(id);
+      toast(`提取完成: ${result.extracted} 条新经验, ${result.skipped} 条跳过`, 'success');
+      fetchExperiences();
+    } catch {
+      toast('经验提取失败', 'error');
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleRefreshDomainModel = async () => {
+    if (!id) return;
+    setRefreshingDM(true);
+    try {
+      const result = await api.refreshDomainModel(id);
+      toast(`领域模型已刷新, 合并 ${result.merged} 个交付物`, 'success');
+      fetchDomainModel();
+    } catch {
+      toast('领域模型刷新失败', 'error');
+    } finally {
+      setRefreshingDM(false);
+    }
+  };
+
   const handleDistillExp = async (expId: string) => {
     try {
       await api.distillExperience(expId);
@@ -333,7 +364,8 @@ export function useProjectDetail() {
     expCategoryFilter, setExpCategoryFilter,
     handleConfirmExp, handleArchiveExp, handlePromoteExp, handleDistillExp,
     insights, handleAppendConvention,
-    domainModel, domainModelLoading,
+    domainModel, domainModelLoading, handleRefreshDomainModel, refreshingDM,
+    handleExtractExperiences, extracting,
     analysisResult, analyzing, closeAnalysis, handleAnalyzeVersion,
     drawerSession, setDrawerSession,
     fetchData,

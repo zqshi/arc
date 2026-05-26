@@ -114,6 +114,8 @@ export default function ProjectDetail() {
               onArchive={s.handleArchiveExp}
               onPromote={s.handlePromoteExp}
               onDistill={s.handleDistillExp}
+              onExtract={s.handleExtractExperiences}
+              extracting={s.extracting}
             />
           )}
 
@@ -121,6 +123,8 @@ export default function ProjectDetail() {
             <DomainModelTab
               domainModel={s.domainModel}
               loading={s.domainModelLoading}
+              onRefresh={s.handleRefreshDomainModel}
+              refreshing={s.refreshingDM}
             />
           )}
 

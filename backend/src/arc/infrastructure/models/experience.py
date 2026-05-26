@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,6 +43,7 @@ class Experience(TimestampMixin, Base):
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     reuse_count: Mapped[int] = mapped_column(Integer, default=0)
     half_life_days: Mapped[int] = mapped_column(Integer, default=180, server_default="180")
+    last_reused_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 
 

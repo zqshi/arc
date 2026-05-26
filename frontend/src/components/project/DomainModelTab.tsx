@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Boxes, Layers, Network, Database, Zap, Circle } from 'lucide-react';
+import { Boxes, Layers, Network, Database, Zap, Circle, RefreshCw, Loader2, GitFork } from 'lucide-react';
 import type { DomainModel, DomainModelAggregate, DomainModelSubdomain } from '../../types/api';
+import { DomainModelGraph } from './DomainModelGraph';
 
 type ViewMode = 'strategic' | 'tactical' | 'all';
 
@@ -13,10 +14,13 @@ const SUBDOMAIN_STYLES: Record<string, { border: string; bg: string; dot: string
 interface DomainModelTabProps {
   domainModel: DomainModel | null;
   loading: boolean;
+  onRefresh?: () => Promise<void>;
+  refreshing?: boolean;
 }
 
-export function DomainModelTab({ domainModel, loading }: DomainModelTabProps) {
+export function DomainModelTab({ domainModel, loading, onRefresh, refreshing }: DomainModelTabProps) {
   const [view, setView] = useState<ViewMode>('all');
+  const [graphMode, setGraphMode] = useState(false);
 
   if (loading) {
     return (
@@ -57,19 +61,40 @@ export function DomainModelTab({ domainModel, loading }: DomainModelTabProps) {
               v{domainModel.version}
             </span>
           )}
-        </div>
-        <div className="flex rounded-full border border-border bg-bg-elevated p-0.5">
-          {views.map(({ key, label }) => (
+          {onRefresh && (
             <button
-              key={key}
-              onClick={() => setView(key)}
-              className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
-                view === key ? 'bg-accent/10 text-accent' : 'text-text-muted hover:text-text-secondary'
-              }`}
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
             >
-              {label}
+              {refreshing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+              刷新模型
             </button>
-          ))}
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setGraphMode(!graphMode)}
+            className={`flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${
+              graphMode ? 'border-accent/40 bg-accent/10 text-accent' : 'border-border text-text-muted hover:bg-bg-elevated hover:text-text-secondary'
+            }`}
+            title={graphMode ? '切换为卡片视图' : '切换为依赖关系图'}
+          >
+            <GitFork size={13} />
+          </button>
+          <div className="flex rounded-full border border-border bg-bg-elevated p-0.5">
+            {views.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setView(key)}
+                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
+                  view === key ? 'bg-accent/10 text-accent' : 'text-text-muted hover:text-text-secondary'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -81,63 +106,69 @@ export function DomainModelTab({ domainModel, loading }: DomainModelTabProps) {
         <StatPill icon={<Zap size={11} />} label="关系" count={domainModel.relations.length + (domainModel.aggregate_relations?.length || 0)} />
       </div>
 
-      {/* Strategic View */}
-      {(view === 'strategic' || view === 'all') && domainModel.subdomains.length > 0 && (
-        <section className="mb-5">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">子域划分</h4>
-          <div className="grid gap-2">
-            {domainModel.subdomains.map((sd) => (
-              <SubdomainCard key={sd.name} subdomain={sd} contexts={domainModel.contexts.filter(c => c.subdomain === sd.name)} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Context Relations */}
-      {(view === 'strategic' || view === 'all') && domainModel.relations.length > 0 && (
-        <section className="mb-5">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">上下文关系</h4>
-          <div className="space-y-1.5">
-            {domainModel.relations.map((rel, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-[11px]">
-                <span className="font-medium text-text-primary">{rel.from}</span>
-                <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">{rel.type}</span>
-                <span className="text-text-muted">→</span>
-                <span className="font-medium text-text-primary">{rel.to}</span>
-                {rel.description && <span className="ml-auto text-text-muted">{rel.description}</span>}
+      {graphMode ? (
+        <DomainModelGraph domainModel={domainModel} view={view} />
+      ) : (
+        <>
+          {/* Strategic View */}
+          {(view === 'strategic' || view === 'all') && domainModel.subdomains.length > 0 && (
+            <section className="mb-5">
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">子域划分</h4>
+              <div className="grid gap-2">
+                {domainModel.subdomains.map((sd) => (
+                  <SubdomainCard key={sd.name} subdomain={sd} contexts={domainModel.contexts.filter(c => c.subdomain === sd.name)} />
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+            </section>
+          )}
 
-      {/* Tactical View: Aggregates */}
-      {(view === 'tactical' || view === 'all') && domainModel.aggregates.length > 0 && (
-        <section className="mb-5">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">聚合模型</h4>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {domainModel.aggregates.map((agg) => (
-              <AggregateCard key={agg.name} aggregate={agg} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Aggregate Relations */}
-      {(view === 'tactical' || view === 'all') && domainModel.aggregate_relations && domainModel.aggregate_relations.length > 0 && (
-        <section className="mb-5">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">聚合间引用</h4>
-          <div className="space-y-1.5">
-            {domainModel.aggregate_relations.map((rel, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-[11px]">
-                <span className="font-medium text-text-primary">{rel.from}</span>
-                <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-500">{rel.type}</span>
-                <span className="text-text-muted">→</span>
-                <span className="font-medium text-text-primary">{rel.to}</span>
+          {/* Context Relations */}
+          {(view === 'strategic' || view === 'all') && domainModel.relations.length > 0 && (
+            <section className="mb-5">
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">上下文关系</h4>
+              <div className="space-y-1.5">
+                {domainModel.relations.map((rel, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-[11px]">
+                    <span className="font-medium text-text-primary">{rel.from}</span>
+                    <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">{rel.type}</span>
+                    <span className="text-text-muted">→</span>
+                    <span className="font-medium text-text-primary">{rel.to}</span>
+                    {rel.description && <span className="ml-auto text-text-muted">{rel.description}</span>}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+          )}
+
+          {/* Tactical View: Aggregates */}
+          {(view === 'tactical' || view === 'all') && domainModel.aggregates.length > 0 && (
+            <section className="mb-5">
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">聚合模型</h4>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {domainModel.aggregates.map((agg) => (
+                  <AggregateCard key={agg.name} aggregate={agg} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Aggregate Relations */}
+          {(view === 'tactical' || view === 'all') && domainModel.aggregate_relations && domainModel.aggregate_relations.length > 0 && (
+            <section className="mb-5">
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">聚合间引用</h4>
+              <div className="space-y-1.5">
+                {domainModel.aggregate_relations.map((rel, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-[11px]">
+                    <span className="font-medium text-text-primary">{rel.from}</span>
+                    <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-500">{rel.type}</span>
+                    <span className="text-text-muted">→</span>
+                    <span className="font-medium text-text-primary">{rel.to}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       {/* Updated timestamp */}

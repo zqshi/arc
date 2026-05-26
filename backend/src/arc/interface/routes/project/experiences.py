@@ -78,6 +78,54 @@ async def list_project_experiences(
     )
 
 
+@router.post("/{project_id}/extract-experiences")
+async def extract_project_experiences(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+    version_id: uuid.UUID | None = None,
+):
+    from arc.infrastructure.repositories.experience import ExperienceRepository
+    from arc.infrastructure.repositories.todo import TodoRepository
+    from arc.application.experience.service import ExperienceService
+
+    todo_repo = TodoRepository(db)
+    exp_repo = ExperienceRepository(db)
+    exp_svc = ExperienceService(db)
+
+    todos, _ = await todo_repo.list_all(
+        project_id=project_id, user_id=user.id, offset=0, limit=500,
+    )
+    if version_id:
+        todos = [t for t in todos if t.version_id == version_id]
+    done_todos = [t for t in todos if t.status.value == "done"]
+
+    existing_todo_ids: set[uuid.UUID] = set()
+    exps, _ = await exp_repo.list_all(project_id=project_id, user_id=user.id, offset=0, limit=10000)
+    for e in exps:
+        if e.todo_id:
+            existing_todo_ids.add(e.todo_id)
+
+    extracted = 0
+    skipped = 0
+    failed = 0
+    for todo in done_todos:
+        if todo.id in existing_todo_ids:
+            skipped += 1
+            continue
+        try:
+            result = await exp_svc.extract_from_todo(todo)
+            if result:
+                extracted += 1
+            else:
+                skipped += 1
+        except Exception:
+            failed += 1
+
+    await db.commit()
+    return {"extracted": extracted, "skipped": skipped, "failed": failed}
+
+
 @router.get("/{project_id}/experience-insights")
 async def project_experience_insights(
     project_id: uuid.UUID,

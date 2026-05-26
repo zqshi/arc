@@ -1,4 +1,4 @@
-import { Lightbulb, Check, Archive, ArrowUpRight, Beaker, Clock } from 'lucide-react';
+import { Lightbulb, Check, Archive, ArrowUpRight, Beaker, Clock, Download, Loader2 } from 'lucide-react';
 import type { Experience, ExperienceStatus, ExperienceCategory } from '../../types/api';
 import { EXPERIENCE_STATUS_LABELS, EXPERIENCE_CATEGORY_LABELS } from '../../types/api';
 import { ExperienceListSkeleton } from '../Skeleton';
@@ -29,9 +29,11 @@ interface ExperiencesTabProps {
   onArchive: (id: string) => void;
   onPromote: (id: string) => void;
   onDistill?: (id: string) => void;
+  onExtract?: () => Promise<void>;
+  extracting?: boolean;
 }
 
-export function ExperiencesTab({ experiences, loading, filter, setFilter, categoryFilter, setCategoryFilter, onConfirm, onArchive, onPromote, onDistill }: ExperiencesTabProps) {
+export function ExperiencesTab({ experiences, loading, filter, setFilter, categoryFilter, setCategoryFilter, onConfirm, onArchive, onPromote, onDistill, onExtract, extracting }: ExperiencesTabProps) {
   const filters: { key: typeof filter; label: string }[] = [
     { key: 'all', label: '全部' },
     { key: 'draft', label: '待审核' },
@@ -51,9 +53,21 @@ export function ExperiencesTab({ experiences, loading, filter, setFilter, catego
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-          <Lightbulb size={13} /> 项目经验
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+            <Lightbulb size={13} /> 项目经验
+          </h2>
+          {onExtract && (
+            <button
+              onClick={onExtract}
+              disabled={extracting}
+              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
+            >
+              {extracting ? <Loader2 size={10} className="animate-spin" /> : <Download size={10} />}
+              提取经验
+            </button>
+          )}
+        </div>
         <div className="flex gap-1">
           {filters.map((f) => (
             <button

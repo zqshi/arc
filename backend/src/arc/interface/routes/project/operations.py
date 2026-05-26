@@ -63,6 +63,47 @@ async def get_domain_model(
     }
 
 
+@router.post("/{project_id}/domain-model/refresh")
+async def refresh_domain_model(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from arc.application.execution.domain_model_extractor import DomainModelExtractor
+    from arc.infrastructure.repositories.artifact import ArtifactRepository
+    from arc.infrastructure.repositories.todo import TodoRepository
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    todo_repo = TodoRepository(db)
+    art_repo = ArtifactRepository(db)
+    extractor = DomainModelExtractor(db)
+
+    todos, _ = await todo_repo.list_all(project_id=project_id, user_id=user.id, offset=0, limit=500)
+    merged = 0
+    for todo in todos:
+        arts = await art_repo.list_by_todo_id(todo.id)
+        for art in arts:
+            if art.artifact_type.value != "tech_architecture":
+                continue
+            if not (art.content.get("data_model", {}).get("entities") or art.content.get("domain_design")):
+                continue
+            updated = await extractor.extract_and_merge(todo.id, art.content)
+            if updated:
+                merged += 1
+
+    await db.commit()
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    dm = project.domain_model or {
+        "subdomains": [], "contexts": [], "aggregates": [],
+        "relations": [], "aggregate_relations": [],
+    }
+    return {"merged": merged, "domain_model": dm}
+
+
 @router.put("/{project_id}/domain-model")
 async def update_domain_model(
     project_id: uuid.UUID,
