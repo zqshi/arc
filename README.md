@@ -104,28 +104,46 @@ UI/UE 设计（AI 出方案，人选择）
 **项目空间**
 - 项目 → 版本 → 需求三层管理
 - 版本激活 / 发布 / 未完成需求自动结转
-- 轻量项目管理（不做排期、不做人员分配）
+- 需求依赖关系系统（阻塞状态展示、依赖图）
+- 多租户隔离架构（Organization + Membership + org-scoped 查询）
 
-**智能管线**
-- 七阶段 Pipeline 引擎（含质量门禁校验）
-- 阶段对话 + 产出物管理
-- 跳过 / 回滚支持
+**双模式交付引擎**
+- **Pipeline 模式**：七阶段 Pipeline（含质量门禁校验）、阶段对话 + 产出物管理、跳过 / 回滚
+- **Conversation 模式**：自由对话驱动、AgentLoop 目标驱动 + AutoPilot 自驾模式（最大 12 轮）
+- 交付物 8 环节拆分（交互设计 / 视觉规范 / 原型设计独立）
+- 原型产品预览（Blob URL + S3 持久化发布）
+
+**领域建模**
+- 项目级领域模型自动提取（从技术架构交付物沉淀）
+- 战略设计（子域划分 + 限界上下文）+ 战术设计（聚合 / 实体 / 值对象）
+- 依赖关系图可视化（SVG 连线 + hover 高亮 + 点击锁定）
+- 增量合并刷新（手动触发 + 自动提取，持续累积不丢弃）
 
 **经验引擎**
 - 个人经验 + 项目经验双维度
-- 向量语义搜索（pgvector）
-- 置信度评分 + 复用次数追踪
-- 相似经验自动召回
+- 向量语义搜索（pgvector）+ 相似经验自动召回
+- 置信度半衰期衰减（基于最后使用时间，活跃经验不过期）
+- 经验提炼（项目经验 → 个人经验，AI 去项目细节）
+- 批量经验提取（手动触发 + 自动提取）
+- 复用效果追踪（类别聚合、过期统计、top 复用排名）
 
 **Agent 编排**
 - 多 Agent 接入（OpenHands / Codex / Claude Code / Cursor）
 - 多模型适配（Anthropic / OpenAI / DeepSeek）+ 韧性层
 - Registry + Adapter 模式，按需分发
 
+**商业化基础**
+- Free / Pro / Team 三级定价（QuotaService + UsageDaily + 前端用量展示）
+- GitHub 集成（Issue ↔ Todo 双向同步、Webhook HMAC-SHA256 验证）
+- 云端部署方案（docker-compose.prod.yml、K8s manifests、GHCR CI/CD）
+
 **工程基础**
-- 用户认证（账号密码 + 短信验证码 + JWT 双令牌）
-- 实时对话（WebSocket）
+- 用户认证（账号密码 + 短信验证码 + JWT 双令牌 + refresh token 吊销）
+- 角色权限体系（admin / member / viewer，项目成员管理）
+- 实时对话（WebSocket + IDOR 防护）
+- SSE 自动重连 + 心跳检测
 - API 限流（IP 滑动窗口）+ SMS 防刷
+- 安全加固（路径遍历防护、CSP 注入、FK 索引优化）
 - Docker 一键部署（多阶段构建、非 root 运行）
 
 ## 技术栈
@@ -134,10 +152,11 @@ UI/UE 设计（AI 出方案，人选择）
 |------|------|
 | 后端 | Python 3.12 · FastAPI · SQLAlchemy (async) · DDD 四层架构 |
 | 数据 | PostgreSQL 16 (pgvector) · Alembic Migration |
-| 前端 | React 19 · TypeScript 6 · Vite 8 · Tailwind CSS 4 |
-| AI | Anthropic · OpenAI · DeepSeek（多模型动态切换） |
+| 前端 | React 19 · TypeScript 6 · Vite 8 · Tailwind CSS 4 · PWA (Workbox) |
+| AI | Anthropic · OpenAI · DeepSeek（多模型动态切换 + 韧性层） |
 | Agent | OpenHands · Codex · Claude Code · Cursor（Registry + Adapter） |
-| 部署 | Docker Compose · 多阶段 Dockerfile · 非 root 运行 |
+| 部署 | Docker Compose · K8s manifests · GHCR CI/CD · 非 root 运行 |
+| 存储 | S3 + BaaS 统一存储层（StorageAdapter） |
 
 ## 快速开始
 
@@ -232,26 +251,35 @@ arc/
 ├── backend/
 │   └── src/arc/
 │       ├── domain/              # 领域层（实体、值对象、仓库接口）
+│       │   ├── experience/      #   经验实体（衰减、复用追踪）
+│       │   ├── todo/            #   需求实体 + 值对象
+│       │   └── artifact/        #   交付物实体
 │       ├── application/         # 应用层
 │       │   ├── agent/           #   多 Agent 编排（Registry + Adapter）
 │       │   ├── ai/              #   LLM 适配器 + 韧性层
 │       │   ├── auth/            #   认证（JWT + SMS + 速率限制）
+│       │   ├── execution/       #   AgentLoop + DomainModelExtractor
 │       │   ├── pipeline/        #   七阶段 Pipeline 服务
+│       │   ├── planning/        #   规划引擎（文档 + 路线图）
 │       │   └── experience/      #   经验引擎（向量搜索 + 双维度积累）
-│       ├── infrastructure/      # 基础设施层（ORM、仓库实现、连接池）
+│       ├── infrastructure/      # 基础设施层（ORM、仓库实现、存储适配器）
 │       └── interface/           # 接口层
-│           ├── routes/          #   REST API（分页）
-│           ├── ws/              #   WebSocket（对话）
+│           ├── routes/          #   REST API（分模块拆分、SQL 分页）
+│           ├── ws/              #   WebSocket（对话 + IDOR 防护）
 │           ├── schemas/         #   请求/响应 Schema
-│           └── middleware/      #   中间件（API 限流）
+│           └── middleware/      #   中间件（API 限流、配额拦截）
 ├── frontend/src/
-│   ├── api/                     # API 客户端（Token 主动刷新）
+│   ├── api/                     # API 客户端（Token 主动刷新、SSE 重连）
 │   ├── components/              # UI 组件 + Artifact 渲染器
+│   │   └── project/             #   项目详情子组件（领域模型图、经验库）
 │   ├── contexts/                # React Context
 │   ├── hooks/                   # 自定义 Hooks
 │   └── pages/                   # 页面
-├── docs/                        # 产品愿景、模块拆解、设计文档
-├── docker-compose.yml           # 4 服务编排
+├── docs/                        # 产品愿景、模块拆解、版本管理
+│   └── versions/                #   版本 snapshot + backlog
+├── k8s/                         # Kubernetes 部署清单
+├── docker-compose.yml           # 开发环境编排
+├── docker-compose.prod.yml      # 生产环境编排
 ├── CONTRIBUTING.md              # 文档对齐规范
 ├── CHANGELOG.md                 # 变更日志
 └── .env.example                 # 环境变量模板
@@ -267,14 +295,15 @@ arc/
 - 环境变量：[.env.example](./.env.example)
 - API 文档：启动后访问 http://localhost:8000/docs
 
-## 阶段性目标
+## 版本历程
 
-| 阶段 | 目标 | 验证标准 |
-|------|------|----------|
-| Phase 0 | 核心验证 — "上下文零断裂"是否成立 | 用 Arc 开发 Arc 的下一个 feature，比不用明显更高效 |
-| Phase 1 | 项目级体验 — 多项目 + 经验双维度 | 同时管理 2+ 项目，项目经验隔离、个人经验跨项目复用 |
-| Phase 2 | 多用户 + 团队协作 | 3-5 人团队用 Arc 管理项目，团队经验库有实际使用 |
-| Phase 3 | 商业化 — 云端 + 定价 + 集成 | 可售卖的产品 |
+| 版本 | 里程碑 | 状态 |
+|------|--------|------|
+| v0.x | MVP — 项目管理 + Pipeline + 经验库 + Agent 编排 | done |
+| v1.0 | 多用户协作 — 角色权限 + 项目成员 + 经验访问控制 | done |
+| v1.1 | 工程加固 — 测试覆盖 + 分页统一 + Docker 安全化 | done |
+| v1.2 | 交付增强 — AgentLoop + 领域建模 + 原型预览 + S3 存储 | done |
+| v2.0 | 商业化 — 多租户 + 计费 + GitHub 集成 + 云部署 | done |
 
 ## 许可
 
