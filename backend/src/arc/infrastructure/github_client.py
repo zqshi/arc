@@ -66,7 +66,7 @@ class GitHubClient:
                 title=i["title"],
                 body=i.get("body") or "",
                 state=i["state"],
-                labels=[l["name"] for l in i.get("labels", [])],
+                labels=[lb["name"] for lb in i.get("labels", [])],
                 html_url=i["html_url"],
             )
             for i in resp.json()

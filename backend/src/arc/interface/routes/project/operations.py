@@ -36,7 +36,9 @@ async def get_domain_model(
 
         todo_repo = TodoRepository(db)
         art_repo = ArtifactRepository(db)
-        todos, _ = await todo_repo.list_all(project_id=project_id, user_id=user.id, offset=0, limit=100)
+        todos, _ = await todo_repo.list_all(
+            project_id=project_id, user_id=user.id, offset=0, limit=100,
+        )
         for todo in todos:
             arts = await art_repo.list_by_todo_id(todo.id)
             for art in arts:
@@ -89,7 +91,11 @@ async def refresh_domain_model(
         for art in arts:
             if art.artifact_type.value != "tech_architecture":
                 continue
-            if not (art.content.get("data_model", {}).get("entities") or art.content.get("domain_design")):
+            has_model = (
+                art.content.get("data_model", {}).get("entities")
+                or art.content.get("domain_design")
+            )
+            if not has_model:
                 continue
             updated = await extractor.extract_and_merge(todo.id, art.content)
             if updated:

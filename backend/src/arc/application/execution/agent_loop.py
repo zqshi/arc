@@ -230,7 +230,10 @@ class AgentLoop:
         msgs = list(base)
         if state == LoopState.CONTINUING and accumulated:
             msgs.append(LLMMessage(role="assistant", content=accumulated))
-            msgs.append(LLMMessage(role="user", content=self._build_continuation_prompt(accumulated)))
+            msgs.append(LLMMessage(
+                role="user",
+                content=self._build_continuation_prompt(accumulated),
+            ))
         elif state == LoopState.RETRYING:
             error_text = getattr(self, "_validation_errors", "格式不正确")
             feedback = (

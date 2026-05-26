@@ -257,8 +257,9 @@ class OpenAIAdapter(LLMAdapter):
             return resp.data[0].embedding
         except Exception as exc:
             logger.warning("OpenAI embed failed: %s, using local model", exc)
-            from arc.application.ai.local_embedding import embed_local
             import asyncio
+
+            from arc.application.ai.local_embedding import embed_local
 
             return await asyncio.to_thread(embed_local, text)
 
@@ -442,8 +443,9 @@ class AnthropicAdapter(LLMAdapter):
             except Exception as exc:
                 logger.warning("OpenAI embedding fallback failed: %s, using local model", exc)
 
-        from arc.application.ai.local_embedding import embed_local
         import asyncio
+
+        from arc.application.ai.local_embedding import embed_local
 
         return await asyncio.to_thread(embed_local, text)
 

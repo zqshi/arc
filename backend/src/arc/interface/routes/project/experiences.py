@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.experience import ExperienceListResponse, ExperienceResponse
@@ -85,9 +85,9 @@ async def extract_project_experiences(
     user: CurrentUser,
     version_id: uuid.UUID | None = None,
 ):
+    from arc.application.experience.service import ExperienceService
     from arc.infrastructure.repositories.experience import ExperienceRepository
     from arc.infrastructure.repositories.todo import TodoRepository
-    from arc.application.experience.service import ExperienceService
 
     todo_repo = TodoRepository(db)
     exp_repo = ExperienceRepository(db)

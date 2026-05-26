@@ -92,7 +92,7 @@ class DomainModelExtractor:
         await project_repo.update(project)
 
         logger.info(
-            "Domain model updated for project %s: %d subdomains, %d contexts, %d aggregates (from todo %s)",
+            "Domain model updated for project %s: %d sub, %d ctx, %d agg (todo %s)",
             project.id,
             len(dm.get("subdomains", [])),
             len(dm.get("contexts", [])),

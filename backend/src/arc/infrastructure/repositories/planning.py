@@ -43,7 +43,9 @@ class DocumentRepository:
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def list_by_project(self, project_id: uuid.UUID, *, skip: int = 0, limit: int = 100) -> list[Document]:
+    async def list_by_project(
+        self, project_id: uuid.UUID, *, skip: int = 0, limit: int = 100,
+    ) -> list[Document]:
         result = await self.db.execute(
             select(DocumentModel)
             .where(DocumentModel.project_id == project_id)
@@ -113,7 +115,9 @@ class PlanningSessionRepository:
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def list_by_project(self, project_id: uuid.UUID, *, skip: int = 0, limit: int = 100) -> list[PlanningSession]:
+    async def list_by_project(
+        self, project_id: uuid.UUID, *, skip: int = 0, limit: int = 100,
+    ) -> list[PlanningSession]:
         result = await self.db.execute(
             select(PlanningSessionModel)
             .where(PlanningSessionModel.project_id == project_id)

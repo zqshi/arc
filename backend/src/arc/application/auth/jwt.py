@@ -26,7 +26,9 @@ def _get_secret() -> str:
     return secret
 
 
-def create_access_token(user_id: str, username: str | None = None, org_id: str | None = None) -> str:
+def create_access_token(
+    user_id: str, username: str | None = None, org_id: str | None = None,
+) -> str:
     expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_access_expire_minutes)
     payload: dict[str, Any] = {
         "sub": user_id,

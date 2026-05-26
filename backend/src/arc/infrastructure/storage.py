@@ -48,14 +48,20 @@ class StorageAdapter:
             except Exception as e:
                 logger.warning("Failed to create bucket %s: %s", settings.storage_bucket, e)
 
-    def upload(self, key: str, content: bytes, content_type: str = "text/html", *, max_size: int = MAX_UPLOAD_SIZE) -> str:
+    def upload(
+        self, key: str, content: bytes, content_type: str = "text/html",
+        *, max_size: int = MAX_UPLOAD_SIZE,
+    ) -> str:
         if len(content) > max_size:
             raise ValueError(f"Upload exceeds {max_size} bytes limit ({len(content)} bytes)")
         if self._is_s3:
             return self._upload_s3(key, content, content_type)
         return self._upload_local(key, content, content_type)
 
-    async def async_upload(self, key: str, content: bytes, content_type: str = "text/html", *, max_size: int = MAX_UPLOAD_SIZE) -> str:
+    async def async_upload(
+        self, key: str, content: bytes, content_type: str = "text/html",
+        *, max_size: int = MAX_UPLOAD_SIZE,
+    ) -> str:
         return await asyncio.to_thread(self.upload, key, content, content_type, max_size=max_size)
 
     def delete(self, key: str) -> None:
@@ -154,7 +160,7 @@ class StorageAdapter:
         base = Path(__file__).resolve().parent.parent.parent / "static" / "previews"
         resolved = (base / key).resolve()
         if not resolved.is_relative_to(base):
-            raise ValueError(f"Invalid storage key: path traversal detected")
+            raise ValueError("Invalid storage key: path traversal detected")
         return resolved
 
 

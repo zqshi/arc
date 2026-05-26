@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -15,7 +15,6 @@ from arc.application.auth.jwt import (
 from arc.application.auth.password import hash_password, verify_password
 from arc.application.auth.sms import SMSService
 from arc.application.organization.service import OrganizationService
-from arc.config import settings
 from arc.domain.errors import AuthenticationError, ConflictError
 from arc.domain.user.entity import User
 from arc.infrastructure.models.user import RevokedTokenModel

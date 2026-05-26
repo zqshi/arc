@@ -235,7 +235,9 @@ async def feedback_experience(
 
     svc = ExperienceService(db)
     try:
-        await svc.submit_feedback(UUID(experience_id), UUID(req.todo_id), req.helpful, user_id=user.id)
+        await svc.submit_feedback(
+            UUID(experience_id), UUID(req.todo_id), req.helpful, user_id=user.id,
+        )
     except ValueError as e:
         detail = str(e)
         code = 409 if "already" in detail.lower() else 404
