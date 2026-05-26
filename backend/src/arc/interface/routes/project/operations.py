@@ -104,6 +104,25 @@ async def refresh_domain_model(
     return {"merged": merged, "domain_model": dm}
 
 
+@router.post("/{project_id}/domain-model/validate")
+async def validate_domain_model_route(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    dm = project.domain_model or {}
+
+    from arc.application.execution.domain_model_validator import validate_domain_model
+
+    result = await validate_domain_model(dm)
+    return result
+
+
 @router.put("/{project_id}/domain-model")
 async def update_domain_model(
     project_id: uuid.UUID,

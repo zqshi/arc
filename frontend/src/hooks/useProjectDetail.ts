@@ -10,7 +10,7 @@ import { useProjectTaskStream } from './useProjectTaskStream';
 import { useExperiences } from './useExperiences';
 import { useDomainModel } from './useDomainModel';
 import type { ActionMenuItem } from '../components/ActionMenu';
-import type { Project, Version, VersionType, Todo, PlanningSession, UserRole } from '../types/api';
+import type { Project, Version, VersionType, Todo, PlanningSession, UserRole, DomainModelValidation } from '../types/api';
 
 type TabKey = 'todos' | 'experiences' | 'domain_model' | 'settings';
 
@@ -246,6 +246,8 @@ export function useProjectDetail() {
 
   const [extracting, setExtracting] = useState(false);
   const [refreshingDM, setRefreshingDM] = useState(false);
+  const [validatingDM, setValidatingDM] = useState(false);
+  const [dmValidation, setDmValidation] = useState<DomainModelValidation | null>(null);
 
   const handleExtractExperiences = async () => {
     if (!id) return;
@@ -272,6 +274,20 @@ export function useProjectDetail() {
       toast('领域模型刷新失败', 'error');
     } finally {
       setRefreshingDM(false);
+    }
+  };
+
+  const handleValidateDomainModel = async () => {
+    if (!id) return;
+    setValidatingDM(true);
+    setDmValidation(null);
+    try {
+      const result = await api.validateDomainModel(id);
+      setDmValidation(result);
+    } catch {
+      toast('领域模型校验失败', 'error');
+    } finally {
+      setValidatingDM(false);
     }
   };
 
@@ -365,6 +381,7 @@ export function useProjectDetail() {
     handleConfirmExp, handleArchiveExp, handlePromoteExp, handleDistillExp,
     insights, handleAppendConvention,
     domainModel, domainModelLoading, handleRefreshDomainModel, refreshingDM,
+    handleValidateDomainModel, validatingDM, dmValidation, setDmValidation,
     handleExtractExperiences, extracting,
     analysisResult, analyzing, closeAnalysis, handleAnalyzeVersion,
     drawerSession, setDrawerSession,

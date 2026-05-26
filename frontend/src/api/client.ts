@@ -23,6 +23,7 @@ import type {
   PlanningSession,
   DeliverableTracker,
   DomainModel,
+  DomainModelValidation,
   ScopeDiff,
   BatchStartResult,
   QuickMessageResponse,
@@ -230,6 +231,10 @@ class ApiClient {
 
   async refreshDomainModel(projectId: string): Promise<{ merged: number; domain_model: DomainModel }> {
     return this.request(`/api/projects/${projectId}/domain-model/refresh`, { method: 'POST' });
+  }
+
+  async validateDomainModel(projectId: string): Promise<DomainModelValidation> {
+    return this.request(`/api/projects/${projectId}/domain-model/validate`, { method: 'POST' });
   }
 
   async extractProjectExperiences(projectId: string, versionId?: string): Promise<{ extracted: number; skipped: number; failed: number }> {

@@ -539,6 +539,22 @@ export interface DomainModel {
   version?: number;
 }
 
+export interface DomainModelValidationIssue {
+  severity: 'error' | 'warning' | 'info';
+  category: 'strategic' | 'tactical' | 'naming' | 'completeness';
+  title: string;
+  detail: string;
+  suggestion: string;
+}
+
+export interface DomainModelValidation {
+  score: number;
+  level: 'excellent' | 'good' | 'needs_improvement' | 'poor';
+  issues: DomainModelValidationIssue[];
+  strengths: string[];
+  summary: string;
+}
+
 export const EXECUTION_MODE_LABELS: Record<ExecutionMode, string> = {
   pipeline: 'Pipeline 模式',
   conversation: '对话模式',
