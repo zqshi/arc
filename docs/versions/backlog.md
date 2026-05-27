@@ -11,17 +11,21 @@
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
 - [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md)
 
+## 进行中
+
+- [v2.2.0](v2.2.0-current.md) — 交互体验优化 + 质量审计债务清偿
+
 ---
 
 ## 技术债务 (可穿插在任何版本中)
 
 | 工作项 | 优先级 | 来源 | 状态 |
 |--------|--------|------|------|
-| 后端 5 个 application 模块缺少测试 (billing/context/execution/planning/project) | P1 | 2026-05-27 质量审计 | pending |
-| 后端 3 个 domain 模块缺少测试 (planning/project/user) | P1 | 2026-05-27 质量审计 | pending |
-| seeds/data.py 2344 行、seeds/gateway.py 1565 行超限 | P2 | 2026-05-27 质量审计 | pending |
-| api/client.ts 834 行超限 | P2 | 2026-05-27 质量审计 | pending |
-| k8s 镜像名 YOUR_ORG 占位符需参数化 | P3 | 2026-05-27 质量审计 | pending |
+| 后端 5 个 application 模块缺少测试 (billing/context/execution/planning/project) | P1 | 2026-05-27 质量审计 | → v2.2.0 T3 |
+| 后端 3 个 domain 模块缺少测试 (planning/project/user) | P1 | 2026-05-27 质量审计 | → v2.2.0 T2 |
+| seeds/data.py 2344 行、seeds/gateway.py 1565 行超限 | P2 | 2026-05-27 质量审计 | → v2.2.0 T4 |
+| api/client.ts 834 行超限 | P2 | 2026-05-27 质量审计 | → v2.2.0 T5 |
+| k8s 镜像名 YOUR_ORG 占位符需参数化 | P3 | 2026-05-27 质量审计 | → v2.2.0 T6 |
 
 ---
 
