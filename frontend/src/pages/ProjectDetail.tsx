@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Boxes } from 'lucide-react';
 import ActionMenu from '../components/ActionMenu';
 import { VersionListSkeleton } from '../components/Skeleton';
@@ -18,6 +19,7 @@ const TAB_ITEMS: { key: TabKey; label: string; icon: typeof FileText }[] = [
 
 export default function ProjectDetail() {
   const s = useProjectDetail();
+  const [roadmapDrawerWidth, setRoadmapDrawerWidth] = useState(560);
 
   if (s.loading || !s.project) {
     return (
@@ -187,11 +189,19 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      <DeliverableDrawer
-        open={!!s.drawerSession}
-        onClose={() => s.setDrawerSession(null)}
-        content={s.drawerSession ? { type: 'roadmap', data: s.drawerSession } : null}
-      />
+      {s.drawerSession && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => s.setDrawerSession(null)} />
+          <div className="relative h-full">
+            <DeliverableDrawer
+              onClose={() => s.setDrawerSession(null)}
+              content={{ type: 'roadmap', data: s.drawerSession }}
+              width={roadmapDrawerWidth}
+              onWidthChange={setRoadmapDrawerWidth}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

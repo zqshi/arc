@@ -50,6 +50,7 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
   const [relatedExps, setRelatedExps] = useState<Experience[]>([]);
   const [selectedExp, setSelectedExp] = useState<Experience | null>(null);
   const [drawerArtifact, setDrawerArtifact] = useState<Artifact | null>(null);
+  const [drawerWidth, setDrawerWidth] = useState(480);
 
   const {
     messages: wsMessages,
@@ -132,7 +133,7 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     <>
       <div className="flex flex-1 overflow-hidden">
         {/* Center: Chat */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden" style={{ minWidth: 300 }}>
           {isReady ? (
             <>
               {tracker && (
@@ -167,6 +168,16 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
             </div>
           )}
         </div>
+
+        {/* Deliverable detail drawer (inline, squeezes chat) */}
+        {drawerArtifact && (
+          <DeliverableDrawer
+            onClose={() => setDrawerArtifact(null)}
+            content={{ type: 'artifact', data: drawerArtifact }}
+            width={drawerWidth}
+            onWidthChange={setDrawerWidth}
+          />
+        )}
 
         {/* Right: Deliverables panel */}
         {!isCompact && (showRight ? (
@@ -299,11 +310,6 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
       </div>
 
       <ExperienceDetailModal experience={selectedExp} onClose={() => setSelectedExp(null)} />
-      <DeliverableDrawer
-        open={!!drawerArtifact}
-        onClose={() => setDrawerArtifact(null)}
-        content={drawerArtifact ? { type: 'artifact', data: drawerArtifact } : null}
-      />
     </>
   );
 }
