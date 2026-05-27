@@ -1,48 +1,27 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-05-25
+> 最后更新: 2026-05-27
 
 ---
 
-## ~~v0.4.0~~ → 已完成, 见 [v0.4.0-snapshot.md](v0.4.0-snapshot.md)
+## 已完成版本
 
-## ~~v0.5.0~~ → 已完成, 见 [v0.5.0-snapshot.md](v0.5.0-snapshot.md)
-
----
-
-## ~~v1.0.0~~ → 已完成, 见 [v1.0.0-snapshot.md](v1.0.0-snapshot.md)
+- [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
+- [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
+- [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md)
 
 ---
 
-## ~~v1.1.0~~ → 已完成, 见 [v1.1.0-snapshot.md](v1.1.0-snapshot.md)
-
----
-
-## ~~v1.2.0~~ → 已完成, 见 [v1.2.0-snapshot.md](v1.2.0-snapshot.md)
-
----
-
-## ~~v2.0.0~~ → 已完成, 见 [v2.0.0-snapshot.md](v2.0.0-snapshot.md)
-
----
-
-## ~~v2.1.0~~ → 已完成, 见 [v2.1.0-snapshot.md](v2.1.0-snapshot.md)
-
----
-
-## 技术债务 — 架构改善 (可穿插在任何版本中)
+## 技术债务 (可穿插在任何版本中)
 
 | 工作项 | 优先级 | 来源 | 状态 |
 |--------|--------|------|------|
-| ~~路由层 → Application Service 收口 (14+ 路由文件直接操作 Repository)~~ | P1 | 2026-05 审计 | 核心收口已完成, 剩余渐进 |
-| ~~核心模块测试覆盖 (storage/publish/document/WS/pipeline routes)~~ | P1 | 2026-05 审计 | 36 cases 已覆盖 |
-| ~~内存分页改 SQL 分页 (project.py:762,876,947,611)~~ | P2 | 2026-05 审计 | done |
-| ~~Artifact content discriminated union 类型化 (前后端)~~ | P2 | 2026-05 审计 | done |
-| ~~ChatMessages 虚拟列表 (200+ 消息滚动性能)~~ | P2 | 2026-05 审计 | done |
-| ~~DeliverableDrawer 类型断言消除 (定义 RoadmapData 接口)~~ | P3 | 2026-05 审计 | done |
-| ~~ErrorBoundary key-based remount~~ | P3 | 2026-05 审计 | done |
-| ~~Toast ARIA live region~~ | P3 | 2026-05 审计 | done |
+| 后端 5 个 application 模块缺少测试 (billing/context/execution/planning/project) | P1 | 2026-05-27 质量审计 | pending |
+| 后端 3 个 domain 模块缺少测试 (planning/project/user) | P1 | 2026-05-27 质量审计 | pending |
+| seeds/data.py 2344 行、seeds/gateway.py 1565 行超限 | P2 | 2026-05-27 质量审计 | pending |
+| api/client.ts 834 行超限 | P2 | 2026-05-27 质量审计 | pending |
+| k8s 镜像名 YOUR_ORG 占位符需参数化 | P3 | 2026-05-27 质量审计 | pending |
 
 ---
 

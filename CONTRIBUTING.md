@@ -80,7 +80,7 @@
 
 | 脚本 | 对齐对象 | 规则 |
 |------|---------|------|
-| `backend/scripts/seed_data.py` | `backend/src/arc/domain/` 各实体字段 | 种子数据的字段必须与 domain entity 完全对齐，新增/删除字段时同步修改 |
+| `backend/src/arc/seeds/` | `backend/src/arc/domain/` 各实体字段 | 种子数据的字段必须与 domain entity 完全对齐，新增/删除字段时同步修改 |
 | `backend/alembic/versions/` | `backend/src/arc/infrastructure/models/` | 新 migration 必须通过 `alembic revision --autogenerate` 生成，手写需注明原因 |
 
 ---
