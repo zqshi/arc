@@ -27,7 +27,7 @@
 
 ---
 
-## v2.1.0 — 进行中, 见 [v2.1.0-current.md](v2.1.0-current.md)
+## ~~v2.1.0~~ → 已完成, 见 [v2.1.0-snapshot.md](v2.1.0-snapshot.md)
 
 ---
 
