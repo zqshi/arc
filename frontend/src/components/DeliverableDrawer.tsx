@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { X, FileText, Code, TestTube, Rocket, BookOpen, Layout, Package, Palette, Monitor, GitBranch } from 'lucide-react';
 import MarkdownContent from './MarkdownContent';
 import ArtifactRenderer from './artifact-renderers';
@@ -9,10 +9,14 @@ type DrawerContent =
   | { type: 'roadmap'; data: PlanningSession };
 
 interface DeliverableDrawerProps {
-  open: boolean;
   onClose: () => void;
   content: DrawerContent | null;
+  width: number;
+  onWidthChange: (w: number) => void;
 }
+
+const MIN_WIDTH = 320;
+const MAX_WIDTH = 720;
 
 const ARTIFACT_TYPE_ICONS: Record<string, typeof FileText> = {
   requirement_spec: FileText,
@@ -40,61 +44,92 @@ const ARTIFACT_TYPE_LABELS: Record<string, string> = {
   ui_design: 'UI设计(旧)',
 };
 
-export default function DeliverableDrawer({ open, onClose, content }: DeliverableDrawerProps) {
-  const drawerRef = useRef<HTMLDivElement>(null);
+export default function DeliverableDrawer({ onClose, content, width, onWidthChange }: DeliverableDrawerProps) {
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    if (open) document.addEventListener('keydown', handleEsc);
+    document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [open, onClose]);
+  }, [onClose]);
 
-  if (!open || !content) return null;
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragging.current) return;
+    const delta = startX.current - e.clientX;
+    const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth.current + delta));
+    onWidthChange(newWidth);
+  }, [onWidthChange]);
+
+  const onMouseUp = useCallback(() => {
+    dragging.current = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  }, [onMouseMove]);
+
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    startX.current = e.clientX;
+    startWidth.current = width;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [width, onMouseMove, onMouseUp]);
+
+  if (!content) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+    <div
+      className="relative flex flex-shrink-0 animate-slide-left border-l border-border bg-bg-card"
+      style={{ width }}
+    >
+      {/* Drag handle */}
       <div
-        ref={drawerRef}
-        className="relative w-full max-w-2xl animate-slide-left overflow-hidden border-l border-border bg-bg-card shadow-2xl"
-      >
-        <div className="flex h-full flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-              {content.type === 'artifact' ? (
-                <>
-                  {(() => {
-                    const Icon = ARTIFACT_TYPE_ICONS[content.data.artifact_type] || FileText;
-                    return <Icon size={15} className="text-accent" />;
-                  })()}
-                  {ARTIFACT_TYPE_LABELS[content.data.artifact_type] || content.data.artifact_type}
-                </>
-              ) : (
-                <>
-                  <Code size={15} className="text-accent" />
-                  版本路线图
-                </>
-              )}
-            </h2>
-            <button
-              onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
-            >
-              <X size={16} />
-            </button>
-          </div>
+        onMouseDown={onDragStart}
+        className="absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize transition-colors hover:bg-accent/40"
+      />
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex h-full flex-1 flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
             {content.type === 'artifact' ? (
-              <ArtifactContent artifact={content.data} />
+              <>
+                {(() => {
+                  const Icon = ARTIFACT_TYPE_ICONS[content.data.artifact_type] || FileText;
+                  return <Icon size={15} className="text-accent" />;
+                })()}
+                {ARTIFACT_TYPE_LABELS[content.data.artifact_type] || content.data.artifact_type}
+              </>
             ) : (
-              <RoadmapContent session={content.data} />
+              <>
+                <Code size={15} className="text-accent" />
+                版本路线图
+              </>
             )}
-          </div>
+          </h2>
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {content.type === 'artifact' ? (
+            <ArtifactContent artifact={content.data} />
+          ) : (
+            <RoadmapContent session={content.data} />
+          )}
         </div>
       </div>
     </div>
@@ -181,5 +216,3 @@ function RoadmapContent({ session }: { session: PlanningSession }) {
     </div>
   );
 }
-
-

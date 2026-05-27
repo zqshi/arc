@@ -119,7 +119,7 @@ export function DomainModelGraph({ domainModel, view }: Props) {
         const sdNames = new Set(effectiveContexts.map((c) => c.subdomain || '通用'));
         return Array.from(sdNames).map((name) => ({
           name,
-          type: name === '通用' ? '通用域' : '支撑域',
+          type: (name === '通用' ? '通用域' : '支撑域') as DomainModelSubdomain['type'],
           description: '',
         }));
       })();
@@ -187,7 +187,6 @@ export function DomainModelGraph({ domainModel, view }: Props) {
                 subdomain={info}
                 contexts={ctxs}
                 color={col}
-                activeId={activeId}
                 onHover={setHovered}
                 onClick={handleModuleClick}
                 selected={selected}
@@ -201,7 +200,6 @@ export function DomainModelGraph({ domainModel, view }: Props) {
               key={info.name}
               context={info}
               aggregates={aggs}
-              activeId={activeId}
               onHover={setHovered}
               onClick={handleModuleClick}
               selected={selected}
@@ -240,7 +238,6 @@ function StrategicLayer({
   subdomain,
   contexts,
   color,
-  activeId,
   onHover,
   onClick,
   selected,
@@ -248,7 +245,6 @@ function StrategicLayer({
   subdomain: DomainModelSubdomain;
   contexts: { name: string; description: string; team?: string }[];
   color: { accent: string; border: string };
-  activeId: string | null;
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
   selected: string | null;
@@ -295,14 +291,12 @@ function StrategicLayer({
 function TacticalLayer({
   context,
   aggregates,
-  activeId,
   onHover,
   onClick,
   selected,
 }: {
   context: { name: string; description: string; subdomain: string };
   aggregates: { name: string; description: string; entities: string[]; value_objects: string[]; events: string[]; methods: string[] }[];
-  activeId: string | null;
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
   selected: string | null;
