@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-05-27
+
+### Added
+- DDD 三阶段自主建模 prompt (战略设计→事件风暴→战术建模, AI 自主驱动无需人工干预)
+- event_storming schema 适配 (tech_architecture 新增 events/commands 字段)
+- DomainModelExtractor 事件风暴数据提取 (events→聚合.events, commands→聚合.methods)
+- LLM 驱动领域模型质量评审 (domain_model_validator.py, 四维度评审 + score/issues/strengths)
+- POST /projects/{id}/domain-model/validate 端点
+- DomainModelTab AI 评审按钮 + ValidationPanel 弹窗 (按 severity 分色展示)
+- ArtifactRepository.list_by_todo_ids() 批量查询方法
+- alembic migration: nullable 对齐 + 索引规范化 (7d587912c43d)
+
+### Fixed
+- 依赖关系图空状态 — 聚合无子域/上下文时从 .context 字段 fallback 分组
+- 领域模型刷新重复合并误报 — deepcopy 快照比较确保幂等
+- ruff lint 全量清理 54→0 (F401/I001/E741/N817/E501)
+
+### Changed
+- DDD_TDD_GUIDANCE 动态注入战略/战术上下文 (子域+上下文+关系+聚合详情)
+- domain model refresh N+1 查询优化 (IN 查询替换逐条查询)
+- build_ddd_tdd_section() 重写为完整战略/战术上下文生成
+- ruff per-file E501 ignore 配置 (publish_service.py, prompts.py)
+
 ## [2.0.0] - 2026-05-26
 
 ### Added
