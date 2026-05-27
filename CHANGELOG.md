@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-05-27
+
+### Added
+- 交付物抽屉挤压式布局 — flex inline 面板 + 拖拽调宽 (320-720px), 对话区可持续沟通
+- domain 层单元测试 48 cases (planning entity/project entity/user entity)
+- application 层单元测试 44 cases (context_provider/artifact_extractor/conversation_strategy/planning_service/quota_service/scanner/scan_task)
+- k8s kustomization.yml images transformer, 镜像名参数化
+
+### Changed
+- seeds/data.py 2344→1117 行, 拆出 data_artifacts.py + data_messages.py
+- seeds/gateway.py 1565→591 行, 拆出 gateway_artifacts.py + gateway_messages.py
+- frontend api/client.ts 834 行单文件拆为 client/ 目录 6 模块 (函数式组合模式)
+- k8s deployment 镜像从硬编码 ghcr.io 改为 kustomize placeholder 模式
+
+### Removed
+- 死代码 openhands_executor.py (无引用)
+- 冗余依赖 passlib (未使用)
+
 ## [2.1.0] - 2026-05-27
 
 ### Added
