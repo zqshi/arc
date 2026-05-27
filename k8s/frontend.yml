@@ -47,7 +47,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/YOUR_ORG/arc-frontend:latest
+          image: arc-frontend:placeholder
           ports:
             - containerPort: 80
               protocol: TCP
