@@ -12,8 +12,8 @@ import type { RequestFn } from './base';
 
 export function createProjectMethods(request: RequestFn) {
   return {
-    listProjects: (): Promise<Project[]> =>
-      request('/api/projects'),
+    listProjects: (includeArchived = false): Promise<Project[]> =>
+      request(`/api/projects${includeArchived ? '?include_archived=true' : ''}`),
 
     getProject: (id: string): Promise<Project> =>
       request(`/api/projects/${id}`),
@@ -26,6 +26,9 @@ export function createProjectMethods(request: RequestFn) {
 
     archiveProject: (id: string): Promise<Project> =>
       request(`/api/projects/${id}/archive`, { method: 'POST' }),
+
+    activateProject: (id: string): Promise<Project> =>
+      request(`/api/projects/${id}/activate`, { method: 'POST' }),
 
     deleteProject: (id: string): Promise<void> =>
       request(`/api/projects/${id}`, { method: 'DELETE' }),
