@@ -238,11 +238,10 @@ class ToolAwareLoop:
         base_messages: list[LLMMessage],
         tool_history: list[dict],
     ) -> dict:
-        """Call the LLM with tools. Returns the raw API response as a dict."""
-        adapter = self._adapter
-        adapter_type = type(adapter).__name__
+        """Call the LLM with tools via adapter.chat_with_tools()."""
+        provider = self._adapter.provider_type
 
-        if "Anthropic" in adapter_type:
+        if provider == "anthropic":
             return await self._call_anthropic(base_messages, tool_history)
         else:
             return await self._call_openai(base_messages, tool_history)
@@ -252,30 +251,25 @@ class ToolAwareLoop:
         base_messages: list[LLMMessage],
         tool_history: list[dict],
     ) -> dict:
-        """Call Anthropic API with tools."""
+        """Call Anthropic API with tools via adapter."""
         system_text, chat_msgs = _build_anthropic_messages_with_tools(
             base_messages, tool_history
         )
 
-        kwargs: dict = {
-            "model": self._adapter._model,
-            "messages": chat_msgs,
-            "max_tokens": self._max_tokens,
-            "tools": self._registry.to_anthropic_format(),
-        }
-        if system_text:
-            kwargs["system"] = system_text
+        result = await self._adapter.chat_with_tools(
+            messages=chat_msgs,
+            tools=self._registry.to_anthropic_format(),
+            system=system_text,
+            max_tokens=self._max_tokens,
+        )
 
-        response = await self._adapter._client.messages.create(**kwargs)
-
-        # Track token usage
-        if response.usage:
-            self._total_tokens += response.usage.input_tokens + response.usage.output_tokens
+        usage = result.get("usage", {})
+        self._total_tokens += usage.get("input", 0) + usage.get("output", 0)
 
         return {
             "type": "anthropic",
-            "content": response.content,
-            "stop_reason": response.stop_reason,
+            "content": result["content"],
+            "stop_reason": result.get("stop_reason"),
         }
 
     async def _call_openai(
@@ -324,19 +318,16 @@ class ToolAwareLoop:
                             "content": block["content"],
                         })
 
-        kwargs: dict = {
-            "model": self._adapter._model,
-            "messages": formatted,
-            "max_tokens": self._max_tokens,
-            "tools": self._registry.to_openai_format(),
-        }
+        result = await self._adapter.chat_with_tools(
+            messages=formatted,
+            tools=self._registry.to_openai_format(),
+            max_tokens=self._max_tokens,
+        )
 
-        response = await self._adapter._client.chat.completions.create(**kwargs)
+        usage = result.get("usage", {})
+        self._total_tokens += usage.get("input", 0) + usage.get("output", 0)
 
-        # Track usage
-        if response.usage:
-            self._total_tokens += response.usage.prompt_tokens + response.usage.completion_tokens
-
+        response = result["response"]
         choice = response.choices[0]
         return {
             "type": "openai",

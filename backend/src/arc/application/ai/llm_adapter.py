@@ -116,6 +116,26 @@ class LLMAdapter(ABC):
     async def embed(self, text: str) -> list[float]:
         """Generate an embedding vector for the given text."""
 
+    async def chat_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        *,
+        system: str = "",
+        max_tokens: int = 16384,
+    ) -> dict:
+        """Call LLM with tool definitions. Returns raw API response as dict.
+
+        Subclasses must override. The format of messages, tools, and response
+        is provider-specific — callers should dispatch based on provider_type.
+        """
+        raise NotImplementedError("Subclass must implement chat_with_tools")
+
+    @property
+    def provider_type(self) -> str:
+        """Return 'anthropic' or 'openai' to identify the backend."""
+        return "unknown"
+
     @abstractmethod
     async def close(self) -> None:
         """Release underlying HTTP resources."""
@@ -264,6 +284,33 @@ class OpenAIAdapter(LLMAdapter):
             return await asyncio.to_thread(embed_local, text)
 
     # -- lifecycle ------------------------------------------------------------
+
+    @property
+    def provider_type(self) -> str:
+        return "openai"
+
+    async def chat_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        *,
+        system: str = "",
+        max_tokens: int = 16384,
+    ) -> dict:
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=messages,
+            max_tokens=max_tokens,
+            tools=tools,
+        )
+        return {
+            "type": "openai",
+            "response": response,
+            "usage": {
+                "input": response.usage.prompt_tokens if response.usage else 0,
+                "output": response.usage.completion_tokens if response.usage else 0,
+            },
+        }
 
     async def close(self) -> None:
         await self._client.close()
@@ -450,6 +497,36 @@ class AnthropicAdapter(LLMAdapter):
         return await asyncio.to_thread(embed_local, text)
 
     # -- lifecycle ------------------------------------------------------------
+
+    @property
+    def provider_type(self) -> str:
+        return "anthropic"
+
+    async def chat_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        *,
+        system: str = "",
+        max_tokens: int = 16384,
+    ) -> dict:
+        kwargs: dict = {
+            "model": self._model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "tools": tools,
+        }
+        if system:
+            kwargs["system"] = system
+        response = await self._client.messages.create(**kwargs)
+        usage_input = response.usage.input_tokens if response.usage else 0
+        usage_output = response.usage.output_tokens if response.usage else 0
+        return {
+            "type": "anthropic",
+            "content": response.content,
+            "stop_reason": response.stop_reason,
+            "usage": {"input": usage_input, "output": usage_output},
+        }
 
     async def close(self) -> None:
         await self._client.close()
