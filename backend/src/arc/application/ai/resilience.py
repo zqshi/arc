@@ -105,33 +105,50 @@ class ResilientAdapter(LLMAdapter):
         max_tokens: int = 4096,
         stream_idle_timeout: float = _DEFAULT_STREAM_IDLE_TIMEOUT,
     ) -> AsyncIterator[str]:
-        self._chat_breaker.before_call()
-        started = False
-        try:
-            stream = self._inner.chat_stream(
-                messages, temperature=temperature, max_tokens=max_tokens
-            )
-            ait = stream.__aiter__()
-            while True:
-                try:
-                    chunk = await asyncio.wait_for(ait.__anext__(), timeout=stream_idle_timeout)
-                except StopAsyncIteration:
-                    break
-                except asyncio.TimeoutError:
-                    raise asyncio.TimeoutError(
-                        f"AI 生成中断（{stream_idle_timeout}秒无响应），上游模型服务可能不稳定，请重试"
-                    )
+        # Retry loop for connection-phase failures (e.g., 503)
+        last_exc = None
+        for attempt in range(self._max_retries):
+            self._chat_breaker.before_call()
+            started = False
+            try:
+                stream = self._inner.chat_stream(
+                    messages, temperature=temperature, max_tokens=max_tokens
+                )
+                ait = stream.__aiter__()
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(ait.__anext__(), timeout=stream_idle_timeout)
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        raise asyncio.TimeoutError(
+                            f"AI 生成中断（{stream_idle_timeout}秒无响应），上游模型服务可能不稳定，请重试"
+                        )
+                    if not started:
+                        self._chat_breaker.on_success()
+                        started = True
+                    yield chunk
                 if not started:
                     self._chat_breaker.on_success()
-                    started = True
-                yield chunk
-            if not started:
-                self._chat_breaker.on_success()
-        except (CircuitOpenError, asyncio.CancelledError):
-            raise
-        except Exception:
-            self._chat_breaker.on_failure()
-            raise
+                return  # Success — exit retry loop
+            except (CircuitOpenError, asyncio.CancelledError):
+                raise
+            except Exception as exc:
+                self._chat_breaker.on_failure()
+                if started:
+                    # Already yielded chunks — can't retry mid-stream
+                    raise
+                last_exc = exc
+                logger.warning(
+                    "LLM stream connect failed (attempt %d/%d): %s",
+                    attempt + 1, self._max_retries, exc,
+                )
+                if attempt < self._max_retries - 1:
+                    delay = min(2 ** attempt * 2, 16)
+                    await asyncio.sleep(delay)
+
+        if last_exc:
+            raise last_exc
 
     async def chat_stream_with_result(
         self,

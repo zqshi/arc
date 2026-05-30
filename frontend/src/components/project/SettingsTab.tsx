@@ -187,6 +187,10 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
 
     api.scanCodebaseStream(projectId, (event: ScanEvent) => {
       switch (event.event) {
+        case 'replay':
+          // Accumulated content from before this subscription — show history
+          setScanContent(event.content || '');
+          break;
         case 'stage':
           setScanStage(event.message || '');
           break;

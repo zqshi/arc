@@ -24,6 +24,7 @@ class ScanTaskManager:
         self._tasks: dict[str, asyncio.Task] = {}
         self._queues: dict[str, list[asyncio.Queue]] = {}
         self._last_error: dict[str, str] = {}  # project_id → error message
+        self._accumulated: dict[str, str] = {}  # project_id → accumulated chunk content
         self._lock = asyncio.Lock()
 
     def is_running(self, project_id: str) -> bool:
@@ -41,6 +42,7 @@ class ScanTaskManager:
                 raise RuntimeError("Scan already in progress")
             self._queues[project_id] = []
             self._last_error.pop(project_id, None)
+            self._accumulated[project_id] = ""
             task_id = str(uuid.uuid4())[:8]
             task = asyncio.create_task(self._run_scan(project_id, path, task_id))
             self._tasks[project_id] = task
@@ -51,8 +53,10 @@ class ScanTaskManager:
 
         If the scan task has already finished (or was never started),
         the generator returns immediately — callers must handle the empty case.
+        Late subscribers receive accumulated content first, then live events.
         """
         queue: asyncio.Queue = asyncio.Queue()
+        accumulated = ""
         async with self._lock:
             # If no task is running, return immediately to avoid blocking forever
             if not self.is_running(project_id):
@@ -61,6 +65,12 @@ class ScanTaskManager:
             if subscribers is None:
                 return
             subscribers.append(queue)
+            # Snapshot accumulated content under lock
+            accumulated = self._accumulated.get(project_id, "")
+
+        # Send accumulated content first so late subscribers see history
+        if accumulated:
+            yield {"event": "replay", "content": accumulated}
 
         try:
             while True:
@@ -81,6 +91,15 @@ class ScanTaskManager:
 
     async def _emit(self, project_id: str, event: dict) -> None:
         async with self._lock:
+            # Accumulate chunk content for late subscribers
+            evt_type = event.get("event")
+            if evt_type == "chunk":
+                self._accumulated.setdefault(project_id, "")
+                self._accumulated[project_id] += event.get("content", "")
+            elif evt_type == "done":
+                # Replace accumulated with final summary
+                self._accumulated[project_id] = event.get("summary", "")
+
             subscribers = self._queues.get(project_id, [])
             for q in subscribers:
                 try:
@@ -151,6 +170,7 @@ class ScanTaskManager:
             await self._finish(project_id)
             async with self._lock:
                 self._tasks.pop(project_id, None)
+                self._accumulated.pop(project_id, None)
 
     async def _update_scan_status(
         self,
