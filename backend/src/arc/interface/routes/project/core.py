@@ -181,12 +181,21 @@ async def scan_codebase_stream(
             yield f"event: {event_type}\ndata: {data}\n\n"
 
         if not has_events:
-            # Scan task already finished before subscribe — tell client to refresh
-            summary = project.codebase_summary or ""
-            done_event = json.dumps(
-                {"event": "done", "summary": summary}, ensure_ascii=False
-            )
-            yield f"event: done\ndata: {done_event}\n\n"
+            # Scan task already finished before subscribe — check result
+            last_err = scan_manager.get_last_error(pid)
+            if last_err:
+                err_event = json.dumps(
+                    {"event": "error", "detail": last_err}, ensure_ascii=False
+                )
+                yield f"event: error\ndata: {err_event}\n\n"
+            else:
+                # Re-read project from DB to get fresh codebase_summary
+                fresh_project = await repo.get_by_id(project_id, user_id=user.id)
+                summary = (fresh_project.codebase_summary if fresh_project else "") or ""
+                done_event = json.dumps(
+                    {"event": "done", "summary": summary}, ensure_ascii=False
+                )
+                yield f"event: done\ndata: {done_event}\n\n"
 
         yield "event: close\ndata: {}\n\n"
 
