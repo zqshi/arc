@@ -171,52 +171,56 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
   const [scanError, setScanError] = useState(initialScanStatus === 'error' ? (scanErrorText || '扫描失败') : '');
   const abortRef = useRef<AbortController | null>(null);
 
+  // Shared SSE subscription logic
+  const subscribeToScanStream = useCallback(() => {
+    setScanning(true);
+    setScanError('');
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+      setScanError('扫描超时，请重试');
+      setScanning(false);
+    }, 5 * 60 * 1000);
+
+    api.scanCodebaseStream(projectId, (event: ScanEvent) => {
+      switch (event.event) {
+        case 'stage':
+          setScanStage(event.message || '');
+          break;
+        case 'chunk':
+          setScanContent((prev) => prev + (event.content || ''));
+          break;
+        case 'done':
+          clearTimeout(timeout);
+          setScanContent(event.summary || '');
+          setScanning(false);
+          setScanStage('');
+          onRefresh();
+          break;
+        case 'error':
+          clearTimeout(timeout);
+          setScanError(event.detail || '扫描失败');
+          setScanning(false);
+          setScanStage('');
+          break;
+        case 'close':
+          clearTimeout(timeout);
+          setScanning(false);
+          break;
+      }
+    }, controller.signal);
+  }, [projectId, onRefresh]);
+
   // Auto-recover SSE subscription when component mounts and scan is running on server
   useEffect(() => {
     if (initialScanStatus === 'scanning' && projectId) {
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      const timeout = setTimeout(() => {
-        controller.abort();
-        setScanError('扫描超时，请重试');
-        setScanning(false);
-      }, 5 * 60 * 1000);
-
-      api.scanCodebaseStream(projectId, (event: ScanEvent) => {
-        switch (event.event) {
-          case 'stage':
-            setScanStage(event.message || '');
-            break;
-          case 'chunk':
-            setScanContent((prev) => prev + (event.content || ''));
-            break;
-          case 'done':
-            clearTimeout(timeout);
-            setScanContent(event.summary || '');
-            setScanning(false);
-            setScanStage('');
-            onRefresh();
-            break;
-          case 'error':
-            clearTimeout(timeout);
-            setScanError(event.detail || '扫描失败');
-            setScanning(false);
-            setScanStage('');
-            break;
-          case 'close':
-            clearTimeout(timeout);
-            setScanning(false);
-            break;
-        }
-      }, controller.signal);
-
-      return () => {
-        clearTimeout(timeout);
-        controller.abort();
-      };
+      subscribeToScanStream();
+      return () => { abortRef.current?.abort(); };
     }
-  }, [initialScanStatus, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialScanStatus, projectId, subscribeToScanStream]);
 
   const startScan = useCallback(async (force: boolean) => {
     setScanning(true);
@@ -271,8 +275,15 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
         }
       }, controller.signal);
     } catch (e: unknown) {
-      setScanError(e instanceof Error ? e.message : '扫描启动失败');
-      setScanning(false);
+      const errMsg = e instanceof Error ? e.message : '扫描启动失败';
+      // 409 means scan is already running — subscribe to SSE instead of showing error
+      if (errMsg.includes('409') || errMsg.includes('扫描进行中') || errMsg.includes('重复')) {
+        setScanError('');
+        subscribeToScanStream();
+      } else {
+        setScanError(errMsg);
+        setScanning(false);
+      }
     }
   }, [projectId, form, setForm, onRefresh]);
 
