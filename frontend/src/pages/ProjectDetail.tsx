@@ -149,6 +149,9 @@ export default function ProjectDetail() {
               onAppendConvention={s.handleAppendConvention}
               githubConnected={s.project?.github_connected}
               githubRepo={s.project?.github_repo}
+              scanStatus={s.project?.scan_status}
+              scanProgressText={s.project?.scan_progress}
+              scanErrorText={s.project?.scan_error}
             />
           )}
         </div>

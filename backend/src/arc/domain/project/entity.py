@@ -26,6 +26,9 @@ class Project:
     conventions: str = ""
     codebase_summary: str = ""
     scan_fingerprint: str = ""
+    scan_status: str = "idle"  # idle / scanning / completed / error
+    scan_progress: str = ""
+    scan_error: str = ""
     status: ProjectStatus = ProjectStatus.ACTIVE
     execution_mode: ExecutionMode = ExecutionMode.PIPELINE
     pipeline_config: dict = field(default_factory=lambda: dict(DEFAULT_PIPELINE_CONFIG))
@@ -72,6 +75,31 @@ class Project:
         self.github_token = ""
         self.github_webhook_secret = ""
         self.github_config = {}
+        self.updated_at = datetime.now(UTC)
+
+    # -- Scan lifecycle --------------------------------------------------
+
+    def start_scan(self) -> None:
+        self.scan_status = "scanning"
+        self.scan_progress = ""
+        self.scan_error = ""
+        self.updated_at = datetime.now(UTC)
+
+    def update_scan_progress(self, stage: str) -> None:
+        self.scan_progress = stage
+        self.updated_at = datetime.now(UTC)
+
+    def complete_scan(self, summary: str, fingerprint: str) -> None:
+        self.scan_status = "completed"
+        self.codebase_summary = summary
+        self.scan_fingerprint = fingerprint
+        self.scan_progress = ""
+        self.updated_at = datetime.now(UTC)
+
+    def fail_scan(self, error: str) -> None:
+        self.scan_status = "error"
+        self.scan_error = error
+        self.scan_progress = ""
         self.updated_at = datetime.now(UTC)
 
 

@@ -38,9 +38,12 @@ interface SettingsTabProps {
   onAppendConvention: (solution: string) => void;
   githubConnected?: boolean;
   githubRepo?: string | null;
+  scanStatus?: 'idle' | 'scanning' | 'completed' | 'error';
+  scanProgressText?: string;
+  scanErrorText?: string;
 }
 
-export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh, insights, onAppendConvention, githubConnected, githubRepo }: SettingsTabProps) {
+export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh, insights, onAppendConvention, githubConnected, githubRepo, scanStatus: initialScanStatus, scanProgressText, scanErrorText }: SettingsTabProps) {
   const isAutopilot = Boolean(form.pipeline_config?.auto_advance) || form.conversation_config?.agent_autonomy === 'full';
   const { toast } = useToast();
 
@@ -161,12 +164,59 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
   const [impactLoaded, setImpactLoaded] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
 
-  // Scan state
-  const [scanning, setScanning] = useState(false);
-  const [scanStage, setScanStage] = useState('');
+  // Scan state — initialize from server-persisted status
+  const [scanning, setScanning] = useState(initialScanStatus === 'scanning');
+  const [scanStage, setScanStage] = useState(scanProgressText || '');
   const [scanContent, setScanContent] = useState('');
-  const [scanError, setScanError] = useState('');
+  const [scanError, setScanError] = useState(initialScanStatus === 'error' ? (scanErrorText || '扫描失败') : '');
   const abortRef = useRef<AbortController | null>(null);
+
+  // Auto-recover SSE subscription when component mounts and scan is running on server
+  useEffect(() => {
+    if (initialScanStatus === 'scanning' && projectId) {
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const timeout = setTimeout(() => {
+        controller.abort();
+        setScanError('扫描超时，请重试');
+        setScanning(false);
+      }, 5 * 60 * 1000);
+
+      api.scanCodebaseStream(projectId, (event: ScanEvent) => {
+        switch (event.event) {
+          case 'stage':
+            setScanStage(event.message || '');
+            break;
+          case 'chunk':
+            setScanContent((prev) => prev + (event.content || ''));
+            break;
+          case 'done':
+            clearTimeout(timeout);
+            setScanContent(event.summary || '');
+            setScanning(false);
+            setScanStage('');
+            onRefresh();
+            break;
+          case 'error':
+            clearTimeout(timeout);
+            setScanError(event.detail || '扫描失败');
+            setScanning(false);
+            setScanStage('');
+            break;
+          case 'close':
+            clearTimeout(timeout);
+            setScanning(false);
+            break;
+        }
+      }, controller.signal);
+
+      return () => {
+        clearTimeout(timeout);
+        controller.abort();
+      };
+    }
+  }, [initialScanStatus, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startScan = useCallback(async (force: boolean) => {
     setScanning(true);
