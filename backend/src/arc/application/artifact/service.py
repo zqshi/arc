@@ -6,7 +6,6 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.ai.json_extract import extract_json
-from arc.application.pipeline.prompts import PHASE_EXTRACTION_PROMPTS
 from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.value_objects import PHASE_ARTIFACT_MAP, ArtifactType
 from arc.domain.pipeline.value_objects import PhaseType
@@ -24,6 +23,12 @@ class ArtifactService:
         self.phase_repo = PipelinePhaseRepository(db)
         self.conv_repo = ConversationRepository(db)
 
+    @staticmethod
+    def _get_extraction_prompt(phase_type):
+        """Lazy load to avoid circular import with pipeline module."""
+        from arc.application.pipeline.prompts import PHASE_EXTRACTION_PROMPTS
+        return PHASE_EXTRACTION_PROMPTS.get(phase_type)
+
     async def generate_from_conversation(
         self, todo_id: uuid.UUID, phase_type: PhaseType
     ) -> Artifact | None:
@@ -40,7 +45,7 @@ class ArtifactService:
         if not conv:
             return None
 
-        extraction_prompt = PHASE_EXTRACTION_PROMPTS.get(phase_type)
+        extraction_prompt = self._get_extraction_prompt(phase_type)
         if not extraction_prompt:
             return None
 
