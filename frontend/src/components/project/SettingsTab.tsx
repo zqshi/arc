@@ -82,9 +82,21 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
       setGhToken('');
       toast('GitHub 已连接', 'success');
 
-      // If no local_path configured, prompt to clone
-      if (!form.local_path) {
+      // Backend auto-clones when local_path is empty
+      const cr = result.clone_result;
+      if (cr && cr.status !== 'failed' && cr.local_path) {
+        setForm({ ...form, local_path: cr.local_path });
+        setGhCloneStep('done');
+        toast(`代码已${cr.status === 'cloned' ? '克隆' : '更新'}到本地`, 'success');
+        if (cr.scan_started) {
+          toast('正在扫描代码库...', 'success');
+        }
+      } else if (cr && cr.status === 'failed') {
+        // Auto-clone failed — fall back to manual prompt
         setGhCloneStep('prompt');
+      } else if (!form.local_path && !cr) {
+        // No auto-clone attempted (local_path was already set)
+        // do nothing
       }
       onRefresh();
     } catch (err) {

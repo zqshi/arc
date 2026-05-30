@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
 import re
+import subprocess
 import uuid
+from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,6 +71,97 @@ class GitHubService:
             "full_name": repo_info.get("full_name", f"{owner}/{repo}"),
             "webhook_secret": webhook_secret,
         }
+
+    async def clone_repo(
+        self, project: Project, target_path: str | None = None,
+    ) -> dict:
+        """Clone (or pull) the project repo to a local directory.
+
+        Returns a dict with keys: status ('cloned'|'pulled'), local_path, scan_started.
+        Raises RuntimeError on clone failure.
+        """
+        parsed = parse_repo_url(project.repo_url)
+        if not parsed:
+            raise RuntimeError("无法解析仓库地址")
+
+        owner, repo_name = parsed
+
+        if not target_path:
+            target_path = str(Path.home() / ".arc" / "repos" / owner / repo_name)
+
+        target = Path(target_path).expanduser().resolve()
+        clone_url = project.repo_url
+
+        def _clone_or_pull() -> str:
+            if target.exists() and (target / ".git").exists():
+                subprocess.run(
+                    ["git", "pull", "--ff-only"],
+                    cwd=str(target),
+                    capture_output=True,
+                    timeout=120,
+                )
+                return "pulled"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            url = clone_url
+            if project.github_token and "github.com" in url:
+                url = url.replace(
+                    "https://github.com",
+                    f"https://{project.github_token}@github.com",
+                )
+            result = subprocess.run(
+                ["git", "clone", "--depth", "50", url, str(target)],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr or "git clone failed")
+            return "cloned"
+
+        action = await asyncio.to_thread(_clone_or_pull)
+
+        # Update project local_path
+        project.local_path = str(target)
+        await self.project_repo.update(project)
+
+        # Auto-trigger codebase scan (non-blocking on failure)
+        scan_started = False
+        try:
+            from arc.application.project.scan_task import scan_manager
+
+            pid = str(project.id)
+            if not scan_manager.is_running(pid):
+                await scan_manager.start_scan(pid, str(target))
+                scan_started = True
+        except Exception:
+            logger.warning("Auto-scan after clone failed for project %s", project.id)
+
+        return {
+            "status": action,
+            "local_path": str(target),
+            "scan_started": scan_started,
+        }
+
+    async def connect_and_clone(self, project: Project, token: str) -> dict:
+        """Connect to GitHub, then auto-clone if local_path is empty.
+
+        Returns the connect result dict, augmented with clone_result if
+        auto-clone was attempted.
+        """
+        connect_result = await self.connect(project, token)
+
+        clone_result = None
+        if not project.local_path:
+            try:
+                clone_result = await self.clone_repo(project)
+            except Exception as exc:
+                logger.warning(
+                    "Auto-clone after connect failed for project %s: %s",
+                    project.id, exc,
+                )
+                clone_result = {"status": "failed", "error": str(exc)}
+
+        return {**connect_result, "clone_result": clone_result}
 
     async def disconnect(self, project: Project) -> None:
         project.disconnect_github()

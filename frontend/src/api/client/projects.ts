@@ -30,7 +30,7 @@ export function createProjectMethods(request: RequestFn) {
     deleteProject: (id: string): Promise<void> =>
       request(`/api/projects/${id}`, { method: 'DELETE' }),
 
-    connectGitHub: (projectId: string, token: string, repoUrl?: string): Promise<{ status: string; repo: string; webhook_url: string; webhook_secret: string }> =>
+    connectGitHub: (projectId: string, token: string, repoUrl?: string): Promise<{ status: string; repo: string; webhook_url: string; webhook_secret: string; clone_result?: { status: string; local_path?: string; scan_started?: boolean; error?: string } }> =>
       request(`/api/projects/${projectId}/github/connect`, { method: 'POST', body: JSON.stringify({ token, repo_url: repoUrl }) }),
 
     disconnectGitHub: (projectId: string): Promise<void> =>
