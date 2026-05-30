@@ -40,3 +40,4 @@ k8s/secrets.yml
 # ─── Docker volumes (local data) ─────────────────────────
 pgdata/
 openhands_data/
+.claude/worktrees/
