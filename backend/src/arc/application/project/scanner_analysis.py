@@ -30,9 +30,8 @@ _DEFAULT_CONTEXT_CHARS = 360_000  # conservative default
 
 def _estimate_context_budget() -> int:
     """Get the approximate input-char budget for the current model."""
-    from arc.config import get_settings
+    from arc.config import settings
     try:
-        settings = get_settings()
         model = ""
         if settings.llm_provider == "anthropic":
             model = settings.anthropic_model
