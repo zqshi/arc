@@ -83,22 +83,25 @@ class ScanTaskManager:
 
     async def _run_scan(self, project_id: str, path: str, task_id: str) -> None:
         """Execute the scan, emitting events and persisting the result."""
-        from arc.application.project.scanner import (
-            compute_scan_fingerprint,
+        from arc.application.project.scanner import compute_scan_fingerprint
+        from arc.application.project.scanner_analysis import (
             scan_and_summarize_stream,
         )
 
         logger.info("Scan started for project %s (task=%s)", project_id, task_id)
         summary = ""
+        domain_model = None
 
         try:
             async for event in scan_and_summarize_stream(path):
                 await self._emit(project_id, event)
                 if event.get("event") == "done":
                     summary = event.get("summary", "")
+                elif event.get("event") == "domain_model":
+                    domain_model = event.get("domain_model")
 
             fingerprint = await compute_scan_fingerprint(path)
-            await self._persist_result(project_id, summary, fingerprint)
+            await self._persist_result(project_id, summary, fingerprint, domain_model)
             logger.info("Scan completed for project %s", project_id)
 
         except Exception as exc:
@@ -115,8 +118,12 @@ class ScanTaskManager:
             async with self._lock:
                 self._tasks.pop(project_id, None)
 
-    async def _persist_result(self, project_id: str, summary: str, fingerprint: str) -> None:
-        """Save scan result to database."""
+    async def _persist_result(
+        self, project_id: str, summary: str, fingerprint: str,
+        domain_model: dict | None = None,
+    ) -> None:
+        """Save scan result to database (summary + domain model)."""
+        from datetime import UTC, datetime
         from uuid import UUID
 
         from arc.infrastructure.database import async_session_factory
@@ -128,8 +135,78 @@ class ScanTaskManager:
             if project:
                 project.codebase_summary = summary
                 project.scan_fingerprint = fingerprint
+
+                # Merge domain model if extracted
+                if domain_model:
+                    existing_dm = project.domain_model or {}
+                    # If no existing model, use extracted directly
+                    if not existing_dm.get("aggregates") and not existing_dm.get("subdomains"):
+                        domain_model["updated_at"] = datetime.now(UTC).isoformat()
+                        domain_model["version"] = 1
+                        domain_model["source"] = "codebase_scan"
+                        project.domain_model = domain_model
+                    else:
+                        # Merge: add new aggregates/subdomains that don't exist
+                        self._merge_domain_model(existing_dm, domain_model)
+                        existing_dm["updated_at"] = datetime.now(UTC).isoformat()
+                        existing_dm["version"] = existing_dm.get("version", 0) + 1
+                        project.domain_model = existing_dm
+
                 await repo.update(project)
                 await db.commit()
+
+    @staticmethod
+    def _merge_domain_model(existing: dict, new: dict) -> None:
+        """Merge new scan-extracted model into existing model without losing manual edits."""
+        # Merge subdomains by name
+        existing_subs = {s.get("name"): s for s in existing.get("subdomains", [])}
+        for sd in new.get("subdomains", []):
+            name = sd.get("name")
+            if name and name not in existing_subs:
+                existing_subs[name] = sd
+        existing["subdomains"] = list(existing_subs.values())
+
+        # Merge contexts by name
+        existing_ctxs = {c.get("name"): c for c in existing.get("contexts", [])}
+        for ctx in new.get("contexts", []):
+            name = ctx.get("name")
+            if name and name not in existing_ctxs:
+                existing_ctxs[name] = ctx
+        existing["contexts"] = list(existing_ctxs.values())
+
+        # Merge aggregates by name
+        existing_aggs = {a.get("name"): a for a in existing.get("aggregates", [])}
+        for agg in new.get("aggregates", []):
+            name = agg.get("name")
+            if not name:
+                continue
+            if name not in existing_aggs:
+                existing_aggs[name] = agg
+            else:
+                # Update fields/methods from code scan (more accurate)
+                old = existing_aggs[name]
+                if agg.get("fields"):
+                    old["fields"] = agg["fields"]
+                if agg.get("methods"):
+                    old["methods"] = agg["methods"]
+                if agg.get("value_objects"):
+                    old["value_objects"] = agg["value_objects"]
+        existing["aggregates"] = list(existing_aggs.values())
+
+        # Merge relations (add new ones)
+        existing_rels = {(r.get("from"), r.get("to")) for r in existing.get("relations", [])}
+        for rel in new.get("relations", []):
+            key = (rel.get("from"), rel.get("to"))
+            if key not in existing_rels:
+                existing.setdefault("relations", []).append(rel)
+                existing_rels.add(key)
+
+        existing_agg_rels = {(r.get("from"), r.get("to")) for r in existing.get("aggregate_relations", [])}
+        for rel in new.get("aggregate_relations", []):
+            key = (rel.get("from"), rel.get("to"))
+            if key not in existing_agg_rels:
+                existing.setdefault("aggregate_relations", []).append(rel)
+                existing_agg_rels.add(key)
 
 
 scan_manager = ScanTaskManager()

@@ -45,6 +45,11 @@ class Project:
         self.status = ProjectStatus.ACTIVE
         self.updated_at = datetime.now(UTC)
 
+    def soft_delete(self) -> None:
+        """逻辑删除：标记为 deleted，保留数据。"""
+        self.status = ProjectStatus.DELETED
+        self.updated_at = datetime.now(UTC)
+
     def set_execution_mode(self, mode: ExecutionMode) -> None:
         self.execution_mode = mode
         self.updated_at = datetime.now(UTC)

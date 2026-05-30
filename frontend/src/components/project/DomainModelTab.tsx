@@ -20,9 +20,12 @@ interface DomainModelTabProps {
   validating?: boolean;
   validation?: DomainModelValidation | null;
   onCloseValidation?: () => void;
+  onExtractFromCode?: () => Promise<void>;
+  extractingFromCode?: boolean;
+  hasLocalPath?: boolean;
 }
 
-export function DomainModelTab({ domainModel, loading, onRefresh, refreshing, onValidate, validating, validation, onCloseValidation }: DomainModelTabProps) {
+export function DomainModelTab({ domainModel, loading, onRefresh, refreshing, onValidate, validating, validation, onCloseValidation, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
   const [view, setView] = useState<ViewMode>('all');
   const [graphMode, setGraphMode] = useState(false);
 
@@ -39,10 +42,34 @@ export function DomainModelTab({ domainModel, loading, onRefresh, refreshing, on
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Boxes size={32} className="mb-3 text-text-muted/30" />
         <p className="text-sm font-medium text-text-secondary">暂无领域模型</p>
-        <p className="mt-1 max-w-sm text-xs text-text-muted">
-          在对话中产出「技术架构」交付物后，系统将自动提取数据模型并沉淀到此处。
-          随着需求迭代，领域模型会持续累积完善。
-        </p>
+        {hasLocalPath ? (
+          <>
+            <p className="mt-1 max-w-sm text-xs text-text-muted">
+              已关联代码仓库。可以直接从源码中提取领域模型（实体、值对象、聚合、限界上下文等）。
+            </p>
+            {onExtractFromCode && (
+              <button
+                onClick={onExtractFromCode}
+                disabled={extractingFromCode}
+                className="mt-4 flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+              >
+                {extractingFromCode ? (
+                  <><Loader2 size={13} className="animate-spin" /> 正在从代码中提取...</>
+                ) : (
+                  <><Database size={13} /> 从代码库提取领域模型</>
+                )}
+              </button>
+            )}
+            <p className="mt-3 max-w-sm text-[10px] text-text-muted">
+              也可以在对话中产出「技术架构」交付物后自动提取。两种来源会自动合并。
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 max-w-sm text-xs text-text-muted">
+            配置本地工作目录后可从代码直接提取，或在对话中产出「技术架构」交付物后自动提取。
+            随着需求迭代，领域模型会持续累积完善。
+          </p>
+        )}
       </div>
     );
   }

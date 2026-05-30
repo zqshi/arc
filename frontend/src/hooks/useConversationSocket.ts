@@ -36,9 +36,34 @@ interface WsArtifactsExtractedEvent {
   artifact_names: string[];
 }
 
+interface WsToolCallEvent {
+  type: 'tool_call';
+  message_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+  round: number;
+}
+
+interface WsToolResultEvent {
+  type: 'tool_result';
+  message_id: string;
+  tool_name: string;
+  output_preview: string;
+  is_error: boolean;
+}
+
 interface WsQuotaExceededEvent {
   type: 'quota_exceeded';
   detail: string;
+}
+
+export interface ToolCallInfo {
+  id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+  output_preview?: string;
+  is_error?: boolean;
+  status: 'running' | 'done';
 }
 
 type WsEvent =
@@ -48,6 +73,8 @@ type WsEvent =
   | WsStreamEndEvent
   | WsErrorEvent
   | WsArtifactsExtractedEvent
+  | WsToolCallEvent
+  | WsToolResultEvent
   | WsQuotaExceededEvent
   | { type: 'token_expired' }
   | { type: 'ping' };
@@ -60,6 +87,7 @@ export function useConversationSocket(conversationId: string | null) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [artifactsVersion, setArtifactsVersion] = useState(0);
+  const [toolCalls, setToolCalls] = useState<ToolCallInfo[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
@@ -218,6 +246,28 @@ export function useConversationSocket(conversationId: string | null) {
           case 'artifacts_extracted':
             setArtifactsVersion((v) => v + 1);
             break;
+
+          case 'tool_call':
+            setToolCalls((prev) => [
+              ...prev,
+              {
+                id: `${data.round}-${data.tool_name}`,
+                tool_name: data.tool_name,
+                tool_input: data.tool_input,
+                status: 'running',
+              },
+            ]);
+            break;
+
+          case 'tool_result':
+            setToolCalls((prev) =>
+              prev.map((tc) =>
+                tc.tool_name === data.tool_name && tc.status === 'running'
+                  ? { ...tc, output_preview: data.output_preview, is_error: data.is_error, status: 'done' as const }
+                  : tc
+              )
+            );
+            break;
         }
       };
     }
@@ -237,6 +287,7 @@ export function useConversationSocket(conversationId: string | null) {
   const sendMessage = useCallback((content: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'message', content }));
+      setToolCalls([]);
     }
   }, []);
 
@@ -257,5 +308,5 @@ export function useConversationSocket(conversationId: string | null) {
     return () => clearTimeout(retryTimer.current);
   }, []);
 
-  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion };
+  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion, toolCalls };
 }

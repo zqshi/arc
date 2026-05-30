@@ -45,6 +45,8 @@ class ProjectContext:
             parts.append(f"\n## 当前版本\n- 版本: {self.version_name}")
             if self.version_goal:
                 parts.append(f"- 版本目标: {self.version_goal}")
+        if self.codebase_summary:
+            parts.append(f"\n## 代码库概况\n{self.codebase_summary}")
         if self.conventions:
             parts.append(f"\n## 项目规范\n{self.conventions}")
         if self.sibling_requirements:

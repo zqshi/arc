@@ -95,6 +95,7 @@ class ProjectRepository:
             )
         if not include_archived:
             stmt = stmt.where(ProjectModel.status != "archived")
+        stmt = stmt.where(ProjectModel.status != "deleted")
         result = await self.db.execute(stmt)
         return [self._to_entity(m) for m in result.scalars().all()]
 
@@ -116,6 +117,9 @@ class ProjectRepository:
         model.pipeline_config = project.pipeline_config
         model.conversation_config = project.conversation_config
         model.domain_model = project.domain_model or None
+        model.github_token = project.github_token or None
+        model.github_webhook_secret = project.github_webhook_secret or None
+        model.github_config = project.github_config or None
         await self.db.flush()
 
     async def delete(self, project_id: uuid.UUID) -> bool:

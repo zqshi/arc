@@ -22,7 +22,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestFn = <T>(path: string, options?: RequestInit, retried?: boolean) => Promise<T>;
+export type RequestFn = <T>(path: string, options?: RequestInit & { timeout?: number }, retried?: boolean) => Promise<T>;
 
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
@@ -69,7 +69,7 @@ function isTokenExpiringSoon(token: string): boolean {
 }
 
 export function createRequestFn(base: string): RequestFn {
-  async function request<T>(path: string, options?: RequestInit, retried = false): Promise<T> {
+  async function request<T>(path: string, options?: RequestInit & { timeout?: number }, retried = false): Promise<T> {
     let token = localStorage.getItem('access_token');
 
     if (token && !retried && isTokenExpiringSoon(token)) {
@@ -88,8 +88,9 @@ export function createRequestFn(base: string): RequestFn {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const timeoutMs = options?.timeout ?? 120_000;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const resp = await fetch(`${base}${path}`, {

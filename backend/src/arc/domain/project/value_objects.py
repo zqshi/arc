@@ -6,6 +6,7 @@ from enum import StrEnum
 class ProjectStatus(StrEnum):
     ACTIVE = "active"
     ARCHIVED = "archived"
+    DELETED = "deleted"
 
 
 class ExecutionMode(StrEnum):
