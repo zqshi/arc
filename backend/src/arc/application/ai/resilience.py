@@ -11,10 +11,11 @@ from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse, 
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MAX_RETRIES = 2
+_DEFAULT_MAX_RETRIES = 3
 _DEFAULT_TIMEOUT_SECONDS = 300
 _CB_FAILURE_THRESHOLD = 5
 _CB_RECOVERY_SECONDS = 30
+_DEFAULT_STREAM_IDLE_TIMEOUT = 90.0
 
 
 class CircuitOpenError(Exception):
@@ -102,7 +103,7 @@ class ResilientAdapter(LLMAdapter):
         *,
         temperature: float = 0.7,
         max_tokens: int = 4096,
-        stream_idle_timeout: float = 60.0,
+        stream_idle_timeout: float = _DEFAULT_STREAM_IDLE_TIMEOUT,
     ) -> AsyncIterator[str]:
         self._chat_breaker.before_call()
         started = False
@@ -118,7 +119,7 @@ class ResilientAdapter(LLMAdapter):
                     break
                 except asyncio.TimeoutError:
                     raise asyncio.TimeoutError(
-                        f"LLM stream idle for {stream_idle_timeout}s — connection likely stalled"
+                        f"AI 生成中断（{stream_idle_timeout}秒无响应），上游模型服务可能不稳定，请重试"
                     )
                 if not started:
                     self._chat_breaker.on_success()
@@ -138,7 +139,7 @@ class ResilientAdapter(LLMAdapter):
         *,
         temperature: float = 0.7,
         max_tokens: int = 4096,
-        stream_idle_timeout: float = 60.0,
+        stream_idle_timeout: float = _DEFAULT_STREAM_IDLE_TIMEOUT,
     ) -> tuple[AsyncIterator[str], StreamResult]:
         self._chat_breaker.before_call()
         inner_iter, result = await self._inner.chat_stream_with_result(
@@ -157,7 +158,7 @@ class ResilientAdapter(LLMAdapter):
                     except asyncio.TimeoutError:
                         result.finish_reason = "error"
                         raise asyncio.TimeoutError(
-                            f"LLM stream idle {stream_idle_timeout}s — stalled"
+                            f"AI 生成中断（{stream_idle_timeout}秒无响应），上游模型服务可能不稳定，请重试"
                         )
                     if not started:
                         self._chat_breaker.on_success()
@@ -185,6 +186,29 @@ class ResilientAdapter(LLMAdapter):
     async def close(self) -> None:
         await self._inner.close()
 
+    @property
+    def provider_type(self) -> str:
+        return self._inner.provider_type
+
+    async def chat_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        *,
+        system: str = "",
+        max_tokens: int = 16384,
+    ) -> dict:
+        """chat_with_tools with retry + timeout + circuit breaker."""
+        return await self._retry(
+            lambda: asyncio.wait_for(
+                self._inner.chat_with_tools(
+                    messages, tools, system=system, max_tokens=max_tokens
+                ),
+                timeout=self._timeout,
+            ),
+            breaker=self._chat_breaker,
+        )
+
     async def _retry(self, fn, *, breaker: _CircuitBreaker):
         last_exc = None
         for attempt in range(self._max_retries):
@@ -197,7 +221,9 @@ class ResilientAdapter(LLMAdapter):
                 raise
             except asyncio.TimeoutError:
                 breaker.on_failure()
-                last_exc = asyncio.TimeoutError(f"LLM request timed out after {self._timeout}s")
+                last_exc = asyncio.TimeoutError(
+                    f"AI 服务响应超时（已重试 {attempt + 1} 次），可能是上游模型服务拥堵，请稍后重试"
+                )
                 logger.warning("LLM timeout (attempt %d/%d)", attempt + 1, self._max_retries)
             except Exception as exc:
                 breaker.on_failure()
@@ -205,7 +231,8 @@ class ResilientAdapter(LLMAdapter):
                 logger.warning("LLM error (attempt %d/%d): %s", attempt + 1, self._max_retries, exc)
 
             if attempt < self._max_retries - 1:
-                delay = min(2**attempt, 8)
+                delay = min(2**attempt * 2, 16)  # exponential backoff: 2s, 4s, 8s, 16s
+                logger.info("Retrying in %ds...", delay)
                 await asyncio.sleep(delay)
 
         raise last_exc
