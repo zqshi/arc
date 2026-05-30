@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,6 +35,7 @@ class ProjectModel(TimestampMixin, Base):
     github_token: Mapped[str | None] = mapped_column(String(500), nullable=True)
     github_webhook_secret: Mapped[str | None] = mapped_column(String(200), nullable=True)
     github_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class VersionModel(TimestampMixin, Base):

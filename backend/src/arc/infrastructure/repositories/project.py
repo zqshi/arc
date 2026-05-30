@@ -123,6 +123,7 @@ class ProjectRepository:
         model.github_token = project.github_token or None
         model.github_webhook_secret = project.github_webhook_secret or None
         model.github_config = project.github_config or None
+        model.deleted_at = project.deleted_at
         await self.db.flush()
 
     async def delete(self, project_id: uuid.UUID) -> bool:
@@ -162,6 +163,7 @@ class ProjectRepository:
             github_token=model.github_token or "",
             github_webhook_secret=model.github_webhook_secret or "",
             github_config=model.github_config or {},
+            deleted_at=model.deleted_at,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
