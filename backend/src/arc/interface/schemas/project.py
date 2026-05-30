@@ -35,6 +35,9 @@ class ProjectResponse(BaseModel):
     conventions: str
     codebase_summary: str
     scan_fingerprint: str = ""
+    scan_status: str = "idle"
+    scan_progress: str = ""
+    scan_error: str = ""
     status: str
     execution_mode: str
     pipeline_config: dict | None = None

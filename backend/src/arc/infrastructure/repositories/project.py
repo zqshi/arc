@@ -112,6 +112,9 @@ class ProjectRepository:
         model.conventions = project.conventions
         model.codebase_summary = project.codebase_summary
         model.scan_fingerprint = project.scan_fingerprint
+        model.scan_status = project.scan_status
+        model.scan_progress = project.scan_progress or None
+        model.scan_error = project.scan_error or None
         model.status = project.status.value
         model.execution_mode = project.execution_mode.value
         model.pipeline_config = project.pipeline_config
@@ -144,6 +147,9 @@ class ProjectRepository:
             conventions=model.conventions or "",
             codebase_summary=model.codebase_summary or "",
             scan_fingerprint=model.scan_fingerprint or "",
+            scan_status=model.scan_status or "idle",
+            scan_progress=model.scan_progress or "",
+            scan_error=model.scan_error or "",
             status=ProjectStatus(model.status),
             execution_mode=ExecutionMode(model.execution_mode)
             if model.execution_mode

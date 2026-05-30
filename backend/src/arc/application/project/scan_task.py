@@ -109,21 +109,37 @@ class ScanTaskManager:
         summary = ""
         domain_model = None
 
+        # Mark scanning in DB
+        await self._update_scan_status(project_id, "start")
+
         try:
+            last_stage = ""
             async for event in scan_and_summarize_stream(path):
                 await self._emit(project_id, event)
-                if event.get("event") == "done":
+                evt_type = event.get("event")
+                if evt_type == "done":
                     summary = event.get("summary", "")
-                elif event.get("event") == "domain_model":
+                elif evt_type == "domain_model":
                     domain_model = event.get("domain_model")
+                elif evt_type == "stage":
+                    stage = event.get("message", "")
+                    if stage != last_stage:
+                        last_stage = stage
+                        await self._update_scan_status(
+                            project_id, "progress", stage=stage
+                        )
 
             fingerprint = await compute_scan_fingerprint(path)
             await self._persist_result(project_id, summary, fingerprint, domain_model)
+            await self._update_scan_status(
+                project_id, "complete", summary=summary, fingerprint=fingerprint
+            )
             logger.info("Scan completed for project %s", project_id)
 
         except Exception as exc:
             logger.error("Scan failed for project %s: %s", project_id, exc)
             self._last_error[project_id] = str(exc)
+            await self._update_scan_status(project_id, "error", error=str(exc))
             await self._emit(
                 project_id,
                 {
@@ -135,6 +151,41 @@ class ScanTaskManager:
             await self._finish(project_id)
             async with self._lock:
                 self._tasks.pop(project_id, None)
+
+    async def _update_scan_status(
+        self,
+        project_id: str,
+        action: str,
+        *,
+        stage: str = "",
+        summary: str = "",
+        fingerprint: str = "",
+        error: str = "",
+    ) -> None:
+        """Persist scan lifecycle state to DB."""
+        from uuid import UUID
+
+        from arc.infrastructure.database import async_session_factory
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        try:
+            async with async_session_factory() as db:
+                repo = ProjectRepository(db)
+                project = await repo.get_by_id(UUID(project_id))
+                if not project:
+                    return
+                if action == "start":
+                    project.start_scan()
+                elif action == "progress":
+                    project.update_scan_progress(stage)
+                elif action == "complete":
+                    project.complete_scan(summary, fingerprint)
+                elif action == "error":
+                    project.fail_scan(error)
+                await repo.update(project)
+                await db.commit()
+        except Exception as exc:
+            logger.warning("Failed to update scan status: %s", exc)
 
     async def _persist_result(
         self, project_id: str, summary: str, fingerprint: str,

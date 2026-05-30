@@ -116,6 +116,9 @@ export interface Project {
   local_path: string;
   conventions: string;
   codebase_summary: string;
+  scan_status?: 'idle' | 'scanning' | 'completed' | 'error';
+  scan_progress?: string;
+  scan_error?: string;
   status: ProjectStatus;
   execution_mode: ExecutionMode;
   pipeline_config?: Record<string, unknown>;
