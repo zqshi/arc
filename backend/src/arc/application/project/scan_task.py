@@ -41,18 +41,29 @@ class ScanTaskManager:
             return task_id
 
     async def subscribe(self, project_id: str) -> AsyncIterator[dict]:
-        """Subscribe to scan events for a project. Yields events until done."""
+        """Subscribe to scan events for a project. Yields events until done.
+
+        If the scan task has already finished (or was never started),
+        the generator returns immediately — callers must handle the empty case.
+        """
         queue: asyncio.Queue = asyncio.Queue()
         async with self._lock:
+            # If no task is running, return immediately to avoid blocking forever
+            if not self.is_running(project_id):
+                return
             subscribers = self._queues.get(project_id)
             if subscribers is None:
-                subscribers = []
-                self._queues[project_id] = subscribers
+                return
             subscribers.append(queue)
 
         try:
             while True:
-                event = await queue.get()
+                # Timeout prevents permanent blocking if sentinel is somehow lost
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=300)
+                except asyncio.TimeoutError:
+                    logger.warning("Scan subscribe timeout for project %s", project_id)
+                    break
                 if event is _QUEUE_SENTINEL:
                     break
                 yield event

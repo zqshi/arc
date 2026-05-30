@@ -174,6 +174,13 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
       const controller = new AbortController();
       abortRef.current = controller;
 
+      // Safety timeout: abort if SSE hangs for 5 minutes
+      const timeout = setTimeout(() => {
+        controller.abort();
+        setScanError('扫描超时，请重试');
+        setScanning(false);
+      }, 5 * 60 * 1000);
+
       api.scanCodebaseStream(projectId, (event: ScanEvent) => {
         switch (event.event) {
           case 'stage':
@@ -183,20 +190,21 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
             setScanContent((prev) => prev + (event.content || ''));
             break;
           case 'done':
+            clearTimeout(timeout);
             setScanContent(event.summary || '');
             setScanning(false);
             setScanStage('');
             onRefresh();
             break;
           case 'error':
+            clearTimeout(timeout);
             setScanError(event.detail || '扫描失败');
             setScanning(false);
             setScanStage('');
             break;
           case 'close':
-            if (scanning) {
-              setScanning(false);
-            }
+            clearTimeout(timeout);
+            setScanning(false);
             break;
         }
       }, controller.signal);
@@ -204,7 +212,7 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
       setScanError(e instanceof Error ? e.message : '扫描启动失败');
       setScanning(false);
     }
-  }, [projectId, form, setForm, onRefresh, scanning]);
+  }, [projectId, form, setForm, onRefresh]);
 
   useEffect(() => {
     return () => {

@@ -173,10 +173,20 @@ async def scan_codebase_stream(
     pid = str(project_id)
 
     async def event_generator():
+        has_events = False
         async for event in scan_manager.subscribe(pid):
+            has_events = True
             event_type = event.get("event", "message")
             data = json.dumps(event, ensure_ascii=False)
             yield f"event: {event_type}\ndata: {data}\n\n"
+
+        if not has_events:
+            # Scan task already finished before subscribe — tell client to refresh
+            summary = project.codebase_summary or ""
+            done_event = json.dumps(
+                {"event": "done", "summary": summary}, ensure_ascii=False
+            )
+            yield f"event: done\ndata: {done_event}\n\n"
 
         yield "event: close\ndata: {}\n\n"
 
