@@ -285,7 +285,7 @@ async def get_deliverables(todo_id: str, db: DbSession, user: CurrentUser):
 async def send_quick_message(todo_id: str, db: DbSession, user: CurrentUser, body: dict):
     import asyncio
 
-    from arc.application.project.task_stream import project_task_stream
+    from arc.application.todo.quick_message_service import run_ai_response
     from arc.domain.todo.value_objects import MessageRole
     from arc.infrastructure.repositories.conversation import ConversationRepository
 
@@ -310,84 +310,17 @@ async def send_quick_message(todo_id: str, db: DbSession, user: CurrentUser, bod
 
     project_id = str(todo.project_id) if todo.project_id else None
 
-    async def _run_ai():
-        from arc.application.execution.conversation_strategy import ConversationExecutionService
-        from arc.infrastructure.database import async_session_factory
-
-        async with async_session_factory() as _db:
-            _conv_repo = ConversationRepository(_db)
-            _conv = await _conv_repo.get_by_id(conv.id)
-            if not _conv:
-                return
-            svc = ConversationExecutionService(_db)
-            ai_msg_id = None
-            try:
-                async for chunk in svc.generate_response_stream(_conv):
-                    event_type = chunk.get("event")
-                    if event_type == "artifacts_extracted":
-                        if project_id:
-                            await project_task_stream.emit(
-                                project_id,
-                                {
-                                    "event": "task_done",
-                                    "todo_id": todo_id,
-                                    "artifacts": chunk.get("artifact_names", []),
-                                },
-                            )
-                        continue
-
-                    if ai_msg_id is None:
-                        ai_msg_id = chunk.get("message_id")
-                        if project_id:
-                            await project_task_stream.emit(
-                                project_id,
-                                {
-                                    "event": "task_status",
-                                    "todo_id": todo_id,
-                                    "status": "running",
-                                    "stage": "AI 正在生成回复...",
-                                },
-                            )
-
-                    if project_id:
-                        await project_task_stream.emit(
-                            project_id,
-                            {
-                                "event": "task_chunk",
-                                "todo_id": todo_id,
-                                "content": chunk.get("content", ""),
-                            },
-                        )
-            except Exception as exc:
-                logger.error("quick-message AI failed: %s", exc, exc_info=True)
-                if project_id:
-                    await project_task_stream.emit(
-                        project_id,
-                        {
-                            "event": "task_status",
-                            "todo_id": todo_id,
-                            "status": "error",
-                            "stage": "AI响应生成失败",
-                        },
-                    )
-            finally:
-                if project_id:
-                    await project_task_stream.emit(
-                        project_id,
-                        {
-                            "event": "task_status",
-                            "todo_id": todo_id,
-                            "status": "idle",
-                            "stage": "等待用户输入",
-                        },
-                    )
-                await _db.commit()
-
     def _on_ai_done(t: asyncio.Task) -> None:
         if not t.cancelled() and t.exception():
             logger.error("Background AI task failed: %s", t.exception())
 
-    task = asyncio.create_task(_run_ai())
+    task = asyncio.create_task(
+        run_ai_response(
+            conversation_id=conv.id,
+            todo_id=todo_id,
+            project_id=project_id,
+        )
+    )
     task.add_done_callback(_on_ai_done)
 
     return {
