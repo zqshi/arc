@@ -95,15 +95,18 @@ ITERATION_REVIEW_PROMPT = """你是一位敏捷教练，负责分析当前迭代
 版本: {version_name}
 目标: {version_goal}
 
+{project_context}
+
 ## 需求状态
 {todo_status_summary}
 
 ## 分析要求
 1. 本迭代进展评估（按时/延期/提前）
 2. 阻塞项识别和建议
-3. 下个迭代需求推荐（从backlog中选择）
-4. 版本目标完整性检查（当前进度是否在版本目标轨道上）
-5. 风险预警
+3. 代码现状与版本目标的差距分析（基于代码库概况，如果有）
+4. 下个迭代需求推荐（从backlog中选择）
+5. 版本目标完整性检查（当前进度是否在版本目标轨道上）
+6. 风险预警（包括技术债务风险）
 
 输出简洁的分析报告，用markdown格式。"""
 
@@ -292,13 +295,27 @@ class PlanningService:
         if not version:
             raise ValueError("版本不存在")
 
+        project = await self.project_repo.get_by_id(project_id)
         todos, _ = await self.todo_repo.list_all(version_id=version_id, limit=1000)
         status_summary = self._format_todo_status(todos)
+
+        # Build project context for the analysis
+        project_context = ""
+        if project:
+            ctx_parts = []
+            if project.tech_stack:
+                ctx_parts.append(f"技术栈: {project.tech_stack}")
+            if project.codebase_summary:
+                ctx_parts.append(f"\n## 代码库概况\n{project.codebase_summary}")
+            if project.conventions:
+                ctx_parts.append(f"\n## 项目规范\n{project.conventions}")
+            project_context = "\n".join(ctx_parts)
 
         prompt = ITERATION_REVIEW_PROMPT.format(
             version_name=version.name,
             version_goal=version.goal,
             todo_status_summary=status_summary,
+            project_context=project_context,
         )
 
         from arc.application.ai.llm_adapter import LLMMessage

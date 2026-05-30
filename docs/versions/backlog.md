@@ -20,7 +20,11 @@
 | domain/organization 模块缺少测试 | P2 | v2.2.0 质量检测 6.6 | pending |
 | application 层部分 service 缺少测试 (auth/artifact/agent_loop) | P2 | v2.2.0 质量检测 6.6 | pending |
 | 前端测试体系建立 | P3 | v2.2.0 质量检测 6.6 | pending |
-| planning_service.py ~571 行, 关注是否需要拆分 | P3 | v2.2.0 质量检测 6.5 | pending |
+| planning_service.py ~571 行, 需拆分 | P1 | v2.2.0 质量检测 6.5 | v2.3.0 T6 处理中 |
+| 值对象建模 — 12 个 dict 字段应显式建模 (pipeline_config/domain_model 等) | P2 | v2.3.0 审计 | pending |
+| 聚合边界重构 — service 跨 5-7 聚合直接访问 repo | P2 | v2.3.0 审计 | pending (需 DI 完成后) |
+| 前端 8 个组件超 300 行 (SettingsTab/ConversationModeView/PipelineModeView 等) | P3 | v2.3.0 审计 | pending |
+| application 层直接 import ORM 模型 (auth/billing 绕过 repo) | P2 | v2.3.0 审计 | pending |
 
 ---
 

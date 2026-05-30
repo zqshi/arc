@@ -61,6 +61,7 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     retry: wsRetry,
     retryDisabled: wsRetryDisabled,
     artifactsVersion,
+    toolCalls,
   } = useConversationSocket(conversationId);
 
   const fetchTracker = useCallback(async () => {
@@ -154,6 +155,51 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                   onRetry={wsRetry}
                   retryDisabled={wsRetryDisabled}
                 />
+                {/* Tool call activity indicator */}
+                {toolCalls.length > 0 && isStreaming && (
+                  <div className="mt-2 space-y-1.5 border-t border-border/50 pt-2">
+                    {toolCalls.map((tc) => (
+                      <div
+                        key={tc.id}
+                        className={`flex items-start gap-2 rounded-md px-3 py-1.5 text-[11px] ${
+                          tc.status === 'running'
+                            ? 'bg-accent/5 border border-accent/20'
+                            : tc.is_error
+                              ? 'bg-status-error/5 border border-status-error/20'
+                              : 'bg-bg-elevated border border-border/50'
+                        }`}
+                      >
+                        <span className={`mt-0.5 flex-shrink-0 ${
+                          tc.status === 'running' ? 'animate-pulse text-accent' : tc.is_error ? 'text-status-error' : 'text-status-done'
+                        }`}>
+                          {tc.status === 'running' ? '⟳' : tc.is_error ? '✗' : '✓'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium text-text-primary">{tc.tool_name}</span>
+                          {tc.tool_input && (
+                            <span className="ml-2 text-text-muted truncate">
+                              {tc.tool_name === 'read_file' && (tc.tool_input as Record<string,string>).path}
+                              {tc.tool_name === 'list_directory' && ((tc.tool_input as Record<string,string>).path || '.')}
+                              {tc.tool_name === 'grep_search' && `"${(tc.tool_input as Record<string,string>).pattern}"`}
+                              {tc.tool_name === 'run_command' && (tc.tool_input as Record<string,string>).command}
+                              {tc.tool_name === 'write_file' && (tc.tool_input as Record<string,string>).path}
+                            </span>
+                          )}
+                          {tc.output_preview && tc.status === 'done' && (
+                            <details className="mt-1">
+                              <summary className="cursor-pointer text-[10px] text-text-muted hover:text-text-secondary">
+                                查看结果
+                              </summary>
+                              <pre className="mt-1 max-h-32 overflow-auto rounded bg-bg-primary p-2 text-[10px] text-text-secondary whitespace-pre-wrap">
+                                {tc.output_preview}
+                              </pre>
+                            </details>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="border-t border-border px-4 py-2.5">
                 <ChatInput value={inputValue} onChange={setInputValue} onSend={handleSend} disabled={!isConnected} />

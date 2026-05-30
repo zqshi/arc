@@ -60,9 +60,9 @@ export function useProjectDetail() {
   const [analyzing, setAnalyzing] = useState(false);
   const [drawerSession, setDrawerSession] = useState<PlanningSession | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     try {
       const [p, v, members] = await Promise.all([api.getProject(id), api.listVersions(id), api.listMembers(id).catch(() => [])]);
       setProject(p);
@@ -277,6 +277,22 @@ export function useProjectDetail() {
     }
   };
 
+  const [extractingDMFromCode, setExtractingDMFromCode] = useState(false);
+  const handleExtractDomainModelFromCode = async () => {
+    if (!id) return;
+    setExtractingDMFromCode(true);
+    try {
+      await api.extractDomainModelFromCode(id);
+      toast('领域模型已从代码库提取', 'success');
+      fetchDomainModel();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '提取失败';
+      toast(msg, 'error');
+    } finally {
+      setExtractingDMFromCode(false);
+    }
+  };
+
   const handleValidateDomainModel = async () => {
     if (!id) return;
     setValidatingDM(true);
@@ -382,6 +398,7 @@ export function useProjectDetail() {
     insights, handleAppendConvention,
     domainModel, domainModelLoading, handleRefreshDomainModel, refreshingDM,
     handleValidateDomainModel, validatingDM, dmValidation, setDmValidation,
+    handleExtractDomainModelFromCode, extractingDMFromCode,
     handleExtractExperiences, extracting,
     analysisResult, analyzing, closeAnalysis, handleAnalyzeVersion,
     drawerSession, setDrawerSession,
@@ -390,7 +407,7 @@ export function useProjectDetail() {
     isConversationMode, getTaskState: isConversationMode ? getTaskState : undefined,
     batchStart: isConversationMode ? async (todoIds: string[]) => {
       await api.batchStartConversations(id!, todoIds);
-      fetchData();
+      fetchData({ silent: true });
     } : undefined,
   };
 }

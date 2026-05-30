@@ -56,16 +56,37 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
     setGhRepoName(githubRepo ?? null);
   }, [githubConnected, githubRepo]);
 
+  // Reset all local GitHub state when switching projects
+  useEffect(() => {
+    setGhToken('');
+    setGhConnecting(false);
+    setGhSyncing(false);
+    setGhWebhookUrl('');
+    setGhIsConnected(githubConnected ?? false);
+    setGhRepoName(githubRepo ?? null);
+    setGhCloneStep('idle');
+    setGhClonePath('');
+  }, [projectId]);
+
+  const [ghCloneStep, setGhCloneStep] = useState<'idle' | 'prompt' | 'cloning' | 'done' | 'dismissed'>('idle');
+  const [ghClonePath, setGhClonePath] = useState('');
+
   const handleGhConnect = async () => {
-    if (!ghToken.trim()) return;
+    if (!ghToken.trim() || !form.repo_url?.trim()) return;
     setGhConnecting(true);
     try {
-      const result = await api.connectGitHub(projectId, ghToken.trim());
+      const result = await api.connectGitHub(projectId, ghToken.trim(), form.repo_url.trim());
       setGhIsConnected(true);
       setGhRepoName(result.repo);
       setGhWebhookUrl(result.webhook_url);
       setGhToken('');
       toast('GitHub 已连接', 'success');
+
+      // If no local_path configured, prompt to clone
+      if (!form.local_path) {
+        setGhCloneStep('prompt');
+      }
+      onRefresh();
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : 'GitHub 连接失败';
       toast(msg, 'error');
@@ -80,11 +101,34 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
       setGhIsConnected(false);
       setGhRepoName(null);
       setGhWebhookUrl('');
+      setGhCloneStep('idle');
       toast('GitHub 已断开', 'success');
       onRefresh();
     } catch {
       toast('断开失败', 'error');
     }
+  };
+
+  const handleGhClone = async () => {
+    setGhCloneStep('cloning');
+    try {
+      const result = await api.cloneGitHubRepo(projectId, ghClonePath || undefined);
+      setForm({ ...form, local_path: result.local_path });
+      setGhCloneStep('done');
+      toast(`代码已${result.status === 'cloned' ? '克隆' : '更新'}到本地`, 'success');
+      if (result.scan_started) {
+        toast('正在扫描代码库...', 'success');
+      }
+      onRefresh();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.detail : 'Clone 失败';
+      toast(msg, 'error');
+      setGhCloneStep('prompt');
+    }
+  };
+
+  const handleGhSkipClone = () => {
+    setGhCloneStep('dismissed');
   };
 
   const handleGhSync = async () => {
@@ -201,7 +245,6 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
         <div className="rounded-lg border border-border bg-bg-card p-4 space-y-4">
           <p className="text-[11px] font-medium text-text-tertiary uppercase tracking-wide">技术配置</p>
           <Field label="技术栈" value={form.tech_stack} onChange={(v) => setForm({ ...form, tech_stack: v })} placeholder="例如：React + FastAPI + PostgreSQL" />
-          <Field label="代码仓库" value={form.repo_url} onChange={(v) => setForm({ ...form, repo_url: v })} placeholder="https://github.com/..." />
           <div>
             <label className="mb-1 block text-[11px] font-medium text-text-tertiary">本地工作目录</label>
             <button
@@ -302,6 +345,60 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
                   </button>
                 </div>
               </div>
+
+              {/* Clone prompt: show when connected but no local_path, unless dismissed */}
+              {!form.local_path && ghCloneStep !== 'dismissed' && ghCloneStep !== 'cloning' && ghCloneStep !== 'done' && (
+                <div className="rounded-md border border-accent/30 bg-accent/5 p-3 space-y-2">
+                  <p className="text-[11px] font-medium text-text-primary">📂 关联本地代码</p>
+                  <p className="text-[10px] text-text-muted">
+                    克隆仓库到本地后，AI 助手可以直接读取和修改代码。不关联则只能同步 Issues。
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={ghClonePath}
+                      onChange={(e) => setGhClonePath(e.target.value)}
+                      placeholder={`默认: ~/.arc/repos/${ghRepoName || 'owner/repo'}`}
+                      className="h-7 flex-1 rounded-md border border-border bg-bg-input px-2 text-[11px] text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleGhClone}
+                      className="flex h-7 items-center gap-1 rounded-md bg-accent px-3 text-[10px] font-medium text-white hover:bg-accent-hover"
+                    >
+                      <FolderOpen size={11} /> 克隆到本地
+                    </button>
+                    <button
+                      onClick={() => setShowFolderPicker(true)}
+                      className="flex h-7 items-center gap-1 rounded-md border border-border px-3 text-[10px] font-medium text-text-secondary hover:bg-bg-elevated"
+                    >
+                      选择已有目录
+                    </button>
+                    <button
+                      onClick={handleGhSkipClone}
+                      className="flex h-7 items-center gap-1 rounded-md px-2 text-[10px] text-text-muted hover:text-text-secondary"
+                    >
+                      跳过
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {ghCloneStep === 'cloning' && (
+                <div className="flex items-center gap-2 rounded-md border border-border/50 bg-bg-elevated px-3 py-2">
+                  <RefreshCw size={12} className="animate-spin text-accent" />
+                  <span className="text-[11px] text-text-secondary">正在克隆仓库...</span>
+                </div>
+              )}
+
+              {ghCloneStep === 'done' && (
+                <div className="flex items-center gap-2 rounded-md border border-status-done/30 bg-status-done/5 px-3 py-2">
+                  <FolderOpen size={12} className="text-status-done" />
+                  <span className="text-[11px] text-text-secondary">已关联: <code className="text-[10px]">{form.local_path}</code></span>
+                </div>
+              )}
+
               {ghWebhookUrl && (
                 <div className="rounded-md border border-border/50 px-3 py-2">
                   <p className="text-[10px] text-text-muted">Webhook URL (在 GitHub 仓库 Settings → Webhooks 中配置)</p>
@@ -314,31 +411,46 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
           ) : (
             <div className="space-y-3">
               <p className="text-[11px] text-text-muted">
-                连接 GitHub 后，Issues 会自动同步为 Arc 需求，完成后自动回写。需要先配置代码仓库地址。
+                连接 GitHub 后，Issues 会自动同步为 Arc 需求，完成后自动回写。
               </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  value={ghToken}
-                  onChange={(e) => setGhToken(e.target.value)}
-                  placeholder="GitHub Personal Access Token"
-                  className="h-8 flex-1 rounded-md border border-border bg-bg-input px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleGhConnect();
-                  }}
-                />
-                <button
-                  onClick={handleGhConnect}
-                  disabled={!ghToken.trim() || ghConnecting || !form.repo_url}
-                  className="flex h-8 items-center gap-1 rounded-md bg-accent px-3 text-[11px] font-medium text-white hover:bg-accent-hover disabled:opacity-40"
-                >
-                  <Link2 size={11} />
-                  {ghConnecting ? '连接中...' : '连接'}
-                </button>
+              <Field
+                label="代码仓库地址"
+                value={form.repo_url}
+                onChange={(v) => setForm({ ...form, repo_url: v })}
+                placeholder="https://github.com/owner/repo"
+              />
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-text-tertiary">Personal Access Token</label>
+                <p className="mb-2 text-[10px] text-text-muted">
+                  需要 <code className="rounded bg-bg-elevated px-1">repo</code> 权限。
+                  <a href="https://github.com/settings/tokens/new?scopes=repo&description=Arc+Workstation" target="_blank" rel="noopener noreferrer" className="ml-1 text-accent hover:underline">
+                    去 GitHub 创建 →
+                  </a>
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={ghToken}
+                    onChange={(e) => setGhToken(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxx"
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
+                    className="h-8 flex-1 rounded-md border border-border bg-bg-input px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleGhConnect();
+                    }}
+                  />
+                  <button
+                    onClick={handleGhConnect}
+                    disabled={!ghToken.trim() || ghConnecting || !form.repo_url?.trim()}
+                    className="flex h-8 items-center gap-1 rounded-md bg-accent px-3 text-[11px] font-medium text-white hover:bg-accent-hover disabled:opacity-40"
+                  >
+                    <Link2 size={11} />
+                    {ghConnecting ? '连接中...' : '连接'}
+                  </button>
+                </div>
               </div>
-              {!form.repo_url && (
-                <p className="text-[10px] text-amber-500">请先在上方填写代码仓库地址</p>
-              )}
             </div>
           )}
         </div>

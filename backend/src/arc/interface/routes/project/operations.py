@@ -29,16 +29,20 @@ async def get_domain_model(
         raise HTTPException(404, "Project not found")
 
     dm = project.domain_model
-    if not dm or (not dm.get("aggregates") and not dm.get("subdomains")):
-        from arc.application.execution.domain_model_extractor import DomainModelExtractor
-        from arc.infrastructure.repositories.artifact import ArtifactRepository
-        from arc.infrastructure.repositories.todo import TodoRepository
+    if dm and (dm.get("aggregates") or dm.get("subdomains")):
+        return dm
 
-        todo_repo = TodoRepository(db)
-        art_repo = ArtifactRepository(db)
-        todos, _ = await todo_repo.list_all(
-            project_id=project_id, user_id=user.id, offset=0, limit=100,
-        )
+    # Fallback 1: extract from existing tech_architecture artifacts
+    from arc.application.execution.domain_model_extractor import DomainModelExtractor
+    from arc.infrastructure.repositories.artifact import ArtifactRepository
+    from arc.infrastructure.repositories.todo import TodoRepository
+
+    todo_repo = TodoRepository(db)
+    art_repo = ArtifactRepository(db)
+    todos, _ = await todo_repo.list_all(
+        project_id=project_id, user_id=user.id, offset=0, limit=100,
+    )
+    if todos:
         arts_map = await art_repo.list_by_todo_ids([t.id for t in todos])
         for todo in todos:
             for art in arts_map.get(todo.id, []):
@@ -60,13 +64,24 @@ async def get_domain_model(
             if dm and (dm.get("aggregates") or dm.get("subdomains")):
                 break
 
-    return dm or {
+    # Return what we have + metadata about available sources
+    result = dm or {
         "subdomains": [],
         "contexts": [],
         "aggregates": [],
         "relations": [],
         "aggregate_relations": [],
     }
+
+    # Hint to frontend about available extraction sources
+    if not result.get("aggregates") and not result.get("subdomains"):
+        result["_hint"] = {
+            "has_local_path": bool(project.local_path),
+            "has_codebase_summary": bool(project.codebase_summary),
+            "has_todos": len(todos) > 0 if todos else False,
+        }
+
+    return result
 
 
 @router.post("/{project_id}/domain-model/refresh")
@@ -118,6 +133,77 @@ async def refresh_domain_model(
         "relations": [], "aggregate_relations": [],
     }
     return {"merged": merged, "domain_model": dm}
+
+
+@router.post("/{project_id}/domain-model/extract-from-code")
+async def extract_domain_model_from_code(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """Extract domain model directly from codebase source files."""
+    from pathlib import Path
+
+    from arc.application.project.scanner import CodebaseScanner
+    from arc.application.project.scanner_analysis import (
+        build_domain_model_prompt,
+        parse_domain_model_response,
+    )
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if not project.local_path:
+        raise HTTPException(400, "请先配置本地工作目录")
+
+    path = Path(project.local_path).expanduser().resolve()
+    if not path.is_dir():
+        raise HTTPException(400, f"目录不存在: {project.local_path}")
+
+    # Scan and build prompt
+    scanner = CodebaseScanner(str(path))
+    data = scanner.full_scan()
+    prompt = build_domain_model_prompt(data)
+    if not prompt:
+        raise HTTPException(400, "未找到可分析的源码文件")
+
+    # Call LLM — no fixed token limit, let model output what it needs
+    from arc.application.ai.adapter_pool import adapter_pool
+    from arc.application.ai.llm_adapter import LLMMessage
+
+    async with adapter_pool.acquire() as adapter:
+        response = await adapter.chat(
+            [LLMMessage(role="user", content=prompt)],
+            temperature=0.1,
+            max_tokens=8192,
+        )
+
+    domain_model = parse_domain_model_response(response.content)
+    if not domain_model:
+        raise HTTPException(500, "领域模型提取失败：AI 返回格式无法解析")
+
+    # Merge into existing model
+    from datetime import UTC, datetime
+
+    existing_dm = project.domain_model or {}
+    if not existing_dm.get("aggregates") and not existing_dm.get("subdomains"):
+        domain_model["updated_at"] = datetime.now(UTC).isoformat()
+        domain_model["version"] = 1
+        domain_model["source"] = "codebase_scan"
+        project.domain_model = domain_model
+    else:
+        from arc.application.project.scan_task import ScanTaskManager
+
+        ScanTaskManager._merge_domain_model(existing_dm, domain_model)
+        existing_dm["updated_at"] = datetime.now(UTC).isoformat()
+        existing_dm["version"] = existing_dm.get("version", 0) + 1
+        project.domain_model = existing_dm
+
+    await repo.update(project)
+    await db.commit()
+
+    return {"domain_model": project.domain_model}
 
 
 @router.post("/{project_id}/domain-model/validate")
@@ -188,13 +274,8 @@ async def delete_project(
     project = await repo.get_by_id(project_id, user_id=user.id)
     if not project:
         raise HTTPException(404, "Project not found")
-    version_repo = VersionRepository(db)
-    count = await version_repo.count_by_project(project_id)
-    if count > 0:
-        raise HTTPException(409, "请先删除所有版本后再删除项目")
 
-    from arc.infrastructure.storage import get_storage
-    storage = get_storage()
-    await storage.async_delete_prefix(f"documents/{project_id}")
-
-    await repo.delete(project_id)
+    # 逻辑删除：标记 status=deleted，保留数据
+    project.soft_delete()
+    await repo.update(project)
+    await db.commit()

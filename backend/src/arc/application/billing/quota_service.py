@@ -7,6 +7,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.config import settings
 from arc.domain.errors import ForbiddenError
 from arc.domain.organization.value_objects import PLAN_LIMITS, OrgPlan
 from arc.infrastructure.models.billing import UsageDailyModel
@@ -38,6 +39,8 @@ class QuotaService:
         return OrgPlan(plan_str) if plan_str else OrgPlan.FREE
 
     async def check_project_limit(self, org_id: uuid.UUID) -> None:
+        if settings.debug:
+            return
         plan = await self.get_org_plan(org_id)
         limit = PLAN_LIMITS[plan]["max_projects"]
         result = await self.db.execute(
@@ -52,6 +55,8 @@ class QuotaService:
             )
 
     async def check_todo_limit(self, org_id: uuid.UUID, project_id: uuid.UUID) -> None:
+        if settings.debug:
+            return
         plan = await self.get_org_plan(org_id)
         limit = PLAN_LIMITS[plan]["max_todos_per_project"]
         result = await self.db.execute(
@@ -66,6 +71,8 @@ class QuotaService:
             )
 
     async def check_ai_call_limit(self, org_id: uuid.UUID) -> None:
+        if settings.debug:
+            return
         plan = await self.get_org_plan(org_id)
         limit = PLAN_LIMITS[plan]["max_ai_calls_per_day"]
         today = date.today()

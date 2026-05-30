@@ -304,6 +304,13 @@ async def connect_github(
     project = await repo.get_by_id(project_id, user_id=user.id)
     if not project:
         raise HTTPException(404, "Project not found")
+
+    # 允许连接时同时传入 repo_url
+    repo_url = body.get("repo_url", "").strip()
+    if repo_url:
+        project.repo_url = repo_url
+        # 不提前 commit — 等连接成功后一起提交
+
     if not project.repo_url:
         raise HTTPException(400, "请先配置代码仓库地址")
 
@@ -312,7 +319,15 @@ async def connect_github(
         raise HTTPException(400, "token is required")
 
     svc = GitHubService(db)
-    result = await svc.connect(project, token)
+    try:
+        result = await svc.connect(project, token)
+    except Exception:
+        # 连接失败 — 回滚 repo_url 变更，不留半成品
+        await db.rollback()
+        raise
+
+    # 连接成功，提交所有变更（repo_url + github_config + github_token）
+    await db.commit()
     return {
         "status": "connected",
         "repo": result["full_name"],
@@ -337,6 +352,102 @@ async def disconnect_github(
     svc = GitHubService(db)
     await svc.disconnect(project)
     return {"status": "disconnected"}
+
+
+@router.post("/{project_id}/github/clone")
+async def clone_github_repo(
+    project_id: uuid.UUID,
+    body: dict,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """Clone the GitHub repo to a local directory and set project.local_path."""
+    import asyncio
+    import subprocess
+    from pathlib import Path
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if not project.repo_url:
+        raise HTTPException(400, "请先配置代码仓库地址")
+
+    from arc.application.integration.github_service import parse_repo_url
+
+    parsed = parse_repo_url(project.repo_url)
+    if not parsed:
+        raise HTTPException(400, "无法解析仓库地址")
+
+    owner, repo_name = parsed
+
+    # Determine target path
+    target_path = body.get("path", "").strip()
+    if not target_path:
+        # Default: ~/.arc/repos/owner/repo
+        target_path = str(Path.home() / ".arc" / "repos" / owner / repo_name)
+
+    target = Path(target_path).expanduser().resolve()
+
+    def _clone_or_pull():
+        if target.exists() and (target / ".git").exists():
+            # Already cloned, just pull
+            subprocess.run(
+                ["git", "pull", "--ff-only"],
+                cwd=str(target),
+                capture_output=True,
+                timeout=120,
+            )
+            return "pulled"
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            # Use token for private repos if available
+            clone_url = project.repo_url
+            if project.github_token and "github.com" in clone_url:
+                clone_url = clone_url.replace(
+                    "https://github.com",
+                    f"https://{project.github_token}@github.com",
+                )
+            result = subprocess.run(
+                ["git", "clone", "--depth", "50", clone_url, str(target)],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr or "git clone failed")
+            return "cloned"
+
+    try:
+        action = await asyncio.to_thread(_clone_or_pull)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "Git clone 超时，仓库可能过大")
+    except RuntimeError as e:
+        raise HTTPException(400, f"Clone 失败: {e}")
+    except Exception as e:
+        raise HTTPException(500, f"Clone 异常: {e}")
+
+    # Update project local_path
+    project.local_path = str(target)
+    await repo.update(project)
+    await db.commit()
+
+    # Auto-trigger codebase scan
+    scan_started = False
+    try:
+        from arc.application.project.scan_task import scan_manager
+
+        if not scan_manager.is_running(str(project_id)):
+            await scan_manager.start_scan(str(project_id), str(target))
+            scan_started = True
+    except Exception:
+        pass  # Scan is optional, don't fail the clone
+
+    return {
+        "status": action,
+        "local_path": str(target),
+        "scan_started": scan_started,
+    }
 
 
 @router.post("/{project_id}/github/sync")

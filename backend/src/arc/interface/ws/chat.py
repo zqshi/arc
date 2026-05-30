@@ -153,6 +153,42 @@ async def _stream_ai_response(
         async for chunk in stream:
             event_type = chunk.get("event")
 
+            if event_type == "tool_call":
+                await manager.broadcast(
+                    conversation_id,
+                    {
+                        "type": "tool_call",
+                        "message_id": chunk.get("message_id", ""),
+                        "tool_name": chunk.get("tool_name", ""),
+                        "tool_input": chunk.get("tool_input", {}),
+                        "round": chunk.get("round", 0),
+                    },
+                )
+                if project_id and todo_id:
+                    await project_task_stream.emit(
+                        project_id,
+                        {
+                            "event": "task_status",
+                            "todo_id": todo_id,
+                            "status": "running",
+                            "stage": f"调用工具: {chunk.get('tool_name', '')}",
+                        },
+                    )
+                continue
+
+            if event_type == "tool_result":
+                await manager.broadcast(
+                    conversation_id,
+                    {
+                        "type": "tool_result",
+                        "message_id": chunk.get("message_id", ""),
+                        "tool_name": chunk.get("tool_name", ""),
+                        "output_preview": chunk.get("output_preview", ""),
+                        "is_error": chunk.get("is_error", False),
+                    },
+                )
+                continue
+
             if event_type == "artifacts_extracted":
                 await manager.broadcast(
                     conversation_id,

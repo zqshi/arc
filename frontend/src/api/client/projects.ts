@@ -30,11 +30,14 @@ export function createProjectMethods(request: RequestFn) {
     deleteProject: (id: string): Promise<void> =>
       request(`/api/projects/${id}`, { method: 'DELETE' }),
 
-    connectGitHub: (projectId: string, token: string): Promise<{ status: string; repo: string; webhook_url: string; webhook_secret: string }> =>
-      request(`/api/projects/${projectId}/github/connect`, { method: 'POST', body: JSON.stringify({ token }) }),
+    connectGitHub: (projectId: string, token: string, repoUrl?: string): Promise<{ status: string; repo: string; webhook_url: string; webhook_secret: string }> =>
+      request(`/api/projects/${projectId}/github/connect`, { method: 'POST', body: JSON.stringify({ token, repo_url: repoUrl }) }),
 
     disconnectGitHub: (projectId: string): Promise<void> =>
       request(`/api/projects/${projectId}/github/disconnect`, { method: 'POST' }),
+
+    cloneGitHubRepo: (projectId: string, path?: string): Promise<{ status: string; local_path: string; scan_started: boolean }> =>
+      request(`/api/projects/${projectId}/github/clone`, { method: 'POST', body: JSON.stringify({ path: path || '' }) }),
 
     syncGitHubIssues: (projectId: string): Promise<{ synced: number; created: number; updated: number }> =>
       request(`/api/projects/${projectId}/github/sync`, { method: 'POST' }),
@@ -44,6 +47,9 @@ export function createProjectMethods(request: RequestFn) {
 
     refreshDomainModel: (projectId: string): Promise<{ merged: number; domain_model: DomainModel }> =>
       request(`/api/projects/${projectId}/domain-model/refresh`, { method: 'POST' }),
+
+    extractDomainModelFromCode: (projectId: string): Promise<{ domain_model: DomainModel }> =>
+      request(`/api/projects/${projectId}/domain-model/extract-from-code`, { method: 'POST', timeout: 180_000 }),
 
     validateDomainModel: (projectId: string): Promise<DomainModelValidation> =>
       request(`/api/projects/${projectId}/domain-model/validate`, { method: 'POST' }),

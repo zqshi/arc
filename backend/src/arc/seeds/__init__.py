@@ -25,7 +25,6 @@ async def ensure_seed_users() -> None:
         from arc.application.auth.password import hash_password
         from arc.domain.user.entity import User
         from arc.infrastructure.database import async_session_factory
-        from arc.infrastructure.repositories.project import ProjectRepository
         from arc.infrastructure.repositories.user import UserRepository
 
         async with async_session_factory() as db:
@@ -43,14 +42,23 @@ async def ensure_seed_users() -> None:
                 logger.info("Seed user created: %s", acct["username"])
             await db.commit()
 
-            proj_repo = ProjectRepository(db)
+            # Check if seed data has ever been created (including deleted projects)
+            from sqlalchemy import select, func
+            from arc.infrastructure.models.project import ProjectModel
+
             for acct in SEED_ACCOUNTS:
                 u = await user_repo.get_by_username(acct["username"])
                 if not u:
                     continue
-                existing = await proj_repo.list_all(user_id=u.id)
-                if existing:
-                    continue
+                # Query ALL projects for this user (including deleted ones)
+                result = await db.execute(
+                    select(func.count())
+                    .select_from(ProjectModel)
+                    .where(ProjectModel.user_id == u.id)
+                )
+                total_ever = result.scalar_one()
+                if total_ever > 0:
+                    continue  # User has had projects before, don't re-seed
                 await _create_seed_data(db, u.id)
                 await db.commit()
                 logger.info("Seed demo data created for user: %s", acct["username"])

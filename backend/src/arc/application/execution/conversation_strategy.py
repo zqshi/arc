@@ -107,63 +107,119 @@ class ConversationExecutionService:
         self,
         conversation: Conversation,
     ) -> AsyncIterator[dict]:
-        """生成AI流式回复，使用AgentLoop引擎处理续写和验证。"""
+        """生成AI流式回复。当项目有 local_path 时启用 Tool Use。"""
         from arc.application.ai.adapter_pool import adapter_pool
-        from arc.application.execution.agent_loop import (
-            DELIVERABLE_REQUIRED_FIELDS,
-            AgentLoop,
-            DeliverableValidator,
-        )
 
         llm_messages = await self._build_llm_messages(conversation)
-        validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)
-        config = await self._build_loop_config(conversation.todo_id)
+        project_path = await self._get_project_local_path(conversation.todo_id)
 
-        message_id = None
-        full_content = ""
+        # Tool-aware path: project has local code directory
+        if project_path:
+            from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
+            from arc.application.execution.tools import ToolRegistry
 
-        async with adapter_pool.acquire() as adapter:
-            loop = AgentLoop(adapter, config)
-            async for event in loop.run(llm_messages, validator=validator):
-                if event.type == "chunk":
-                    if message_id is None:
-                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                    yield {"message_id": message_id, "content": event.content}
+            registry = ToolRegistry(project_path)
+            message_id = None
+            full_content = ""
 
-                elif event.type == "continuation":
-                    logger.info(
-                        "Agent loop continuation #%d (transparent)",
-                        event.metadata.get("iteration", 0),
-                    )
+            async with adapter_pool.acquire() as adapter:
+                loop = ToolAwareLoop(adapter, registry)
+                async for event in loop.run(llm_messages):
+                    if event.type == "text_delta":
+                        if message_id is None:
+                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                        full_content += event.content
+                        yield {"message_id": message_id, "content": event.content}
 
-                elif event.type == "validation_retry":
-                    logger.info(
-                        "Agent loop validation retry #%d",
-                        event.metadata.get("retry", 0),
-                    )
+                    elif event.type == "tool_call":
+                        yield {
+                            "message_id": message_id or str(uuid.uuid4()),
+                            "event": "tool_call",
+                            "tool_name": event.content,
+                            "tool_input": event.metadata.get("input", {}),
+                            "round": event.metadata.get("round", 0),
+                        }
 
-                elif event.type == "budget_warning":
-                    logger.warning(
-                        "Agent loop budget exceeded: %s/%s tokens",
-                        event.metadata.get("total_tokens"),
-                        event.metadata.get("budget"),
-                    )
+                    elif event.type == "tool_result":
+                        yield {
+                            "message_id": message_id or str(uuid.uuid4()),
+                            "event": "tool_result",
+                            "tool_name": event.metadata.get("tool_name", ""),
+                            "output_preview": event.content,
+                            "is_error": event.metadata.get("is_error", False),
+                        }
 
-                elif event.type == "error":
-                    logger.error("Agent loop error: %s", event.content)
+                    elif event.type == "error":
+                        logger.error("Tool loop error: %s", event.content)
 
-                elif event.type == "complete":
-                    full_content = event.content
-                    metrics = event.metadata.get("metrics", {})
-                    if message_id is None:
-                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                    logger.info(
-                        "Agent loop complete: %d iters, %d conts, %dms, by=%s",
-                        metrics.get("iterations", 0),
-                        metrics.get("continuations", 0),
-                        metrics.get("elapsed_ms", 0),
-                        event.metadata.get("terminated_by", "unknown"),
-                    )
+                    elif event.type == "complete":
+                        if message_id is None:
+                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                        logger.info(
+                            "Tool loop complete: %d rounds, %d tokens, %dms",
+                            event.metadata.get("tool_rounds", 0),
+                            event.metadata.get("total_tokens", 0),
+                            event.metadata.get("elapsed_ms", 0),
+                        )
+
+        else:
+            # Original text-only path
+            from arc.application.execution.agent_loop import (
+                DELIVERABLE_REQUIRED_FIELDS,
+                AgentLoop,
+                DeliverableValidator,
+                LoopConfig,
+            )
+
+            validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)
+            config = await self._build_loop_config(conversation.todo_id)
+
+            message_id = None
+            full_content = ""
+
+            async with adapter_pool.acquire() as adapter:
+                loop = AgentLoop(adapter, config)
+                async for event in loop.run(llm_messages, validator=validator):
+                    if event.type == "chunk":
+                        if message_id is None:
+                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                        full_content += event.content
+                        yield {"message_id": message_id, "content": event.content}
+
+                    elif event.type == "continuation":
+                        logger.info(
+                            "Agent loop continuation #%d (transparent)",
+                            event.metadata.get("iteration", 0),
+                        )
+
+                    elif event.type == "validation_retry":
+                        logger.info(
+                            "Agent loop validation retry #%d",
+                            event.metadata.get("retry", 0),
+                        )
+
+                    elif event.type == "budget_warning":
+                        logger.warning(
+                            "Agent loop budget exceeded: %s/%s tokens",
+                            event.metadata.get("total_tokens"),
+                            event.metadata.get("budget"),
+                        )
+
+                    elif event.type == "error":
+                        logger.error("Agent loop error: %s", event.content)
+
+                    elif event.type == "complete":
+                        full_content = event.content
+                        metrics = event.metadata.get("metrics", {})
+                        if message_id is None:
+                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                        logger.info(
+                            "Agent loop complete: %d iters, %d conts, %dms, by=%s",
+                            metrics.get("iterations", 0),
+                            metrics.get("continuations", 0),
+                            metrics.get("elapsed_ms", 0),
+                            event.metadata.get("terminated_by", "unknown"),
+                        )
 
         if not message_id:
             message_id = str(uuid.uuid4())
@@ -240,6 +296,24 @@ class ConversationExecutionService:
         if not project or not project.conversation_config:
             return "supervised"
         return project.conversation_config.get("agent_autonomy", "supervised")
+
+    async def _get_project_local_path(self, todo_id: uuid.UUID) -> str | None:
+        """获取项目 local_path，验证目录存在后返回。"""
+        from pathlib import Path
+
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return None
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.local_path:
+            return None
+        resolved = Path(project.local_path).expanduser().resolve()
+        if resolved.is_dir():
+            return str(resolved)
+        logger.warning("Project local_path does not exist: %s", project.local_path)
+        return None
 
     @staticmethod
     def _needs_user_input(content: str) -> bool:
@@ -388,6 +462,30 @@ class ConversationExecutionService:
         if ddd_tdd_context:
             project_context = project_context + "\n\n" + ddd_tdd_context
 
+        # Inject code operation capability description when tools are available
+        code_capability = ""
+        if todo and todo.project_id:
+            local_path = await self._get_project_local_path(conversation.todo_id)
+            if local_path:
+                code_capability = f"""
+
+## 代码操作能力（重要）
+你可以直接操作项目代码。项目工作目录: `{local_path}`
+
+可用工具：
+- `list_directory` — 查看目录结构，了解项目全貌
+- `read_file` — 阅读源码文件，支持指定行范围
+- `grep_search` — 搜索代码中的文本/模式
+- `run_command` — 执行 shell 命令（git/npm/pytest/ls 等）
+- `write_file` — 创建或修改文件
+
+**行为准则：**
+- 需要了解代码时，直接用工具去读，不要让用户贴代码
+- 开始分析需求前，先用 `list_directory` 了解项目结构
+- 做技术决策时，先 `read_file` 查看现有实现
+- 需要搜索特定代码时用 `grep_search`，比盲目遍历高效
+- 你是一个有手有脚的工程师，不是只会说话的顾问"""
+
         autonomy = await self.get_autonomy(conversation.todo_id)
         autopilot_section = AUTOPILOT_SECTION if autonomy == "full" else ""
 
@@ -396,7 +494,7 @@ class ConversationExecutionService:
             description=todo.description if todo else "",
             deliverable_section=deliverable_section,
             project_context=(
-                project_context + ("\n\n" + autopilot_section if autopilot_section else "")
+                project_context + code_capability + ("\n\n" + autopilot_section if autopilot_section else "")
             ),
             experience_context=experience_context,
             completed_artifacts=completed_artifacts_text,

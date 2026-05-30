@@ -131,6 +131,9 @@ export default function ProjectDetail() {
               validating={s.validatingDM}
               validation={s.dmValidation}
               onCloseValidation={() => s.setDmValidation(null)}
+              onExtractFromCode={s.handleExtractDomainModelFromCode}
+              extractingFromCode={s.extractingDMFromCode}
+              hasLocalPath={!!s.form.local_path}
             />
           )}
 
@@ -141,7 +144,7 @@ export default function ProjectDetail() {
               setForm={s.setForm}
               dirty={s.dirty}
               onSave={s.handleSave}
-              onRefresh={s.fetchData}
+              onRefresh={() => s.fetchData({ silent: true })}
               insights={s.insights}
               onAppendConvention={s.handleAppendConvention}
               githubConnected={s.project?.github_connected}
