@@ -23,11 +23,16 @@ class ScanTaskManager:
     def __init__(self):
         self._tasks: dict[str, asyncio.Task] = {}
         self._queues: dict[str, list[asyncio.Queue]] = {}
+        self._last_error: dict[str, str] = {}  # project_id → error message
         self._lock = asyncio.Lock()
 
     def is_running(self, project_id: str) -> bool:
         task = self._tasks.get(project_id)
         return task is not None and not task.done()
+
+    def get_last_error(self, project_id: str) -> str | None:
+        """Return the last scan error message for a project, or None."""
+        return self._last_error.get(project_id)
 
     async def start_scan(self, project_id: str, path: str) -> str:
         """Start a background scan task. Returns task_id."""
@@ -35,6 +40,7 @@ class ScanTaskManager:
             if self.is_running(project_id):
                 raise RuntimeError("Scan already in progress")
             self._queues[project_id] = []
+            self._last_error.pop(project_id, None)
             task_id = str(uuid.uuid4())[:8]
             task = asyncio.create_task(self._run_scan(project_id, path, task_id))
             self._tasks[project_id] = task
@@ -117,6 +123,7 @@ class ScanTaskManager:
 
         except Exception as exc:
             logger.error("Scan failed for project %s: %s", project_id, exc)
+            self._last_error[project_id] = str(exc)
             await self._emit(
                 project_id,
                 {

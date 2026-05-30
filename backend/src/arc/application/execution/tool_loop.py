@@ -27,6 +27,22 @@ MAX_TOOL_TOKENS = 200000  # Token budget for tool-use conversations
 
 
 # ---------------------------------------------------------------------------
+# Metrics
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ToolLoopMetrics:
+    """Tracks statistics for a tool-aware generation cycle."""
+
+    loop_id: str = field(default_factory=lambda: str(uuid.uuid4())[:12])
+    tool_rounds: int = 0
+    total_tokens: int = 0
+    elapsed_ms: int = 0
+    final_state: str = ""
+
+
+# ---------------------------------------------------------------------------
 # Events emitted to the frontend via SSE
 # ---------------------------------------------------------------------------
 
@@ -97,6 +113,11 @@ class ToolAwareLoop:
         self._max_tokens = max_tokens_per_call
         self._total_tokens = 0
         self._tool_rounds = 0
+        self._metrics = ToolLoopMetrics()
+
+    @property
+    def metrics(self) -> ToolLoopMetrics:
+        return self._metrics
 
     async def run(
         self,
@@ -198,6 +219,10 @@ class ToolAwareLoop:
             yield ToolLoopEvent(type="error", content=f"工具循环异常: {exc}")
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
+        self._metrics.tool_rounds = self._tool_rounds
+        self._metrics.total_tokens = self._total_tokens
+        self._metrics.elapsed_ms = elapsed_ms
+        self._metrics.final_state = "complete"
         yield ToolLoopEvent(
             type="complete",
             metadata={
