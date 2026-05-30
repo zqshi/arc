@@ -37,7 +37,7 @@ export function createProjectMethods(request: RequestFn) {
       request(`/api/projects/${projectId}/github/connect`, { method: 'POST', body: JSON.stringify({ token, repo_url: repoUrl }) }),
 
     disconnectGitHub: (projectId: string): Promise<void> =>
-      request(`/api/projects/${projectId}/github/disconnect`, { method: 'POST' }),
+      request(`/api/projects/${projectId}/github/disconnect`, { method: 'DELETE' }),
 
     cloneGitHubRepo: (projectId: string, path?: string): Promise<{ status: string; local_path: string; scan_started: boolean }> =>
       request(`/api/projects/${projectId}/github/clone`, { method: 'POST', body: JSON.stringify({ path: path || '' }) }),
