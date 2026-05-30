@@ -479,12 +479,7 @@ class ConversationExecutionService:
 - `run_command` — 执行 shell 命令（git/npm/pytest/ls 等）
 - `write_file` — 创建或修改文件
 
-**行为准则：**
-- 需要了解代码时，直接用工具去读，不要让用户贴代码
-- 开始分析需求前，先用 `list_directory` 了解项目结构
-- 做技术决策时，先 `read_file` 查看现有实现
-- 需要搜索特定代码时用 `grep_search`，比盲目遍历高效
-- 你是一个有手有脚的工程师，不是只会说话的顾问"""
+需要了解代码时直接用工具读取，不要让用户贴代码。"""
 
         autonomy = await self.get_autonomy(conversation.todo_id)
         autopilot_section = AUTOPILOT_SECTION if autonomy == "full" else ""

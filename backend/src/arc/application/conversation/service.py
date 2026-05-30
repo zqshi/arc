@@ -137,7 +137,7 @@ class ConversationService:
         Includes prior artifacts, experience context, and project context.
         """
         if not phase_type:
-            return "你是一个AI助手，帮助用户完成任务。"
+            return "帮助用户完成当前任务。"
 
         from arc.application.context.provider import ProjectContextProvider
 

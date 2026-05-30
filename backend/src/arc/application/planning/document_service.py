@@ -132,32 +132,25 @@ class DocumentService:
         from arc.application.ai.llm_adapter import LLMMessage
         from arc.application.ai.resilience import create_resilient_adapter
 
-        prompt = f"""你是一个专业的需求分析师。从以下文档中提取所有功能需求/Feature。
+        prompt = f"""从以下文档中提取所有可独立交付的功能需求。
 
 ## 文档来源: {filename}
 ## 文档内容:
 {text[:8000]}
 
-## 输出要求
-提取所有可独立交付的功能点，输出严格JSON数组：
+输出 JSON 数组:
 ```json
 [
   {{
-    "title": "功能名称（简明扼要）",
-    "description": "功能描述（1-2句话）",
+    "title": "功能名称",
+    "description": "功能描述",
     "complexity": "S/M/L/XL",
-    "category": "功能所属模块/类别",
-    "priority_hint": "high/medium/low（基于文档中的描述判断）",
+    "category": "所属模块",
+    "priority_hint": "high/medium/low",
     "dependencies": ["依赖的其他功能title"]
   }}
 ]
-```
-
-注意：
-- 每个功能点应该是可独立交付的粒度
-- complexity基于你的技术经验估算
-- 如果文档中有明确的优先级描述则采用，否则用medium
-- dependencies只填文档中提到的显式依赖"""
+```"""
 
         adapter = create_resilient_adapter()
         try:

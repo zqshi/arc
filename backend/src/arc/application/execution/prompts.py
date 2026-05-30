@@ -1,4 +1,10 @@
-"""对话驱动执行模式的系统提示词和产出物提取规则。"""
+"""对话驱动执行模式的系统提示词和产出物定义。
+
+设计哲学：意图驱动，Agent 自主推理。
+- prompt 只给目标 + 能力声明 + 上下文
+- Agent 自主决定推进路径、产出时机、分析深度
+- 质量通过输出接口契约 + 后置验证保障，不通过前置规则约束
+"""
 
 from __future__ import annotations
 
@@ -18,18 +24,17 @@ ARTIFACT_TYPE_MARKERS: dict[str, ArtifactType] = {
     "ui_design": ArtifactType.UI_DESIGN,
 }
 
-DELIVERABLE_CHECKLIST_TEMPLATE = """## 交付物清单（渐进式完成）
+DELIVERABLE_CHECKLIST_TEMPLATE = """## 交付物清单
 {checklist}
 
-## 交付物输出规则
-当你认为某个交付物内容已经充分时，使用以下格式输出：
+当你判断某个交付物可以产出时，使用以下格式：
 
 [DELIVERABLE:{artifact_type}]
 ```json
 {{结构化内容}}
 ```
 
-系统会自动解析并归档。用户可随时在侧边面板查看已归档的产出物。"""
+系统会自动解析归档。用户可在侧边面板查看已归档产出物。"""
 
 
 def build_deliverable_checklist(required: list[str], completed: list[str]) -> str:
@@ -41,71 +46,15 @@ def build_deliverable_checklist(required: list[str], completed: list[str]) -> st
     return "\n".join(lines)
 
 
-CONVERSATION_MODE_SYSTEM_PROMPT = """你是一位全栈AI工程师+产品分析师，正在帮助用户完成「{title}」。
+CONVERSATION_MODE_SYSTEM_PROMPT = """你正在帮用户完成「{title}」。
 
-## 你的工作方式
-1. 通过自然对话理解需求，不要机械地按阶段推进
-2. 根据对话进展，主动判断何时信息已足够产出某个交付物
-3. 产出交付物后征求用户确认，用户可以要求修改
-4. 遇到不确定的决策点，必须停下来问用户
-5. 保持对话的连贯性，像一个真正的搭档一样协作
-
-## 阶段推进节奏（重要）
-按照以下逻辑顺序推进，但允许根据对话自然流动调整：
-
-1. **需求澄清** → 产出 `requirement_spec`
-   - 先理解问题本质和用户场景
-   - 明确边界（做什么/不做什么）和验收标准
-   - 信息充分后立即产出需求规格
-
-2. **交互设计** → 产出 `interaction_design`
-   - 基于已确认的需求，设计用户操作流程
-   - 输出 Mermaid flowchart 表达完整用户路径
-   - 定义关键页面间的跳转逻辑和触发条件
-   - 标注异常分支和错误处理流
-
-3. **视觉规范** → 产出 `ui_spec`
-   - 基于交互设计，定义视觉风格、色彩体系、字体层级
-   - 输出核心组件的设计规范（按钮、表单、卡片等）
-   - 定义间距系统、响应式断点
-
-4. **原型设计** → 产出 `prototype`
-   - 基于交互设计+视觉规范，输出可渲染的 HTML+Tailwind 线框页面
-   - 每个关键页面/状态都有对应 wireframe
-   - 考虑响应式和异常状态的呈现
-
-5. **技术架构** → 产出 `tech_architecture`
-   **DDD 三阶段建模（自主驱动，一次性完成，不等用户确认）**：
-   - **战略设计**：识别子域（核心域 1-3 个/支撑域/通用域），划定限界上下文（职责单一、边界清晰），定义上下文间协作关系（ACL/OHS/SharedKernel/CustomerSupplier），通用域优先评估外采
-   - **事件风暴**：在每个上下文内识别领域事件（过去时态命名）、触发命令和角色，通过事件流识别聚合边界
-   - **战术建模**：设计聚合根（事务边界 + 不变量），区分实体/值对象（不可变优先值对象），聚合 < 5 实体，聚合间 ID 引用，跨聚合用领域服务
-   - 将以上三阶段结果完整填入 domain_design + event_storming + data_model 字段
-   - 规划 API 设计、技术选型，记录关键 tech_decisions 推理过程
-
-6. **开发实现** → 产出 `dev_report`
-   - [TDD] 先从 requirement_spec.acceptance_criteria 派生测试用例（Given/When/Then）
-   - [DDD] 按 tech_architecture.data_model 的聚合边界组织代码结构
-   - [红→绿→重构] 先写失败测试 → 实现最小代码使其通过 → 重构优化
-   - 记录每个聚合的不变量如何被代码保护
-
-7. **测试验证** → 产出 `test_report`
-   - 逐条验证验收标准，记录通过/未通过
-
-8. **经验沉淀** → 产出 `experience_card`
-   - 提炼可复用的决策、踩坑和适用场景
-
-## 行为准则
-- **主动推进**：不要等用户说"下一步"，当一个方面讨论充分时主动切入下一个话题
-- **主动澄清**：发现模糊、矛盾或缺失时立即追问，不要猜测
-- **渐进输出**：每当某个交付物内容已经充分，立即输出结构化内容
-- **经验注入**：如果有相关历史经验，主动提及并说明如何借鉴
-- **风险预警**：发现潜在风险时主动标记
-- **不跳过设计**：即使用户急于写代码，也要确保先有交互→视觉→原型再进入架构阶段
-- **逐步确认**：交互设计确认后再出视觉规范，视觉确认后再出原型，避免返工
+目标：作为搭档，把这个需求从想法推进到可交付的成果。你自主判断需要做什么、什么时候做、怎么做。
 
 {deliverable_section}
 
 {project_context}
+
+{ddd_context}
 
 {experience_context}
 
@@ -116,6 +65,14 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你是一位全栈AI工程师+产品分析�
 ## 已完成的交付物
 {completed_artifacts}"""
 
+
+AUTOPILOT_SECTION = """## 自驾模式
+你可以自主推进所有交付物，无需等待确认。只有在遇到真正无法独立决策的分歧点时才暂停（输出 [NEEDS_INPUT]）。"""
+
+
+# ---------------------------------------------------------------------------
+# 交付物 JSON Schema（输出接口契约 — 不是规则，是让代码能解析的格式定义）
+# ---------------------------------------------------------------------------
 
 ARTIFACT_SCHEMAS: dict[str, str] = {
     "requirement_spec": """{
@@ -221,16 +178,13 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
       {"name": "上下文名称", "subdomain": "所属子域", "description": "边界与职责"}
     ],
     "context_relations": [
-      {"from": "上游上下文", "to": "下游上下文",
-       "type": "partnership|shared_kernel|customer_supplier|conformist|anticorruption_layer|open_host_service|published_language|separate_ways",
-       "description": "协作方式说明"}
+      {"from": "上游上下文", "to": "下游上下文", "type": "协作模式", "description": "说明"}
     ]
   },
   "data_model": {
     "entities": [
       {"name": "实体名",
-       "fields": [{"name": "", "type": "", "required": true,
-                   "description": ""}],
+       "fields": [{"name": "", "type": "", "required": true, "description": ""}],
        "relations": "与其他实体的关系",
        "bounded_context": "所属限界上下文"}
     ],
@@ -238,9 +192,8 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   },
   "event_storming": {
     "events": [
-      {"name": "领域事件名（过去时态）", "context": "所属限界上下文",
-       "trigger": "触发方式（命令/事件/定时）", "actor": "触发角色",
-       "aggregate": "关联聚合"}
+      {"name": "领域事件名", "context": "所属上下文",
+       "trigger": "触发方式", "actor": "触发角色", "aggregate": "关联聚合"}
     ],
     "commands": [
       {"name": "命令名", "actor": "操作角色",
@@ -272,10 +225,10 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
     "dev_report": """{
   "methodology": "ddd_tdd 或 lightweight",
   "test_design": {
-    "derived_from": ["引用的验收标准ID，如AC-1"],
+    "derived_from": ["引用的验收标准ID"],
     "test_cases": [
       {"name": "测试名称", "type": "unit|integration|acceptance",
-       "target_aggregate": "所属聚合(DDD模式)",
+       "target_aggregate": "所属聚合",
        "given": "前置条件", "when": "操作", "then": "断言",
        "status": "pass|fail|pending"}
     ]
@@ -294,8 +247,7 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
     "refactoring_done": ["重构项"]
   },
   "decisions_made": [
-    {"decision": "决策点", "reason": "原因",
-     "ddd_rationale": "领域建模角度的考虑(可选)"}
+    {"decision": "决策点", "reason": "原因"}
   ]
 }""",
     "test_report": """{
@@ -303,8 +255,7 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
     {"criteria": "", "status": "pass/fail", "evidence": ""}
   ],
   "issues_found": [
-    {"description": "", "severity": "high/medium/low",
-     "suggestion": ""}
+    {"description": "", "severity": "high/medium/low", "suggestion": ""}
   ],
   "coverage_summary": "覆盖总结"
 }""",
@@ -312,18 +263,12 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   "problem": "解决了什么问题",
   "solution": "最终方案",
   "decisions": [
-    {"point": "决策点",
-     "options_considered": ["方案A", "方案B"],
-     "chosen": "选择的方案", "reason": "选择理由",
-     "outcome": "实际效果"}
+    {"point": "决策点", "options_considered": ["方案A", "方案B"],
+     "chosen": "选择的方案", "reason": "选择理由", "outcome": "实际效果"}
   ],
   "pitfalls": [
     {"issue": "遇到的问题", "cause": "根因分析",
      "fix": "修复方式", "prevention": "如何预防"}
-  ],
-  "assumptions_validated": [
-    {"assumption": "假设内容", "was_correct": true,
-     "lesson": "从验证/推翻中学到什么"}
   ],
   "applicable_scenarios": "适用场景",
   "reuse_checklist": ["复用前需要检查的条件"],
@@ -332,123 +277,107 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
 }
 
 
-DDD_TDD_GUIDANCE = """## 开发方法论：DDD + TDD（本项目已启用）
-
-本项目领域模型已有 {aggregate_count} 个聚合、{subdomain_count} 个子域、{context_count} 个限界上下文。
-
-### 战略设计上下文
-{strategic_section}
-
-### 战术设计上下文
-{tactical_section}
-
-### DDD 设计原则（你必须遵守）
-- 聚合是事务一致性边界，聚合间只通过 ID 引用，不直接持有
-- 每个聚合维护自己的不变量，不依赖外部状态
-- 核心域聚焦投入，通用域优先外采
-- 限界上下文间通过 ACL/OHS 等模式协作，禁止直接耦合
-- 领域事件驱动跨上下文通信
-- 值对象优先于实体（不可变 = 更安全）
-- 新增/修改实体时必须明确其所属聚合和限界上下文
-
-### TDD 流程
-1. 从已确认的验收标准(acceptance_criteria)派生测试用例
-2. 每个测试对应一个明确的业务不变量
-3. 先写失败测试 → 实现最小代码使其通过 → 重构
-
-### dev_report 产出要求
-methodology 字段设为 "ddd_tdd"，必须体现 test_design → implementation → validation 三段式。
-"""
-
-
-AUTOPILOT_SECTION = """## 自驾模式规则（当前已启用）
-- 无需等待用户确认即可推进下一阶段
-- 产出一个交付物后立即推进下一个，直到所有交付物完成
-- 只有在遇到真正无法决策的分歧时才停下来问用户（此时输出 [NEEDS_INPUT] 标记）
-- 不要问"需要我继续吗"、"你觉得怎么样"这类确认性问题
-- 每轮输出至少一个交付物，效率优先
-"""
+# ---------------------------------------------------------------------------
+# 领域模型上下文注入（只提供事实，不提供指令）
+# ---------------------------------------------------------------------------
 
 
 def build_ddd_tdd_section(domain_model: dict) -> str:
-    """根据项目领域模型复杂度决定是否注入 DDD+TDD 引导。"""
+    """将项目领域模型作为上下文注入，供 Agent 自行判断如何使用。"""
     aggregates = domain_model.get("aggregates", [])
     relations = domain_model.get("relations", [])
     subdomains = domain_model.get("subdomains", [])
     contexts = domain_model.get("contexts", [])
     aggregate_relations = domain_model.get("aggregate_relations", [])
 
-    if len(aggregates) < 3 and len(relations) == 0:
+    if len(aggregates) < 2 and not subdomains:
         return ""
 
-    # Strategic section
-    strategic_lines = []
+    lines = [f"## 项目领域模型（{len(aggregates)} 聚合, {len(subdomains)} 子域, {len(contexts)} 上下文）"]
+
     if subdomains:
-        strategic_lines.append("**子域划分：**")
+        lines.append("\n### 子域")
         for sd in subdomains:
-            strategic_lines.append(f"- {sd.get('name', '')} ({sd.get('type', '支撑域')})")
-            if sd.get("description"):
-                strategic_lines.append(f"  {sd['description']}")
+            lines.append(f"- {sd.get('name', '')} ({sd.get('type', '')}): {sd.get('description', '')}")
 
     if contexts:
-        strategic_lines.append("\n**限界上下文：**")
+        lines.append("\n### 限界上下文")
         for ctx in contexts:
             line = f"- {ctx.get('name', '')}"
             if ctx.get("subdomain"):
                 line += f" → {ctx['subdomain']}"
-            strategic_lines.append(line)
+            if ctx.get("description"):
+                line += f": {ctx['description']}"
+            lines.append(line)
 
     if relations:
-        strategic_lines.append("\n**上下文间关系：**")
+        lines.append("\n### 上下文关系")
         for rel in relations:
-            line = f"- {rel.get('from', '')} → {rel.get('to', '')} [{rel.get('type', '')}]"
-            if rel.get("description"):
-                line += f" — {rel['description']}"
-            strategic_lines.append(line)
+            lines.append(f"- {rel.get('from', '')} → {rel.get('to', '')} [{rel.get('type', '')}]")
 
-    if not strategic_lines:
-        strategic_lines.append("（尚未建立战略设计，产出 tech_architecture 时需完成子域划分和上下文映射）")
-
-    # Tactical section
-    tactical_lines = []
-    for agg in aggregates[:15]:
-        name = agg.get("name", "")
-        ctx = agg.get("context", "")
-        entities = ", ".join(agg.get("entities", [])[:5])
-        value_objects = ", ".join(agg.get("value_objects", [])[:5])
-        events = ", ".join(agg.get("events", [])[:3])
-        methods = ", ".join(agg.get("methods", [])[:3])
-
-        line = f"- **{name}**"
-        if ctx:
-            line += f" ({ctx})"
-        parts = []
-        if entities:
-            parts.append(f"实体: {entities}")
-        if value_objects:
-            parts.append(f"值对象: {value_objects}")
-        if events:
-            parts.append(f"事件: {events}")
-        if methods:
-            parts.append(f"方法: {methods}")
-        if parts:
-            line += f" — {'; '.join(parts)}"
-        tactical_lines.append(line)
+    if aggregates:
+        lines.append("\n### 聚合")
+        for agg in aggregates[:20]:
+            name = agg.get("name", "")
+            ctx = agg.get("context", "")
+            parts = []
+            if agg.get("entities"):
+                parts.append(f"实体: {', '.join(agg['entities'][:5])}")
+            if agg.get("value_objects"):
+                parts.append(f"值对象: {', '.join(agg['value_objects'][:5])}")
+            if agg.get("methods"):
+                parts.append(f"方法: {', '.join(agg['methods'][:5])}")
+            detail = "; ".join(parts) if parts else ""
+            line = f"- **{name}**"
+            if ctx:
+                line += f" ({ctx})"
+            if detail:
+                line += f" — {detail}"
+            lines.append(line)
 
     if aggregate_relations:
-        tactical_lines.append("\n**聚合间引用：**")
-        for rel in aggregate_relations[:10]:
-            tactical_lines.append(
-                f"- {rel.get('from', '')} → {rel.get('to', '')} [{rel.get('type', '')}]"
-            )
+        lines.append("\n### 聚合关系")
+        for rel in aggregate_relations[:15]:
+            lines.append(f"- {rel.get('from', '')} → {rel.get('to', '')} [{rel.get('type', '')}]")
 
-    if not tactical_lines:
-        tactical_lines.append("（尚未建立战术模型）")
+    # 附加参考模式——Agent 根据项目实际情况自行选用
+    lines.append("\n### 可参考的架构模式")
+    lines.append(_REFERENCE_PATTERNS)
 
-    return DDD_TDD_GUIDANCE.format(
-        aggregate_count=len(aggregates),
-        subdomain_count=len(subdomains),
-        context_count=len(contexts),
-        strategic_section="\n".join(strategic_lines),
-        tactical_section="\n".join(tactical_lines),
-    )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# 参考模式库 — 作为上下文提供，Agent 自行判断适用性
+# ---------------------------------------------------------------------------
+
+_REFERENCE_PATTERNS = """\
+以下模式供参考，根据项目实际情况选用最合适的：
+
+**DDD（领域驱动设计）** — 适合业务逻辑复杂、有明确领域概念的系统
+- 聚合 = 事务一致性边界，聚合间 ID 引用
+- 值对象优先（不可变 = 安全）
+- 限界上下文间通过 ACL/OHS/事件协作
+- 领域事件驱动跨上下文通信
+
+**TDD（测试驱动开发）** — 适合有明确验收标准、需要高可靠性的交付
+- 从验收标准派生测试用例
+- Red → Green → Refactor
+- 每个测试对应一个业务不变量
+
+**Clean Architecture** — 适合需要长期维护、技术栈可能变更的系统
+- 依赖方向：外层 → 内层
+- domain 不依赖框架和基础设施
+- 通过接口反转依赖
+
+**Event Sourcing** — 适合需要完整审计轨迹、时间旅行的业务
+- 存储事件而非当前状态
+- 重放事件重建状态
+
+**CQRS** — 适合读写模式差异大的场景
+- 命令（写）和查询（读）分离
+- 读模型可针对查询优化
+
+**微服务/模块化单体** — 架构粒度选择
+- 微服务：团队独立部署、技术栈异构
+- 模块化单体：单进程但模块边界清晰，必要时可拆"""
