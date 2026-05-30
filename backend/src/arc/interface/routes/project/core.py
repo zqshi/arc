@@ -325,6 +325,22 @@ async def archive_project(
     return _project_resp(project)
 
 
+@router.post("/{project_id}/activate", response_model=ProjectResponse)
+async def activate_project(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """取消归档，恢复为活跃状态。"""
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    project.activate()
+    await repo.update(project)
+    return _project_resp(project)
+
+
 # ── GitHub Integration ─────────────────────────────────────
 
 

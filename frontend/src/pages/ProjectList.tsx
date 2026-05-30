@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderOpen, Archive, Trash2 } from 'lucide-react';
+import { Plus, FolderOpen, Archive, Trash2, RotateCw } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
 import ActionMenu from '../components/ActionMenu';
@@ -15,6 +15,7 @@ export default function ProjectList() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -22,7 +23,7 @@ export default function ProjectList() {
     setLoading(true);
     setFetchError(null);
     try {
-      const data = await api.listProjects();
+      const data = await api.listProjects(showArchived);
       setProjects(data);
     } catch (err) {
       const msg = err instanceof ApiError ? `${err.status}: ${err.detail}` : String(err);
@@ -31,7 +32,7 @@ export default function ProjectList() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     fetchProjects();
@@ -64,8 +65,18 @@ export default function ProjectList() {
     }
   };
 
+  const handleActivate = async (id: string) => {
+    try {
+      await api.activateProject(id);
+      fetchProjects();
+      toast('项目已恢复', 'success');
+    } catch {
+      toast('恢复失败', 'error');
+    }
+  };
+
   const handleDelete = async (project: Project) => {
-    if (!window.confirm(`确定删除项目「${project.name}」？此操作不可撤销。`)) return;
+    if (!window.confirm(`确定删除项目「${project.name}」？删除后可在管理后台恢复。`)) return;
     try {
       await api.deleteProject(project.id);
       fetchProjects();
@@ -78,7 +89,9 @@ export default function ProjectList() {
 
   const getProjectActions = (project: Project): ActionMenuItem[] => {
     const items: ActionMenuItem[] = [];
-    if (project.status !== 'archived') {
+    if (project.status === 'archived') {
+      items.push({ label: '恢复', icon: <RotateCw size={12} />, onClick: () => handleActivate(project.id) });
+    } else {
       items.push({ label: '归档', icon: <Archive size={12} />, onClick: () => handleArchive(project.id) });
     }
     items.push({ label: '删除', icon: <Trash2 size={12} />, danger: true, onClick: () => handleDelete(project) });
@@ -93,6 +106,17 @@ export default function ProjectList() {
           <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[11px] font-medium text-accent">
             {projects.length}
           </span>
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className={`ml-3 flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+              showArchived
+                ? 'border-accent/30 bg-accent/8 text-accent'
+                : 'border-border text-text-muted hover:border-text-muted hover:text-text-secondary'
+            }`}
+          >
+            <Archive size={11} />
+            {showArchived ? '隐藏已归档' : '显示已归档'}
+          </button>
         </div>
         <button
           onClick={() => setShowCreate(true)}
