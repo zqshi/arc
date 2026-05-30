@@ -4,7 +4,9 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import select
 
+from arc.infrastructure.models.project import ProjectModel
 from arc.infrastructure.repositories.project import (
     ProjectRepository,
     VersionRepository,
@@ -275,7 +277,30 @@ async def delete_project(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # 逻辑删除：标记 status=deleted，保留数据
+    # 逻辑删除：标记 status=deleted + deleted_at，保留数据
     project.soft_delete()
     await repo.update(project)
     await db.commit()
+
+
+@router.post("/{project_id}/restore")
+async def restore_project(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """恢复逻辑删除的项目。"""
+    repo = ProjectRepository(db)
+    # 查询时需包含已删除项目
+    result = await db.execute(
+        select(ProjectModel).where(ProjectModel.id == project_id)
+    )
+    model = result.scalar_one_or_none()
+    if not model or model.status != "deleted":
+        raise HTTPException(404, "Deleted project not found")
+    project = repo._to_entity(model)
+    project.restore()
+    await repo.update(project)
+    await db.commit()
+    from arc.interface.routes.project._helpers import _project_resp
+    return _project_resp(project)

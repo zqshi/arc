@@ -37,6 +37,7 @@ class Project:
     github_token: str = ""
     github_webhook_secret: str = ""
     github_config: dict = field(default_factory=dict)
+    deleted_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -49,9 +50,20 @@ class Project:
         self.updated_at = datetime.now(UTC)
 
     def soft_delete(self) -> None:
-        """逻辑删除：标记为 deleted，保留数据。"""
+        """逻辑删除：标记为 deleted，记录时间戳，保留数据。"""
         self.status = ProjectStatus.DELETED
+        self.deleted_at = datetime.now(UTC)
         self.updated_at = datetime.now(UTC)
+
+    def restore(self) -> None:
+        """恢复逻辑删除的项目。"""
+        self.status = ProjectStatus.ACTIVE
+        self.deleted_at = None
+        self.updated_at = datetime.now(UTC)
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
     def set_execution_mode(self, mode: ExecutionMode) -> None:
         self.execution_mode = mode
