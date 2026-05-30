@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.project.entity import Project, Version
+from arc.domain.project.repository import AbstractProjectRepository, AbstractVersionRepository
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
@@ -18,7 +19,7 @@ from arc.infrastructure.models.todo import Todo as TodoModel
 from arc.infrastructure.models.user import ProjectMemberModel
 
 
-class ProjectRepository:
+class ProjectRepository(AbstractProjectRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -185,7 +186,7 @@ class ProjectRepository:
         return merged
 
 
-class VersionRepository:
+class VersionRepository(AbstractVersionRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
