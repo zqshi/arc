@@ -48,7 +48,7 @@ class ArtifactService:
         messages.append(
             LLMMessage(
                 role="system",
-                content="你是一个信息提取助手，根据对话内容生成结构化输出。",
+                content="根据对话内容生成结构化输出。",
             )
         )
         for msg in conv.messages:

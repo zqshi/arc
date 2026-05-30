@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 EXTRACTION_PROMPT = """\
-你是一个经验提取专家。根据以下待办任务的完整信息和对话记录，提取一条结构化经验。
+从以下任务的完整信息和对话中，提取可复用的经验。
 
 ## 任务信息
 标题: {title}
@@ -34,54 +34,32 @@ EXTRACTION_PROMPT = """\
 ## 对话记录
 {conversation_log}
 
-## 提取要求
-1. **决策溯源**：每个关键决策必须记录考虑过的替代方案和放弃理由
-2. **假设验证**：从对话中识别项目开始时的假设，标注哪些被验证/推翻
-3. **踩坑预防**：不仅记录问题和修复方式，还要总结如何预防同类问题
-4. **复用条件**：明确这个经验在什么条件下可以复用
-5. **自动打标**：基于内容打标签，覆盖技术栈、问题领域、复杂度级别
-
-请以JSON格式输出：
+输出 JSON:
 {{
-  "title": "经验标题（简洁概括核心收获）",
-  "problem": "遇到的问题（具体描述，包含上下文）",
-  "solution": "最终解决方案（具体到可执行的程度）",
+  "title": "经验标题",
+  "problem": "遇到的问题",
+  "solution": "最终方案",
   "category": "technical|business_rule|pitfall|architecture_decision",
   "decisions": [
-    {{
-      "point": "决策点",
-      "options_considered": ["方案A", "方案B"],
-      "chosen": "选择的方案",
-      "reason": "选择理由",
-      "outcome": "实际效果"
-    }}
+    {{"point": "", "options_considered": [], "chosen": "", "reason": "", "outcome": ""}}
   ],
   "pitfalls": [
-    {{
-      "issue": "遇到的问题",
-      "cause": "根因分析",
-      "fix": "修复方式",
-      "prevention": "如何预防同类问题"
-    }}
+    {{"issue": "", "cause": "", "fix": "", "prevention": ""}}
   ],
   "assumptions_validated": [
-    {{
-      "assumption": "项目开始时的假设",
-      "was_correct": true,
-      "lesson": "从验证/推翻中学到什么"
-    }}
+    {{"assumption": "", "was_correct": true, "lesson": ""}}
   ],
-  "applicable_scenarios": "适用场景描述",
-  "reuse_checklist": ["复用前需要检查的条件"],
-  "tags": ["标签1", "标签2"],
+  "applicable_scenarios": "",
+  "reuse_checklist": [],
+  "tags": [],
   "context_tags": {{
-    "tech_stack": ["涉及的技术栈"],
-    "domain": "问题领域",
+    "tech_stack": [],
+    "domain": "",
     "complexity": "low|medium|high"
   }}
 }}
 
-只输出JSON，不要其他内容。"""
+只输出 JSON。"""
 
 
 TAG_COLORS = {

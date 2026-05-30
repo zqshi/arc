@@ -34,64 +34,41 @@ logger = logging.getLogger(__name__)
 
 
 PLANNING_SYSTEM_PROMPT = """\
-你是一位资深产品经理 + 技术项目经理，负责将功能需求拆分为合理的版本路线图。
+将以下功能需求规划为版本路线图。
 
-## 你的规划方法论
-1. **理解全貌**：先理清所有功能点及其依赖关系
-2. **确定策略**：根据约束条件选择最优的版本切分策略
-3. **版本切分**：每个版本必须有独立的用户价值（能讲出一个完整故事）
-4. **容量校验**：每个版本的工作量必须在约束范围内
-5. **风险前置**：高风险功能放在前面验证
-
-## 切分策略选项
-- **MVP优先**：第一个版本只做最小可行产品，快速验证
-- **模块优先**：按业务模块分期交付，每期完成一个完整模块
-- **风险驱动**：技术风险高的先做，降低后期不确定性
-
-## 约束条件
+约束条件：
 {constraints}
 
-## 功能清单
+功能清单：
 {features}
 
-## 输出要求
-产出严格JSON格式的版本路线图：
+输出 JSON:
 ```json
 {{
-  "strategy": "选择的策略名称",
-  "strategy_rationale": "为什么选择这个策略（结合项目特点说明）",
+  "strategy": "选择的策略",
+  "strategy_rationale": "为什么选这个策略",
   "versions": [
     {{
-      "name": "版本号和代号",
-      "goal": "版本目标（一句话，用户视角）",
-      "scope_rationale": "为什么把这些功能放在这个版本（不超过2句话）",
+      "name": "版本号",
+      "goal": "版本目标（用户视角）",
+      "scope_rationale": "为什么这些功能在这个版本",
       "features": [
-        {{
-          "title": "功能名称",
-          "complexity": "S/M/L/XL",
-          "priority": 1
-        }}
+        {{"title": "", "complexity": "S/M/L/XL", "priority": 1}}
       ],
       "estimated_sprints": 2,
-      "risks": ["风险项"],
-      "dependencies": ["依赖的前序版本"]
+      "risks": [],
+      "dependencies": []
     }}
   ],
-  "timeline_mermaid": "gantt图的Mermaid代码",
+  "timeline_mermaid": "gantt Mermaid 代码",
   "total_estimated_weeks": 12
 }}
-```
-
-重要：
-- 每个版本必须有独立的用户价值，不能出现"做了半个功能"的版本
-- estimated_sprints基于约束条件中的迭代周期和人力计算
-- 如果功能点太多，可以建议合理的分期数量
-- timeline_mermaid必须是可直接渲染的Mermaid gantt语法"""
+```"""
 
 
-ITERATION_REVIEW_PROMPT = """你是一位敏捷教练，负责分析当前迭代状态并给出下一步建议。
+ITERATION_REVIEW_PROMPT = """分析当前迭代状态，评估进展并给出行动建议。
 
-## 当前版本信息
+## 当前版本
 版本: {version_name}
 目标: {version_goal}
 
@@ -100,15 +77,7 @@ ITERATION_REVIEW_PROMPT = """你是一位敏捷教练，负责分析当前迭代
 ## 需求状态
 {todo_status_summary}
 
-## 分析要求
-1. 本迭代进展评估（按时/延期/提前）
-2. 阻塞项识别和建议
-3. 代码现状与版本目标的差距分析（基于代码库概况，如果有）
-4. 下个迭代需求推荐（从backlog中选择）
-5. 版本目标完整性检查（当前进度是否在版本目标轨道上）
-6. 风险预警（包括技术债务风险）
-
-输出简洁的分析报告，用markdown格式。"""
+输出简洁的分析报告（Markdown）。"""
 
 
 def _feature_key(title: str) -> str:
