@@ -9,7 +9,7 @@
 
 - [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
-- [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md)
+- [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md)
 
 ---
 
@@ -20,11 +20,14 @@
 | domain/organization 模块缺少测试 | P2 | v2.2.0 质量检测 6.6 | pending |
 | application 层部分 service 缺少测试 (auth/artifact/agent_loop) | P2 | v2.2.0 质量检测 6.6 | pending |
 | 前端测试体系建立 | P3 | v2.2.0 质量检测 6.6 | pending |
-| planning_service.py ~571 行, 需拆分 | P1 | v2.2.0 质量检测 6.5 | v2.3.0 T6 处理中 |
-| 值对象建模 — 12 个 dict 字段应显式建模 (pipeline_config/domain_model 等) | P2 | v2.3.0 审计 | pending |
-| 聚合边界重构 — service 跨 5-7 聚合直接访问 repo | P2 | v2.3.0 审计 | pending (需 DI 完成后) |
-| 前端 8 个组件超 300 行 (SettingsTab/ConversationModeView/PipelineModeView 等) | P3 | v2.3.0 审计 | pending |
-| application 层直接 import ORM 模型 (auth/billing 绕过 repo) | P2 | v2.3.0 审计 | pending |
+| planning_service.py ~557 行, 需拆分 | P1 | v2.2.0 质量检测 6.5 | v2.4.0 T6 |
+| 值对象建模 — 12 个 dict 字段应显式建模 | P2 | v2.3.0 审计 | pending |
+| 聚合边界重构 — service 跨聚合直接访问 repo | P2 | v2.3.0 审计 | pending (需 DI 完成后) |
+| 前端 4 个组件超 500 行 | P2 | v2.3.0 质量检测 | v2.4.0 T6 |
+| application 层循环依赖 (2 个环) | P1 | v2.3.0 质量检测 | v2.4.0 T3 |
+| tool_loop 穿透 adapter 封装 | P2 | v2.3.0 遗留 | v2.4.0 T4+T5 |
+| 扫描状态纯内存不持久化 | P1 | v2.3.0 用户反馈 | v2.4.0 T1 |
+| 项目硬删除无恢复能力 | P1 | v2.3.0 用户反馈 | v2.4.0 T2 |
 
 ---
 

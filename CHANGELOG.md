@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-05-30
+
+### Added
+- 对话模式 Tool Use 完整链路: ToolRegistry(5工具) + ToolAwareLoop(Anthropic+OpenAI) + SSE 事件广播
+- GitHub 连接自动 clone + scan: connect 后自动 clone 到 ~/.arc/repos/, 自动触发扫描
+- 扫描状态查询 API: GET /scan-codebase/status
+- quick_message_service.py: route 层业务逻辑抽取到 application 层
+- 12 个新单元测试 (github_service/quick_message_service)
+
+### Fixed
+- 扫描永远卡在"扫描中": SSE 订阅竞态条件 — subscribe() 检查 is_running + 300s 超时
+- 扫描闪退: SSE 空订阅时重查 DB 拿最新结果 + 错误透传
+- scanner_analysis.py import 错误: get_settings → settings 单例
+- ToolAwareLoop 缺少 metrics 属性导致 AttributeError
+- 前端 close 事件闭包过期 + SSE 5min 超时保护
+
+### Changed
+- backend/.env.example 补齐 config.py 对应的 17 个缺失字段
+- k8s/secrets.yml → secrets.example.yml (防误填真实密钥)
+- k8s/configmap.yml 补充 ARC_DB_POOL_RECYCLE
+- routes/todo.py 精简 68 行 (逻辑移入 service)
+- routes/project/core.py clone 逻辑从 route 移入 github_service
+
 ## [2.2.0] - 2026-05-27
 
 ### Added
