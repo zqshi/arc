@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.domain.pipeline.value_objects import PhaseType
 from arc.domain.project.value_objects import ExecutionMode
 from arc.domain.todo.entity import Todo as TodoEntity
+from arc.domain.todo.repository import AbstractTodoRepository
 from arc.domain.todo.value_objects import Tag, TodoStatus
 from arc.infrastructure.models.todo import Todo as TodoModel
 from arc.infrastructure.models.todo import TodoDependency
@@ -66,7 +67,7 @@ class TodoDependencyRepository:
         return blocks_map
 
 
-class TodoRepository:
+class TodoRepository(AbstractTodoRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 

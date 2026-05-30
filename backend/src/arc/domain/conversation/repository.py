@@ -4,24 +4,39 @@ import uuid
 from abc import ABC, abstractmethod
 
 from arc.domain.conversation.entity import Conversation, Message
-from arc.domain.todo.value_objects import MessageRole
+from arc.domain.todo.value_objects import ConversationPurpose
 
 
-class IConversationRepository(ABC):
-    @abstractmethod
-    async def get_by_id(self, conversation_id: uuid.UUID) -> Conversation | None: ...
-
-    @abstractmethod
-    async def list_by_todo_id(self, todo_id: uuid.UUID) -> list[Conversation]: ...
+class AbstractConversationRepository(ABC):
+    """Domain-level contract for conversation persistence."""
 
     @abstractmethod
-    async def create(self, conversation: Conversation) -> Conversation: ...
+    async def get_by_id(
+        self, conversation_id: uuid.UUID
+    ) -> Conversation | None: ...
+
+    @abstractmethod
+    async def list_by_todo_id(
+        self, todo_id: uuid.UUID
+    ) -> list[Conversation]: ...
+
+    @abstractmethod
+    async def get_by_todo_and_purpose(
+        self,
+        todo_id: uuid.UUID,
+        purpose: ConversationPurpose,
+    ) -> Conversation | None: ...
+
+    @abstractmethod
+    async def create(self, entity: Conversation) -> Conversation: ...
 
     @abstractmethod
     async def add_message(
         self,
-        conversation_id: uuid.UUID,
-        role: MessageRole,
-        content: str,
-        metadata: dict | None = None,
+        conv_id: uuid.UUID,
+        message: Message,
     ) -> Message: ...
+
+
+# Backward-compatible alias
+IConversationRepository = AbstractConversationRepository
