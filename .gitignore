@@ -34,6 +34,9 @@ logs/
 *.log
 npm-debug.log*
 
+# ─── Kubernetes secrets (only .example tracked) ──────────
+k8s/secrets.yml
+
 # ─── Docker volumes (local data) ─────────────────────────
 pgdata/
 openhands_data/
