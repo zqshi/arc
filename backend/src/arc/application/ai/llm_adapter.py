@@ -302,6 +302,7 @@ class OpenAIAdapter(LLMAdapter):
             messages=messages,
             max_tokens=max_tokens,
             tools=tools,
+            parallel_tool_calls=True,
         )
         return {
             "type": "openai",

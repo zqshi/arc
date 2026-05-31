@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   FileText,
@@ -10,6 +10,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useConversationSocket } from '../../hooks/useConversationSocket';
+import type { ToolCallInfo } from '../../hooks/useConversationSocket';
 import { useToast } from '../../components/Toast';
 import { api } from '../../api/client';
 import ExperienceDetailModal from '../../components/ExperienceDetailModal';
@@ -156,49 +157,12 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                   retryDisabled={wsRetryDisabled}
                 />
                 {/* Tool call activity indicator */}
-                {toolCalls.length > 0 && isStreaming && (
-                  <div className="mt-2 space-y-1.5 border-t border-border/50 pt-2">
-                    {toolCalls.map((tc) => (
-                      <div
-                        key={tc.id}
-                        className={`flex items-start gap-2 rounded-md px-3 py-1.5 text-[11px] ${
-                          tc.status === 'running'
-                            ? 'bg-accent/5 border border-accent/20'
-                            : tc.is_error
-                              ? 'bg-status-error/5 border border-status-error/20'
-                              : 'bg-bg-elevated border border-border/50'
-                        }`}
-                      >
-                        <span className={`mt-0.5 flex-shrink-0 ${
-                          tc.status === 'running' ? 'animate-pulse text-accent' : tc.is_error ? 'text-status-error' : 'text-status-done'
-                        }`}>
-                          {tc.status === 'running' ? '⟳' : tc.is_error ? '✗' : '✓'}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <span className="font-medium text-text-primary">{tc.tool_name}</span>
-                          {tc.tool_input && (
-                            <span className="ml-2 text-text-muted truncate">
-                              {tc.tool_name === 'read_file' && (tc.tool_input as Record<string,string>).path}
-                              {tc.tool_name === 'list_directory' && ((tc.tool_input as Record<string,string>).path || '.')}
-                              {tc.tool_name === 'grep_search' && `"${(tc.tool_input as Record<string,string>).pattern}"`}
-                              {tc.tool_name === 'run_command' && (tc.tool_input as Record<string,string>).command}
-                              {tc.tool_name === 'write_file' && (tc.tool_input as Record<string,string>).path}
-                            </span>
-                          )}
-                          {tc.output_preview && tc.status === 'done' && (
-                            <details className="mt-1">
-                              <summary className="cursor-pointer text-[10px] text-text-muted hover:text-text-secondary">
-                                查看结果
-                              </summary>
-                              <pre className="mt-1 max-h-32 overflow-auto rounded bg-bg-primary p-2 text-[10px] text-text-secondary whitespace-pre-wrap">
-                                {tc.output_preview}
-                              </pre>
-                            </details>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                {toolCalls.length > 0 && (
+                  isStreaming ? (
+                    <ToolCallsLive toolCalls={toolCalls} />
+                  ) : (
+                    <ToolCallsCollapsed toolCalls={toolCalls} />
+                  )
                 )}
               </div>
               <div className="border-t border-border px-4 py-2.5">
@@ -357,6 +321,158 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
 
       <ExperienceDetailModal experience={selectedExp} onClose={() => setSelectedExp(null)} />
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tool call display helpers
+// ---------------------------------------------------------------------------
+
+/** Max items to show inline before collapsing a parallel batch. */
+const PARALLEL_INLINE_LIMIT = 5;
+
+function toolCallLabel(tc: ToolCallInfo): string {
+  const input = tc.tool_input as Record<string, string>;
+  switch (tc.tool_name) {
+    case 'read_file': return input.path || '';
+    case 'list_directory': return input.path || '.';
+    case 'grep_search': return `"${input.pattern || ''}"`;
+    case 'run_command': return input.command || '';
+    case 'write_file': return input.path || '';
+    default: return '';
+  }
+}
+
+/** Group consecutive parallel tool calls into batches for visual grouping. */
+function groupToolCalls(calls: ToolCallInfo[]): (ToolCallInfo | ToolCallInfo[])[] {
+  const groups: (ToolCallInfo | ToolCallInfo[])[] = [];
+  let batch: ToolCallInfo[] = [];
+  for (const tc of calls) {
+    if (tc.parallel) {
+      batch.push(tc);
+    } else {
+      if (batch.length > 0) { groups.push(batch); batch = []; }
+      groups.push(tc);
+    }
+  }
+  if (batch.length > 0) groups.push(batch);
+  return groups;
+}
+
+/** Single tool call row — compact one-liner. */
+function ToolCallRow({ tc }: { tc: ToolCallInfo }) {
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] rounded hover:bg-bg-elevated/60">
+      <span className={`flex-shrink-0 text-[10px] ${
+        tc.status === 'running' ? 'animate-pulse text-accent' : tc.is_error ? 'text-status-error' : 'text-status-done'
+      }`}>
+        {tc.status === 'running' ? '⟳' : tc.is_error ? '✗' : '✓'}
+      </span>
+      <span className="font-medium text-text-primary whitespace-nowrap">{tc.tool_name}</span>
+      <span className="text-text-muted truncate min-w-0">{toolCallLabel(tc)}</span>
+    </div>
+  );
+}
+
+/** Compact progress bar for a batch of parallel calls. */
+function ParallelProgress({ items }: { items: ToolCallInfo[] }) {
+  const done = items.filter(tc => tc.status === 'done').length;
+  const errors = items.filter(tc => tc.is_error).length;
+  const pct = items.length > 0 ? (done / items.length) * 100 : 0;
+  const allDone = done === items.length;
+  // Dominant tool name for the summary label
+  const names = items.reduce<Record<string, number>>((acc, tc) => {
+    acc[tc.tool_name] = (acc[tc.tool_name] || 0) + 1; return acc;
+  }, {});
+  const dominant = Object.entries(names).sort((a, b) => b[1] - a[1])[0];
+  const label = dominant ? `${dominant[0]} ×${dominant[1]}` : `×${items.length}`;
+
+  return (
+    <div className="flex items-center gap-2 text-[11px]">
+      <span className="text-accent font-medium whitespace-nowrap">⚡ {label}</span>
+      <div className="h-1 flex-1 min-w-12 max-w-24 rounded-full bg-border overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-300 ${
+            errors > 0 ? 'bg-status-error' : allDone ? 'bg-status-done' : 'bg-accent'
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className={`whitespace-nowrap ${allDone ? 'text-status-done' : 'text-text-muted'}`}>
+        {done}/{items.length}{errors > 0 ? ` (${errors} 失败)` : allDone ? ' ✓' : ''}
+      </span>
+    </div>
+  );
+}
+
+/** A parallel batch — inline if ≤5, compact summary with expandable detail if >5. */
+function ParallelBatch({ items, isLive }: { items: ToolCallInfo[]; isLive: boolean }) {
+  const allDone = items.every(tc => tc.status === 'done');
+  const needsCollapse = items.length > PARALLEL_INLINE_LIMIT;
+
+  // Small batch — show all inline
+  if (!needsCollapse) {
+    return (
+      <div className="rounded-lg border border-accent/15 bg-accent/[0.02] py-1 space-y-0.5">
+        <div className="px-2.5 pb-0.5">
+          <ParallelProgress items={items} />
+        </div>
+        {items.map(tc => <ToolCallRow key={tc.id} tc={tc} />)}
+      </div>
+    );
+  }
+
+  // Large batch — compact summary, expandable
+  // Default: open while running during live, closed once done or post-stream
+  const defaultOpen = isLive && !allDone;
+
+  return (
+    <details open={defaultOpen || undefined} className="rounded-lg border border-accent/15 bg-accent/[0.02]">
+      <summary className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 select-none [&::-webkit-details-marker]:hidden [&::marker]:hidden">
+        <ParallelProgress items={items} />
+        <span className="text-[10px] text-text-muted ml-auto">
+          {allDone ? '点击展开' : ''}
+        </span>
+      </summary>
+      <div className="max-h-[140px] overflow-y-auto border-t border-accent/10 py-0.5">
+        {items.map(tc => <ToolCallRow key={tc.id} tc={tc} />)}
+      </div>
+    </details>
+  );
+}
+
+/** Live streaming view — shows tool calls as they happen. */
+function ToolCallsLive({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
+  const grouped = useMemo(() => groupToolCalls(toolCalls), [toolCalls]);
+  return (
+    <div className="mt-2 space-y-1 border-t border-border/50 pt-2">
+      {grouped.map((item, gi) =>
+        Array.isArray(item)
+          ? <ParallelBatch key={`b-${gi}`} items={item} isLive />
+          : <ToolCallRow key={item.id} tc={item} />
+      )}
+    </div>
+  );
+}
+
+/** Post-stream collapsed view — single summary line, expandable. */
+function ToolCallsCollapsed({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
+  const grouped = useMemo(() => groupToolCalls(toolCalls), [toolCalls]);
+  const parallelCount = toolCalls.filter(tc => tc.parallel).length;
+
+  return (
+    <details className="mt-2 border-t border-border/50 pt-2">
+      <summary className="cursor-pointer text-[11px] text-text-muted hover:text-text-secondary select-none">
+        🔧 工具调用 ×{toolCalls.length}{parallelCount > 0 ? `（${parallelCount} 并行）` : ''}
+      </summary>
+      <div className="mt-1.5 space-y-1">
+        {grouped.map((item, gi) =>
+          Array.isArray(item)
+            ? <ParallelBatch key={`b-${gi}`} items={item} isLive={false} />
+            : <ToolCallRow key={item.id} tc={item} />
+        )}
+      </div>
+    </details>
   );
 }
 

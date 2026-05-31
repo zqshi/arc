@@ -162,6 +162,7 @@ async def _stream_ai_response(
                         "tool_name": chunk.get("tool_name", ""),
                         "tool_input": chunk.get("tool_input", {}),
                         "round": chunk.get("round", 0),
+                        "parallel": chunk.get("parallel", False),
                     },
                 )
                 if project_id and todo_id:
