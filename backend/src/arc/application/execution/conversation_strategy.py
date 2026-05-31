@@ -119,45 +119,101 @@ class ConversationExecutionService:
             from arc.application.execution.tools import ToolRegistry
 
             registry = ToolRegistry(project_path)
+
+            # --- Sandbox integration ---
+            sandbox_runtime = None
+            sandbox_policy = await self._get_sandbox_policy(conversation.todo_id)
+            if sandbox_policy and sandbox_policy.mode.value != "none":
+                from arc.application.sandbox.runtime import create_sandbox_runtime
+                from arc.application.sandbox.tools import SandboxedToolRegistry
+
+                async def _emit_approval(event_dict: dict):
+                    yield_events.append(event_dict)
+
+                sandbox_runtime = create_sandbox_runtime(
+                    sandbox_policy, project_path,
+                    emit_callback=lambda ev: _approval_events.append(ev),
+                )
+                registry = SandboxedToolRegistry(project_path, sandbox_runtime)
+
+            # --- Orchestration integration ---
+            orchestration_enabled = await self._is_orchestration_enabled(
+                conversation.todo_id
+            )
+
             message_id = None
             full_content = ""
+            _approval_events: list[dict] = []
 
-            async with adapter_pool.acquire() as adapter:
-                loop = ToolAwareLoop(adapter, registry)
-                async for event in loop.run(llm_messages):
-                    if event.type == "text_delta":
-                        if message_id is None:
-                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                        full_content += event.content
-                        yield {"message_id": message_id, "content": event.content}
+            if orchestration_enabled:
+                from arc.application.orchestration.service import OrchestrationService
 
-                    elif event.type == "tool_call":
-                        yield {
-                            "message_id": message_id or str(uuid.uuid4()),
-                            "event": "tool_call",
-                            "tool_name": event.content,
-                            "tool_input": event.metadata.get("input", {}),
-                            "round": event.metadata.get("round", 0),
-                            "parallel": event.metadata.get("parallel", False),
-                        }
+                orch = OrchestrationService(adapter_pool)
+                event_stream = orch.execute(
+                    llm_messages, registry,
+                    conversation_id=conversation.id,
+                )
+            else:
+                async def _single_agent_stream():
+                    async with adapter_pool.acquire() as adapter:
+                        loop = ToolAwareLoop(adapter, registry)
+                        async for event in loop.run(llm_messages):
+                            yield event
 
-                    elif event.type == "tool_result":
-                        yield {
-                            "message_id": message_id or str(uuid.uuid4()),
-                            "event": "tool_result",
-                            "tool_name": event.metadata.get("tool_name", ""),
-                            "output_preview": event.content,
-                            "is_error": event.metadata.get("is_error", False),
-                            "parallel": event.metadata.get("parallel", False),
-                        }
+                event_stream = _single_agent_stream()
 
-                    elif event.type == "error":
-                        logger.error("Tool loop error: %s", event.content)
+            async for event in event_stream:
+                # --- Standard tool loop events ---
+                if event.type == "text_delta":
+                    if message_id is None:
+                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                    full_content += event.content
+                    yield {"message_id": message_id, "content": event.content}
 
-                    elif event.type == "complete":
-                        if message_id is None:
-                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                        logger.info(
+                elif event.type == "tool_call":
+                    yield {
+                        "message_id": message_id or str(uuid.uuid4()),
+                        "event": "tool_call",
+                        "tool_name": event.content,
+                        "tool_input": event.metadata.get("input", {}),
+                        "round": event.metadata.get("round", 0),
+                        "parallel": event.metadata.get("parallel", False),
+                    }
+
+                elif event.type == "tool_result":
+                    yield {
+                        "message_id": message_id or str(uuid.uuid4()),
+                        "event": "tool_result",
+                        "tool_name": event.metadata.get("tool_name", ""),
+                        "output_preview": event.content,
+                        "is_error": event.metadata.get("is_error", False),
+                        "parallel": event.metadata.get("parallel", False),
+                    }
+
+                # --- Orchestration events ---
+                elif event.type == "orchestration_start":
+                    yield {"event": "orchestration_start", **event.metadata}
+
+                elif event.type in ("worker_start", "worker_complete", "worker_error"):
+                    yield {"event": event.type, **event.metadata}
+
+                elif event.type == "synthesis_start":
+                    yield {"event": "synthesis_start", **event.metadata}
+
+                elif event.type == "orchestration_complete":
+                    yield {"event": "orchestration_complete", **event.metadata}
+
+                # --- Sandbox approval events ---
+                elif event.type == "approval_required":
+                    yield {"event": "approval_required", **event.metadata}
+
+                elif event.type == "error":
+                    logger.error("Tool loop error: %s", event.content)
+
+                elif event.type == "complete":
+                    if message_id is None:
+                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                    logger.info(
                             "Tool loop complete: %d rounds, %d tokens, %dms",
                             event.metadata.get("tool_rounds", 0),
                             event.metadata.get("total_tokens", 0),
@@ -316,6 +372,36 @@ class ConversationExecutionService:
             return str(resolved)
         logger.warning("Project local_path does not exist: %s", project.local_path)
         return None
+
+    async def _get_sandbox_policy(self, todo_id: uuid.UUID):
+        """Read sandbox policy from project conversation_config."""
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return None
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.conversation_config:
+            return None
+        sandbox_cfg = project.conversation_config.get("sandbox")
+        if not sandbox_cfg or sandbox_cfg.get("mode", "none") == "none":
+            return None
+        from arc.domain.sandbox.value_objects import SandboxPolicy
+
+        return SandboxPolicy.from_dict(sandbox_cfg)
+
+    async def _is_orchestration_enabled(self, todo_id: uuid.UUID) -> bool:
+        """Check if multi-agent orchestration is enabled for this project."""
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return False
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.conversation_config:
+            return False
+        orch_cfg = project.conversation_config.get("orchestration", {})
+        return bool(orch_cfg.get("enabled", False))
 
     @staticmethod
     def _needs_user_input(content: str) -> bool:
