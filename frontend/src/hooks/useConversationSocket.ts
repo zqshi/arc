@@ -94,8 +94,24 @@ type WsEvent =
   | WsToolResultEvent
   | WsQuotaExceededEvent
   | WsApprovalRequiredEvent
+  | { type: 'orchestration_start'; plan_id: string; subtask_count: number }
+  | { type: 'worker_start'; worker_id: string; plan_id: string; subtask: { description: string; task_type: string } }
+  | { type: 'worker_complete'; worker_id: string; output_preview: string; tokens_used: number; elapsed_ms: number }
+  | { type: 'worker_error'; worker_id: string; error: string }
+  | { type: 'synthesis_start'; plan_id: string }
+  | { type: 'orchestration_complete'; plan_id: string; total_tokens: number; worker_count: number }
   | { type: 'token_expired' }
   | { type: 'ping' };
+
+export interface WorkerInfo {
+  id: string;
+  description: string;
+  task_type: string;
+  status: 'pending' | 'running' | 'done' | 'error';
+  output_preview?: string;
+  tokens_used?: number;
+  elapsed_ms?: number;
+}
 
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000];
 
@@ -107,6 +123,8 @@ export function useConversationSocket(conversationId: string | null) {
   const [artifactsVersion, setArtifactsVersion] = useState(0);
   const [toolCalls, setToolCalls] = useState<ToolCallInfo[]>([]);
   const [pendingApproval, setPendingApproval] = useState<ApprovalInfo | null>(null);
+  const [workers, setWorkers] = useState<WorkerInfo[]>([]);
+  const [orchestrationPhase, setOrchestrationPhase] = useState<'idle' | 'working' | 'synthesizing' | 'complete'>('idle');
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
@@ -301,6 +319,49 @@ export function useConversationSocket(conversationId: string | null) {
               tool_input: data.tool_input,
             });
             break;
+
+          case 'orchestration_start':
+            setWorkers([]);
+            setOrchestrationPhase('working');
+            break;
+
+          case 'worker_start':
+            setWorkers((prev) => [
+              ...prev,
+              {
+                id: data.worker_id,
+                description: data.subtask.description,
+                task_type: data.subtask.task_type,
+                status: 'running',
+              },
+            ]);
+            break;
+
+          case 'worker_complete':
+            setWorkers((prev) =>
+              prev.map((w) =>
+                w.id === data.worker_id
+                  ? { ...w, status: 'done' as const, output_preview: data.output_preview, tokens_used: data.tokens_used, elapsed_ms: data.elapsed_ms }
+                  : w
+              )
+            );
+            break;
+
+          case 'worker_error':
+            setWorkers((prev) =>
+              prev.map((w) =>
+                w.id === data.worker_id ? { ...w, status: 'error' as const, output_preview: data.error } : w
+              )
+            );
+            break;
+
+          case 'synthesis_start':
+            setOrchestrationPhase('synthesizing');
+            break;
+
+          case 'orchestration_complete':
+            setOrchestrationPhase('complete');
+            break;
         }
       };
     }
@@ -321,6 +382,8 @@ export function useConversationSocket(conversationId: string | null) {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'message', content }));
       setToolCalls([]);
+      setWorkers([]);
+      setOrchestrationPhase('idle');
     }
   }, []);
 
@@ -348,5 +411,5 @@ export function useConversationSocket(conversationId: string | null) {
     return () => clearTimeout(retryTimer.current);
   }, []);
 
-  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion, toolCalls, pendingApproval, respondToApproval };
+  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion, toolCalls, pendingApproval, respondToApproval, workers, orchestrationPhase };
 }
