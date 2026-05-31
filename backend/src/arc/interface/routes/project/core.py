@@ -126,7 +126,16 @@ async def scan_codebase_status(
         raise HTTPException(404, "Project not found")
 
     pid = str(project_id)
-    return {"running": scan_manager.is_running(pid)}
+    running = scan_manager.is_running(pid)
+
+    # Fix stale status: DB says scanning but no task in memory (server restarted)
+    if not running and project.scan_status == "scanning":
+        project.scan_status = "idle"
+        project.scan_progress = ""
+        await repo.update(project)
+        await db.commit()
+
+    return {"running": running, "scan_status": project.scan_status}
 
 
 @router.post("/{project_id}/scan-codebase")
@@ -161,6 +170,13 @@ async def scan_codebase(
 
     if scan_manager.is_running(pid):
         raise HTTPException(409, "扫描进行中，请勿重复操作")
+
+    # Reset stale scan_status from previous server restart
+    if project.scan_status == "scanning":
+        project.scan_status = "idle"
+        project.scan_progress = ""
+        await repo.update(project)
+        await db.commit()
 
     task_id = await scan_manager.start_scan(pid, str(path))
     from starlette.responses import JSONResponse
