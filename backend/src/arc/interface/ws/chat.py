@@ -230,6 +230,17 @@ async def _stream_ai_response(
                 )
                 continue
 
+            # --- Orchestration events ---
+            if event_type in (
+                "orchestration_start", "worker_start", "worker_complete",
+                "worker_error", "synthesis_start", "orchestration_complete",
+            ):
+                await manager.broadcast(
+                    conversation_id,
+                    {"type": event_type, **{k: v for k, v in chunk.items() if k != "event"}},
+                )
+                continue
+
             if event_type == "artifacts_extracted":
                 await manager.broadcast(
                     conversation_id,
