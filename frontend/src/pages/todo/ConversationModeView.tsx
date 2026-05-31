@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useConversationSocket } from '../../hooks/useConversationSocket';
 import type { ToolCallInfo } from '../../hooks/useConversationSocket';
+import { ApprovalDialog } from '../../components/todo/ApprovalDialog';
 import { useToast } from '../../components/Toast';
 import { api } from '../../api/client';
 import ExperienceDetailModal from '../../components/ExperienceDetailModal';
@@ -63,6 +64,8 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     retryDisabled: wsRetryDisabled,
     artifactsVersion,
     toolCalls,
+    pendingApproval,
+    respondToApproval,
   } = useConversationSocket(conversationId);
 
   const fetchTracker = useCallback(async () => {
@@ -320,6 +323,14 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
       </div>
 
       <ExperienceDetailModal experience={selectedExp} onClose={() => setSelectedExp(null)} />
+      {pendingApproval && (
+        <ApprovalDialog
+          toolName={pendingApproval.tool_name}
+          toolInput={pendingApproval.tool_input}
+          requestId={pendingApproval.request_id}
+          onRespond={respondToApproval}
+        />
+      )}
     </>
   );
 }
