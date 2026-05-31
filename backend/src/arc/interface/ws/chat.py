@@ -51,6 +51,34 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# ---------------------------------------------------------------------------
+# Sandbox approval bridge
+# ---------------------------------------------------------------------------
+# Maps conversation_id → sandbox runtime for approval resolution.
+_active_sandboxes: dict[str, object] = {}
+
+
+def register_sandbox_runtime(conversation_id: str, runtime: object) -> None:
+    """Register a sandbox runtime to receive approval responses."""
+    _active_sandboxes[conversation_id] = runtime
+
+
+def unregister_sandbox_runtime(conversation_id: str) -> None:
+    """Remove sandbox runtime registration."""
+    _active_sandboxes.pop(conversation_id, None)
+
+
+def _resolve_approval(conversation_id: str, request_id: str, approved: bool) -> None:
+    """Forward an approval response to the sandbox runtime."""
+    runtime = _active_sandboxes.get(conversation_id)
+    if runtime and hasattr(runtime, "respond"):
+        runtime.respond(request_id, approved)
+    else:
+        logger.warning(
+            "Approval response for unknown sandbox: conv=%s req=%s",
+            conversation_id, request_id,
+        )
+
 
 async def _authenticate_ws(token: str | None):
     if not token:
@@ -186,6 +214,18 @@ async def _stream_ai_response(
                         "tool_name": chunk.get("tool_name", ""),
                         "output_preview": chunk.get("output_preview", ""),
                         "is_error": chunk.get("is_error", False),
+                    },
+                )
+                continue
+
+            if event_type == "approval_required":
+                await manager.broadcast(
+                    conversation_id,
+                    {
+                        "type": "approval_required",
+                        "request_id": chunk.get("request_id", ""),
+                        "tool_name": chunk.get("tool_name", ""),
+                        "tool_input": chunk.get("tool_input", {}),
                     },
                 )
                 continue
@@ -401,6 +441,13 @@ async def conversation_ws(
                 continue
 
             if data.get("type") == "pong":
+                continue
+
+            if data.get("type") == "approval_response":
+                # Bridge to sandbox runtime's pending Future
+                request_id = data.get("request_id", "")
+                approved = bool(data.get("approved", False))
+                _resolve_approval(conversation_id, request_id, approved)
                 continue
 
             if data.get("type") == "retry":

@@ -59,6 +59,19 @@ interface WsQuotaExceededEvent {
   detail: string;
 }
 
+interface WsApprovalRequiredEvent {
+  type: 'approval_required';
+  request_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+}
+
+export interface ApprovalInfo {
+  request_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+}
+
 export interface ToolCallInfo {
   id: string;
   tool_name: string;
@@ -80,6 +93,7 @@ type WsEvent =
   | WsToolCallEvent
   | WsToolResultEvent
   | WsQuotaExceededEvent
+  | WsApprovalRequiredEvent
   | { type: 'token_expired' }
   | { type: 'ping' };
 
@@ -92,6 +106,7 @@ export function useConversationSocket(conversationId: string | null) {
   const [error, setError] = useState<string | null>(null);
   const [artifactsVersion, setArtifactsVersion] = useState(0);
   const [toolCalls, setToolCalls] = useState<ToolCallInfo[]>([]);
+  const [pendingApproval, setPendingApproval] = useState<ApprovalInfo | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
@@ -278,6 +293,14 @@ export function useConversationSocket(conversationId: string | null) {
             });
             break;
           }
+
+          case 'approval_required':
+            setPendingApproval({
+              request_id: data.request_id,
+              tool_name: data.tool_name,
+              tool_input: data.tool_input,
+            });
+            break;
         }
       };
     }
@@ -314,9 +337,16 @@ export function useConversationSocket(conversationId: string | null) {
     retryTimer.current = setTimeout(() => setRetryDisabled(false), 5000);
   }, [retryDisabled]);
 
+  const respondToApproval = useCallback((requestId: string, approved: boolean) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'approval_response', request_id: requestId, approved }));
+    }
+    setPendingApproval(null);
+  }, []);
+
   useEffect(() => {
     return () => clearTimeout(retryTimer.current);
   }, []);
 
-  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion, toolCalls };
+  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion, toolCalls, pendingApproval, respondToApproval };
 }
