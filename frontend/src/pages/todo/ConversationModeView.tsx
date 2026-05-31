@@ -12,6 +12,7 @@ import {
 import { useConversationSocket } from '../../hooks/useConversationSocket';
 import type { ToolCallInfo } from '../../hooks/useConversationSocket';
 import { ApprovalDialog } from '../../components/todo/ApprovalDialog';
+import { WorkerProgress } from '../../components/todo/WorkerProgress';
 import { useToast } from '../../components/Toast';
 import { api } from '../../api/client';
 import ExperienceDetailModal from '../../components/ExperienceDetailModal';
@@ -66,6 +67,8 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     toolCalls,
     pendingApproval,
     respondToApproval,
+    workers,
+    orchestrationPhase,
   } = useConversationSocket(conversationId);
 
   const fetchTracker = useCallback(async () => {
@@ -159,6 +162,13 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                   onRetry={wsRetry}
                   retryDisabled={wsRetryDisabled}
                 />
+                {/* Multi-agent worker progress */}
+                {workers.length > 0 && (
+                  <WorkerProgress
+                    workers={workers}
+                    phase={orchestrationPhase === 'idle' ? undefined : orchestrationPhase === 'complete' ? 'complete' : orchestrationPhase === 'synthesizing' ? 'synthesizing' : 'working'}
+                  />
+                )}
                 {/* Tool call activity indicator */}
                 {toolCalls.length > 0 && (
                   isStreaming ? (
