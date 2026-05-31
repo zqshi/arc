@@ -158,7 +158,11 @@ class ScanTaskManager:
         except Exception as exc:
             logger.error("Scan failed for project %s: %s", project_id, exc)
             self._last_error[project_id] = str(exc)
-            await self._update_scan_status(project_id, "error", error=str(exc))
+            # Save partial content so user doesn't lose already-generated text
+            partial = self._accumulated.get(project_id, "")
+            await self._update_scan_status(
+                project_id, "error", error=str(exc), partial_content=partial,
+            )
             await self._emit(
                 project_id,
                 {
@@ -181,6 +185,7 @@ class ScanTaskManager:
         summary: str = "",
         fingerprint: str = "",
         error: str = "",
+        partial_content: str = "",
     ) -> None:
         """Persist scan lifecycle state to DB."""
         from uuid import UUID
@@ -202,6 +207,11 @@ class ScanTaskManager:
                     project.complete_scan(summary, fingerprint)
                 elif action == "error":
                     project.fail_scan(error)
+                    # Preserve partial content so user doesn't lose progress
+                    if partial_content:
+                        project.codebase_summary = (
+                            f"[扫描未完成 — 以下为已生成的部分内容]\n\n{partial_content}"
+                        )
                 await repo.update(project)
                 await db.commit()
         except Exception as exc:
