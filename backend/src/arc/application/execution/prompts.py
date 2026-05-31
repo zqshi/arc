@@ -54,8 +54,6 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你正在帮用户完成「{title}」。
 
 {project_context}
 
-{ddd_context}
-
 {experience_context}
 
 ## 当前任务
