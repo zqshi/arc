@@ -46,6 +46,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in ("/health", "/docs", "/openapi.json"):
             return await call_next(request)
 
+        # SSE streams are long-lived connections, not rapid-fire requests
+        if request.url.path.endswith("/stream"):
+            return await call_next(request)
+
         client_ip = request.client.host if request.client else "unknown"
         key = f"{client_ip}:{request.url.path}"
         now = time.monotonic()

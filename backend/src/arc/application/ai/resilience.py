@@ -158,10 +158,32 @@ class ResilientAdapter(LLMAdapter):
         max_tokens: int = 4096,
         stream_idle_timeout: float = _DEFAULT_STREAM_IDLE_TIMEOUT,
     ) -> tuple[AsyncIterator[str], StreamResult]:
-        self._chat_breaker.before_call()
-        inner_iter, result = await self._inner.chat_stream_with_result(
-            messages, temperature=temperature, max_tokens=max_tokens
-        )
+        # Retry connection-phase failures (e.g., 503 from upstream proxy)
+        last_exc = None
+        inner_iter = None
+        result = StreamResult(model="")
+        for attempt in range(self._max_retries):
+            self._chat_breaker.before_call()
+            try:
+                inner_iter, result = await self._inner.chat_stream_with_result(
+                    messages, temperature=temperature, max_tokens=max_tokens
+                )
+                break  # Connection succeeded
+            except (CircuitOpenError, asyncio.CancelledError):
+                raise
+            except Exception as exc:
+                self._chat_breaker.on_failure()
+                last_exc = exc
+                logger.warning(
+                    "LLM stream_with_result connect failed (attempt %d/%d): %s",
+                    attempt + 1, self._max_retries, exc,
+                )
+                if attempt < self._max_retries - 1:
+                    delay = min(2 ** attempt * 2, 16)
+                    await asyncio.sleep(delay)
+
+        if inner_iter is None:
+            raise last_exc  # type: ignore[misc]
 
         async def _wrap():
             started = False

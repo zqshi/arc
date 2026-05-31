@@ -84,23 +84,6 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
       setGhWebhookUrl(result.webhook_url);
       setGhToken('');
       toast('GitHub 已连接', 'success');
-
-      // Backend auto-clones when local_path is empty
-      const cr = result.clone_result;
-      if (cr && cr.status !== 'failed' && cr.local_path) {
-        setForm({ ...form, local_path: cr.local_path });
-        setGhCloneStep('done');
-        toast(`代码已${cr.status === 'cloned' ? '克隆' : '更新'}到本地`, 'success');
-        if (cr.scan_started) {
-          toast('正在扫描代码库...', 'success');
-        }
-      } else if (cr && cr.status === 'failed') {
-        // Auto-clone failed — fall back to manual prompt
-        setGhCloneStep('prompt');
-      } else if (!form.local_path && !cr) {
-        // No auto-clone attempted (local_path was already set)
-        // do nothing
-      }
       onRefresh();
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : 'GitHub 连接失败';
@@ -171,6 +154,10 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
   const [scanError, setScanError] = useState(initialScanStatus === 'error' ? (scanErrorText || '扫描失败') : '');
   const abortRef = useRef<AbortController | null>(null);
 
+  // Stabilize onRefresh to prevent useCallback/useEffect dependency storms
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
+
   // Shared SSE subscription logic
   const subscribeToScanStream = useCallback(() => {
     setScanning(true);
@@ -202,7 +189,7 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
           setScanContent(event.summary || '');
           setScanning(false);
           setScanStage('');
-          onRefresh();
+          onRefreshRef.current();
           break;
         case 'error':
           clearTimeout(timeout);
@@ -216,7 +203,7 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
           break;
       }
     }, controller.signal);
-  }, [projectId, onRefresh]);
+  }, [projectId]); // onRefresh via ref — no dependency needed
 
   // Auto-recover SSE subscription when component mounts and scan is running on server
   useEffect(() => {
@@ -264,7 +251,7 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
             setScanContent(event.summary || '');
             setScanning(false);
             setScanStage('');
-            onRefresh();
+            onRefreshRef.current();
             break;
           case 'error':
             clearTimeout(timeout);
@@ -289,7 +276,7 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
         setScanning(false);
       }
     }
-  }, [projectId, form, setForm, onRefresh]);
+  }, [projectId, form, setForm, subscribeToScanStream]); // onRefresh via ref
 
   useEffect(() => {
     return () => {

@@ -388,22 +388,19 @@ async def connect_github(
 
     svc = GitHubService(db)
     try:
-        result = await svc.connect_and_clone(project, token)
+        result = await svc.connect(project, token)
     except Exception:
         await db.rollback()
         raise
 
     await db.commit()
 
-    response = {
+    return {
         "status": "connected",
         "repo": result["full_name"],
         "webhook_url": f"/api/webhooks/github/{project_id}",
         "webhook_secret": result["webhook_secret"],
     }
-    if result.get("clone_result"):
-        response["clone_result"] = result["clone_result"]
-    return response
 
 
 @router.delete("/{project_id}/github/disconnect")
