@@ -423,6 +423,42 @@ class ToolRegistry:
                 is_error=True,
             )
 
+    async def execute_with_retry(
+        self, call: ToolCall, *, max_retries: int = 2,
+    ) -> ToolResult:
+        """Execute with retry on transient errors.
+
+        Transient errors (timeout, connection) are retried with exponential
+        backoff. Non-transient errors (permission, unknown tool) return
+        immediately.
+        """
+        import asyncio
+
+        result = await self.execute(call)
+        for attempt in range(max_retries):
+            if not result.is_error:
+                return result
+            if not self._is_transient_error(result.content):
+                return result
+            delay = 1.5 ** attempt
+            logger.info(
+                "Retrying tool %s (attempt %d/%d, delay %.1fs)",
+                call.name, attempt + 2, max_retries + 1, delay,
+            )
+            await asyncio.sleep(delay)
+            result = await self.execute(call)
+        return result
+
+    @staticmethod
+    def _is_transient_error(error_msg: str) -> bool:
+        """Detect transient errors that may succeed on retry."""
+        transient_patterns = [
+            "timeout", "connection", "temporary", "EAGAIN",
+            "ECONNRESET", "timed out", "超时",
+        ]
+        lower = error_msg.lower()
+        return any(p.lower() in lower for p in transient_patterns)
+
     def to_anthropic_format(self) -> list[dict]:
         """Convert tools to Anthropic API format."""
         return [

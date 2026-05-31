@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-05-31
+
+### Added — Harness 体系系统性升级 (v2.5.0 ~ v2.8.0)
+
+**v2.5.0 Context Engine (上下文引擎)**
+- ContextController 上下文装配器: token 预算分配, 优先级淘汰 (P0→P3), 缓存友好排序
+- CompressionManager 三级压缩: L1 微压缩(规则, <10ms), L2 段落压缩(LLM摘要), L3 全量压缩(重建最小上下文)
+- Anthropic Prompt Cache 支持: system 消息添加 cache_control, TTFT 降低 60-85%
+- tool_loop L1 压缩: 工具输出 >10K 字符自动 head+tail+摘要
+- conversation_strategy.py 拆分: 669行 → prompt_builder.py(217) + execution_engine.py(372) + conversation_strategy.py(284)
+
+**v2.6.0 Quality Guard (质量守卫)**
+- VerifyChain 四级验证链: 语法校验 → 语义检查 → 集成检查 → 意图自审
+- DriftDetector 漂移检测: 关键词重叠度 + 行为模式检测, 分级响应 (MILD→SEVERE)
+- ErrorLoopDetector 死循环检测: 滑动窗口周期模式识别 (周期2/3, LCS相似度)
+- ToolRegistry.execute_with_retry: 瞬时错误指数退避重试
+
+**v2.7.0 Intelligence (智能升级)**
+- MemoryScorer 五维检索打分: relevance(0.4) + recency(0.2) + frequency(0.15) + authority(0.15) + user_explicit(0.1)
+- prompt_builder 集成 MemoryScorer: 替代纯 cosine 排序, 按综合分 Top-K 注入
+
+**v2.8.0 Resilience (长程韧性)**
+- CheckpointManager 检查点: autopilot 每轮创建状态快照, 支持跨 session 恢复
+- HandoffPackage 结构化会话摘要: 目标/完成/待办/决策/失败/文件 六维提炼
+- HookManager 7注入点管道: pre_input→post_response, 事件驱动, 失败隔离, 5s 超时
+
+### Changed
+- conversation_strategy.py 从 669 行拆分为 3 个独立模块
+- ContextController 替代 get_context_window(50) 硬编码, 引入 token 预算管理
+- ExecutionEngine 传递 CompressionManager + DriftDetector + ErrorLoopDetector 给 ToolAwareLoop
+- AnthropicAdapter 4 处 LLM 调用添加 cache_control 标记
+
+## [2.4.0] - 2026-05-31
+
+### Added
+- 扫描状态/进度服务端持久化 (scan_status 字段)
+- 项目逻辑删除 (deleted_at + restore API)
+- Repository 接口补齐 (domain ABC + infrastructure 继承)
+- LLM adapter chat_with_tools() 统一接口
+
+### Fixed
+- 循环依赖消除 (artifact↔pipeline, conversation↔execution)
+- tool_loop 去私有属性访问 (穿透 adapter 封装)
+- 文件超限拆分 (6 个提取模块)
+
 ## [2.3.0] - 2026-05-30
 
 ### Added

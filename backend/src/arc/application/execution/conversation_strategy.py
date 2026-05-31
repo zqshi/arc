@@ -1,30 +1,22 @@
 """对话驱动执行模式的核心服务。
 
-与Pipeline模式不同，对话模式：
-- 一个Todo只有一个统一对话（purpose=unified）
-- AI根据对话进展自动判断阶段并产出交付物
-- 交付物通过 [DELIVERABLE:type] 标记从AI输出中自动提取
-- DeliverableTracker追踪完成进度
+职责：对话初始化 + 交付物追踪器管理 + 项目配置读取。
+执行编排和 prompt 构建已提取到:
+- execution/execution_engine.py — 流式执行编排
+- context/prompt_builder.py — 系统提示词组装
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from typing import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.application.context.prompt_builder import PromptBuilder
 from arc.application.execution.artifact_extractor import ArtifactExtractor
-from arc.application.execution.prompts import (
-    ARTIFACT_SCHEMAS,
-    AUTOPILOT_SECTION,
-    CONVERSATION_MODE_SYSTEM_PROMPT,
-    build_ddd_tdd_section,
-    build_deliverable_checklist,
-)
-from arc.domain.artifact.value_objects import ARTIFACT_LABELS, ArtifactType
+from arc.application.execution.execution_engine import ExecutionEngine
 from arc.domain.conversation.entity import Conversation
 from arc.domain.planning.entity import DeliverableTracker
 from arc.domain.todo.value_objects import ConversationPurpose, MessageRole, TodoStatus
@@ -37,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConversationExecutionService:
-    """对话驱动模式的执行引擎。"""
+    """对话驱动模式的入口服务。"""
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -46,6 +38,10 @@ class ConversationExecutionService:
         self.artifact_repo = ArtifactRepository(db)
         self.tracker_repo = DeliverableTrackerRepository(db)
         self.extractor = ArtifactExtractor(db)
+        self._prompt_builder = PromptBuilder(db)
+        self._engine = ExecutionEngine(
+            db, self._prompt_builder, self.conv_repo, self.tracker_repo, self.extractor,
+        )
 
     async def initialize(
         self,
@@ -58,8 +54,7 @@ class ConversationExecutionService:
             raise ValueError(f"Todo {todo_id} not found")
 
         existing_conv = await self.conv_repo.get_by_todo_and_purpose(
-            todo_id,
-            ConversationPurpose.UNIFIED,
+            todo_id, ConversationPurpose.UNIFIED,
         )
         if existing_conv:
             if todo.status == TodoStatus.PENDING:
@@ -75,13 +70,10 @@ class ConversationExecutionService:
             return existing_conv, tracker
 
         conv = Conversation(
-            todo_id=todo_id,
-            purpose=ConversationPurpose.UNIFIED,
+            todo_id=todo_id, purpose=ConversationPurpose.UNIFIED,
         )
-        conv.add_message(
-            role=MessageRole.SYSTEM,
-            content=f"对话模式启动：{todo.title}",
-        )
+        conv.add_message(role=MessageRole.SYSTEM, content=f"对话模式启动：{todo.title}")
+
         greeting = (
             f"你好！我来帮你完成「{todo.title}」。\n\n"
             f"在对话过程中，我会根据我们的讨论自动产出结构化交付物。"
@@ -103,317 +95,53 @@ class ConversationExecutionService:
         tracker = await self._create_tracker(todo_id, required_deliverables)
         return conv, tracker
 
+    # ------------------------------------------------------------------
+    # Execution delegation
+    # ------------------------------------------------------------------
+
     async def generate_response_stream(
-        self,
-        conversation: Conversation,
+        self, conversation: Conversation,
     ) -> AsyncIterator[dict]:
-        """生成AI流式回复。当项目有 local_path 时启用 Tool Use。"""
-        from arc.application.ai.adapter_pool import adapter_pool
-
-        llm_messages = await self._build_llm_messages(conversation)
+        """生成 AI 流式回复。委托给 ExecutionEngine。"""
         project_path = await self._get_project_local_path(conversation.todo_id)
-
-        # Tool-aware path: project has local code directory
-        if project_path:
-            from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
-            from arc.application.execution.tools import ToolRegistry
-
-            registry = ToolRegistry(project_path)
-
-            # --- Sandbox integration ---
-            sandbox_runtime = None
-            sandbox_policy = await self._get_sandbox_policy(conversation.todo_id)
-            if sandbox_policy and sandbox_policy.mode.value != "none":
-                from arc.application.sandbox.runtime import create_sandbox_runtime
-                from arc.application.sandbox.tools import SandboxedToolRegistry
-
-                async def _emit_approval(event_dict: dict):
-                    yield_events.append(event_dict)
-
-                sandbox_runtime = create_sandbox_runtime(
-                    sandbox_policy, project_path,
-                    emit_callback=lambda ev: _approval_events.append(ev),
-                )
-                registry = SandboxedToolRegistry(project_path, sandbox_runtime)
-
-            # --- Orchestration integration ---
-            orchestration_enabled = await self._is_orchestration_enabled(
-                conversation.todo_id
-            )
-
-            message_id = None
-            full_content = ""
-            _approval_events: list[dict] = []
-
-            if orchestration_enabled:
-                from arc.application.orchestration.service import OrchestrationService
-
-                orch = OrchestrationService(adapter_pool)
-                event_stream = orch.execute(
-                    llm_messages, registry,
-                    conversation_id=conversation.id,
-                )
-            else:
-                async def _single_agent_stream():
-                    async with adapter_pool.acquire() as adapter:
-                        loop = ToolAwareLoop(adapter, registry)
-                        async for event in loop.run(llm_messages):
-                            yield event
-
-                event_stream = _single_agent_stream()
-
-            async for event in event_stream:
-                # --- Standard tool loop events ---
-                if event.type == "text_delta":
-                    if message_id is None:
-                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                    full_content += event.content
-                    yield {"message_id": message_id, "content": event.content}
-
-                elif event.type == "tool_call":
-                    yield {
-                        "message_id": message_id or str(uuid.uuid4()),
-                        "event": "tool_call",
-                        "tool_name": event.content,
-                        "tool_input": event.metadata.get("input", {}),
-                        "round": event.metadata.get("round", 0),
-                        "parallel": event.metadata.get("parallel", False),
-                    }
-
-                elif event.type == "tool_result":
-                    yield {
-                        "message_id": message_id or str(uuid.uuid4()),
-                        "event": "tool_result",
-                        "tool_name": event.metadata.get("tool_name", ""),
-                        "output_preview": event.content,
-                        "is_error": event.metadata.get("is_error", False),
-                        "parallel": event.metadata.get("parallel", False),
-                    }
-
-                # --- Orchestration events ---
-                elif event.type == "orchestration_start":
-                    yield {"event": "orchestration_start", **event.metadata}
-
-                elif event.type in ("worker_start", "worker_complete", "worker_error"):
-                    yield {"event": event.type, **event.metadata}
-
-                elif event.type == "synthesis_start":
-                    yield {"event": "synthesis_start", **event.metadata}
-
-                elif event.type == "orchestration_complete":
-                    yield {"event": "orchestration_complete", **event.metadata}
-
-                # --- Sandbox approval events ---
-                elif event.type == "approval_required":
-                    yield {"event": "approval_required", **event.metadata}
-
-                elif event.type == "error":
-                    logger.error("Tool loop error: %s", event.content)
-
-                elif event.type == "complete":
-                    if message_id is None:
-                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                    logger.info(
-                            "Tool loop complete: %d rounds, %d tokens, %dms",
-                            event.metadata.get("tool_rounds", 0),
-                            event.metadata.get("total_tokens", 0),
-                            event.metadata.get("elapsed_ms", 0),
-                        )
-
-        else:
-            # Original text-only path
-            from arc.application.execution.agent_loop import (
-                DELIVERABLE_REQUIRED_FIELDS,
-                AgentLoop,
-                DeliverableValidator,
-                LoopConfig,
-            )
-
-            validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)
-            config = await self._build_loop_config(conversation.todo_id)
-
-            message_id = None
-            full_content = ""
-
-            async with adapter_pool.acquire() as adapter:
-                loop = AgentLoop(adapter, config)
-                async for event in loop.run(llm_messages, validator=validator):
-                    if event.type == "chunk":
-                        if message_id is None:
-                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                        full_content += event.content
-                        yield {"message_id": message_id, "content": event.content}
-
-                    elif event.type == "continuation":
-                        logger.info(
-                            "Agent loop continuation #%d (transparent)",
-                            event.metadata.get("iteration", 0),
-                        )
-
-                    elif event.type == "validation_retry":
-                        logger.info(
-                            "Agent loop validation retry #%d",
-                            event.metadata.get("retry", 0),
-                        )
-
-                    elif event.type == "budget_warning":
-                        logger.warning(
-                            "Agent loop budget exceeded: %s/%s tokens",
-                            event.metadata.get("total_tokens"),
-                            event.metadata.get("budget"),
-                        )
-
-                    elif event.type == "error":
-                        logger.error("Agent loop error: %s", event.content)
-
-                    elif event.type == "complete":
-                        full_content = event.content
-                        metrics = event.metadata.get("metrics", {})
-                        if message_id is None:
-                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                        logger.info(
-                            "Agent loop complete: %d iters, %d conts, %dms, by=%s",
-                            metrics.get("iterations", 0),
-                            metrics.get("continuations", 0),
-                            metrics.get("elapsed_ms", 0),
-                            event.metadata.get("terminated_by", "unknown"),
-                        )
-
-        if not message_id:
-            message_id = str(uuid.uuid4())
-
-        ai_message = conversation.add_message(
-            role=MessageRole.ASSISTANT,
-            content=full_content,
-            metadata={
-                "message_id": message_id,
-                "streamed": True,
-                "mode": "conversation",
-                "agent_loop": loop.metrics.__dict__,
-            },
+        sandbox_policy = await self._get_sandbox_policy(conversation.todo_id)
+        orchestration_enabled = await self._is_orchestration_enabled(
+            conversation.todo_id
         )
-        await self.conv_repo.add_message(conversation.id, ai_message)
 
-        extracted = await self.extractor.process_message(
-            full_content,
-            conversation.todo_id,
-        )
-        if extracted:
-            artifact_names = [
-                ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value) for a in extracted
-            ]
-            yield {
-                "message_id": message_id,
-                "event": "artifacts_extracted",
-                "artifacts": [str(a.id) for a in extracted],
-                "artifact_names": artifact_names,
-            }
-            tracker = await self.tracker_repo.get_by_todo_id(conversation.todo_id)
-            if tracker and tracker.is_complete:
-                await self._extract_experience(conversation.todo_id)
+        async for chunk in self._engine.generate_response_stream(
+            conversation,
+            project_path=project_path,
+            sandbox_policy=sandbox_policy,
+            orchestration_enabled=orchestration_enabled,
+        ):
+            yield chunk
 
     async def run_autopilot(
-        self,
-        conversation: Conversation,
+        self, conversation: Conversation,
     ) -> AsyncIterator[dict]:
-        """自驾模式：持续生成直到任务完成或需要用户澄清。"""
-        max_rounds = 12
-
-        for round_num in range(max_rounds):
-            async for chunk in self.generate_response_stream(conversation):
-                yield chunk
-
-            tracker = await self.tracker_repo.get_by_todo_id(conversation.todo_id)
-            if tracker and tracker.is_complete:
-                await self._extract_experience(conversation.todo_id)
-                yield {"event": "autopilot_complete", "reason": "all_deliverables_done"}
-                return
-
-            last_msg = conversation.messages[-1] if conversation.messages else None
-            if last_msg and self._needs_user_input(last_msg.content):
-                yield {"event": "autopilot_paused", "reason": "needs_user_input"}
-                return
-
-            advance_msg = conversation.add_message(
-                role=MessageRole.USER,
-                content="继续推进下一个阶段。",
-                metadata={"auto_advance": True, "round": round_num + 1},
-            )
-            await self.conv_repo.add_message(conversation.id, advance_msg)
-
-        yield {"event": "autopilot_paused", "reason": "max_rounds_reached"}
+        """自驾模式。委托给 ExecutionEngine。"""
+        project_path = await self._get_project_local_path(conversation.todo_id)
+        sandbox_policy = await self._get_sandbox_policy(conversation.todo_id)
+        orchestration_enabled = await self._is_orchestration_enabled(
+            conversation.todo_id
+        )
+        async for chunk in self._engine.run_autopilot(
+            conversation,
+            project_path=project_path,
+            sandbox_policy=sandbox_policy,
+            orchestration_enabled=orchestration_enabled,
+        ):
+            yield chunk
 
     async def get_autonomy(self, todo_id: uuid.UUID) -> str:
-        """获取当前 todo 所属项目的 agent_autonomy 配置。"""
-        todo = await self.todo_repo.get_by_id(todo_id)
-        if not todo or not todo.project_id:
-            return "supervised"
-        from arc.infrastructure.repositories.project import ProjectRepository
-
-        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-        if not project or not project.conversation_config:
-            return "supervised"
-        return project.conversation_config.get("agent_autonomy", "supervised")
-
-    async def _get_project_local_path(self, todo_id: uuid.UUID) -> str | None:
-        """获取项目 local_path，验证目录存在后返回。"""
-        from pathlib import Path
-
-        todo = await self.todo_repo.get_by_id(todo_id)
-        if not todo or not todo.project_id:
-            return None
-        from arc.infrastructure.repositories.project import ProjectRepository
-
-        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-        if not project or not project.local_path:
-            return None
-        resolved = Path(project.local_path).expanduser().resolve()
-        if resolved.is_dir():
-            return str(resolved)
-        logger.warning("Project local_path does not exist: %s", project.local_path)
-        return None
-
-    async def _get_sandbox_policy(self, todo_id: uuid.UUID):
-        """Read sandbox policy from project conversation_config."""
-        todo = await self.todo_repo.get_by_id(todo_id)
-        if not todo or not todo.project_id:
-            return None
-        from arc.infrastructure.repositories.project import ProjectRepository
-
-        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-        if not project or not project.conversation_config:
-            return None
-        sandbox_cfg = project.conversation_config.get("sandbox")
-        if not sandbox_cfg or sandbox_cfg.get("mode", "none") == "none":
-            return None
-        from arc.domain.sandbox.value_objects import SandboxPolicy
-
-        return SandboxPolicy.from_dict(sandbox_cfg)
-
-    async def _is_orchestration_enabled(self, todo_id: uuid.UUID) -> bool:
-        """Check if multi-agent orchestration is enabled for this project."""
-        todo = await self.todo_repo.get_by_id(todo_id)
-        if not todo or not todo.project_id:
-            return False
-        from arc.infrastructure.repositories.project import ProjectRepository
-
-        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-        if not project or not project.conversation_config:
-            return False
-        orch_cfg = project.conversation_config.get("orchestration", {})
-        return bool(orch_cfg.get("enabled", False))
-
-    @staticmethod
-    def _needs_user_input(content: str) -> bool:
-        """检测 AI 输出是否需要用户确认/澄清。"""
-        if "[NEEDS_INPUT]" in content:
-            return True
-        last_paragraph = content.strip().split("\n\n")[-1] if content.strip() else ""
-        question_indicators = ["？", "?", "你觉得", "你希望", "请确认", "你选择", "你倾向"]
-        return any(ind in last_paragraph for ind in question_indicators)
+        """获取项目的 agent_autonomy 配置。"""
+        return await self._prompt_builder._get_autonomy(
+            await self.todo_repo.get_by_id(todo_id)
+        )
 
     async def get_tracker_state(self, todo_id: uuid.UUID) -> dict:
-        """获取交付物追踪器状态，自动同步最新 required 列表并修复不一致。"""
+        """获取交付物追踪器状态。"""
         tracker = await self.tracker_repo.get_by_todo_id(todo_id)
         if not tracker:
             return {"required": [], "deliverables": {}, "completion_pct": 0}
@@ -428,7 +156,9 @@ class ConversationExecutionService:
         reconciled = False
         for atype in produced_types:
             status = tracker.deliverables.get(atype)
-            if status and status not in (DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED):
+            if status and status not in (
+                DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED,
+            ):
                 tracker.deliverables[atype] = DeliverableStatus.PRODUCED
                 reconciled = True
         if reconciled:
@@ -442,161 +172,71 @@ class ConversationExecutionService:
             "is_complete": tracker.is_complete,
         }
 
-    async def _build_loop_config(self, todo_id: uuid.UUID):
-        """从项目 conversation_config 构建 LoopConfig。"""
-        from arc.application.execution.agent_loop import LoopConfig
+    # ------------------------------------------------------------------
+    # Config readers
+    # ------------------------------------------------------------------
+
+    async def _get_project_local_path(self, todo_id: uuid.UUID) -> str | None:
+        from pathlib import Path
+        from arc.infrastructure.repositories.project import ProjectRepository
 
         todo = await self.todo_repo.get_by_id(todo_id)
         if not todo or not todo.project_id:
-            return LoopConfig()
+            return None
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.local_path:
+            return None
+        resolved = Path(project.local_path).expanduser().resolve()
+        if resolved.is_dir():
+            return str(resolved)
+        logger.warning("Project local_path does not exist: %s", project.local_path)
+        return None
 
+    async def _get_sandbox_policy(self, todo_id: uuid.UUID):
         from arc.infrastructure.repositories.project import ProjectRepository
 
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return None
         project = await ProjectRepository(self.db).get_by_id(todo.project_id)
         if not project or not project.conversation_config:
-            return LoopConfig()
+            return None
+        sandbox_cfg = project.conversation_config.get("sandbox")
+        if not sandbox_cfg or sandbox_cfg.get("mode", "none") == "none":
+            return None
+        from arc.domain.sandbox.value_objects import SandboxPolicy
 
-        loop_cfg = project.conversation_config.get("loop_config", {})
-        return LoopConfig(
-            token_budget=loop_cfg.get("token_budget", 120000),
-            wall_timeout_seconds=loop_cfg.get("wall_timeout_seconds", 300.0),
-            max_tokens_per_call=loop_cfg.get("max_tokens_per_call", 16384),
-        )
+        return SandboxPolicy.from_dict(sandbox_cfg)
 
-    async def _build_llm_messages(self, conversation: Conversation) -> list:
-        from arc.application.ai.llm_adapter import LLMMessage
+    async def _is_orchestration_enabled(self, todo_id: uuid.UUID) -> bool:
+        from arc.infrastructure.repositories.project import ProjectRepository
 
-        messages = []
-        todo = await self.todo_repo.get_by_id(conversation.todo_id)
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return False
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.conversation_config:
+            return False
+        orch_cfg = project.conversation_config.get("orchestration", {})
+        return bool(orch_cfg.get("enabled", False))
 
-        system_prompt = await self._build_system_prompt(conversation, todo)
-        messages.append(LLMMessage(role="system", content=system_prompt))
-
-        for msg in conversation.get_context_window(max_messages=50):
-            messages.append(LLMMessage(role=msg.role.value, content=msg.content))
-
-        return messages
-
-    async def _build_system_prompt(self, conversation: Conversation, todo) -> str:
-        tracker = await self.tracker_repo.get_by_todo_id(conversation.todo_id)
-        required = tracker.required if tracker else []
-        completed = [
-            k
-            for k, v in (tracker.deliverables if tracker else {}).items()
-            if v.value in ("produced", "confirmed")
-        ]
-
-        checklist = build_deliverable_checklist(required, completed)
-        deliverable_section = f"""## 交付物清单（渐进式完成）
-{checklist}
-
-## 交付物输出规则
-当你认为某个交付物内容已经充分时，使用以下格式输出：
-
-[DELIVERABLE:artifact_type]
-```json
-(结构化内容)
-```
-
-可用的artifact_type及其schema：
-""" + "\n".join(
-            f"- **{ARTIFACT_LABELS.get(ArtifactType(t), t)}** (`{t}`):"
-            f"\n```\n{ARTIFACT_SCHEMAS.get(t, '{}')}\n```"
-            for t in required
-            if t not in completed
-        )
-
-        project_context = ""
-        experience_context = ""
-        ddd_tdd_context = ""
-        completed_artifacts_text = "暂无"
-
-        if todo and todo.project_id:
-            from arc.application.context.provider import ProjectContextProvider
-            from arc.infrastructure.repositories.project import ProjectRepository
-
-            ctx_provider = ProjectContextProvider(self.db)
-            project_ctx = await ctx_provider.get_context(conversation.todo_id)
-            project_context = project_ctx.to_prompt_section()
-
-            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-            if project and project.domain_model:
-                ddd_tdd_context = build_ddd_tdd_section(project.domain_model)
-
-        if completed:
-            artifacts = await self.artifact_repo.list_by_todo_id(conversation.todo_id)
-            parts = []
-            for a in artifacts:
-                if a.artifact_type.value in completed:
-                    label = ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value)
-                    content_summary = json.dumps(a.content, ensure_ascii=False, indent=2)
-                    if len(content_summary) > 500:
-                        content_summary = content_summary[:500] + "..."
-                    parts.append(f"### {label}\n{content_summary}")
-            if parts:
-                completed_artifacts_text = "\n\n".join(parts)
-
-        if todo:
-            from arc.application.conversation.service import ConversationService
-
-            conv_svc = ConversationService(self.db)
-            try:
-                exp_text, _ = await conv_svc._build_experience_context(todo, None)
-                if exp_text:
-                    experience_context = f"## 相关历史经验\n{exp_text}"
-            except Exception:
-                pass
-
-        if ddd_tdd_context:
-            project_context = project_context + "\n\n" + ddd_tdd_context
-
-        # Inject code operation capability description when tools are available
-        code_capability = ""
-        if todo and todo.project_id:
-            local_path = await self._get_project_local_path(conversation.todo_id)
-            if local_path:
-                code_capability = f"""
-
-## 代码操作能力（重要）
-你可以直接操作项目代码。项目工作目录: `{local_path}`
-
-可用工具：
-- `list_directory` — 查看目录结构，了解项目全貌
-- `read_file` — 阅读源码文件，支持指定行范围
-- `grep_search` — 搜索代码中的文本/模式
-- `run_command` — 执行 shell 命令（git/npm/pytest/ls 等）
-- `write_file` — 创建或修改文件
-
-需要了解代码时直接用工具读取，不要让用户贴代码。"""
-
-        autonomy = await self.get_autonomy(conversation.todo_id)
-        autopilot_section = AUTOPILOT_SECTION if autonomy == "full" else ""
-
-        return CONVERSATION_MODE_SYSTEM_PROMPT.format(
-            title=todo.title if todo else "",
-            description=todo.description if todo else "",
-            deliverable_section=deliverable_section,
-            project_context=(
-                project_context + code_capability + ("\n\n" + autopilot_section if autopilot_section else "")
-            ),
-            experience_context=experience_context,
-            completed_artifacts=completed_artifacts_text,
-        )
+    # ------------------------------------------------------------------
+    # Tracker management
+    # ------------------------------------------------------------------
 
     async def _create_tracker(
-        self,
-        todo_id: uuid.UUID,
-        required_types: list[str] | None,
+        self, todo_id: uuid.UUID, required_types: list[str] | None,
     ) -> DeliverableTracker:
         if not required_types:
+            from arc.infrastructure.repositories.project import ProjectRepository
+
             todo = await self.todo_repo.get_by_id(todo_id)
             if todo and todo.project_id:
-                from arc.infrastructure.repositories.project import ProjectRepository
-
                 project = await ProjectRepository(self.db).get_by_id(todo.project_id)
                 if project and project.conversation_config:
-                    required_types = project.conversation_config.get("required_deliverables")
-
+                    required_types = project.conversation_config.get(
+                        "required_deliverables"
+                    )
         if not required_types:
             from arc.domain.project.value_objects import DEFAULT_CONVERSATION_CONFIG
 
@@ -605,23 +245,15 @@ class ConversationExecutionService:
         return await self.extractor.get_or_create_tracker(todo_id, required_types)
 
     async def _sync_tracker_required(
-        self,
-        tracker: DeliverableTracker,
-        todo,
-        override: list[str] | None,
+        self, tracker: DeliverableTracker, todo, override: list[str] | None,
     ) -> DeliverableTracker:
-        """Ensure tracker.required matches the current canonical list.
-
-        Adds missing types and reorders to match canonical sequence.
-        """
+        """同步 tracker.required 与当前规范列表。"""
         canonical = override
         if not canonical:
             if todo and todo.project_id:
                 from arc.infrastructure.repositories.project import ProjectRepository
 
-                project = await ProjectRepository(self.db).get_by_id(
-                    todo.project_id
-                )
+                project = await ProjectRepository(self.db).get_by_id(todo.project_id)
                 if project and project.conversation_config:
                     canonical = project.conversation_config.get(
                         "required_deliverables"
@@ -647,23 +279,6 @@ class ConversationExecutionService:
                 tracker.deliverables[t] = DeliverableStatus.PENDING
 
         tracker.required = list(canonical)
-
         await self.tracker_repo.update(tracker)
-        logger.info(
-            "Synced tracker %s: added deliverables %s",
-            tracker.id,
-            added,
-        )
+        logger.info("Synced tracker %s: added %s", tracker.id, added)
         return tracker
-
-    async def _extract_experience(self, todo_id: uuid.UUID) -> None:
-        from arc.application.experience.service import ExperienceService
-
-        try:
-            todo = await self.todo_repo.get_by_id(todo_id)
-            if not todo:
-                return
-            svc = ExperienceService(self.db)
-            await svc.extract_from_todo(todo)
-        except Exception as exc:
-            logger.warning("Experience extraction failed for todo %s: %s", todo_id, exc)

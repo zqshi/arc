@@ -381,7 +381,9 @@ class AnthropicAdapter(LLMAdapter):
             "max_tokens": max_tokens,
         }
         if system_text:
-            kwargs["system"] = system_text
+            kwargs["system"] = [
+                {"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}
+            ]
 
         try:
             resp = await self._client.messages.create(**kwargs)
@@ -419,7 +421,9 @@ class AnthropicAdapter(LLMAdapter):
             "max_tokens": max_tokens,
         }
         if system_text:
-            kwargs["system"] = system_text
+            kwargs["system"] = [
+                {"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}
+            ]
 
         try:
             stream = self._client.messages.stream(**kwargs)
@@ -447,7 +451,9 @@ class AnthropicAdapter(LLMAdapter):
             "max_tokens": max_tokens,
         }
         if system_text:
-            kwargs["system"] = system_text
+            kwargs["system"] = [
+                {"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}
+            ]
 
         try:
             stream = self._client.messages.stream(**kwargs)
@@ -518,7 +524,9 @@ class AnthropicAdapter(LLMAdapter):
             "tools": tools,
         }
         if system:
-            kwargs["system"] = system
+            kwargs["system"] = [
+                {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
+            ]
         response = await self._client.messages.create(**kwargs)
         usage_input = response.usage.input_tokens if response.usage else 0
         usage_output = response.usage.output_tokens if response.usage else 0

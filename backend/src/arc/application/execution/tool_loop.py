@@ -18,10 +18,15 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
 from arc.application.execution.tools import ToolCall, ToolRegistry, ToolResult
+
+if TYPE_CHECKING:
+    from arc.application.context.compression import CompressionManager
+    from arc.application.execution.drift_detector import DriftDetector
+    from arc.application.execution.error_loop_detector import ErrorLoopDetector
 
 logger = logging.getLogger(__name__)
 
@@ -113,10 +118,16 @@ class ToolAwareLoop:
         registry: ToolRegistry,
         *,
         max_tokens_per_call: int = 16384,
+        compression: CompressionManager | None = None,
+        drift_detector: DriftDetector | None = None,
+        error_loop_detector: ErrorLoopDetector | None = None,
     ):
         self._adapter = adapter
         self._registry = registry
         self._max_tokens = max_tokens_per_call
+        self._compression = compression
+        self._drift_detector = drift_detector
+        self._error_loop_detector = error_loop_detector
         self._total_tokens = 0
         self._tool_rounds = 0
         self._metrics = ToolLoopMetrics()
@@ -203,6 +214,14 @@ class ToolAwareLoop:
                     )
 
                     for tc, result in zip(readonly_calls, results):
+                        # L1 compression: shrink large non-error tool results
+                        if self._compression and not result.is_error and len(result.content) > 10000:
+                            compressed = await self._compression.compress_tool_result(result.content)
+                            result = ToolResult(
+                                tool_use_id=result.tool_use_id,
+                                content=compressed,
+                                is_error=result.is_error,
+                            )
                         yield ToolLoopEvent(
                             type="tool_result",
                             content=result.content[:500],
@@ -235,6 +254,15 @@ class ToolAwareLoop:
 
                     result = await self._registry.execute(tc)
 
+                    # L1 compression: shrink large non-error tool results
+                    if self._compression and not result.is_error and len(result.content) > 10000:
+                        compressed = await self._compression.compress_tool_result(result.content)
+                        result = ToolResult(
+                            tool_use_id=result.tool_use_id,
+                            content=compressed,
+                            is_error=result.is_error,
+                        )
+
                     yield ToolLoopEvent(
                         type="tool_result",
                         content=result.content[:500],
@@ -260,6 +288,37 @@ class ToolAwareLoop:
                     if tc.id in result_map:
                         ordered_results.append(result_map[tc.id])
                 tool_history.append({"role": "user", "content": ordered_results})
+
+                # --- Drift detection (Harness §2.3) ---
+                if self._drift_detector:
+                    action_desc = ", ".join(tc.name for tc in tool_calls)
+                    from arc.application.execution.drift_detector import DriftLevel
+                    drift = self._drift_detector.check_drift(action_desc)
+                    if drift >= DriftLevel.MODERATE:
+                        refocus = self._drift_detector.get_refocus_prompt(drift)
+                        tool_history.append({
+                            "role": "user",
+                            "content": [{"type": "text", "text": refocus}],
+                        })
+
+                # --- Error loop detection (Harness §5.4) ---
+                if self._error_loop_detector:
+                    sig = "|".join(
+                        f"{tc.name}:{tc.input.get('path', tc.input.get('command', ''))}"
+                        for tc in tool_calls
+                    )
+                    if self._error_loop_detector.record_and_check(sig):
+                        break_prompt = self._error_loop_detector.get_break_prompt()
+                        if self._error_loop_detector.loop_count >= 2:
+                            yield ToolLoopEvent(
+                                type="error",
+                                content="检测到持续死循环，终止工具调用",
+                            )
+                            break
+                        tool_history.append({
+                            "role": "user",
+                            "content": [{"type": "text", "text": break_prompt}],
+                        })
 
                 logger.info(
                     "tool_loop.round=%d tools=%s parallel=%d serial=%d tokens=%d",
