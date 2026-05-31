@@ -164,7 +164,9 @@ class TestAnthropicAdapter:
         resp = await adapter.chat(messages, temperature=0.3)
 
         call_kwargs = mock_client.messages.create.call_args.kwargs
-        assert call_kwargs["system"] == "Be concise."
+        assert call_kwargs["system"] == [
+            {"type": "text", "text": "Be concise.", "cache_control": {"type": "ephemeral"}}
+        ]
         assert call_kwargs["messages"] == [{"role": "user", "content": "Hello"}]
         assert resp.content == "Hi there!"
         assert resp.usage == {"prompt_tokens": 15, "completion_tokens": 25}

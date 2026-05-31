@@ -103,9 +103,11 @@ class TestAnthropicChatWithTools:
             assert result["usage"]["output"] == 80
             assert result["content"] == mock_response.content
 
-            # Verify system was passed
+            # Verify system was passed (with cache_control for Prompt Cache)
             call_kwargs = mock_client.messages.create.call_args[1]
-            assert call_kwargs["system"] == "You are helpful"
+            assert call_kwargs["system"] == [
+                {"type": "text", "text": "You are helpful", "cache_control": {"type": "ephemeral"}}
+            ]
 
     @pytest.mark.asyncio
     async def test_no_system_omitted(self):
