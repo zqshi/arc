@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     agent_testing: str = ""
     agent_deployment: str = ""
 
+    # Worker model — cheap model for sub-agent read-only tasks
+    worker_llm_provider: str = ""  # empty = same as llm_provider
+    worker_model: str = ""  # empty = same as main model (e.g. "gpt-4o-mini")
+    max_concurrent_workers: int = 3
+
+    # Sandbox
+    sandbox_default_mode: str = "none"  # none | approval_gate | docker
+
     # Object Storage (S3-compatible: MinIO / AWS S3 / Aliyun OSS)
     storage_endpoint: str = ""
     storage_access_key: str = ""

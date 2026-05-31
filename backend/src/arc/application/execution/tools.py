@@ -335,6 +335,66 @@ class ToolRegistry:
     def register(self, tool: ToolDefinition):
         self._tools[tool.name] = tool
 
+    def scoped(
+        self,
+        allowed_paths: list[str] | None = None,
+        *,
+        readonly: bool = False,
+    ) -> "ToolRegistry":
+        """Create a child registry with restricted scope.
+
+        Used for context fencing in multi-agent mode. Workers can only
+        access files within *allowed_paths* (relative to project root).
+
+        Args:
+            allowed_paths: Relative paths the child may access.  Empty or
+                ``None`` means no extra restriction (full project access).
+            readonly: If True, ``write_file`` and ``run_command`` are removed
+                so the child registry can only read.
+        """
+        child = ToolRegistry.__new__(ToolRegistry)
+        child._base_path = self._base_path
+        child._tools = dict(self._tools)
+
+        if readonly:
+            child._tools.pop("write_file", None)
+            child._tools.pop("run_command", None)
+
+        if allowed_paths:
+            resolved = [
+                (self._base_path / p).resolve() for p in allowed_paths
+            ]
+
+            def _path_in_scope(params: dict) -> bool:
+                rel = params.get("path", ".")
+                target = (self._base_path / rel).resolve()
+                return any(
+                    target == r or r in target.parents or target in r.parents
+                    for r in resolved
+                )
+
+            # Wrap file-reading tools with scope check
+            for name in ("read_file", "list_directory", "grep_search"):
+                original = child._tools.get(name)
+                if not original:
+                    continue
+
+                def _make_scoped(orig_handler, tool_name):
+                    async def _handler(p: dict) -> str:
+                        if not _path_in_scope(p):
+                            return f"错误: 路径不在此 worker 的作用域内"
+                        return await orig_handler(p)
+                    return _handler
+
+                child._tools[name] = ToolDefinition(
+                    name=original.name,
+                    description=original.description,
+                    input_schema=original.input_schema,
+                    handler=_make_scoped(original.handler, name),
+                )
+
+        return child
+
     @property
     def tools(self) -> list[ToolDefinition]:
         return list(self._tools.values())
