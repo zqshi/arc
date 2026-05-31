@@ -138,6 +138,7 @@ class ConversationExecutionService:
                             "tool_name": event.content,
                             "tool_input": event.metadata.get("input", {}),
                             "round": event.metadata.get("round", 0),
+                            "parallel": event.metadata.get("parallel", False),
                         }
 
                     elif event.type == "tool_result":
@@ -147,6 +148,7 @@ class ConversationExecutionService:
                             "tool_name": event.metadata.get("tool_name", ""),
                             "output_preview": event.content,
                             "is_error": event.metadata.get("is_error", False),
+                            "parallel": event.metadata.get("parallel", False),
                         }
 
                     elif event.type == "error":

@@ -42,6 +42,7 @@ interface WsToolCallEvent {
   tool_name: string;
   tool_input: Record<string, unknown>;
   round: number;
+  parallel?: boolean;
 }
 
 interface WsToolResultEvent {
@@ -50,6 +51,7 @@ interface WsToolResultEvent {
   tool_name: string;
   output_preview: string;
   is_error: boolean;
+  parallel?: boolean;
 }
 
 interface WsQuotaExceededEvent {
@@ -64,6 +66,8 @@ export interface ToolCallInfo {
   output_preview?: string;
   is_error?: boolean;
   status: 'running' | 'done';
+  parallel?: boolean;
+  round?: number;
 }
 
 type WsEvent =
@@ -251,23 +255,29 @@ export function useConversationSocket(conversationId: string | null) {
             setToolCalls((prev) => [
               ...prev,
               {
-                id: `${data.round}-${data.tool_name}`,
+                id: `${data.round}-${data.tool_name}-${prev.length}`,
                 tool_name: data.tool_name,
                 tool_input: data.tool_input,
                 status: 'running',
+                parallel: data.parallel,
+                round: data.round,
               },
             ]);
             break;
 
-          case 'tool_result':
-            setToolCalls((prev) =>
-              prev.map((tc) =>
-                tc.tool_name === data.tool_name && tc.status === 'running'
-                  ? { ...tc, output_preview: data.output_preview, is_error: data.is_error, status: 'done' as const }
-                  : tc
-              )
-            );
+          case 'tool_result': {
+            setToolCalls((prev) => {
+              let matched = false;
+              return prev.map((tc) => {
+                if (!matched && tc.tool_name === data.tool_name && tc.status === 'running') {
+                  matched = true;
+                  return { ...tc, output_preview: data.output_preview, is_error: data.is_error, status: 'done' as const };
+                }
+                return tc;
+              });
+            });
             break;
+          }
         }
       };
     }

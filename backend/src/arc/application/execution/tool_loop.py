@@ -6,10 +6,13 @@ This module extends the base AgentLoop concept to support LLM tool-use:
 3. When LLM responds with pure text → stream to user
 
 Supports both Anthropic (native tool_use) and OpenAI (function calling) APIs.
+Read-only tools (read_file, list_directory, grep_search) execute in parallel
+via asyncio.gather; mutation tools (write_file, run_command) remain serial.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -24,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 25  # Safety limit: max tool-use round-trips per response
 MAX_TOOL_TOKENS = 200000  # Token budget for tool-use conversations
+
+# Tools that only read state — safe to execute concurrently.
+READONLY_TOOLS = frozenset({"read_file", "list_directory", "grep_search"})
 
 
 # ---------------------------------------------------------------------------
@@ -171,9 +177,52 @@ class ToolAwareLoop:
                     })
                 tool_history.append({"role": "assistant", "content": assistant_content})
 
-                # Execute each tool and collect results
-                tool_results_content = []
-                for tc in tool_calls:
+                # Split into read-only (parallelizable) and mutation (serial) groups
+                readonly_calls = [tc for tc in tool_calls if tc.name in READONLY_TOOLS]
+                mutation_calls = [tc for tc in tool_calls if tc.name not in READONLY_TOOLS]
+
+                tool_results_content: list[dict] = []
+
+                # --- Parallel batch: read-only tools via asyncio.gather ---
+                if readonly_calls:
+                    # Emit all tool_call events upfront so frontend shows them together
+                    for tc in readonly_calls:
+                        yield ToolLoopEvent(
+                            type="tool_call",
+                            content=tc.name,
+                            metadata={
+                                "tool_id": tc.id,
+                                "input": tc.input,
+                                "round": self._tool_rounds,
+                                "parallel": True,
+                            },
+                        )
+
+                    results = await asyncio.gather(
+                        *[self._registry.execute(tc) for tc in readonly_calls],
+                    )
+
+                    for tc, result in zip(readonly_calls, results):
+                        yield ToolLoopEvent(
+                            type="tool_result",
+                            content=result.content[:500],
+                            metadata={
+                                "tool_id": tc.id,
+                                "tool_name": tc.name,
+                                "is_error": result.is_error,
+                                "full_length": len(result.content),
+                                "parallel": True,
+                            },
+                        )
+                        tool_results_content.append({
+                            "type": "tool_result",
+                            "tool_use_id": tc.id,
+                            "content": result.content,
+                            **({"is_error": True} if result.is_error else {}),
+                        })
+
+                # --- Serial: mutation tools (write_file, run_command) ---
+                for tc in mutation_calls:
                     yield ToolLoopEvent(
                         type="tool_call",
                         content=tc.name,
@@ -188,7 +237,7 @@ class ToolAwareLoop:
 
                     yield ToolLoopEvent(
                         type="tool_result",
-                        content=result.content[:500],  # Truncate for frontend display
+                        content=result.content[:500],
                         metadata={
                             "tool_id": tc.id,
                             "tool_name": tc.name,
@@ -204,13 +253,20 @@ class ToolAwareLoop:
                         **({"is_error": True} if result.is_error else {}),
                     })
 
-                # Add tool results to history
-                tool_history.append({"role": "user", "content": tool_results_content})
+                # Add tool results to history (preserve original call order for LLM)
+                ordered_results = []
+                result_map = {r["tool_use_id"]: r for r in tool_results_content}
+                for tc in tool_calls:
+                    if tc.id in result_map:
+                        ordered_results.append(result_map[tc.id])
+                tool_history.append({"role": "user", "content": ordered_results})
 
                 logger.info(
-                    "tool_loop.round=%d tools=%s tokens=%d",
+                    "tool_loop.round=%d tools=%s parallel=%d serial=%d tokens=%d",
                     self._tool_rounds,
                     [tc.name for tc in tool_calls],
+                    len(readonly_calls),
+                    len(mutation_calls),
                     self._total_tokens,
                 )
 
