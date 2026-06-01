@@ -29,6 +29,8 @@ class Todo:
     execution_mode: ExecutionMode = ExecutionMode.PIPELINE
     tags: list[Tag] = field(default_factory=list)
     error_reason: str = ""
+    suspended_reason: str = ""
+    suspended_model_version: int | None = None
     source_session_id: uuid.UUID | None = None
     source_feature_key: str = ""
     github_issue_number: int | None = None
@@ -73,3 +75,21 @@ class Todo:
 
     def abandon(self) -> None:
         self._transition_to(TodoStatus.ABANDONED)
+
+    def suspend_for_upgrade(self, reason: str, model_version: int) -> None:
+        """因领域模型升级暂停此需求。"""
+        if not reason or not reason.strip():
+            raise ValueError("reason is required when suspending")
+        self._transition_to(TodoStatus.SUSPENDED)
+        self.suspended_reason = reason
+        self.suspended_model_version = model_version
+
+    def resume_after_upgrade(self) -> None:
+        """模型升级完成，恢复执行。"""
+        self._transition_to(TodoStatus.ACTIVE)
+        self.suspended_reason = ""
+        self.suspended_model_version = None
+
+    @property
+    def is_suspended(self) -> bool:
+        return self.status == TodoStatus.SUSPENDED

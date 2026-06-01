@@ -47,3 +47,9 @@ class ImpactReportResponse(BaseModel):
     blocked_count: int
     summary: str
     items: list[dict]
+
+
+class ModelUpgradeRequest(BaseModel):
+    feedback_ids: list[str] = Field(default_factory=list)
+    new_model: dict = Field(...)
+    strategy: str = Field(..., pattern="^(block|defer)$")
