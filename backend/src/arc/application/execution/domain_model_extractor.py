@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.project.value_objects import ModelChangeTrigger
 from arc.infrastructure.repositories.project import ProjectRepository
 from arc.infrastructure.repositories.todo import TodoRepository
 
@@ -85,15 +86,18 @@ class DomainModelExtractor:
         dm.setdefault("aggregates", [])
         dm.setdefault("relations", [])
         dm.setdefault("aggregate_relations", [])
-        dm["updated_at"] = datetime.now(UTC).isoformat()
-        dm["version"] = dm.get("version", 0) + 1
 
-        project.domain_model = dm
+        new_version = project.upgrade_domain_model(
+            dm,
+            trigger=ModelChangeTrigger.EXTRACTOR,
+            trigger_todo_id=str(todo_id),
+        )
         await project_repo.update(project)
 
         logger.info(
-            "Domain model updated for project %s: %d sub, %d ctx, %d agg (todo %s)",
+            "Domain model updated for project %s (v%d): %d sub, %d ctx, %d agg (todo %s)",
             project.id,
+            new_version,
             len(dm.get("subdomains", [])),
             len(dm.get("contexts", [])),
             len(dm.get("aggregates", [])),

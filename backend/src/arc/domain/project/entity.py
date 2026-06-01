@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -9,6 +10,7 @@ from arc.domain.project.value_objects import (
     DEFAULT_PIPELINE_CONFIG,
     VALID_VERSION_TRANSITIONS,
     ExecutionMode,
+    ModelChangeTrigger,
     ProjectStatus,
     VersionStatus,
 )
@@ -34,6 +36,7 @@ class Project:
     pipeline_config: dict = field(default_factory=lambda: dict(DEFAULT_PIPELINE_CONFIG))
     conversation_config: dict = field(default_factory=lambda: dict(DEFAULT_CONVERSATION_CONFIG))
     domain_model: dict = field(default_factory=dict)
+    domain_model_history: list[dict] = field(default_factory=list)
     github_token: str = ""
     github_webhook_secret: str = ""
     github_config: dict = field(default_factory=dict)
@@ -88,6 +91,63 @@ class Project:
         self.github_webhook_secret = ""
         self.github_config = {}
         self.updated_at = datetime.now(UTC)
+
+    # -- Domain model lifecycle -------------------------------------------
+
+    def upgrade_domain_model(
+        self,
+        new_model: dict,
+        trigger: ModelChangeTrigger,
+        trigger_todo_id: str = "",
+    ) -> int:
+        """受控的领域模型升级 — 自动创建快照，递增版本号。
+
+        Returns:
+            新的版本号。
+        """
+        old_version = self.domain_model.get("version", 0)
+        snapshot = {
+            "version": old_version,
+            "content": copy.deepcopy(self.domain_model),
+            "trigger": trigger.value,
+            "trigger_todo_id": trigger_todo_id,
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        self.domain_model_history.append(snapshot)
+        self.domain_model = new_model
+        new_version = old_version + 1
+        self.domain_model["version"] = new_version
+        self.domain_model["updated_at"] = datetime.now(UTC).isoformat()
+        self.updated_at = datetime.now(UTC)
+        return new_version
+
+    def rollback_domain_model(self, to_version: int) -> None:
+        """回滚领域模型到指定版本。
+
+        Raises:
+            ValueError: 指定版本不存在于历史快照中。
+        """
+        for snap in reversed(self.domain_model_history):
+            if snap["version"] == to_version:
+                # 回滚本身也产生快照
+                old_version = self.domain_model.get("version", 0)
+                rollback_snapshot = {
+                    "version": old_version,
+                    "content": copy.deepcopy(self.domain_model),
+                    "trigger": ModelChangeTrigger.ROLLBACK.value,
+                    "trigger_todo_id": "",
+                    "created_at": datetime.now(UTC).isoformat(),
+                }
+                self.domain_model_history.append(rollback_snapshot)
+                self.domain_model = copy.deepcopy(snap["content"])
+                self.updated_at = datetime.now(UTC)
+                return
+        raise ValueError(f"Version {to_version} not found in domain model history")
+
+    @property
+    def domain_model_version(self) -> int:
+        """当前领域模型版本号。"""
+        return self.domain_model.get("version", 0)
 
     # -- Scan lifecycle --------------------------------------------------
 
