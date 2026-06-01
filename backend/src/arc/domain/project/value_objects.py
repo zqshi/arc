@@ -77,4 +77,10 @@ DEFAULT_CONVERSATION_CONFIG: dict = {
         "wall_timeout_seconds": 300,
         "max_tokens_per_call": 16384,
     },
+    "git_sync": {
+        "auto_commit": False,
+        "auto_push": False,
+        "commit_prefix": "feat",
+        "target_branch": "",
+    },
 }

@@ -283,7 +283,38 @@ class AgentSessionManager:
         if not changes.has_changes:
             return
 
-        # 写入对话通知
+        # 检查项目 git_sync 配置
+        from arc.infrastructure.repositories.project import ProjectRepository
+        from arc.infrastructure.repositories.todo import TodoRepository
+
+        todo = await TodoRepository(db).get_by_id(session.todo_id)
+        git_sync_config = {}
+        if todo and todo.project_id:
+            project = await ProjectRepository(db).get_by_id(todo.project_id)
+            if project and project.conversation_config:
+                git_sync_config = project.conversation_config.get("git_sync", {})
+
+        auto_commit = git_sync_config.get("auto_commit", False)
+        auto_push = git_sync_config.get("auto_push", False)
+        commit_prefix = git_sync_config.get("commit_prefix", "feat")
+
+        # auto_commit + auto_push: 直接推送，不等用户确认
+        if auto_commit and auto_push:
+            commit_msg = f"{commit_prefix}: {todo.title if todo else 'agent changes'}"
+            branch = git_sync_config.get("target_branch") or None
+            result = await git.commit_and_push(commit_msg, branch)
+            status_msg = (
+                f"代码已自动推送: {result.commit_sha[:7]} → {result.branch}"
+                if result.success
+                else f"自动推送失败: {result.error}"
+            )
+            await AgentSessionManager._write_to_conversation(
+                conv_repo, phase_repo, session, status_msg,
+                metadata={"type": "auto_push_result", "success": result.success},
+            )
+            return
+
+        # 非自动模式: 通知前端，等待用户确认
         change_summary = (
             f"检测到代码变更: {len(changes.files_changed)} 个文件 "
             f"(+{changes.insertions} -{changes.deletions})"
@@ -302,9 +333,7 @@ class AgentSessionManager:
 
         # 通过 project_task_stream 广播给前端
         from arc.application.project.task_stream import project_task_stream
-        from arc.infrastructure.repositories.todo import TodoRepository
 
-        todo = await TodoRepository(db).get_by_id(session.todo_id)
         if todo and todo.project_id:
             await project_task_stream.emit(
                 str(todo.project_id),
