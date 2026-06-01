@@ -285,29 +285,29 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                         </button>
                         {type === 'prototype' && isDone && (
                           <button
-                            title="产品预览"
+                            title="产品预览（全量）"
                             onClick={async (e) => {
                               e.stopPropagation();
                               if (!id) return;
                               try {
-                                const artifacts = await api.listArtifacts(id);
-                                const match = artifacts.find((a) => a.artifact_type === 'prototype');
-                                if (!match) return;
-                                // 优先使用 HTTP(S) 绝对 URL (S3/MinIO)
-                                const url = match.preview_url;
-                                if (url && /^https?:\/\//.test(url)) {
-                                  window.open(url, '_blank');
-                                } else if (match.content) {
-                                  // 开发环境或无存储：直接用 Blob URL 打开
-                                  openPrototypeInNewTab(match.content as Record<string, unknown>);
-                                } else {
-                                  // 尝试发布获取 URL
-                                  const result = await api.publishArtifact(id, match.id);
-                                  if (result.preview_url && /^https?:\/\//.test(result.preview_url)) {
-                                    window.open(result.preview_url, '_blank');
+                                // 优先使用全量 bundle（含项目所有原型页面）
+                                const projectId = todo?.project_id;
+                                if (projectId) {
+                                  const bundle = await api.getPrototypeBundle(projectId, id);
+                                  if (bundle.shell_html) {
+                                    const blob = new Blob([bundle.shell_html], { type: 'text/html;charset=utf-8' });
+                                    window.open(URL.createObjectURL(blob), '_blank');
+                                    return;
                                   }
                                 }
+                                // 降级: 单个 artifact 的原型
+                                const artifacts = await api.listArtifacts(id);
+                                const match = artifacts.find((a) => a.artifact_type === 'prototype');
+                                if (match?.content) {
+                                  openPrototypeInNewTab(match.content as Record<string, unknown>);
+                                }
                               } catch {
+                                // 最终降级
                                 try {
                                   const artifacts = await api.listArtifacts(id);
                                   const match = artifacts.find((a) => a.artifact_type === 'prototype');

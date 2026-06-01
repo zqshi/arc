@@ -170,5 +170,15 @@ export function createSystemMethods(request: RequestFn, base: string) {
 
     getPlanLimits: (): Promise<PlanLimitsResponse> =>
       request('/api/billing/plans'),
+
+    getPrototypeBundle: (projectId: string, todoId?: string): Promise<{
+      pages: Array<{ name: string; source_todo_id: string; source_todo_title: string; is_new: boolean }>;
+      shell_html: string;
+      total_pages: number;
+      new_pages: number;
+    }> => {
+      const qs = todoId ? `?todo_id=${todoId}` : '';
+      return request(`/api/projects/${projectId}/prototype-bundle${qs}`);
+    },
   };
 }

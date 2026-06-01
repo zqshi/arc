@@ -111,6 +111,41 @@ async def update_project(
     return _project_resp(project)
 
 
+@router.get("/{project_id}/prototype-bundle")
+async def get_prototype_bundle(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+    todo_id: str | None = None,
+):
+    """聚合项目下所有原型页面为统一预览。"""
+    from arc.application.artifact.prototype_bundle import PrototypeBundleService
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    svc = PrototypeBundleService(db)
+    current_todo = uuid.UUID(todo_id) if todo_id else None
+    bundle = await svc.build_bundle(project_id, current_todo_id=current_todo)
+
+    return {
+        "pages": [
+            {
+                "name": p.name,
+                "source_todo_id": p.source_todo_id,
+                "source_todo_title": p.source_todo_title,
+                "is_new": p.is_new,
+            }
+            for p in bundle.pages
+        ],
+        "shell_html": bundle.shell_html,
+        "total_pages": bundle.total_pages,
+        "new_pages": bundle.new_pages,
+    }
+
+
 @router.get("/{project_id}/scan-codebase/status")
 async def scan_codebase_status(
     project_id: uuid.UUID,
