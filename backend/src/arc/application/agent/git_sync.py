@@ -210,3 +210,62 @@ class GitSync:
         if code != 0:
             await _run_git(["config", "user.name", "Arc Agent"], self._path)
             await _run_git(["config", "user.email", "arc-agent@local"], self._path)
+
+    async def diagnose_push_failure(self, stderr: str) -> dict:
+        """分析 push 失败原因，给出用户可读的诊断和建议操作。"""
+        diagnosis = {"reason": "unknown", "detail": stderr, "suggestions": []}
+
+        if "rejected" in stderr and "non-fast-forward" in stderr:
+            diagnosis["reason"] = "conflict"
+            diagnosis["detail"] = "远程分支有新的提交，本地落后于远程"
+            diagnosis["suggestions"] = [
+                "执行 git pull --rebase 后重试",
+                "或在新分支上推送避免冲突",
+            ]
+        elif "Permission" in stderr or "403" in stderr or "denied" in stderr:
+            diagnosis["reason"] = "permission"
+            diagnosis["detail"] = "无推送权限，请检查 GitHub Token 或仓库权限"
+            diagnosis["suggestions"] = [
+                "检查项目设置中的 GitHub Token 是否有 repo 写权限",
+                "确认当前用户是仓库 collaborator",
+            ]
+        elif "does not exist" in stderr or "not found" in stderr:
+            diagnosis["reason"] = "remote_missing"
+            diagnosis["detail"] = "远程仓库不存在或 origin 未配置"
+            diagnosis["suggestions"] = [
+                "检查 git remote -v 输出",
+                "确认仓库 URL 正确",
+            ]
+        elif "Authentication" in stderr or "401" in stderr:
+            diagnosis["reason"] = "auth"
+            diagnosis["detail"] = "认证失败，Token 可能已过期"
+            diagnosis["suggestions"] = [
+                "重新连接 GitHub（项目设置 → GitHub 集成）",
+            ]
+        else:
+            diagnosis["suggestions"] = [
+                "检查网络连接",
+                "查看完整错误信息后手动处理",
+            ]
+
+        return diagnosis
+
+    async def create_feature_branch(self, branch_name: str) -> bool:
+        """创建并切换到新分支。"""
+        code, _, stderr = await _run_git(
+            ["checkout", "-b", branch_name], self._path
+        )
+        if code != 0:
+            # 分支已存在，尝试切换
+            code2, _, _ = await _run_git(["checkout", branch_name], self._path)
+            return code2 == 0
+        return True
+
+    async def get_default_branch(self) -> str:
+        """获取远程默认分支名。"""
+        _, out, _ = await _run_git(
+            ["symbolic-ref", "refs/remotes/origin/HEAD", "--short"], self._path
+        )
+        # 输出如 "origin/main"
+        branch = out.strip().replace("origin/", "")
+        return branch or "main"

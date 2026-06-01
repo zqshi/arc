@@ -95,5 +95,14 @@ export function createTodoMethods(request: RequestFn) {
         body: JSON.stringify({ message, branch }),
         headers: { 'Content-Type': 'application/json' },
       }),
+
+    createPr: (todoId: string, title?: string, body?: string, base?: string): Promise<{
+      pr_url: string; pr_number: number; title: string; head: string; base: string;
+    }> =>
+      request(`/api/todos/${todoId}/create-pr`, {
+        method: 'POST',
+        body: JSON.stringify({ title, body, base }),
+        headers: { 'Content-Type': 'application/json' },
+      }),
   };
 }
