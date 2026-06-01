@@ -17,14 +17,14 @@
 
 | 工作项 | 优先级 | 来源 | 状态 |
 |--------|--------|------|------|
-| domain/organization 模块缺少测试 | P2 | v2.2.0 质量检测 6.6 | pending |
+| domain/organization 模块缺少测试 | P2 | v2.2.0 质量检测 6.6 | v2.9.0 T2 |
 | application 层部分 service 缺少测试 (auth/artifact/agent_loop) | P2 | v2.2.0 质量检测 6.6 | pending |
 | 前端测试体系建立 | P3 | v2.2.0 质量检测 6.6 | pending |
-| planning_service.py ~557 行, 需拆分 | P1 | v2.2.0 质量检测 6.5 | v2.4.0 T6 |
+| planning_service.py ~557 行, 需拆分 | P1 | v2.2.0 质量检测 6.5 | v2.9.0 T4 |
 | 值对象建模 — 12 个 dict 字段应显式建模 | P2 | v2.3.0 审计 | pending |
 | 聚合边界重构 — service 跨聚合直接访问 repo | P2 | v2.3.0 审计 | pending (需 DI 完成后) |
-| 前端 4 个组件超 500 行 | P2 | v2.3.0 质量检测 | v2.4.0 T6 |
-| application 层循环依赖 (2 个环) | P1 | v2.3.0 质量检测 | v2.4.0 T3 |
+| 前端 4 个组件超 500 行 | P2 | v2.3.0 质量检测 | v2.9.0 T4 |
+| application 层循环依赖 (2 个环) | P1 | v2.3.0 质量检测 | v2.9.0 T1 (顶层已修复) |
 | tool_loop 穿透 adapter 封装 | P2 | v2.3.0 遗留 | v2.4.0 T4+T5 |
 | 扫描状态纯内存不持久化 | P1 | v2.3.0 用户反馈 | v2.4.0 T1 |
 | 项目硬删除无恢复能力 | P1 | v2.3.0 用户反馈 | v2.4.0 T2 |

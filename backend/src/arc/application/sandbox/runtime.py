@@ -17,9 +17,13 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from arc.domain.sandbox.value_objects import SandboxPolicy
+
+# Type alias for tool implementation functions injected from execution layer.
+# Signature: (params: dict, *, base_path: Path) -> str
+ToolImplFn = Callable[..., Awaitable[str]]
 
 logger = logging.getLogger(__name__)
 
@@ -75,12 +79,16 @@ class ApprovalGateSandboxRuntime(SandboxRuntime):
         *,
         emit_callback: Any = None,
         timeout_seconds: float = 120.0,
+        run_command_impl: ToolImplFn | None = None,
+        write_file_impl: ToolImplFn | None = None,
     ):
         self._policy = policy
         self._base_path = Path(project_path).expanduser().resolve()
         self._emit = emit_callback  # async callable(event_dict) -> None
         self._timeout = timeout_seconds
         self._pending: dict[str, asyncio.Future] = {}
+        self._run_command_impl = run_command_impl
+        self._write_file_impl = write_file_impl
 
     async def run_command(self, params: dict) -> str:
         if "run_command" in self._policy.approval_required_for:
@@ -88,10 +96,12 @@ class ApprovalGateSandboxRuntime(SandboxRuntime):
             if not approved:
                 return "用户拒绝执行该命令。请换一种方式或解释为什么需要执行。"
 
-        # Execute directly (same as tools.py _run_command)
-        from arc.application.execution.tools import _run_command
-
-        return await _run_command(params, base_path=self._base_path)
+        if self._run_command_impl is None:
+            raise RuntimeError(
+                "run_command_impl not injected. "
+                "Pass it via create_sandbox_runtime()."
+            )
+        return await self._run_command_impl(params, base_path=self._base_path)
 
     async def write_file(self, params: dict) -> str:
         if "write_file" in self._policy.approval_required_for:
@@ -99,9 +109,12 @@ class ApprovalGateSandboxRuntime(SandboxRuntime):
             if not approved:
                 return "用户拒绝写入该文件。请确认路径和内容是否合理。"
 
-        from arc.application.execution.tools import _write_file
-
-        return await _write_file(params, base_path=self._base_path)
+        if self._write_file_impl is None:
+            raise RuntimeError(
+                "write_file_impl not injected. "
+                "Pass it via create_sandbox_runtime()."
+            )
+        return await self._write_file_impl(params, base_path=self._base_path)
 
     async def _request_approval(self, tool_name: str, tool_input: dict) -> bool:
         """Emit approval_required event and wait for user response."""
@@ -183,13 +196,28 @@ def create_sandbox_runtime(
     project_path: str,
     *,
     emit_callback: Any = None,
+    run_command_impl: ToolImplFn | None = None,
+    write_file_impl: ToolImplFn | None = None,
 ) -> SandboxRuntime:
-    """Create the appropriate sandbox runtime from a policy."""
+    """Create the appropriate sandbox runtime from a policy.
+
+    Args:
+        run_command_impl: Async function matching execution.tools._run_command
+            signature. Injected by caller to avoid circular import with
+            execution module.
+        write_file_impl: Async function matching execution.tools._write_file
+            signature. Injected by caller to avoid circular import with
+            execution module.
+    """
     from arc.domain.sandbox.value_objects import SandboxMode
 
     if policy.mode == SandboxMode.APPROVAL_GATE:
         return ApprovalGateSandboxRuntime(
-            policy, project_path, emit_callback=emit_callback
+            policy,
+            project_path,
+            emit_callback=emit_callback,
+            run_command_impl=run_command_impl,
+            write_file_impl=write_file_impl,
         )
     if policy.mode == SandboxMode.DOCKER:
         return DockerSandboxRuntime(policy, project_path)

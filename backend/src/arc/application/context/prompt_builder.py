@@ -13,7 +13,7 @@ import logging
 import uuid
 from typing import TYPE_CHECKING
 
-from arc.application.execution.prompts import (
+from arc.application.context.prompts import (
     ARTIFACT_SCHEMAS,
     AUTOPILOT_SECTION,
     CONVERSATION_MODE_SYSTEM_PROMPT,
@@ -220,12 +220,28 @@ class PromptBuilder:
                 if parts:
                     return "## 相关历史经验（按相关度排序）\n\n" + "\n\n".join(parts)
 
-            # Fallback: 使用旧的 ConversationService 方式
-            from arc.application.conversation.service import ConversationService
-            conv_svc = ConversationService(self._db)
-            exp_text, _ = await conv_svc._build_experience_context(todo, None)
-            if exp_text:
-                return f"## 相关历史经验\n{exp_text}"
+            # Fallback: 按 scope 获取经验列表（不需要 MemoryScorer）
+            from arc.domain.todo.value_objects import ExperienceScope
+
+            fallback_exps = await exp_repo.list_by_scope(
+                ExperienceScope.PERSONAL, limit=5
+            )
+            if todo.project_id:
+                proj_exps = await exp_repo.list_by_scope(
+                    ExperienceScope.PROJECT, limit=5, project_id=todo.project_id
+                )
+                seen_ids = {e.id for e in fallback_exps}
+                fallback_exps.extend(e for e in proj_exps if e.id not in seen_ids)
+
+            if fallback_exps:
+                parts = []
+                for exp in fallback_exps[:5]:
+                    parts.append(
+                        f"### {exp.title}\n"
+                        f"**问题**: {exp.problem}\n"
+                        f"**方案**: {exp.solution}"
+                    )
+                return "## 相关历史经验\n" + "\n\n".join(parts)
 
         except Exception:
             pass
