@@ -31,14 +31,20 @@ class Conversation:
         role: MessageRole,
         content: str,
         metadata: dict | None = None,
+        id: uuid.UUID | None = None,
     ) -> Message:
-        """Append a new message to this conversation."""
+        """Append a new message to this conversation.
+
+        Args:
+            id: 可选，指定消息 UUID。用于流式生成时保持前后端 ID 一致。
+        """
         if not content or not content.strip():
             raise ValueError("Message content cannot be empty")
         msg = Message(
             role=role,
             content=content,
             conversation_id=self.id,
+            id=id or uuid.uuid4(),
             metadata=metadata or {},
         )
         self.messages.append(msg)

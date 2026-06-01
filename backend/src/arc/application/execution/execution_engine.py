@@ -125,6 +125,7 @@ class ExecutionEngine:
                 "mode": "conversation",
                 "agent_loop": loop_metrics,
             },
+            id=uuid.UUID(message_id),
         )
         await self._conv_repo.add_message(conversation.id, ai_message)
 
