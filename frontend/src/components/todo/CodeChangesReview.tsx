@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GitBranch, Check, X, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { GitBranch, Check, X, ChevronDown, ChevronRight, Loader2, GitPullRequest, AlertTriangle } from 'lucide-react';
 import { api } from '../../api/client';
 import { useToast } from '../Toast';
 
@@ -18,27 +18,58 @@ interface Props {
   onPushComplete: (result: { commit_sha: string; branch: string }) => void;
 }
 
+interface PushDiagnosis {
+  reason: string;
+  detail: string;
+  suggestions: string[];
+}
+
 export function CodeChangesReview({ changes, onDismiss, onPushComplete }: Props) {
   const { toast } = useToast();
   const [pushing, setPushing] = useState(false);
+  const [creatingPr, setCreatingPr] = useState(false);
   const [message, setMessage] = useState(`feat: ${changes.todoId.slice(0, 8)} 功能实现`);
   const [showDiff, setShowDiff] = useState(false);
   const [showMessageInput, setShowMessageInput] = useState(false);
+  const [pushResult, setPushResult] = useState<{ commit_sha: string; branch: string } | null>(null);
+  const [pushError, setPushError] = useState<PushDiagnosis | null>(null);
 
   const handlePush = async () => {
     setPushing(true);
+    setPushError(null);
     try {
       const result = await api.confirmPush(changes.todoId, message);
       if (result.success) {
         toast(`已推送到 ${result.branch} (${result.commit_sha.slice(0, 7)})`, 'success');
+        setPushResult({ commit_sha: result.commit_sha, branch: result.branch });
         onPushComplete({ commit_sha: result.commit_sha, branch: result.branch });
-      } else {
-        toast('推送失败，请检查 Git 配置', 'error');
       }
-    } catch (err) {
-      toast(err instanceof Error ? err.message : '推送失败', 'error');
+    } catch (err: unknown) {
+      // 409 = push 失败带诊断
+      const errAny = err as { detail?: string; diagnosis?: PushDiagnosis };
+      if (errAny?.diagnosis) {
+        setPushError(errAny.diagnosis);
+      } else {
+        toast(errAny?.detail || '推送失败', 'error');
+      }
     } finally {
       setPushing(false);
+    }
+  };
+
+  const handleCreatePr = async () => {
+    if (!pushResult) return;
+    setCreatingPr(true);
+    try {
+      const result = await api.createPr(changes.todoId);
+      if (result.pr_url) {
+        toast(`PR 已创建: #${result.pr_number}`, 'success');
+        window.open(result.pr_url, '_blank');
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'PR 创建失败', 'error');
+    } finally {
+      setCreatingPr(false);
     }
   };
 
@@ -109,28 +140,72 @@ export function CodeChangesReview({ changes, onDismiss, onPushComplete }: Props)
         />
       )}
 
+      {/* Push error diagnosis */}
+      {pushError && (
+        <div className="rounded-md border border-status-error/30 bg-status-error/5 p-2.5 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle size={12} className="text-status-error" />
+            <span className="text-[11px] font-medium text-status-error">推送失败: {pushError.detail}</span>
+          </div>
+          {pushError.suggestions.length > 0 && (
+            <ul className="space-y-0.5 pl-5">
+              {pushError.suggestions.map((s, i) => (
+                <li key={i} className="text-[10px] text-text-secondary list-disc">{s}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-2 pt-1">
-        <button
-          onClick={handlePush}
-          disabled={pushing || !message.trim()}
-          className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-white transition-opacity hover:bg-accent-hover disabled:opacity-50"
-        >
-          {pushing ? (
-            <><Loader2 size={11} className="animate-spin" /> 推送中...</>
-          ) : (
-            <><Check size={11} /> 确认推送</>
-          )}
-        </button>
-        <button
-          onClick={onDismiss}
-          className="rounded-md border border-border px-3 py-1.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-elevated"
-        >
-          暂不推送
-        </button>
-        <p className="ml-auto text-[9px] text-text-muted">
-          变更保留在本地，可稍后手动推送
-        </p>
+        {!pushResult ? (
+          <>
+            <button
+              onClick={handlePush}
+              disabled={pushing || !message.trim()}
+              className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-white transition-opacity hover:bg-accent-hover disabled:opacity-50"
+            >
+              {pushing ? (
+                <><Loader2 size={11} className="animate-spin" /> 推送中...</>
+              ) : (
+                <><Check size={11} /> 确认推送</>
+              )}
+            </button>
+            <button
+              onClick={onDismiss}
+              className="rounded-md border border-border px-3 py-1.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-elevated"
+            >
+              暂不推送
+            </button>
+            <p className="ml-auto text-[9px] text-text-muted">
+              变更保留在本地，可稍后手动推送
+            </p>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={handleCreatePr}
+              disabled={creatingPr}
+              className="flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-1.5 text-[11px] font-medium text-white transition-opacity hover:bg-purple-700 disabled:opacity-50"
+            >
+              {creatingPr ? (
+                <><Loader2 size={11} className="animate-spin" /> 创建中...</>
+              ) : (
+                <><GitPullRequest size={11} /> 创建 PR</>
+              )}
+            </button>
+            <button
+              onClick={onDismiss}
+              className="rounded-md border border-border px-3 py-1.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-elevated"
+            >
+              完成
+            </button>
+            <p className="ml-auto text-[9px] text-status-done">
+              ✓ 已推送 {pushResult.commit_sha.slice(0, 7)} → {pushResult.branch}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
