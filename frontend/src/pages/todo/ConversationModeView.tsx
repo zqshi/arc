@@ -76,8 +76,15 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     try {
       const state = await api.getDeliverables(id);
       setTracker(state);
+      // 交付物全部完成时，刷新 todo 状态（后端已自动推进到 done）
+      if (state.is_complete) {
+        try {
+          const updated = await api.getTodo(id);
+          setTodo(updated);
+        } catch { /* ignore */ }
+      }
     } catch { /* fetch failed, keep previous state */ }
-  }, [id]);
+  }, [id, setTodo]);
 
   const autoInitRef = useRef(false);
 
@@ -271,14 +278,18 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                                 const artifacts = await api.listArtifacts(id);
                                 const match = artifacts.find((a) => a.artifact_type === 'prototype');
                                 if (!match) return;
-                                if (match.preview_url) {
-                                  window.open(match.preview_url, '_blank');
+                                // 优先使用 HTTP(S) 绝对 URL (S3/MinIO)
+                                const url = match.preview_url;
+                                if (url && /^https?:\/\//.test(url)) {
+                                  window.open(url, '_blank');
+                                } else if (match.content) {
+                                  // 开发环境或无存储：直接用 Blob URL 打开
+                                  openPrototypeInNewTab(match.content as Record<string, unknown>);
                                 } else {
+                                  // 尝试发布获取 URL
                                   const result = await api.publishArtifact(id, match.id);
-                                  if (result.preview_url) {
+                                  if (result.preview_url && /^https?:\/\//.test(result.preview_url)) {
                                     window.open(result.preview_url, '_blank');
-                                  } else if (match.content) {
-                                    openPrototypeInNewTab(match.content as Record<string, unknown>);
                                   }
                                 }
                               } catch {
@@ -348,9 +359,13 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
 // ---------------------------------------------------------------------------
 // Tool call display helpers
 // ---------------------------------------------------------------------------
+// Tool call display — grouped & collapsible
+// ---------------------------------------------------------------------------
 
 /** Max items to show inline before collapsing a parallel batch. */
 const PARALLEL_INLINE_LIMIT = 5;
+/** Max visible recent items in the live view before auto-folding older ones. */
+const LIVE_RECENT_LIMIT = 3;
 
 function toolCallLabel(tc: ToolCallInfo): string {
   const input = tc.tool_input as Record<string, string>;
@@ -364,26 +379,60 @@ function toolCallLabel(tc: ToolCallInfo): string {
   }
 }
 
-/** Group consecutive parallel tool calls into batches for visual grouping. */
-function groupToolCalls(calls: ToolCallInfo[]): (ToolCallInfo | ToolCallInfo[])[] {
-  const groups: (ToolCallInfo | ToolCallInfo[])[] = [];
-  let batch: ToolCallInfo[] = [];
+/** Represents a visual group of tool calls. */
+type ToolCallGroup =
+  | { kind: 'single'; item: ToolCallInfo }
+  | { kind: 'parallel'; items: ToolCallInfo[] }
+  | { kind: 'serial'; toolName: string; items: ToolCallInfo[] };
+
+/** Group consecutive tool calls: parallel batches, serial same-type runs, singles. */
+function groupToolCalls(calls: ToolCallInfo[]): ToolCallGroup[] {
+  const groups: ToolCallGroup[] = [];
+  let parallelBatch: ToolCallInfo[] = [];
+  let serialBatch: ToolCallInfo[] = [];
+  let serialName = '';
+
+  const flushSerial = () => {
+    if (serialBatch.length >= 2) {
+      groups.push({ kind: 'serial', toolName: serialName, items: [...serialBatch] });
+    } else if (serialBatch.length === 1) {
+      groups.push({ kind: 'single', item: serialBatch[0] });
+    }
+    serialBatch = [];
+    serialName = '';
+  };
+
+  const flushParallel = () => {
+    if (parallelBatch.length > 0) {
+      groups.push({ kind: 'parallel', items: [...parallelBatch] });
+      parallelBatch = [];
+    }
+  };
+
   for (const tc of calls) {
     if (tc.parallel) {
-      batch.push(tc);
+      flushSerial();
+      parallelBatch.push(tc);
     } else {
-      if (batch.length > 0) { groups.push(batch); batch = []; }
-      groups.push(tc);
+      flushParallel();
+      if (tc.tool_name === serialName) {
+        serialBatch.push(tc);
+      } else {
+        flushSerial();
+        serialName = tc.tool_name;
+        serialBatch.push(tc);
+      }
     }
   }
-  if (batch.length > 0) groups.push(batch);
+  flushParallel();
+  flushSerial();
   return groups;
 }
 
 /** Single tool call row — compact one-liner. */
 function ToolCallRow({ tc }: { tc: ToolCallInfo }) {
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] rounded hover:bg-bg-elevated/60">
+    <div className="flex items-center gap-1.5 px-2 py-0.5 text-[11px] rounded hover:bg-bg-elevated/60">
       <span className={`flex-shrink-0 text-[10px] ${
         tc.status === 'running' ? 'animate-pulse text-accent' : tc.is_error ? 'text-status-error' : 'text-status-done'
       }`}>
@@ -401,7 +450,6 @@ function ParallelProgress({ items }: { items: ToolCallInfo[] }) {
   const errors = items.filter(tc => tc.is_error).length;
   const pct = items.length > 0 ? (done / items.length) * 100 : 0;
   const allDone = done === items.length;
-  // Dominant tool name for the summary label
   const names = items.reduce<Record<string, number>>((acc, tc) => {
     acc[tc.tool_name] = (acc[tc.tool_name] || 0) + 1; return acc;
   }, {});
@@ -427,11 +475,16 @@ function ParallelProgress({ items }: { items: ToolCallInfo[] }) {
 }
 
 /** A parallel batch — inline if ≤5, compact summary with expandable detail if >5. */
-function ParallelBatch({ items, isLive }: { items: ToolCallInfo[]; isLive: boolean }) {
+function ParallelBatch({ items, defaultExpanded }: { items: ToolCallInfo[]; defaultExpanded: boolean }) {
   const allDone = items.every(tc => tc.status === 'done');
   const needsCollapse = items.length > PARALLEL_INLINE_LIMIT;
+  const [expanded, setExpanded] = useState(!needsCollapse ? true : defaultExpanded && !allDone);
 
-  // Small batch — show all inline
+  // Auto-collapse when all done
+  useEffect(() => {
+    if (needsCollapse && allDone) setExpanded(false);
+  }, [allDone, needsCollapse]);
+
   if (!needsCollapse) {
     return (
       <div className="rounded-lg border border-accent/15 bg-accent/[0.02] py-1 space-y-0.5">
@@ -443,57 +496,164 @@ function ParallelBatch({ items, isLive }: { items: ToolCallInfo[]; isLive: boole
     );
   }
 
-  // Large batch — compact summary, expandable
-  // Default: open while running during live, closed once done or post-stream
-  const defaultOpen = isLive && !allDone;
-
   return (
-    <details open={defaultOpen || undefined} className="rounded-lg border border-accent/15 bg-accent/[0.02]">
-      <summary className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 select-none [&::-webkit-details-marker]:hidden [&::marker]:hidden">
+    <div className="rounded-lg border border-accent/15 bg-accent/[0.02]">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full cursor-pointer items-center gap-2 px-2.5 py-1.5 select-none"
+      >
         <ParallelProgress items={items} />
-        <span className="text-[10px] text-text-muted ml-auto">
-          {allDone ? '点击展开' : ''}
+        <span className="text-[10px] text-text-muted ml-auto whitespace-nowrap">
+          {expanded ? '收起' : '点击展开'}
         </span>
-      </summary>
-      <div className="max-h-[140px] overflow-y-auto border-t border-accent/10 py-0.5">
-        {items.map(tc => <ToolCallRow key={tc.id} tc={tc} />)}
-      </div>
-    </details>
-  );
-}
-
-/** Live streaming view — shows tool calls as they happen. */
-function ToolCallsLive({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
-  const grouped = useMemo(() => groupToolCalls(toolCalls), [toolCalls]);
-  return (
-    <div className="mt-2 space-y-1 border-t border-border/50 pt-2">
-      {grouped.map((item, gi) =>
-        Array.isArray(item)
-          ? <ParallelBatch key={`b-${gi}`} items={item} isLive />
-          : <ToolCallRow key={item.id} tc={item} />
+      </button>
+      {expanded && (
+        <div className="max-h-[140px] overflow-y-auto border-t border-accent/10 py-0.5">
+          {items.map(tc => <ToolCallRow key={tc.id} tc={tc} />)}
+        </div>
       )}
     </div>
   );
 }
 
-/** Post-stream collapsed view — single summary line, expandable. */
-function ToolCallsCollapsed({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
-  const grouped = useMemo(() => groupToolCalls(toolCalls), [toolCalls]);
-  const parallelCount = toolCalls.filter(tc => tc.parallel).length;
+/** A serial batch of same-type calls — shows summary, expandable. */
+function SerialBatch({ toolName, items, defaultExpanded }: {
+  toolName: string; items: ToolCallInfo[]; defaultExpanded: boolean;
+}) {
+  const done = items.filter(tc => tc.status === 'done').length;
+  const allDone = done === items.length;
+  const errors = items.filter(tc => tc.is_error).length;
+  const [expanded, setExpanded] = useState(defaultExpanded && !allDone);
+
+  useEffect(() => {
+    if (allDone) setExpanded(false);
+  }, [allDone]);
 
   return (
-    <details className="mt-2 border-t border-border/50 pt-2">
-      <summary className="cursor-pointer text-[11px] text-text-muted hover:text-text-secondary select-none">
-        🔧 工具调用 ×{toolCalls.length}{parallelCount > 0 ? `（${parallelCount} 并行）` : ''}
-      </summary>
-      <div className="mt-1.5 space-y-1">
-        {grouped.map((item, gi) =>
-          Array.isArray(item)
-            ? <ParallelBatch key={`b-${gi}`} items={item} isLive={false} />
-            : <ToolCallRow key={item.id} tc={item} />
-        )}
-      </div>
-    </details>
+    <div className="rounded-lg border border-border/40 bg-bg-elevated/30">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-1.5 px-2 py-1 text-[11px] select-none"
+      >
+        <span className={`flex-shrink-0 text-[10px] ${
+          allDone ? (errors > 0 ? 'text-status-error' : 'text-status-done') : 'animate-pulse text-accent'
+        }`}>
+          {allDone ? (errors > 0 ? '✗' : '✓') : '⟳'}
+        </span>
+        <span className="font-medium text-text-primary">{toolName}</span>
+        <span className="text-text-muted">×{items.length}</span>
+        {errors > 0 && <span className="text-status-error text-[10px]">({errors} 失败)</span>}
+        <span className="text-[10px] text-text-muted ml-auto">
+          {expanded ? '收起' : '展开'}
+        </span>
+      </button>
+      {expanded && (
+        <div className="max-h-[120px] overflow-y-auto border-t border-border/30 py-0.5">
+          {items.map(tc => <ToolCallRow key={tc.id} tc={tc} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Render a ToolCallGroup. */
+function ToolCallGroupView({ group, defaultExpanded }: { group: ToolCallGroup; defaultExpanded: boolean }) {
+  switch (group.kind) {
+    case 'single':
+      return <ToolCallRow tc={group.item} />;
+    case 'parallel':
+      return <ParallelBatch items={group.items} defaultExpanded={defaultExpanded} />;
+    case 'serial':
+      return <SerialBatch toolName={group.toolName} items={group.items} defaultExpanded={defaultExpanded} />;
+  }
+}
+
+/** Live streaming view — shows running + recent completed, auto-folds older items. */
+function ToolCallsLive({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
+  const grouped = useMemo(() => groupToolCalls(toolCalls), [toolCalls]);
+  const totalDone = toolCalls.filter(tc => tc.status === 'done').length;
+  const totalRunning = toolCalls.filter(tc => tc.status === 'running').length;
+
+  // Split groups into "older" (all done) and "recent" (has running or recent)
+  const olderGroups: ToolCallGroup[] = [];
+  const recentGroups: ToolCallGroup[] = [];
+  let recentCount = 0;
+
+  for (let i = grouped.length - 1; i >= 0; i--) {
+    const g = grouped[i];
+    const hasRunning = g.kind === 'single'
+      ? g.item.status === 'running'
+      : g.items.some(tc => tc.status === 'running');
+
+    if (hasRunning || recentCount < LIVE_RECENT_LIMIT) {
+      recentGroups.unshift(g);
+      recentCount++;
+    } else {
+      olderGroups.push(g);
+    }
+  }
+  olderGroups.reverse();
+
+  const [showOlder, setShowOlder] = useState(false);
+  const olderCallCount = olderGroups.reduce((n, g) =>
+    n + (g.kind === 'single' ? 1 : g.items.length), 0);
+
+  return (
+    <div className="mt-2 space-y-1 border-t border-border/50 pt-2">
+      {/* Older completed — collapsed summary */}
+      {olderCallCount > 0 && (
+        <button
+          onClick={() => setShowOlder(!showOlder)}
+          className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-text-muted hover:text-text-secondary select-none w-full"
+        >
+          <span className="text-status-done">✓</span>
+          <span>已完成 {totalDone - totalRunning > 0 ? totalDone : olderCallCount} 个工具调用</span>
+          <span className="ml-auto">{showOlder ? '收起' : '展开'}</span>
+        </button>
+      )}
+      {showOlder && olderGroups.map((group, gi) => (
+        <ToolCallGroupView key={`o-${gi}`} group={group} defaultExpanded={false} />
+      ))}
+
+      {/* Recent + running */}
+      {recentGroups.map((group, gi) => (
+        <ToolCallGroupView key={`r-${gi}`} group={group} defaultExpanded />
+      ))}
+
+      {/* Summary footer */}
+      {toolCalls.length > 0 && (
+        <div className="px-2 text-[10px] text-text-muted">
+          🔧 {totalDone}/{toolCalls.length} 完成{totalRunning > 0 ? ` · ${totalRunning} 运行中` : ''}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Post-stream collapsed view — everything folded by default. */
+function ToolCallsCollapsed({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
+  const grouped = useMemo(() => groupToolCalls(toolCalls), [toolCalls]);
+  const errors = toolCalls.filter(tc => tc.is_error).length;
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mt-2 border-t border-border/50 pt-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-text-muted hover:text-text-secondary select-none w-full"
+      >
+        <span>🔧 工具调用 ×{toolCalls.length}</span>
+        {errors > 0 && <span className="text-status-error">({errors} 失败)</span>}
+        <span className="ml-auto text-[10px]">{expanded ? '收起' : '展开'}</span>
+      </button>
+      {expanded && (
+        <div className="mt-1 space-y-1">
+          {grouped.map((group, gi) => (
+            <ToolCallGroupView key={`c-${gi}`} group={group} defaultExpanded={false} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -110,6 +110,7 @@ class ConversationService:
             role=MessageRole.ASSISTANT,
             content=full_content,
             metadata=metadata,
+            id=uuid.UUID(message_id),
         )
         await self.conv_repo.add_message(conversation.id, ai_message)
 

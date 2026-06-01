@@ -321,6 +321,8 @@ export function TodosTab({
                       onBatchStart={onBatchStart}
                       batchStarting={batchStarting}
                       setBatchStarting={setBatchStarting}
+                      handleDeleteTodo={handleDeleteTodo}
+                      versionId={v.id}
                     />
                   ) : (
                     <TodoList
@@ -427,6 +429,8 @@ function ConversationTodoList({
   onBatchStart,
   batchStarting,
   setBatchStarting,
+  handleDeleteTodo,
+  versionId,
 }: {
   todos: Todo[];
   getTaskState: (todoId: string) => TaskState;
@@ -434,6 +438,8 @@ function ConversationTodoList({
   onBatchStart?: (todoIds: string[]) => Promise<void>;
   batchStarting: boolean;
   setBatchStarting: (v: boolean) => void;
+  handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
+  versionId: string;
 }) {
   const pendingTodos = todos.filter((t) => t.status === 'pending');
   const hasPending = pendingTodos.length > 0;
@@ -477,6 +483,7 @@ function ConversationTodoList({
           todo={todo}
           taskState={getTaskState(todo.id)}
           navigate={navigate}
+          onDelete={(id, title) => handleDeleteTodo(id, title, versionId)}
         />
       ))}
     </div>

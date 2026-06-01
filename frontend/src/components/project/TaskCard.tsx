@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Send, ChevronDown, ChevronRight, ExternalLink, Loader2, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
+import { Send, ChevronDown, ChevronRight, ExternalLink, Loader2, AlertCircle, CheckCircle2, Lock, Trash2 } from 'lucide-react';
 import type { Todo } from '../../types/api';
 import type { TaskState } from '../../hooks/useProjectTaskStream';
 import { api } from '../../api/client';
@@ -8,6 +8,7 @@ interface TaskCardProps {
   todo: Todo;
   taskState: TaskState;
   navigate: (path: string) => void;
+  onDelete?: (todoId: string, todoTitle: string) => void;
 }
 
 const STATUS_INDICATOR: Record<string, { color: string; label: string }> = {
@@ -16,7 +17,7 @@ const STATUS_INDICATOR: Record<string, { color: string; label: string }> = {
   error: { color: 'bg-status-error', label: '异常' },
 };
 
-export function TaskCard({ todo, taskState, navigate }: TaskCardProps) {
+export function TaskCard({ todo, taskState, navigate, onDelete }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -149,13 +150,21 @@ export function TaskCard({ todo, taskState, navigate }: TaskCardProps) {
           )}
 
           {/* Footer */}
-          <div className="border-t border-border/20 px-4 py-2">
+          <div className="flex items-center justify-between border-t border-border/20 px-4 py-2">
             <button
               onClick={(e) => { e.stopPropagation(); navigate(`/todo/${todo.id}`); }}
               className="flex items-center gap-1 text-[10px] font-medium text-accent hover:underline"
             >
               查看完整对话 <ExternalLink size={10} />
             </button>
+            {onDelete && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(todo.id, todo.title); }}
+                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-status-error/10 hover:text-status-error"
+              >
+                <Trash2 size={10} /> 删除
+              </button>
+            )}
           </div>
         </div>
       )}

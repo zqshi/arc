@@ -165,16 +165,22 @@ class ConversationExecutionService:
             await self.tracker_repo.update(tracker)
             await self.db.commit()
 
+        # 交付物全部完成 → 自动将 todo 状态推进到 done
+        if tracker.is_complete and todo and todo.status.value == "active":
+            try:
+                todo.complete()
+                await self.todo_repo.update(todo)
+                await self.db.commit()
+                logger.info("Auto-completed todo %s: all deliverables done", todo_id)
+            except Exception:
+                logger.debug("Todo %s auto-complete skipped (status transition invalid)", todo_id)
+
         return {
             "required": tracker.required,
             "deliverables": {k: v.value for k, v in tracker.deliverables.items()},
             "completion_pct": tracker.completion_pct,
             "is_complete": tracker.is_complete,
         }
-
-    # ------------------------------------------------------------------
-    # Config readers
-    # ------------------------------------------------------------------
 
     async def _get_project_local_path(self, todo_id: uuid.UUID) -> str | None:
         from pathlib import Path

@@ -94,6 +94,7 @@ type WsEvent =
   | WsToolResultEvent
   | WsQuotaExceededEvent
   | WsApprovalRequiredEvent
+  | { type: 'stream_resume'; message_id: string; buffered_content: string }
   | { type: 'orchestration_start'; plan_id: string; subtask_count: number }
   | { type: 'worker_start'; worker_id: string; plan_id: string; subtask: { description: string; task_type: string } }
   | { type: 'worker_complete'; worker_id: string; output_preview: string; tokens_used: number; elapsed_ms: number }
@@ -240,6 +241,33 @@ export function useConversationSocket(conversationId: string | null) {
 
           case 'stream_start':
             setIsStreaming(true);
+            break;
+
+          case 'stream_resume':
+            // 重连后恢复流式状态 — 合并已缓冲的内容
+            setIsStreaming(true);
+            if (data.buffered_content) {
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === data.message_id)) {
+                  // 已有该消息（比如 stream_chunk 已创建），更新内容
+                  return prev.map((m) =>
+                    m.id === data.message_id
+                      ? { ...m, content: data.buffered_content }
+                      : m
+                  );
+                }
+                return [
+                  ...prev,
+                  {
+                    id: data.message_id,
+                    conversation_id: conversationId!,
+                    role: 'assistant' as const,
+                    content: data.buffered_content,
+                    created_at: new Date().toISOString(),
+                  },
+                ];
+              });
+            }
             break;
 
           case 'stream_chunk':

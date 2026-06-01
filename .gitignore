@@ -41,3 +41,4 @@ k8s/secrets.yml
 pgdata/
 openhands_data/
 .claude/worktrees/
+backend/src/static/
