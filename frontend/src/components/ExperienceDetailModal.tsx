@@ -5,6 +5,31 @@ import { useToast } from './Toast';
 import type { Experience, ExperienceCategory } from '../types/api';
 import { EXPERIENCE_STATUS_LABELS, EXPERIENCE_CATEGORY_LABELS } from '../types/api';
 
+/** decisions/pitfalls 可能是纯字符串，也可能是结构化 dict。统一转为可渲染文本。 */
+function formatListItem(item: unknown): string {
+  if (typeof item === 'string') return item;
+  if (item && typeof item === 'object') {
+    const obj = item as Record<string, unknown>;
+    // decisions 格式: {point, chosen, reason, alternatives?}
+    if (obj.point) {
+      let text = String(obj.point);
+      if (obj.chosen) text += ` → ${obj.chosen}`;
+      if (obj.reason) text += `（${obj.reason}）`;
+      return text;
+    }
+    // pitfalls 格式: {cause, fix, issue?, prevention?}
+    if (obj.cause || obj.fix) {
+      const parts: string[] = [];
+      if (obj.cause) parts.push(String(obj.cause));
+      if (obj.fix) parts.push(`修复: ${obj.fix}`);
+      return parts.join(' → ');
+    }
+    // 兜底：取所有值拼接
+    return Object.values(obj).filter(Boolean).map(String).join(' | ');
+  }
+  return String(item);
+}
+
 interface Props {
   experience: Experience | null;
   onClose: () => void;
@@ -246,7 +271,7 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
             <Section icon={<BookOpen size={13} />} title="关键决策">
               {editing ? (
                 <textarea
-                  value={form.decisions.join('\n')}
+                  value={form.decisions.map(formatListItem).join('\n')}
                   onChange={(e) => setForm({ ...form, decisions: e.target.value.split('\n').filter(Boolean) })}
                   rows={3}
                   placeholder="每行一条决策"
@@ -259,7 +284,7 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
                       <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-accent/10 text-[10px] font-medium text-accent">
                         {i + 1}
                       </span>
-                      <span className="leading-relaxed">{d}</span>
+                      <span className="leading-relaxed">{formatListItem(d)}</span>
                     </li>
                   ))}
                 </ul>
@@ -272,7 +297,7 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
             <Section icon={<AlertTriangle size={13} />} title="踩坑记录" variant="warning">
               {editing ? (
                 <textarea
-                  value={form.pitfalls.join('\n')}
+                  value={form.pitfalls.map(formatListItem).join('\n')}
                   onChange={(e) => setForm({ ...form, pitfalls: e.target.value.split('\n').filter(Boolean) })}
                   rows={3}
                   placeholder="每行一条踩坑记录"
@@ -285,7 +310,7 @@ export default function ExperienceDetailModal({ experience, onClose, onAction }:
                       <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-status-error/10 text-[10px] font-medium text-status-error">
                         !
                       </span>
-                      <span className="leading-relaxed">{p}</span>
+                      <span className="leading-relaxed">{formatListItem(p)}</span>
                     </li>
                   ))}
                 </ul>
