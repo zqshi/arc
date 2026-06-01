@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-06-01
+
+### Added — Agent Git Sync + 全量产品预览
+
+- StreamManager: AI 流式生成与 WS 生命周期解耦，导航离开不丢消息
+- 统一消息 ID: streaming message_id 作为 entity UUID，消除重复 key
+- 前端 stream_resume: WS 重连自动恢复流式状态
+- 工具调用 UI 重构: SerialBatch + ParallelBatch + 自动折叠已完成调用
+- 对话模式 TaskCard 删除入口
+
+### Fixed
+
+- 原型预览开发环境打开项目面板 → 改用 Blob URL
+- 交付物全完成后 todo 状态自动推进到 done
+- 经验列表 500: decisions/pitfalls 兼容 dict 格式
+- 经验详情渲染 dict 对象报错
+- 扫描状态 tab 切换后丢失
+- 交付物面板流式期间不刷新 → 8s 轮询兜底
+- 工具调用在"思考中"下方 → 调整到上方
+
 ## [2.5.0] - 2026-05-31
 
 ### Added — Harness 体系系统性升级 (v2.5.0 ~ v2.8.0)
