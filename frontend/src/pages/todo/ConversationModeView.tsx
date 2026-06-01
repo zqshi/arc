@@ -175,7 +175,16 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                   todoId={id!}
                   onRetry={wsRetry}
                   retryDisabled={wsRetryDisabled}
+                  hideStreamingIndicator={toolCalls.length > 0}
                 />
+                {/* Tool call activity — rendered ABOVE streaming indicator */}
+                {toolCalls.length > 0 && (
+                  isStreaming ? (
+                    <ToolCallsLive toolCalls={toolCalls} />
+                  ) : (
+                    <ToolCallsCollapsed toolCalls={toolCalls} />
+                  )
+                )}
                 {/* Multi-agent worker progress */}
                 {workers.length > 0 && (
                   <WorkerProgress
@@ -183,13 +192,12 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                     phase={orchestrationPhase === 'idle' ? undefined : orchestrationPhase === 'complete' ? 'complete' : orchestrationPhase === 'synthesizing' ? 'synthesizing' : 'working'}
                   />
                 )}
-                {/* Tool call activity indicator */}
-                {toolCalls.length > 0 && (
-                  isStreaming ? (
-                    <ToolCallsLive toolCalls={toolCalls} />
-                  ) : (
-                    <ToolCallsCollapsed toolCalls={toolCalls} />
-                  )
+                {/* Streaming status — always at bottom for scroll-to-bottom */}
+                {isStreaming && toolCalls.length > 0 && toolCalls.every(tc => tc.status === 'done') && (
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
+                    <Loader2 size={12} className="animate-spin text-accent" />
+                    <span>正在整理结果并生成回复...</span>
+                  </div>
                 )}
               </div>
               <div className="border-t border-border px-4 py-2.5">
