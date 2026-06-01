@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-06-01
+
+### Added — 领域模型升级执行机制 (Phase 3/3)
+
+- Todo SUSPENDED 状态: suspend_for_upgrade() / resume_after_upgrade() / is_suspended
+- UpgradeStrategy: block (暂停+升级+恢复) / defer (延迟) 策略
+- ModelUpgradeOrchestrator: 全流程编排 — 影响分析→暂停高风险→升级模型→标记反馈→恢复低风险
+- API: POST /domain-model/upgrade, POST /todos/{id}/resume
+- +20 tests (948 total)
+
+## [3.1.0] - 2026-06-01
+
+### Added — 领域模型影响分析 (Phase 2/3)
+
+- RiskLevel 五级风险 + ImpactItem/ImpactReport 值对象
+- 21 条风险矩阵规则 (PhaseType × ModelChangeScope → RiskLevel)
+- aggregate_extractor: 从交付物提取聚合引用 (4 种识别模式)
+- ImpactAnalyzer: 自动分析模型变更对进行中需求的影响
+- API: POST /projects/{id}/domain-model/impact-analysis
+- +34 tests (928 total)
+
 ## [3.0.0] - 2026-06-01
 
 ### Added — 领域模型升级基础设施 (Phase 1/3)
