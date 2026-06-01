@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -20,8 +21,8 @@ class ExperienceResponse(BaseModel):
     source: str = "manual"
     problem: str
     solution: str
-    decisions: list[str] = Field(default_factory=list)
-    pitfalls: list[str] = Field(default_factory=list)
+    decisions: list[Any] = Field(default_factory=list)
+    pitfalls: list[Any] = Field(default_factory=list)
     applicable_scenarios: str | None = None
     tags: list[TagSchema] = Field(default_factory=list)
     confidence: float = 0.0
