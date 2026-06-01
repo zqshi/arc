@@ -37,6 +37,8 @@ interface ChatMessagesProps {
   todoId: string;
   onRetry: () => void;
   retryDisabled: boolean;
+  /** 当外部有工具调用等进度指示时，隐藏内部的"思考中..."避免重复 */
+  hideStreamingIndicator?: boolean;
 }
 
 const VIRTUAL_THRESHOLD = 80;
@@ -49,6 +51,7 @@ export function ChatMessages({
   todoId,
   onRetry,
   retryDisabled,
+  hideStreamingIndicator,
 }: ChatMessagesProps) {
   const filtered = messages.filter((m) => m.role !== 'system');
 
@@ -72,6 +75,7 @@ export function ChatMessages({
         todoId={todoId}
         onRetry={onRetry}
         retryDisabled={retryDisabled}
+        hideStreamingIndicator={hideStreamingIndicator}
       />
     );
   }
@@ -84,6 +88,7 @@ export function ChatMessages({
       todoId={todoId}
       onRetry={onRetry}
       retryDisabled={retryDisabled}
+      hideStreamingIndicator={hideStreamingIndicator}
     />
   );
 }
@@ -95,6 +100,7 @@ function SimpleMessages({
   todoId,
   onRetry,
   retryDisabled,
+  hideStreamingIndicator,
 }: {
   filtered: Message[];
   isStreaming: boolean;
@@ -102,6 +108,7 @@ function SimpleMessages({
   todoId: string;
   onRetry: () => void;
   retryDisabled: boolean;
+  hideStreamingIndicator?: boolean;
 }) {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -119,6 +126,7 @@ function SimpleMessages({
         error={error}
         onRetry={onRetry}
         retryDisabled={retryDisabled}
+        hideStreamingIndicator={hideStreamingIndicator}
       />
       <div ref={chatEndRef} />
     </div>
@@ -132,6 +140,7 @@ function VirtualizedMessages({
   todoId,
   onRetry,
   retryDisabled,
+  hideStreamingIndicator,
 }: {
   filtered: Message[];
   isStreaming: boolean;
@@ -139,6 +148,7 @@ function VirtualizedMessages({
   todoId: string;
   onRetry: () => void;
   retryDisabled: boolean;
+  hideStreamingIndicator?: boolean;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -183,6 +193,7 @@ function VirtualizedMessages({
                   error={error}
                   onRetry={onRetry}
                   retryDisabled={retryDisabled}
+                  hideStreamingIndicator={hideStreamingIndicator}
                 />
               ) : (
                 <MessageBubble msg={filtered[virtualRow.index]} todoId={todoId} />
@@ -255,15 +266,17 @@ function StreamingAndError({
   error,
   onRetry,
   retryDisabled,
+  hideStreamingIndicator,
 }: {
   isStreaming: boolean;
   error: string | null;
   onRetry: () => void;
   retryDisabled: boolean;
+  hideStreamingIndicator?: boolean;
 }) {
   return (
     <>
-      {isStreaming && (
+      {isStreaming && !hideStreamingIndicator && (
         <div className="flex gap-2">
           <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-accent/15">
             <Bot size={11} className="text-accent animate-pulse" />
