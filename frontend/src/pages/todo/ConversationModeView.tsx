@@ -12,6 +12,8 @@ import {
 import { useConversationSocket } from '../../hooks/useConversationSocket';
 import type { ToolCallInfo } from '../../hooks/useConversationSocket';
 import { ApprovalDialog } from '../../components/todo/ApprovalDialog';
+import { CodeChangesReview } from '../../components/todo/CodeChangesReview';
+import type { CodeChangesInfo } from '../../components/todo/CodeChangesReview';
 import { WorkerProgress } from '../../components/todo/WorkerProgress';
 import { useToast } from '../../components/Toast';
 import { api } from '../../api/client';
@@ -54,6 +56,7 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
   const [selectedExp, setSelectedExp] = useState<Experience | null>(null);
   const [drawerArtifact, setDrawerArtifact] = useState<Artifact | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(480);
+  const [codeChanges, setCodeChanges] = useState<CodeChangesInfo | null>(null);
 
   const {
     messages: wsMessages,
@@ -142,6 +145,26 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     return () => clearInterval(interval);
   }, [isStreaming, conversationId, fetchTracker]);
 
+  // 检测 code_changes_ready 系统消息（Agent 完成后 git 变更通知）
+  useEffect(() => {
+    const latest = wsMessages[wsMessages.length - 1];
+    if (
+      latest?.role === 'system' &&
+      latest?.metadata?.type === 'code_changes_ready' &&
+      !codeChanges
+    ) {
+      const m = latest.metadata;
+      setCodeChanges({
+        todoId: id!,
+        filesChanged: m.files_changed?.length || 0,
+        insertions: m.insertions || 0,
+        deletions: m.deletions || 0,
+        diffStat: m.diff_stat || '',
+        diffPreview: m.diff_preview || '',
+      });
+    }
+  }, [wsMessages, id, codeChanges]);
+
   const handleSend = () => {
     const trimmed = inputValue.trim();
     if (!trimmed) return;
@@ -200,6 +223,16 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
                   </div>
                 )}
               </div>
+              {/* Code changes review panel */}
+              {codeChanges && (
+                <div className="border-t border-border px-4 py-2.5">
+                  <CodeChangesReview
+                    changes={codeChanges}
+                    onDismiss={() => setCodeChanges(null)}
+                    onPushComplete={() => setCodeChanges(null)}
+                  />
+                </div>
+              )}
               <div className="border-t border-border px-4 py-2.5">
                 <ChatInput value={inputValue} onChange={setInputValue} onSend={handleSend} disabled={!isConnected} />
               </div>
