@@ -135,6 +135,13 @@ export function ConversationModeView({ todo, setTodo, isNarrow, isCompact }: {
     if (artifactsVersion > 0) fetchTracker();
   }, [artifactsVersion, fetchTracker]);
 
+  // 流式输出期间定时刷新 tracker（兜底：WS 事件可能丢失）
+  useEffect(() => {
+    if (!isStreaming || !conversationId) return;
+    const interval = setInterval(fetchTracker, 8000);
+    return () => clearInterval(interval);
+  }, [isStreaming, conversationId, fetchTracker]);
+
   const handleSend = () => {
     const trimmed = inputValue.trim();
     if (!trimmed) return;

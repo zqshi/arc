@@ -154,6 +154,18 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
   const [scanError, setScanError] = useState(initialScanStatus === 'error' ? (scanErrorText || '扫描失败') : '');
   const abortRef = useRef<AbortController | null>(null);
 
+  // Sync local scan state when parent refreshes project data (e.g. tab switch)
+  useEffect(() => {
+    if (initialScanStatus === 'completed' && scanning) {
+      setScanning(false);
+      setScanStage('');
+    }
+    if (initialScanStatus === 'error' && scanning) {
+      setScanning(false);
+      setScanError(scanErrorText || '扫描失败');
+    }
+  }, [initialScanStatus, scanErrorText]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Stabilize onRefresh to prevent useCallback/useEffect dependency storms
   const onRefreshRef = useRef(onRefresh);
   onRefreshRef.current = onRefresh;
@@ -211,7 +223,17 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
       subscribeToScanStream();
       return () => { abortRef.current?.abort(); };
     }
+    // Scan completed while tab was inactive — sync the result
+    if (initialScanStatus === 'completed' && !form.codebase_summary) {
+      onRefreshRef.current();
+    }
   }, [initialScanStatus, projectId, subscribeToScanStream]);
+
+  // When tab re-mounts, refresh project data to get latest scan_status
+  useEffect(() => {
+    onRefreshRef.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const startScan = useCallback(async (force: boolean) => {
     setScanning(true);
