@@ -26,31 +26,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 交付物面板流式期间不刷新 → 8s 轮询兜底
 - 工具调用在"思考中"下方 → 调整到上方
 
-## [2.5.0] - 2026-05-31
+## [2.8.0] - 2026-06-01
 
-### Added — Harness 体系系统性升级 (v2.5.0 ~ v2.8.0)
+### Added — Resilience (长程韧性)
+- CheckpointManager 检查点: autopilot 每轮创建状态快照, 支持跨 session 恢复
+- HandoffPackage 结构化会话摘要: 目标/完成/待办/决策/失败/文件 六维提炼
+- HookManager 7注入点管道: pre_input→post_response, 事件驱动, 失败隔离, 5s 超时
+- 6 个模块单元测试补齐 (+38 tests)
 
-**v2.5.0 Context Engine (上下文引擎)**
-- ContextController 上下文装配器: token 预算分配, 优先级淘汰 (P0→P3), 缓存友好排序
-- CompressionManager 三级压缩: L1 微压缩(规则, <10ms), L2 段落压缩(LLM摘要), L3 全量压缩(重建最小上下文)
-- Anthropic Prompt Cache 支持: system 消息添加 cache_control, TTFT 降低 60-85%
-- tool_loop L1 压缩: 工具输出 >10K 字符自动 head+tail+摘要
-- conversation_strategy.py 拆分: 669行 → prompt_builder.py(217) + execution_engine.py(372) + conversation_strategy.py(284)
+### Changed
+- SettingsTab.tsx 拆分: 694→568 行, 提取 GitHubSection 独立组件
 
-**v2.6.0 Quality Guard (质量守卫)**
+## [2.7.0] - 2026-06-01
+
+### Added — Intelligence (智能升级)
+- MemoryScorer 五维检索打分: relevance(0.4) + recency(0.2) + frequency(0.15) + authority(0.15) + user_explicit(0.1)
+- prompt_builder 集成 MemoryScorer: 替代纯 cosine 排序, 按综合分 Top-K 注入
+- PR 自动创建 + AI description
+- 冲突诊断
+
+## [2.6.0] - 2026-06-01
+
+### Added — Quality Guard (质量守卫)
 - VerifyChain 四级验证链: 语法校验 → 语义检查 → 集成检查 → 意图自审
 - DriftDetector 漂移检测: 关键词重叠度 + 行为模式检测, 分级响应 (MILD→SEVERE)
 - ErrorLoopDetector 死循环检测: 滑动窗口周期模式识别 (周期2/3, LCS相似度)
 - ToolRegistry.execute_with_retry: 瞬时错误指数退避重试
 
-**v2.7.0 Intelligence (智能升级)**
-- MemoryScorer 五维检索打分: relevance(0.4) + recency(0.2) + frequency(0.15) + authority(0.15) + user_explicit(0.1)
-- prompt_builder 集成 MemoryScorer: 替代纯 cosine 排序, 按综合分 Top-K 注入
+## [2.5.0] - 2026-05-31
 
-**v2.8.0 Resilience (长程韧性)**
-- CheckpointManager 检查点: autopilot 每轮创建状态快照, 支持跨 session 恢复
-- HandoffPackage 结构化会话摘要: 目标/完成/待办/决策/失败/文件 六维提炼
-- HookManager 7注入点管道: pre_input→post_response, 事件驱动, 失败隔离, 5s 超时
+### Added — Context Engine (上下文引擎)
+- ContextController 上下文装配器: token 预算分配, 优先级淘汰 (P0→P3), 缓存友好排序
+- CompressionManager 三级压缩: L1 微压缩(规则, <10ms), L2 段落压缩(LLM摘要), L3 全量压缩(重建最小上下文)
+- Anthropic Prompt Cache 支持: system 消息添加 cache_control, TTFT 降低 60-85%
+- tool_loop L1 压缩: 工具输出 >10K 字符自动 head+tail+摘要
+- conversation_strategy.py 拆分: 669行 → prompt_builder.py(217) + execution_engine.py(372) + conversation_strategy.py(284)
 
 ### Changed
 - conversation_strategy.py 从 669 行拆分为 3 个独立模块

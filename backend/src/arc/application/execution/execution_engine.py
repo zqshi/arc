@@ -237,15 +237,19 @@ class ExecutionEngine:
         drift_detector = DriftDetector(user_goal) if user_goal else None
         error_detector = ErrorLoopDetector()
 
-        # Sandbox integration
+        # Sandbox integration — conditional import (no circular dep; deferred
+        # purely to avoid loading sandbox modules when sandbox is disabled)
         sandbox_runtime = None
         if sandbox_policy and sandbox_policy.mode.value != "none":
+            from arc.application.execution.tools import _run_command, _write_file
             from arc.application.sandbox.runtime import create_sandbox_runtime
             from arc.application.sandbox.tools import SandboxedToolRegistry
 
             sandbox_runtime = create_sandbox_runtime(
                 sandbox_policy, project_path,
                 emit_callback=lambda ev: None,
+                run_command_impl=_run_command,
+                write_file_impl=_write_file,
             )
             registry = SandboxedToolRegistry(project_path, sandbox_runtime)
 

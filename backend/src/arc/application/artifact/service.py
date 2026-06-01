@@ -6,6 +6,8 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.ai.json_extract import extract_json
+from arc.application.pipeline.prompt_registry import prompt_registry
+from arc.application.pipeline.prompts import PHASE_EXTRACTION_PROMPTS
 from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.value_objects import PHASE_ARTIFACT_MAP, ArtifactType
 from arc.domain.pipeline.value_objects import PhaseType
@@ -25,8 +27,7 @@ class ArtifactService:
 
     @staticmethod
     def _get_extraction_prompt(phase_type):
-        """Lazy load to avoid circular import with pipeline module."""
-        from arc.application.pipeline.prompts import PHASE_EXTRACTION_PROMPTS
+        """Get extraction prompt for the given phase type."""
         return PHASE_EXTRACTION_PROMPTS.get(phase_type)
 
     async def generate_from_conversation(
@@ -71,8 +72,6 @@ class ArtifactService:
         if content is None or not isinstance(content, dict):
             logger.error("generate_artifact: failed to parse response for %s", phase_type)
             return None
-
-        from arc.application.pipeline.prompt_registry import prompt_registry
 
         content["_meta"] = {
             "prompt_version": prompt_registry.get_version(phase_type, "extraction"),

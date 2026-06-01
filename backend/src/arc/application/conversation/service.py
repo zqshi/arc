@@ -7,6 +7,7 @@ from typing import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.application.context.provider import ProjectContextProvider
 from arc.application.pipeline.prompts import (
     PHASE_SYSTEM_PROMPTS,
     SOCRATIC_LAYERS,
@@ -139,8 +140,6 @@ class ConversationService:
         """
         if not phase_type:
             return "帮助用户完成当前任务。"
-
-        from arc.application.context.provider import ProjectContextProvider
 
         project_ctx_provider = ProjectContextProvider(self.db)
         project_ctx = await project_ctx_provider.get_context(conversation.todo_id)
