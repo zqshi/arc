@@ -32,3 +32,18 @@ class DomainModelSnapshotResponse(BaseModel):
     trigger: str
     trigger_todo_id: str
     created_at: str
+
+
+class ImpactAnalysisRequest(BaseModel):
+    affected_aggregates: list[str] = Field(..., min_length=1)
+    change_scope: str = Field(..., pattern="^(additive|structural|breaking)$")
+
+
+class ImpactReportResponse(BaseModel):
+    project_id: str
+    affected_aggregates: list[str]
+    change_scope: str
+    max_risk: str
+    blocked_count: int
+    summary: str
+    items: list[dict]

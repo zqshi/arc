@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-01
+
+### Added — 领域模型升级基础设施 (Phase 1/3)
+
+- Project.upgrade_domain_model() 快照机制: 变更前自动创建历史版本, 支持 rollback
+- ReviewFeedback 领域模块: 实体 + 值对象 + 仓储 + 状态流转 (pending→accepted/deferred/rejected)
+- 确定性变更分级器: category × severity → additive/structural/breaking
+- ReviewService: Validator 评审结果 → 持久化 ReviewFeedback 闭环
+- API: review-feedbacks CRUD + domain-model/history + rollback
+- DomainModelExtractor 改用 upgrade_domain_model() 路径
+- +63 tests (894 total)
+
 ## [2.9.0] - 2026-06-01
 
 ### Changed — 架构治理 + 测试补全

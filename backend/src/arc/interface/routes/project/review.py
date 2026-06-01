@@ -6,15 +6,20 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Query
 
+from arc.application.review.impact_analyzer import ImpactAnalyzer
 from arc.application.review.service import ReviewService
 from arc.domain.project.value_objects import ModelChangeTrigger
+from arc.domain.review.value_objects import ModelChangeScope, ReviewFeedbackStatus
+from arc.infrastructure.repositories.artifact import ArtifactRepository as ArtifactRepoImpl
 from arc.infrastructure.repositories.project import ProjectRepository
 from arc.infrastructure.repositories.review import ReviewFeedbackRepository
-from arc.domain.review.value_objects import ReviewFeedbackStatus
+from arc.infrastructure.repositories.todo import TodoRepository
 from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.review import (
     DomainModelRollbackRequest,
     DomainModelSnapshotResponse,
+    ImpactAnalysisRequest,
+    ImpactReportResponse,
     ReviewFeedbackResolveRequest,
     ReviewFeedbackResponse,
 )
@@ -112,6 +117,49 @@ async def rollback_domain_model(
 
     await project_repo.update(project)
     return {"ok": True, "version": project.domain_model_version}
+
+
+# ── Impact Analysis ──────────────────────────────────────
+
+
+@router.post("/{project_id}/domain-model/impact-analysis")
+async def analyze_impact(
+    project_id: uuid.UUID,
+    body: ImpactAnalysisRequest,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """分析领域模型变更对进行中需求的影响。"""
+    todo_repo = TodoRepository(db)
+    artifact_repo = ArtifactRepoImpl(db)
+    analyzer = ImpactAnalyzer(todo_repo, artifact_repo)
+
+    try:
+        scope = ModelChangeScope(body.change_scope)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid scope: {body.change_scope}")
+
+    report = await analyzer.analyze(project_id, body.affected_aggregates, scope)
+
+    return ImpactReportResponse(
+        project_id=str(project_id),
+        affected_aggregates=list(report.affected_aggregates),
+        change_scope=report.change_scope.value,
+        max_risk=report.max_risk.name.lower(),
+        blocked_count=report.blocked_count,
+        summary=report.summary,
+        items=[
+            {
+                "todo_id": str(item.todo_id),
+                "todo_title": item.todo_title,
+                "current_phase": item.current_phase,
+                "affected_aggregates": list(item.affected_aggregates),
+                "risk": item.risk.name.lower(),
+                "recommendation": item.recommendation,
+            }
+            for item in report.items
+        ],
+    )
 
 
 def _feedback_resp(fb) -> dict:
