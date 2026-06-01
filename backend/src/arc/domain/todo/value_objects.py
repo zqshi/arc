@@ -7,6 +7,7 @@ from enum import StrEnum
 class TodoStatus(StrEnum):
     PENDING = "pending"
     ACTIVE = "active"
+    SUSPENDED = "suspended"
     DONE = "done"
     ERROR = "error"
     ABANDONED = "abandoned"
@@ -14,7 +15,8 @@ class TodoStatus(StrEnum):
 
 VALID_TRANSITIONS: dict[TodoStatus, set[TodoStatus]] = {
     TodoStatus.PENDING: {TodoStatus.ACTIVE, TodoStatus.ERROR, TodoStatus.ABANDONED},
-    TodoStatus.ACTIVE: {TodoStatus.DONE, TodoStatus.ERROR, TodoStatus.ABANDONED},
+    TodoStatus.ACTIVE: {TodoStatus.DONE, TodoStatus.ERROR, TodoStatus.ABANDONED, TodoStatus.SUSPENDED},
+    TodoStatus.SUSPENDED: {TodoStatus.ACTIVE},
     TodoStatus.DONE: set(),
     TodoStatus.ERROR: {TodoStatus.PENDING},
     TodoStatus.ABANDONED: set(),

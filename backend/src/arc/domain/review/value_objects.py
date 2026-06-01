@@ -114,3 +114,11 @@ class ImpactReport:
     def blocked_count(self) -> int:
         return sum(1 for item in self.items if item.risk >= RiskLevel.HIGH)
 
+
+class UpgradeStrategy(StrEnum):
+    """模型升级策略。"""
+
+    BLOCK = "block"      # 暂停受影响需求，立即升级
+    DEFER = "defer"      # 延迟到当前版本结束
+
+

@@ -7,9 +7,10 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query
 
 from arc.application.review.impact_analyzer import ImpactAnalyzer
+from arc.application.review.orchestrator import ModelUpgradeOrchestrator
 from arc.application.review.service import ReviewService
 from arc.domain.project.value_objects import ModelChangeTrigger
-from arc.domain.review.value_objects import ModelChangeScope, ReviewFeedbackStatus
+from arc.domain.review.value_objects import ModelChangeScope, ReviewFeedbackStatus, UpgradeStrategy
 from arc.infrastructure.repositories.artifact import ArtifactRepository as ArtifactRepoImpl
 from arc.infrastructure.repositories.project import ProjectRepository
 from arc.infrastructure.repositories.review import ReviewFeedbackRepository
@@ -20,6 +21,7 @@ from arc.interface.schemas.review import (
     DomainModelSnapshotResponse,
     ImpactAnalysisRequest,
     ImpactReportResponse,
+    ModelUpgradeRequest,
     ReviewFeedbackResolveRequest,
     ReviewFeedbackResponse,
 )
@@ -160,6 +162,70 @@ async def analyze_impact(
             for item in report.items
         ],
     )
+
+
+# ── Model Upgrade Execution ──────────────────────────────
+
+
+@router.post("/{project_id}/domain-model/upgrade")
+async def execute_model_upgrade(
+    project_id: uuid.UUID,
+    body: ModelUpgradeRequest,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """执行领域模型升级。"""
+    try:
+        strategy = UpgradeStrategy(body.strategy)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid strategy: {body.strategy}")
+
+    project_repo = ProjectRepository(db)
+    todo_repo = TodoRepository(db)
+    artifact_repo = ArtifactRepoImpl(db)
+    feedback_repo = ReviewFeedbackRepository(db)
+
+    orchestrator = ModelUpgradeOrchestrator(
+        project_repo, todo_repo, artifact_repo, feedback_repo,
+    )
+    result = await orchestrator.execute(
+        project_id=project_id,
+        feedback_ids=[uuid.UUID(fid) for fid in body.feedback_ids],
+        new_model=body.new_model,
+        strategy=strategy,
+    )
+
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error)
+
+    return {
+        "success": True,
+        "strategy": result.strategy.value,
+        "new_model_version": result.new_model_version,
+        "suspended_todo_ids": [str(tid) for tid in result.suspended_todo_ids],
+        "auto_resumed_todo_ids": [str(tid) for tid in result.auto_resumed_todo_ids],
+        "deferred_feedback_ids": [str(fid) for fid in result.deferred_feedback_ids],
+    }
+
+
+@router.post("/{project_id}/todos/{todo_id}/resume")
+async def resume_suspended_todo(
+    project_id: uuid.UUID,
+    todo_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """手动恢复被暂停的需求。"""
+    todo_repo = TodoRepository(db)
+    todo = await todo_repo.get_by_id(todo_id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo 不存在")
+    if not todo.is_suspended:
+        raise HTTPException(status_code=400, detail="该需求未处于暂停状态")
+
+    todo.resume_after_upgrade()
+    await todo_repo.update(todo)
+    return {"ok": True, "todo_id": str(todo_id), "status": todo.status.value}
 
 
 def _feedback_resp(fb) -> dict:

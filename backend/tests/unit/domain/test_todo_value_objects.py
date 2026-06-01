@@ -17,15 +17,16 @@ from arc.domain.todo.value_objects import (
 
 class TestTodoStatus:
     def test_enum_values_complete(self):
-        expected = {"pending", "active", "done", "error", "abandoned"}
+        expected = {"pending", "active", "suspended", "done", "error", "abandoned"}
         assert {ts.value for ts in TodoStatus} == expected
 
     def test_enum_count(self):
-        assert len(TodoStatus) == 5
+        assert len(TodoStatus) == 6
 
     def test_str_equality(self):
         assert TodoStatus.PENDING == "pending"
         assert TodoStatus.ACTIVE == "active"
+        assert TodoStatus.SUSPENDED == "suspended"
         assert TodoStatus.DONE == "done"
         assert TodoStatus.ERROR == "error"
         assert TodoStatus.ABANDONED == "abandoned"
@@ -51,6 +52,7 @@ class TestValidTransitions:
             TodoStatus.DONE,
             TodoStatus.ERROR,
             TodoStatus.ABANDONED,
+            TodoStatus.SUSPENDED,
         }
 
     def test_done_is_terminal(self):
