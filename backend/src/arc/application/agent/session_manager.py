@@ -182,6 +182,10 @@ class AgentSessionManager:
                                 session,
                                 f"{session.agent_type.value} 执行完成",
                             )
+                            # Git Sync: 检测代码变更并通知前端
+                            await self._check_git_changes(
+                                session, context, conv_repo, phase_repo, db
+                            )
                         else:
                             session.mark_error("Agent reported error status")
                             await self._write_to_conversation(
@@ -247,3 +251,76 @@ class AgentSessionManager:
             metadata=metadata or {"agent_type": session.agent_type.value},
         )
         await conv_repo.add_message(conv.id, msg)
+
+    @staticmethod
+    async def _check_git_changes(
+        session: AgentSession,
+        context,
+        conv_repo: ConversationRepository,
+        phase_repo: PipelinePhaseRepository,
+        db: AsyncSession,
+    ) -> None:
+        """Agent 完成后检测 git 变更，通过 WS 通知前端。"""
+        from arc.application.agent.git_sync import GitSync
+
+        project_path = None
+        if context.project_context:
+            for line in context.project_context.splitlines():
+                if line.startswith("工作目录:"):
+                    project_path = line.split(":", 1)[1].strip()
+                    break
+
+        if not project_path:
+            return
+
+        try:
+            git = GitSync(project_path)
+            changes = await git.detect_changes()
+        except Exception as exc:
+            logger.warning("Git change detection failed: %s", exc)
+            return
+
+        if not changes.has_changes:
+            return
+
+        # 写入对话通知
+        change_summary = (
+            f"检测到代码变更: {len(changes.files_changed)} 个文件 "
+            f"(+{changes.insertions} -{changes.deletions})"
+        )
+        await AgentSessionManager._write_to_conversation(
+            conv_repo, phase_repo, session, change_summary,
+            metadata={
+                "type": "code_changes_ready",
+                "files_changed": changes.files_changed,
+                "insertions": changes.insertions,
+                "deletions": changes.deletions,
+                "diff_stat": changes.diff_stat,
+                "diff_preview": changes.diff_preview[:2000],
+            },
+        )
+
+        # 通过 project_task_stream 广播给前端
+        from arc.application.project.task_stream import project_task_stream
+        from arc.infrastructure.repositories.todo import TodoRepository
+
+        todo = await TodoRepository(db).get_by_id(session.todo_id)
+        if todo and todo.project_id:
+            await project_task_stream.emit(
+                str(todo.project_id),
+                {
+                    "event": "code_changes_ready",
+                    "todo_id": str(session.todo_id),
+                    "files_changed": len(changes.files_changed),
+                    "insertions": changes.insertions,
+                    "deletions": changes.deletions,
+                    "diff_stat": changes.diff_stat,
+                    "diff_preview": changes.diff_preview[:2000],
+                },
+            )
+
+        logger.info(
+            "Git changes detected for todo %s: %d files (+%d -%d)",
+            session.todo_id, len(changes.files_changed),
+            changes.insertions, changes.deletions,
+        )

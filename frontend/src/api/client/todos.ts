@@ -86,5 +86,14 @@ export function createTodoMethods(request: RequestFn) {
 
     unpublishArtifact: (todoId: string, artifactId: string): Promise<void> =>
       request(`/api/todos/${todoId}/artifacts/${artifactId}/publish`, { method: 'DELETE' }),
+
+    confirmPush: (todoId: string, message?: string, branch?: string): Promise<{
+      success: boolean; commit_sha: string; branch: string; remote_url: string; files_changed: number;
+    }> =>
+      request(`/api/todos/${todoId}/confirm-push`, {
+        method: 'POST',
+        body: JSON.stringify({ message, branch }),
+        headers: { 'Content-Type': 'application/json' },
+      }),
   };
 }

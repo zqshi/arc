@@ -217,6 +217,44 @@ async def delete_todo(todo_id: str, db: DbSession, user: CurrentUser):
     await repo.delete(UUID(todo_id), user_id=user.id)
 
 
+@router.post("/{todo_id}/confirm-push")
+async def confirm_push(todo_id: str, db: DbSession, user: CurrentUser, body: dict = {}):
+    """用户确认后执行 git commit + push。"""
+    from arc.application.agent.git_sync import GitSync
+    from arc.infrastructure.repositories.project import ProjectRepository
+
+    repo = TodoRepository(db)
+    todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    if not todo.project_id:
+        raise HTTPException(status_code=400, detail="Todo has no project")
+
+    project = await ProjectRepository(db).get_by_id(todo.project_id)
+    if not project or not project.local_path:
+        raise HTTPException(status_code=400, detail="Project has no local path")
+
+    git = GitSync(project.local_path)
+    if not await git.is_git_repo():
+        raise HTTPException(status_code=400, detail="Project directory is not a git repo")
+
+    message = body.get("message") or f"feat: {todo.title}"
+    branch = body.get("branch") or None
+
+    result = await git.commit_and_push(message=message, branch=branch)
+
+    if not result.success and result.error:
+        raise HTTPException(status_code=500, detail=result.error)
+
+    return {
+        "success": result.success,
+        "commit_sha": result.commit_sha,
+        "branch": result.branch,
+        "remote_url": result.remote_url,
+        "files_changed": result.files_changed,
+    }
+
+
 @router.post("/{todo_id}/extract-tags", response_model=TodoResponse)
 async def extract_tags(todo_id: str, db: DbSession, user: CurrentUser):
     from arc.application.todo.service import TodoService
