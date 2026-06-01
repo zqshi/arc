@@ -9,7 +9,7 @@
 
 - [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
-- [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md)
+- [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md) · [v2.9.0](v2.9.0-snapshot.md)
 
 ---
 
@@ -21,13 +21,58 @@
 | application 层部分 service 缺少测试 (auth/artifact/agent_loop) | P2 | v2.2.0 质量检测 6.6 | pending |
 | 前端测试体系建立 | P3 | v2.2.0 质量检测 6.6 | pending |
 | planning_service.py ~557 行, 需拆分 | P1 | v2.2.0 质量检测 6.5 | v2.9.0 T4 |
-| 值对象建模 — 12 个 dict 字段应显式建模 | P2 | v2.3.0 审计 | pending |
+| 值对象建模 — 12 个 dict 字段应显式建模 | P2 | v2.3.0 审计 | v3.0.0 关联 (ReviewFeedback/DomainModelSnapshot 值对象化) |
 | 聚合边界重构 — service 跨聚合直接访问 repo | P2 | v2.3.0 审计 | pending (需 DI 完成后) |
+| domain_model 无版本历史/无回滚能力 | P1 | v2.9.0 升级路径设计 | v3.0.0 T1 |
+| Validator 评审结果无闭环流程 | P1 | v2.9.0 升级路径设计 | v3.0.0 T3 |
 | 前端 4 个组件超 500 行 | P2 | v2.3.0 质量检测 | v2.9.0 T4 |
 | application 层循环依赖 (2 个环) | P1 | v2.3.0 质量检测 | v2.9.0 T1 (顶层已修复) |
 | tool_loop 穿透 adapter 封装 | P2 | v2.3.0 遗留 | v2.4.0 T4+T5 |
 | 扫描状态纯内存不持久化 | P1 | v2.3.0 用户反馈 | v2.4.0 T1 |
 | 项目硬删除无恢复能力 | P1 | v2.3.0 用户反馈 | v2.4.0 T2 |
+
+---
+
+## v3.0.0 — 领域模型升级基础设施 (Phase 1)
+
+> 来源: AI评审反馈闭环设计，三阶段升级路径的第一步
+
+**目标**: 让领域模型变更可追溯、可回滚，评审反馈能持久化并转化为行动。
+
+**核心交付**:
+1. Project.domain_model 快照机制（变更前自动创建历史版本）
+2. ReviewFeedback 实体化（评审 issues 持久化 + 状态流转）
+3. Validator → Feedback 闭环（评审产出自动创建反馈记录）
+4. 变更分级机制（additive / structural / breaking 自动分类）
+
+**前置**: v2.9.0 完成（循环依赖已消除，模型层干净）
+**后续**: Phase 2 影响分析 + Phase 3 执行机制（各 1 版本）
+
+---
+
+## v3.1.0 — 领域模型影响分析 (Phase 2)
+
+> 依赖 v3.0.0 的快照 + 反馈实体
+
+**目标**: 模型变更时自动分析对进行中需求的影响，给出风险等级和处理建议。
+
+**核心交付**:
+1. ImpactAnalyzer — Todo ↔ 聚合依赖关系追踪
+2. 阶段风险矩阵 — 根据 Todo 当前阶段 × 变更类型 判断风险
+3. 影响报告 UI — 可视化展示受影响需求和建议策略
+
+---
+
+## v3.2.0 — 领域模型升级执行机制 (Phase 3)
+
+> 依赖 v3.1.0 的 ImpactReport
+
+**目标**: 把影响分析的决策转化为系统可执行的动作（暂停/恢复/回滚）。
+
+**核心交付**:
+1. Todo SUSPENDED 状态 + 恢复机制
+2. ModelUpgradeOrchestrator 全流程编排
+3. 升级后交付物一致性验证
 
 ---
 

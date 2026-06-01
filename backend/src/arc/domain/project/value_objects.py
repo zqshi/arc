@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 
@@ -84,3 +86,26 @@ DEFAULT_CONVERSATION_CONFIG: dict = {
         "target_branch": "",
     },
 }
+
+
+class ModelChangeTrigger(StrEnum):
+    """触发领域模型变更的来源。"""
+
+    EXTRACTOR = "extractor"
+    MANUAL = "manual"
+    UPGRADE = "upgrade"
+    ROLLBACK = "rollback"
+
+
+@dataclass(frozen=True)
+class DomainModelSnapshot:
+    """领域模型不可变快照 — 变更前自动创建。
+
+    记录变更前的完整模型内容，支持按版本号回滚。
+    """
+
+    version: int
+    content: dict
+    trigger: ModelChangeTrigger
+    trigger_todo_id: str
+    created_at: datetime

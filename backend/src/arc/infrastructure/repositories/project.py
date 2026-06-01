@@ -41,6 +41,7 @@ class ProjectRepository(AbstractProjectRepository):
             pipeline_config=project.pipeline_config,
             conversation_config=project.conversation_config,
             domain_model=project.domain_model or None,
+            domain_model_history=project.domain_model_history or [],
         )
         self.db.add(model)
         await self.db.flush()
@@ -121,6 +122,7 @@ class ProjectRepository(AbstractProjectRepository):
         model.pipeline_config = project.pipeline_config
         model.conversation_config = project.conversation_config
         model.domain_model = project.domain_model or None
+        model.domain_model_history = project.domain_model_history or []
         model.github_token = project.github_token or None
         model.github_webhook_secret = project.github_webhook_secret or None
         model.github_config = project.github_config or None
@@ -161,6 +163,7 @@ class ProjectRepository(AbstractProjectRepository):
                 model.conversation_config
             ),
             domain_model=model.domain_model or {},
+            domain_model_history=model.domain_model_history or [],
             github_token=model.github_token or "",
             github_webhook_secret=model.github_webhook_secret or "",
             github_config=model.github_config or {},

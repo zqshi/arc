@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-06-01
+
+### Changed — 架构治理 + 测试补全
+
+- 消除 application 层 8 条循环依赖（2 条顶层 + 6 条延迟 import）
+- 补齐 8 个 domain value_objects 单元测试（+206 tests，覆盖率 11%→90%+）
+- llm_adapter.py 拆分: 581→3 文件（base + openai_adapter + anthropic_adapter）
+- ws/chat.py 拆分: 564→4 文件（chat + connection_manager + ws_helpers + stream_generator）
+
 ## [2.6.0] - 2026-06-01
 
 ### Added — Agent Git Sync + 全量产品预览
