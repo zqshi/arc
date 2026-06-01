@@ -363,12 +363,12 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
                 <button
                   type="button"
                   disabled={scanning || dirty}
-                  onClick={() => startScan(!!form.codebase_summary)}
+                  onClick={() => startScan(!!(form.codebase_summary || initialScanStatus === 'completed'))}
                   className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-elevated disabled:opacity-40"
                 >
                   {scanning ? (
                     <><RefreshCw size={11} className="animate-spin" /> {scanStage || '扫描中...'}</>
-                  ) : form.codebase_summary ? (
+                  ) : form.codebase_summary || initialScanStatus === 'completed' ? (
                     <><RefreshCw size={11} /> 重新扫描</>
                   ) : (
                     <><ScanSearch size={11} /> 扫描代码库</>
@@ -399,6 +399,11 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
               {!scanning && (form.codebase_summary || scanContent) ? (
                 <div className="max-h-64 overflow-y-auto rounded-md border border-border bg-bg-elevated p-3 text-xs leading-relaxed text-text-secondary prose-headings:text-text-primary prose-headings:font-semibold">
                   <pre className="whitespace-pre-wrap font-sans">{form.codebase_summary || scanContent}</pre>
+                </div>
+              ) : !scanning && !scanError && initialScanStatus === 'completed' ? (
+                <div className="flex items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2">
+                  <RefreshCw size={11} className="animate-spin text-text-muted" />
+                  <p className="text-[10px] text-text-muted">加载扫描结果...</p>
                 </div>
               ) : !scanning && !scanError && (
                 <p className="text-[10px] text-text-muted">尚未扫描。点击扫描后，AI 将分析代码库结构并生成总结，供后续 Agent 交互使用。</p>
