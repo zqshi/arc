@@ -123,6 +123,7 @@ export default function ProjectDetail() {
 
           {s.activeTab === 'domain_model' && (
             <DomainModelTab
+              projectId={s.id}
               domainModel={s.domainModel}
               loading={s.domainModelLoading}
               onRefresh={s.handleRefreshDomainModel}
