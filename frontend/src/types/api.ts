@@ -98,7 +98,17 @@ export type ConversationPurpose = 'clarification' | 'ui_design' | 'architecture'
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type ProjectStatus = 'active' | 'archived';
 export type VersionStatus = 'planning' | 'active' | 'released';
-export type ExecutionMode = 'pipeline' | 'conversation';
+export type ExecutionMode = 'pipeline' | 'conversation'; // deprecated
+
+export type ProcessConstraint = 'strict' | 'moderate' | 'free';
+
+export interface ProcessConfig {
+  constraint: ProcessConstraint;
+  gate_strictness: string;
+  auto_extract: boolean;
+  require_explicit_confirm: boolean;
+  show_phase_ui: boolean;
+}
 export type UserRole = 'admin' | 'member' | 'viewer';
 
 // ─── Shared ──────────────────────────────────────────────
@@ -121,7 +131,9 @@ export interface Project {
   scan_progress?: string;
   scan_error?: string;
   status: ProjectStatus;
-  execution_mode: ExecutionMode;
+  execution_mode: ExecutionMode; // deprecated
+  process_constraint: ProcessConstraint;
+  process_config?: ProcessConfig;
   pipeline_config?: Record<string, unknown>;
   conversation_config?: Record<string, unknown>;
   github_connected?: boolean;
@@ -622,6 +634,18 @@ export const EXECUTION_MODE_LABELS: Record<ExecutionMode, string> = {
 export const EXECUTION_MODE_DESCRIPTIONS: Record<ExecutionMode, string> = {
   pipeline: '固定七阶段流水线：需求澄清 → UI设计 → 技术架构 → 开发 → 测试 → 部署 → 经验沉淀。适合团队协作、流程规范的场景。',
   conversation: '自由对话驱动：AI根据需求自动拆解任务并产出交付物，无固定阶段约束。适合强个体、快速迭代的场景。',
+};
+
+export const PROCESS_CONSTRAINT_LABELS: Record<ProcessConstraint, string> = {
+  strict: '严格模式',
+  moderate: '适中模式',
+  free: '自由模式',
+};
+
+export const PROCESS_CONSTRAINT_DESCRIPTIONS: Record<ProcessConstraint, string> = {
+  strict: '强制阶段排序 + 质量门禁 + 显式确认。每个交付物必须通过 Gate 评审后才能推进。适合团队协作、质量优先的场景。',
+  moderate: '推荐顺序 + 宽松门禁 + 可跳过。有方法论引导但不卡死，适合有经验的个体快速迭代。',
+  free: '无阶段约束 + 自动提取交付物。AI 自主判断节奏，对话中自然产出结构化成果。适合探索性工作。',
 };
 
 // ─── Mode Switch ──────────────────────────────────────────
