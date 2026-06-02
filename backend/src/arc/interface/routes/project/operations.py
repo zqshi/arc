@@ -48,21 +48,29 @@ async def get_domain_model(
         arts_map = await art_repo.list_by_todo_ids([t.id for t in todos])
         for todo in todos:
             for art in arts_map.get(todo.id, []):
-                if art.artifact_type.value == "tech_architecture" and (
-                    art.content.get("data_model", {}).get("entities")
-                    or art.content.get("domain_design")
-                ):
-                    extractor = DomainModelExtractor(db)
-                    updated = await extractor.extract_and_merge(
-                        todo.id, art.content,
+                if art.artifact_type.value != "tech_architecture":
+                    continue
+                data_model = art.content.get("data_model")
+                domain_design = art.content.get("domain_design")
+                has_entities = (
+                    isinstance(data_model, dict)
+                    and isinstance(data_model.get("entities"), list)
+                    and len(data_model["entities"]) > 0
+                )
+                has_design = isinstance(domain_design, dict) and bool(domain_design)
+                if not has_entities and not has_design:
+                    continue
+                extractor = DomainModelExtractor(db)
+                updated = await extractor.extract_and_merge(
+                    todo.id, art.content,
+                )
+                if updated:
+                    await db.commit()
+                    project = await repo.get_by_id(
+                        project_id, user_id=user.id,
                     )
-                    if updated:
-                        await db.commit()
-                        project = await repo.get_by_id(
-                            project_id, user_id=user.id,
-                        )
-                        dm = project.domain_model
-                        break
+                    dm = project.domain_model
+                    break
             if dm and (dm.get("aggregates") or dm.get("subdomains")):
                 break
 
@@ -116,10 +124,13 @@ async def refresh_domain_model(
         for art in arts_by_todo.get(todo.id, []):
             if art.artifact_type.value != "tech_architecture":
                 continue
+            data_model = art.content.get("data_model")
+            domain_design = art.content.get("domain_design")
             has_model = (
-                art.content.get("data_model", {}).get("entities")
-                or art.content.get("domain_design")
-            )
+                isinstance(data_model, dict)
+                and isinstance(data_model.get("entities"), list)
+                and len(data_model["entities"]) > 0
+            ) or (isinstance(domain_design, dict) and bool(domain_design))
             if not has_model:
                 continue
             updated = await extractor.extract_and_merge(

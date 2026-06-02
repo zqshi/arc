@@ -25,6 +25,10 @@
 | 聚合边界重构 — service 跨聚合直接访问 repo | P2 | v2.3.0 审计 | pending (需 DI 完成后) |
 | domain_model 无版本历史/无回滚能力 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
 | Validator 评审结果无闭环流程 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
+| Pipeline/Conversation 双架构冗余 | P0 | RFC-001 审计 | v4.0.0 |
+| INPUT_SUFFICIENCY_PROMPT 死代码 | P0 | RFC-001 审计 | v4.0.0 Phase 1 |
+| Pipeline 无 tool-use 能力 (能力倒挂) | P0 | RFC-001 审计 | v4.0.0 Phase 1 |
+| AC ↔ 测试无交叉一致性验证 | P1 | RFC-001 审计 | v4.0.0 Phase 4 |
 | 前端 4 个组件超 500 行 | P2 | v2.3.0 质量检测 | v2.9.0 T4 |
 | application 层循环依赖 (2 个环) | P1 | v2.3.0 质量检测 | v2.9.0 T1 (顶层已修复) |
 | tool_loop 穿透 adapter 封装 | P2 | v2.3.0 遗留 | v2.4.0 T4+T5 |
@@ -48,6 +52,39 @@
 ## ~~v3.2.0 — 领域模型升级执行机制 (Phase 3)~~ ✅ 已完成
 
 > [v3.2.0-snapshot.md](v3.2.0-snapshot.md)
+
+---
+
+## v4.0.0 — 统一执行引擎 (RFC-001)
+
+> **RFC**: [docs/rfcs/RFC-001-unified-execution-engine.md](../rfcs/RFC-001-unified-execution-engine.md)  
+> **目标**: 消除 Pipeline/Conversation 双架构，统一为单引擎 + 配置化约束策略  
+> **预计**: 4 个 phase，约 4-6 个版本迭代
+
+### 核心问题
+
+选了"更严格的质量管控"(pipeline)，反而得到了"更弱的AI执行能力"——两条路径从两端出发正在走向同一个中心，但各自能力残缺。
+
+### Phase 规划
+
+| Phase | 内容 | 关键交付 |
+|-------|------|---------|
+| Phase 1 | 统一底层执行 | Pipeline 接入 ToolAwareLoop + 激活 INPUT_SUFFICIENCY_PROMPT |
+| Phase 2 | 统一 Prompt 体系 | 模块化 prompt 替代双系统 prompt |
+| Phase 3 | ProcessController | `process_constraint` 配置替代 `execution_mode` 枚举 |
+| Phase 4 | 方法论升级 | 每阶段主动澄清 + 交叉一致性验证 + AC 逐条 check-off |
+
+### 现有能力缺陷 (待修复)
+
+| # | 问题 | 严重度 |
+|---|------|--------|
+| 1 | `INPUT_SUFFICIENCY_PROMPT` 是死代码，需求充分性判断从未执行 | P0 |
+| 2 | Pipeline 模式无工具执行能力（能力倒挂） | P0 |
+| 3 | 验收标准(AC) ↔ 测试报告无逐条覆盖验证 | P1 |
+| 4 | 交互设计不检查是否覆盖所有用户场景 | P1 |
+| 5 | 技术架构 ADR 不验证是否真的做了多方案对比 | P2 |
+| 6 | Conversation 模式无任何阶段门禁 | P1 |
+| 7 | Socratic 追问是静态列表，不根据需求类型动态调整 | P2 |
 
 ---
 
