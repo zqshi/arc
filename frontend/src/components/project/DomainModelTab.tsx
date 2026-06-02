@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Boxes, Layers, Network, Database, Zap, Circle, RefreshCw, Loader2, GitFork, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Layers, Network, Database, Zap, Circle, RefreshCw, Loader2, GitFork, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { DomainModel, DomainModelAggregate, DomainModelSubdomain } from '../../types/api';
 import { DomainModelGraph } from './DomainModelGraph';
 import ModelHistoryPanel from './ModelHistoryPanel';
@@ -41,7 +41,7 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
   if (!domainModel || isModelEmpty(domainModel)) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Boxes size={32} className="mb-3 text-text-muted/30" />
+        <Database size={32} className="mb-3 text-text-muted/30" />
         <p className="text-sm font-medium text-text-secondary">暂无领域模型</p>
         {hasLocalPath ? (
           <>
@@ -86,8 +86,9 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Boxes size={15} className="text-accent" />
-          <h3 className="text-sm font-semibold text-text-primary">领域模型</h3>
+          <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+            <Database size={13} /> 领域模型
+          </h2>
           {domainModel.version && (
             <span className="rounded-full bg-bg-elevated px-2 py-0.5 text-[10px] text-text-muted">
               v{domainModel.version}
