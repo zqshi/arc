@@ -2,8 +2,9 @@
  * ValidationPanel — AI 评审结果弹窗。
  * 支持 stale 状态下的"模型已变更"警告 + 重新评审按钮。
  */
-import { ShieldCheck, X, AlertTriangle, Loader2, RefreshCw, CheckCircle2, Info } from 'lucide-react';
-import type { DomainModelValidation } from '../../types/api';
+import { useState } from 'react';
+import { ShieldCheck, X, AlertTriangle, Loader2, RefreshCw, CheckCircle2, Info, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import type { DomainModelValidation, ReviewFeedback, ReviewFeedbackStatus, ModelChangeScope } from '../../types/api';
 import type { ReviewState } from '../../hooks/useDomainModelReview';
 
 const LEVEL_STYLES: Record<string, { label: string; color: string; bg: string }> = {
@@ -27,10 +28,12 @@ interface ValidationPanelProps {
   currentVersion: number;
   onRevalidate: () => Promise<void>;
   revalidating: boolean;
+  feedbacks: ReviewFeedback[];
+  onResolveFeedback: (feedbackId: string, action: string, note?: string) => Promise<void>;
 }
 
 export default function ValidationPanel({
-  validation, onClose, reviewState, lastReviewedVersion, currentVersion, onRevalidate, revalidating,
+  validation, onClose, reviewState, lastReviewedVersion, currentVersion, onRevalidate, revalidating, feedbacks, onResolveFeedback,
 }: ValidationPanelProps) {
   const levelStyle = LEVEL_STYLES[validation.level] || LEVEL_STYLES.poor;
 
@@ -132,8 +135,69 @@ export default function ValidationPanel({
               </div>
             </div>
           )}
+
+          {/* Feedback Actions */}
+          {feedbacks.length > 0 && (
+            <div className="mt-4 border-t border-border pt-4">
+              <h4 className="mb-2 text-[11px] font-semibold text-text-tertiary">
+                评审反馈 ({feedbacks.filter(f => f.status === 'pending').length} 待处理)
+              </h4>
+              <div className="space-y-1.5">
+                {feedbacks.slice(0, 10).map(fb => (
+                  <FeedbackRow key={fb.id} feedback={fb} onResolve={onResolveFeedback} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+const SCOPE_LABELS: Record<string, { label: string; color: string }> = {
+  additive: { label: '增量', color: 'text-green-600 bg-green-50' },
+  structural: { label: '结构性', color: 'text-amber-600 bg-amber-50' },
+  breaking: { label: '破坏性', color: 'text-red-600 bg-red-50' },
+};
+
+const FB_STATUS: Record<string, { icon: typeof Clock; color: string }> = {
+  pending: { icon: Clock, color: 'text-amber-500' },
+  accepted: { icon: CheckCircle, color: 'text-green-500' },
+  deferred: { icon: Clock, color: 'text-blue-500' },
+  rejected: { icon: XCircle, color: 'text-gray-400' },
+};
+
+function FeedbackRow({ feedback, onResolve }: { feedback: ReviewFeedback; onResolve: (id: string, action: string, note?: string) => Promise<void> }) {
+  const [expanded, setExpanded] = useState(false);
+  const scope = SCOPE_LABELS[feedback.scope] || SCOPE_LABELS.additive;
+  const status = FB_STATUS[feedback.status] || FB_STATUS.pending;
+  const StatusIcon = status.icon;
+
+  return (
+    <div className="rounded border border-border bg-bg-card text-[10px]">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-bg-elevated/50"
+      >
+        <StatusIcon size={12} className={status.color} />
+        <span className="flex-1 text-text-primary truncate">{feedback.issue.title}</span>
+        <span className={`rounded px-1 py-0.5 text-[9px] font-medium ${scope.color}`}>{scope.label}</span>
+        {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+      </button>
+      {expanded && (
+        <div className="border-t border-border px-2.5 py-2 space-y-1.5">
+          <p className="text-text-secondary">{feedback.issue.detail}</p>
+          {feedback.issue.suggestion && <p className="text-text-muted">💡 {feedback.issue.suggestion}</p>}
+          {feedback.status === 'pending' && (
+            <div className="flex gap-1.5 pt-1">
+              <button onClick={() => onResolve(feedback.id, 'accept')} className="rounded bg-green-600 px-2 py-0.5 text-[9px] font-medium text-white hover:bg-green-700">接受</button>
+              <button onClick={() => onResolve(feedback.id, 'defer')} className="rounded bg-blue-600 px-2 py-0.5 text-[9px] font-medium text-white hover:bg-blue-700">延迟</button>
+              <button onClick={() => onResolve(feedback.id, 'reject')} className="rounded bg-gray-200 px-2 py-0.5 text-[9px] font-medium text-text-secondary hover:bg-gray-300">驳回</button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
