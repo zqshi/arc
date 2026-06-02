@@ -151,7 +151,7 @@ function DisconnectedView({
 }: Pick<GitHubSectionProps, 'repoUrl' | 'token' | 'connecting' | 'onTokenChange' | 'onRepoUrlChange' | 'onConnect'>) {
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-text-muted">连接 GitHub 后，Issues 会自动同步为 Arc 需求，完成后自动回写。</p>
+      <p className="text-[11px] text-text-muted">连接 GitHub 后，Issues 会自动同步为项目需求，完成后自动回写。</p>
       <div>
         <label className="mb-1 block text-[11px] font-medium text-text-tertiary">代码仓库地址</label>
         <input type="text" value={repoUrl} onChange={(e) => onRepoUrlChange(e.target.value)}
