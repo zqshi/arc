@@ -29,6 +29,8 @@ class ProjectModel(TimestampMixin, Base):
     scan_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
     execution_mode: Mapped[str] = mapped_column(String(20), default="pipeline")
+    process_constraint: Mapped[str] = mapped_column(String(20), default="free", server_default="free")
+    process_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     pipeline_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     conversation_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     domain_model: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

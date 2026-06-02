@@ -11,6 +11,8 @@ from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
     ExecutionMode,
+    ProcessConfig,
+    ProcessConstraint,
     ProjectStatus,
     VersionStatus,
 )
@@ -119,6 +121,8 @@ class ProjectRepository(AbstractProjectRepository):
         model.scan_error = project.scan_error or None
         model.status = project.status.value
         model.execution_mode = project.execution_mode.value
+        model.process_constraint = project.process_constraint.value
+        model.process_config = project.process_config.to_dict() if project.process_config else None
         model.pipeline_config = project.pipeline_config
         model.conversation_config = project.conversation_config
         model.domain_model = project.domain_model or None
@@ -158,6 +162,12 @@ class ProjectRepository(AbstractProjectRepository):
             execution_mode=ExecutionMode(model.execution_mode)
             if model.execution_mode
             else ExecutionMode.PIPELINE,
+            process_constraint=ProcessConstraint(model.process_constraint)
+            if getattr(model, "process_constraint", None)
+            else ProcessConstraint.FREE,
+            process_config=ProcessConfig.from_dict(model.process_config)
+            if getattr(model, "process_config", None)
+            else ProcessConfig(),
             pipeline_config=model.pipeline_config or dict(DEFAULT_PIPELINE_CONFIG),
             conversation_config=ProjectRepository._merge_conversation_config(
                 model.conversation_config

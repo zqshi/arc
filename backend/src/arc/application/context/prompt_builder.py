@@ -88,8 +88,16 @@ class PromptBuilder:
         self,
         conversation: Conversation,
         todo: Todo | None,
+        *,
+        phase_scope: str | None = None,
     ) -> str:
-        """组装完整的系统提示词。"""
+        """组装完整的系统提示词。
+
+        Args:
+            phase_scope: 限定 deliverable 展示范围。
+                None → 展示全部未完成 deliverable (conversation 模式)
+                "clarification" → 只展示该阶段对应的 deliverable schema (pipeline 模式)
+        """
         from arc.infrastructure.repositories.artifact import ArtifactRepository
         from arc.infrastructure.repositories.planning import DeliverableTrackerRepository
 
@@ -103,6 +111,20 @@ class PromptBuilder:
             for k, v in (tracker.deliverables if tracker else {}).items()
             if v.value in ("produced", "confirmed")
         ]
+
+        # phase_scope 限定展示范围
+        if phase_scope:
+            from arc.domain.artifact.value_objects import PHASE_ARTIFACT_MAP
+            from arc.domain.pipeline.value_objects import PhaseType
+
+            try:
+                pt = PhaseType(phase_scope)
+                scoped_type = PHASE_ARTIFACT_MAP.get(pt)
+                if scoped_type:
+                    scoped_value = scoped_type.value
+                    required = [scoped_value] if scoped_value in required else [scoped_value]
+            except ValueError:
+                pass  # invalid phase_scope, use full list
 
         deliverable_section = self._build_deliverable_section(required, completed)
         project_context = await self._build_project_context(conversation, todo)

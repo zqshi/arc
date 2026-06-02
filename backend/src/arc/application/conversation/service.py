@@ -136,16 +136,25 @@ class ConversationService:
         await self.conv_repo.add_message(conversation.id, ai_message)
 
     async def _build_llm_messages(self, conversation: Conversation) -> list:
-        """Build LLM message list with phase-specific prompt and prior artifacts."""
+        """Build LLM message list — 委托 PromptBuilder 构建 system prompt。
+
+        Phase 2 统一: pipeline 模式也使用 PromptBuilder，通过 phase_scope
+        参数限定展示范围（只展示当前阶段的 deliverable schema）。
+        """
         from arc.application.ai.llm_adapter import LLMMessage
+        from arc.application.context.prompt_builder import PromptBuilder
 
-        messages = []
         todo = await self.todo_repo.get_by_id(conversation.todo_id)
-        phase_type = PURPOSE_TO_PHASE.get(conversation.purpose.value)
+        phase_scope = PURPOSE_TO_PHASE.get(conversation.purpose.value)
 
-        system_prompt = await self._build_system_prompt(conversation, todo, phase_type)
-        messages.append(LLMMessage(role="system", content=system_prompt))
+        builder = PromptBuilder(self.db)
+        system_prompt = await builder.build_system_prompt(
+            conversation,
+            todo,
+            phase_scope=phase_scope.value if phase_scope else None,
+        )
 
+        messages = [LLMMessage(role="system", content=system_prompt)]
         for msg in conversation.get_context_window(max_messages=40):
             messages.append(LLMMessage(role=msg.role.value, content=msg.content))
 
@@ -154,7 +163,7 @@ class ConversationService:
     async def _build_system_prompt(
         self, conversation: Conversation, todo, phase_type: PhaseType | None
     ) -> str:
-        """Build phase-aware system prompt.
+        """DEPRECATED — 保留兼容，新代码请使用 PromptBuilder.build_system_prompt()。
 
         Includes prior artifacts, experience context, and project context.
         """
