@@ -166,7 +166,7 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
                     <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">{rel.type}</span>
                     <span className="text-text-muted">→</span>
                     <span className="font-medium text-text-primary">{rel.to}</span>
-                    {rel.description && <span className="ml-auto text-text-muted">{rel.description}</span>}
+                    {rel.description && <span className="ml-auto text-text-secondary">{rel.description}</span>}
                   </div>
                 ))}
               </div>
@@ -258,7 +258,7 @@ function SubdomainCard({ subdomain, contexts }: { subdomain: DomainModelSubdomai
       <div className="flex items-center gap-2">
         <Circle size={8} className={`fill-current ${style.dot.replace('bg-', 'text-')}`} />
         <span className="text-xs font-semibold text-text-primary">{subdomain.name}</span>
-        <span className="rounded-full bg-bg-elevated px-1.5 py-0.5 text-[9px] text-text-muted">{subdomain.type}</span>
+        <span className="rounded-full bg-bg-elevated px-1.5 py-0.5 text-[9px] text-text-tertiary">{subdomain.type}</span>
       </div>
       {subdomain.description && (
         <p className="mt-1 pl-4 text-[11px] text-text-secondary">{subdomain.description}</p>
@@ -285,11 +285,11 @@ function AggregateCard({ aggregate }: { aggregate: DomainModelAggregate }) {
           <span className="text-xs font-semibold text-text-primary">{aggregate.name}</span>
         </div>
         {aggregate.context && (
-          <span className="rounded bg-bg-elevated px-1.5 py-0.5 text-[9px] text-text-muted">{aggregate.context}</span>
+          <span className="rounded bg-bg-elevated px-1.5 py-0.5 text-[9px] text-text-tertiary">{aggregate.context}</span>
         )}
       </div>
       {aggregate.description && (
-        <p className="mt-1 text-[10px] text-text-muted">{aggregate.description}</p>
+        <p className="mt-1 text-[10px] text-text-secondary">{aggregate.description}</p>
       )}
       <div className="mt-2 space-y-1">
         {aggregate.entities.length > 0 && (
@@ -318,7 +318,7 @@ function AggregateCard({ aggregate }: { aggregate: DomainModelAggregate }) {
 function TagRow({ label, items, color }: { label: string; items: string[]; color: string }) {
   return (
     <div className="flex items-start gap-1.5">
-      <span className="mt-0.5 w-8 flex-shrink-0 text-[9px] text-text-muted">{label}</span>
+      <span className="mt-0.5 w-8 flex-shrink-0 text-[9px] text-text-tertiary">{label}</span>
       <div className="flex flex-wrap gap-1">
         {items.map((item, i) => (
           <span key={i} className={`rounded px-1.5 py-0.5 text-[10px] ${color}`}>{item}</span>
