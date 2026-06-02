@@ -9,7 +9,7 @@
 
 - [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
-- [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md) · [v2.9.0](v2.9.0-snapshot.md) · [v3.0.0](v3.0.0-snapshot.md) · [v3.1.0](v3.1.0-snapshot.md) · [v3.2.0](v3.2.0-snapshot.md) · [v3.3.0](v3.3.0-snapshot.md) · [v3.4.0](v3.4.0-snapshot.md) · [v3.5.0](v3.5.0-snapshot.md) · [v3.6.0](v3.6.0-snapshot.md) · [v3.7.0](v3.7.0-snapshot.md) · [v3.8.0](v3.8.0-snapshot.md) · [v3.9.0](v3.9.0-snapshot.md) · [v3.10.0](v3.10.0-snapshot.md)
+- [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md) · [v2.9.0](v2.9.0-snapshot.md) · [v3.0.0](v3.0.0-snapshot.md) · [v3.1.0](v3.1.0-snapshot.md) · [v3.2.0](v3.2.0-snapshot.md) · [v3.3.0](v3.3.0-snapshot.md) · [v3.4.0](v3.4.0-snapshot.md) · [v3.5.0](v3.5.0-snapshot.md) · [v3.6.0](v3.6.0-snapshot.md) · [v3.7.0](v3.7.0-snapshot.md) · [v3.8.0](v3.8.0-snapshot.md) · [v3.9.0](v3.9.0-snapshot.md) · [v3.10.0](v3.10.0-snapshot.md) · [v4.0.0](v4.0.0-snapshot.md)
 
 ---
 
@@ -61,46 +61,15 @@
 
 ---
 
-## v4.0.0 — 统一执行引擎 (RFC-001)
+## ~~v4.0.0 — 统一执行引擎 (RFC-001)~~ ✅ 已完成
 
-> **RFC**: [docs/rfcs/RFC-001-unified-execution-engine.md](../rfcs/RFC-001-unified-execution-engine.md)  
-> **目标**: 消除 Pipeline/Conversation 双架构，统一为单引擎 + 配置化约束策略  
-> **预计**: 3 个 phase (Phase 4 方法论已由 RFC-002 提前完成)
-
-### 核心问题
-
-选了"更严格的质量管控"(pipeline)，反而得到了"更弱的AI执行能力"——两条路径从两端出发正在走向同一个中心，但各自能力残缺。
-
-### Phase 规划
-
-| Phase | 内容 | 关键交付 | 状态 |
-|-------|------|---------|------|
-| Phase 1 | 统一底层执行 | Pipeline 接入 ToolAwareLoop | ✅ **已完成** |
-| Phase 2 | 统一 Prompt 体系 | 模块化 prompt 替代双系统 prompt | ⏳ 待实施 |
-| Phase 3 | ProcessController | `process_constraint` 配置替代 `execution_mode` 枚举 | ⏳ 待实施 |
-| ~~Phase 4~~ | ~~方法论升级~~ | ~~每阶段方法论 + 交叉验证 + AC check-off~~ | ✅ **RFC-002 已完成** |
-
-### 原始能力缺陷 — 修复状态
-
-| # | 问题 | 严重度 | 状态 |
-|---|------|--------|------|
-| 1 | `INPUT_SUFFICIENCY_PROMPT` 死代码 | P0 | ✅ `sufficiency_gate.py` |
-| 2 | Pipeline 模式无工具执行能力（能力倒挂） | P0 | ⏳ Phase 1 |
-| 3 | AC ↔ 测试报告无逐条覆盖验证 | P1 | ✅ `gate.py` _check_cross_consistency |
-| 4 | 交互设计不检查覆盖度 | P1 | ✅ `ui_design_methodology.py` validate |
-| 5 | 架构 ADR 不验证多方案对比 | P2 | ✅ `architecture_methodology.py` (≥2 options) |
-| 6 | Conversation 模式无门禁 | P1 | ✅ `artifact_extractor.py` 补 gate |
-| 7 | Socratic 追问静态列表 | P2 | ✅ `clarification_strategy.py` (4策略路由) |
+> [v4.0.0-snapshot.md](v4.0.0-snapshot.md)
 
 ---
 
 ## ~~v3.10.0 — Skill 集成 + 质量体系升级 (RFC-002)~~ ✅ 已完成
 
-> **RFC**: [docs/rfcs/RFC-002-skill-integration-quality-plan.md](../rfcs/RFC-002-skill-integration-quality-plan.md)  
-> **实施日期**: 2026-06-02  
-> **交付**: 7 个新模块 (~1700 行) + 4 个改造模块
-
-### 集成的外部 Skill (9 个评估, 7 个集成)
+> [v3.10.0-snapshot.md](v3.10.0-snapshot.md)
 
 | Skill | 来源 | 集成位置 |
 |-------|------|---------|
