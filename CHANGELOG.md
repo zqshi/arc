@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-06-02
+
+### Changed — 功能集成 + 超限拆分
+
+- ReviewService 集成主流程: validate 路由接入闭环, artifact 提取后自动评审
+- planning_service.py 拆分: 557→487行, 提取 planning_experience.py
+- routes/todo.py 拆分: 557行 → todo/ 目录 (crud + git + conversations + helpers)
+- routes/project/core.py 拆分: 513→270行, 提取 scanning.py + github.py
+- **非 seeds 超限文件清零** (原 3 个 > 500 行 → 0 个)
+
 ## [3.2.0] - 2026-06-01
 
 ### Added — 领域模型升级执行机制 (Phase 3/3)

@@ -221,9 +221,18 @@ async def validate_domain_model_route(
 
     dm = project.domain_model or {}
 
+    from arc.application.review.service import ReviewService
+    from arc.infrastructure.repositories.review import ReviewFeedbackRepository
+
+    feedback_repo = ReviewFeedbackRepository(db)
+    svc = ReviewService(feedback_repo)
+    feedbacks = await svc.validate_and_persist(project_id, dm)
+
+    # 返回兼容旧格式 + 新增 feedbacks 信息
     from arc.application.execution.domain_model_validator import validate_domain_model
 
     result = await validate_domain_model(dm)
+    result["feedbacks_created"] = len(feedbacks)
     return result
 
 

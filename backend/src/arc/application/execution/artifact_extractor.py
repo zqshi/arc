@@ -89,11 +89,42 @@ class ArtifactExtractor:
 
         try:
             extractor = DomainModelExtractor(self.db)
-            await extractor.extract_and_merge(todo_id, content)
+            updated = await extractor.extract_and_merge(todo_id, content)
+
+            # 提取成功后自动触发评审闭环
+            if updated:
+                await self._try_review_after_extract(todo_id)
         except Exception:
             logger.warning(
                 "Domain model extraction failed for todo %s", todo_id, exc_info=True
             )
+
+    async def _try_review_after_extract(self, todo_id: uuid.UUID) -> None:
+        """领域模型提取后自动触发评审，产出 ReviewFeedback。"""
+        from arc.application.review.service import ReviewService
+        from arc.infrastructure.repositories.review import ReviewFeedbackRepository
+        from arc.infrastructure.repositories.todo import TodoRepository
+
+        try:
+            todo_repo = TodoRepository(self.db)
+            todo = await todo_repo.get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return
+
+            from arc.infrastructure.repositories.project import ProjectRepository
+
+            project_repo = ProjectRepository(self.db)
+            project = await project_repo.get_by_id(todo.project_id)
+            if not project or not project.domain_model:
+                return
+
+            feedback_repo = ReviewFeedbackRepository(self.db)
+            svc = ReviewService(feedback_repo)
+            await svc.validate_and_persist(
+                project.id, project.domain_model, source_todo_id=todo_id,
+            )
+        except Exception:
+            logger.debug("Auto-review after extract skipped for todo %s", todo_id, exc_info=True)
 
     async def get_or_create_tracker(
         self,
