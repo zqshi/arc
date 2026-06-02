@@ -100,6 +100,9 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 [data-theme="light"] ::-webkit-scrollbar-thumb { background: #D1D5DB; }
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] ::-webkit-scrollbar-thumb { background: #D1D5DB; }
+}
 
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(4px); }
