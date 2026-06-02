@@ -83,17 +83,17 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
 
   return (
     <div>
-      {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-            <Database size={13} /> 领域模型
-          </h2>
-          {domainModel.version && (
-            <span className="rounded-full bg-bg-elevated px-2 py-0.5 text-[10px] text-text-muted">
+      {/* Header — 与 TodosTab/SettingsTab 布局一致 */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+          <Database size={13} /> 领域模型
+          {domainModel.version != null && (
+            <span className="rounded-full bg-bg-elevated px-2 py-0.5 text-[10px] font-normal normal-case tracking-normal text-text-muted">
               v{domainModel.version}
             </span>
           )}
+        </h2>
+        <div className="flex items-center gap-2">
           {onRefresh && (
             <button
               onClick={onRefresh}
@@ -106,7 +106,11 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
           )}
           <ReviewButton review={review} />
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+
+      {/* View switcher */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex gap-3">
           <button
             onClick={() => setGraphMode(!graphMode)}
             className={`flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${
