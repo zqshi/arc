@@ -23,7 +23,13 @@ export default function ModelHistoryPanel({ snapshots, currentVersion, loading, 
     return <div className="py-4 text-center text-xs text-text-muted">加载版本历史...</div>;
   }
 
-  if (snapshots.length === 0) {
+  // 过滤无效快照（content 为空的升级操作产生的垃圾数据）并按版本去重（保留最新）
+  const validSnapshots = snapshots.filter(s => s.trigger !== 'upgrade' || s.version > 0);
+  const deduped = Array.from(
+    new Map(validSnapshots.map(s => [s.version, s])).values()
+  );
+
+  if (deduped.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-bg-card p-4 text-center text-xs text-text-muted">
         暂无版本历史。领域模型变更后将自动记录。
@@ -39,7 +45,7 @@ export default function ModelHistoryPanel({ snapshots, currentVersion, loading, 
       </h3>
 
       <div className="space-y-1">
-        {[...snapshots].reverse().map((snap, i) => (
+        {[...deduped].reverse().map((snap, i) => (
           <div
             key={`${snap.version}-${i}`}
             className="flex items-center gap-2 rounded border border-border bg-bg-card px-3 py-1.5 text-xs"
