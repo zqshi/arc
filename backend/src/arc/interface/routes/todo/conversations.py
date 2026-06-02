@@ -59,9 +59,7 @@ async def start_conversation(todo_id: str, db: DbSession, user: CurrentUser):
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
-    if todo.execution_mode.value != "conversation":
-        raise HTTPException(status_code=400, detail="此需求不是对话模式")
-
+    # 统一对话 UI — 所有模式都通过对话推进，不再限制 execution_mode
     svc = ConversationExecutionService(db)
     _, _ = await svc.initialize(UUID(todo_id))
     todo = await repo.get_by_id(UUID(todo_id), user_id=user.id)
