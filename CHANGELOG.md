@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-06-02
+
+### Added — 前端功能贯通
+
+- TodoStatus 加入 `suspended`，STATUS_LABELS + statusBadgeBg 全量更新
+- API client 新增 8 个方法: listReviewFeedbacks / resolveReviewFeedback / getDomainModelHistory / rollbackDomainModel / analyzeModelImpact / executeModelUpgrade / resumeSuspendedTodo
+- ReviewFeedbackPanel 组件: 评审反馈列表 + 展开详情 + accept/defer/reject 操作
+- ModelHistoryPanel 组件: 版本历史时间线 + 回滚按钮
+- types/api.ts: +9 新类型 (ReviewFeedback, ImpactReport, UpgradeResult 等)
+- TypeScript 零错误, 33 前端测试全绿
+
 ## [3.5.0] - 2026-06-02
 
 ### Added — 测试收尾：后端 + 前端

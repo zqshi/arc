@@ -7,6 +7,10 @@ import type {
   CreateVersionRequest,
   DomainModel,
   DomainModelValidation,
+  DomainModelSnapshot,
+  ReviewFeedback,
+  ImpactReport,
+  UpgradeResult,
 } from '../../types/api';
 import type { RequestFn } from './base';
 
@@ -92,5 +96,40 @@ export function createProjectMethods(request: RequestFn) {
 
     getModeSwitchImpact: (projectId: string): Promise<{ active_count: number; pending_count: number; safe_to_switch: boolean }> =>
       request(`/api/projects/${projectId}/mode-switch-impact`),
+
+    // ── Review Feedback (v3.0+) ────────────────────────────
+
+    listReviewFeedbacks: (projectId: string, status?: string): Promise<ReviewFeedback[]> =>
+      request(`/api/projects/${projectId}/review-feedbacks${status ? `?status=${status}` : ''}`),
+
+    resolveReviewFeedback: (projectId: string, feedbackId: string, action: string, note = ''): Promise<ReviewFeedback> =>
+      request(`/api/projects/${projectId}/review-feedbacks/${feedbackId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action, note }),
+      }),
+
+    getDomainModelHistory: (projectId: string): Promise<DomainModelSnapshot[]> =>
+      request(`/api/projects/${projectId}/domain-model/history`),
+
+    rollbackDomainModel: (projectId: string, toVersion: number): Promise<{ ok: boolean; version: number }> =>
+      request(`/api/projects/${projectId}/domain-model/rollback`, {
+        method: 'POST',
+        body: JSON.stringify({ to_version: toVersion }),
+      }),
+
+    analyzeModelImpact: (projectId: string, aggregates: string[], scope: string): Promise<ImpactReport> =>
+      request(`/api/projects/${projectId}/domain-model/impact-analysis`, {
+        method: 'POST',
+        body: JSON.stringify({ affected_aggregates: aggregates, change_scope: scope }),
+      }),
+
+    executeModelUpgrade: (projectId: string, feedbackIds: string[], newModel: DomainModel, strategy: string): Promise<UpgradeResult> =>
+      request(`/api/projects/${projectId}/domain-model/upgrade`, {
+        method: 'POST',
+        body: JSON.stringify({ feedback_ids: feedbackIds, new_model: newModel, strategy }),
+      }),
+
+    resumeSuspendedTodo: (projectId: string, todoId: string): Promise<{ ok: boolean; todo_id: string; status: string }> =>
+      request(`/api/projects/${projectId}/todos/${todoId}/resume`, { method: 'POST' }),
   };
 }

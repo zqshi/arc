@@ -35,6 +35,7 @@ const VERSION_STATUS_STYLE: Record<VersionStatus, { bg: string; label: string }>
 const statusBadgeBg: Record<TodoStatus, string> = {
   pending: 'bg-status-pending/15 text-status-pending',
   active: 'bg-accent/15 text-accent',
+  suspended: 'bg-amber-100 text-amber-700',
   done: 'bg-status-done/15 text-status-done',
   error: 'bg-status-error/15 text-status-error',
   abandoned: 'bg-text-muted/15 text-text-muted',
