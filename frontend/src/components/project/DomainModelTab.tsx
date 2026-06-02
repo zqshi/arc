@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { Boxes, Layers, Network, Database, Zap, Circle, RefreshCw, Loader2, GitFork, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { DomainModel, DomainModelAggregate, DomainModelSubdomain } from '../../types/api';
 import { DomainModelGraph } from './DomainModelGraph';
-import ReviewFeedbackPanel from './ReviewFeedbackPanel';
 import ModelHistoryPanel from './ModelHistoryPanel';
 import ValidationPanel from './ValidationPanel';
-import UpgradePanel from './UpgradePanel';
 import type { useDomainModelReview } from '../../hooks/useDomainModelReview';
 
 type ViewMode = 'strategic' | 'tactical' | 'all';
@@ -213,7 +211,7 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
         </p>
       )}
 
-      {/* Validation Result Panel */}
+      {/* Validation Result Panel (includes feedback actions) */}
       {review.showValidation && review.lastValidation && (
         <ValidationPanel
           validation={review.lastValidation}
@@ -223,30 +221,9 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
           currentVersion={domainModel?.version || 0}
           onRevalidate={review.validate}
           revalidating={review.validating}
+          feedbacks={review.feedbacks}
+          onResolveFeedback={review.resolveFeedback}
         />
-      )}
-
-      {/* Upgrade Panel — 当有已接受反馈时显示 */}
-      {projectId && review.feedbacks.filter(f => f.status === 'accepted').length > 0 && (
-        <div className="mt-4">
-          <UpgradePanel
-            projectId={projectId}
-            acceptedFeedbacks={review.feedbacks.filter(f => f.status === 'accepted')}
-            currentModelVersion={domainModel?.version || 0}
-            onUpgradeComplete={() => { review.refreshFeedbacks(); review.refreshSnapshots(); }}
-          />
-        </div>
-      )}
-
-      {/* Review Feedback Panel */}
-      {projectId && (
-        <div className="mt-4">
-          <ReviewFeedbackPanel
-            feedbacks={review.feedbacks}
-            loading={review.feedbacksLoading}
-            onResolve={review.resolveFeedback}
-          />
-        </div>
       )}
 
       {/* Model Version History */}

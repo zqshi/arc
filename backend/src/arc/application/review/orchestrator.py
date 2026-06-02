@@ -106,7 +106,10 @@ class ModelUpgradeOrchestrator:
         feedback_ids: list[uuid.UUID],
         new_model: dict,
     ) -> UpgradeResult:
-        """阻断策略：暂停高风险需求 → 应用变更 → 恢复低风险需求。"""
+        """阻断策略：暂停高风险需求 + 标记反馈 accepted。
+
+        注意：如果 new_model 为空，不执行模型替换（仅做暂停+标记）。
+        """
         # 1. 获取项目
         project = await self._project_repo.get_by_id(project_id)
         if not project:
@@ -115,52 +118,55 @@ class ModelUpgradeOrchestrator:
         old_version = project.domain_model_version
 
         # 2. 确定受影响的聚合
-        affected_aggs = self._extract_affected_aggregates(new_model, project.domain_model)
+        affected_aggs = self._extract_affected_aggregates(new_model, project.domain_model) if new_model.get("aggregates") else set()
 
-        # 3. 影响分析
-        analyzer = ImpactAnalyzer(self._todo_repo, self._artifact_repo)
-        # 使用最严格的 scope 来做影响判断
-        scope = self._determine_scope(feedback_ids)
-        report = await analyzer.analyze(project_id, list(affected_aggs), scope)
-
-        # 4. 暂停高风险 todos
+        # 3. 影响分析（有受影响聚合时才执行）
         suspended: list[uuid.UUID] = []
         auto_resumed: list[uuid.UUID] = []
 
-        for item in report.items:
-            if item.risk >= RiskLevel.HIGH:
-                todo = await self._todo_repo.get_by_id(item.todo_id)
-                if todo and todo.status == TodoStatus.ACTIVE:
-                    todo.suspend_for_upgrade(
-                        f"等待领域模型升级: {', '.join(item.affected_aggregates)}",
-                        old_version,
-                    )
-                    await self._todo_repo.update(todo)
-                    suspended.append(item.todo_id)
+        if affected_aggs:
+            analyzer = ImpactAnalyzer(self._todo_repo, self._artifact_repo)
+            scope = self._determine_scope(feedback_ids)
+            report = await analyzer.analyze(project_id, list(affected_aggs), scope)
 
-        # 5. 应用模型变更
-        new_version = project.upgrade_domain_model(
-            new_model,
-            trigger=ModelChangeTrigger.UPGRADE,
-            trigger_todo_id="",
-        )
-        await self._project_repo.update(project)
+            # 4. 暂停高风险 todos
+            for item in report.items:
+                if item.risk >= RiskLevel.HIGH:
+                    todo = await self._todo_repo.get_by_id(item.todo_id)
+                    if todo and todo.status == TodoStatus.ACTIVE:
+                        todo.suspend_for_upgrade(
+                            f"等待领域模型升级: {', '.join(item.affected_aggregates)}",
+                            old_version,
+                        )
+                        await self._todo_repo.update(todo)
+                        suspended.append(item.todo_id)
+
+        # 5. 应用模型变更（仅当 new_model 有实际内容时）
+        new_version = old_version
+        if new_model and new_model.get("aggregates"):
+            new_version = project.upgrade_domain_model(
+                new_model,
+                trigger=ModelChangeTrigger.UPGRADE,
+                trigger_todo_id="",
+            )
+            await self._project_repo.update(project)
 
         # 6. 标记反馈为 accepted
         for fid in feedback_ids:
             fb = await self._feedback_repo.get_by_id(fid)
             if fb and not fb.is_resolved:
-                fb.accept(f"已升级到 v{new_version}")
+                fb.accept(f"已纳入升级计划 (v{old_version})")
                 await self._feedback_repo.update(fb)
 
-        # 7. 自动恢复低风险 todos
-        for item in report.items:
-            if item.risk < RiskLevel.HIGH:
-                todo = await self._todo_repo.get_by_id(item.todo_id)
-                if todo and todo.is_suspended:
-                    todo.resume_after_upgrade()
-                    await self._todo_repo.update(todo)
-                    auto_resumed.append(item.todo_id)
+        # 7. 自动恢复低风险 todos（仅在模型实际变更后）
+        if new_version > old_version and affected_aggs:
+            for item in report.items:
+                if item.risk < RiskLevel.HIGH:
+                    todo = await self._todo_repo.get_by_id(item.todo_id)
+                    if todo and todo.is_suspended:
+                        todo.resume_after_upgrade()
+                        await self._todo_repo.update(todo)
+                        auto_resumed.append(item.todo_id)
 
         logger.info(
             "Model upgrade complete: project=%s v%d→v%d, suspended=%d, auto_resumed=%d",
