@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Boxes } from 'lucide-react';
+import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Database } from 'lucide-react';
 import ActionMenu from '../components/ActionMenu';
 import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
@@ -13,7 +13,7 @@ type TabKey = 'todos' | 'experiences' | 'domain_model' | 'settings';
 const TAB_ITEMS: { key: TabKey; label: string; icon: typeof FileText }[] = [
   { key: 'todos', label: '需求', icon: FileText },
   { key: 'experiences', label: '经验', icon: Lightbulb },
-  { key: 'domain_model', label: '领域模型', icon: Boxes },
+  { key: 'domain_model', label: '领域模型', icon: Database },
   { key: 'settings', label: '设置', icon: Settings },
 ];
 
