@@ -206,6 +206,8 @@ export function useProjectDetail() {
         ...prev,
         [versionId]: (prev[versionId] || []).filter((t) => t.id !== todoId),
       }));
+      // 刷新版本数据以更新 todo_stats 计数
+      fetchData({ silent: true });
       toast('需求已删除', 'success');
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : '删除失败';
