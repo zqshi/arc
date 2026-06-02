@@ -1,3 +1,4 @@
+// 超限例外: 纯类型定义文件，无运行时逻辑，按 CLAUDE.md 规范允许超限。
 // ─── Core Enums ──────────────────────────────────────────
 export type TodoStatus = 'pending' | 'active' | 'suspended' | 'done' | 'error' | 'abandoned';
 export type PhaseType = 'clarification' | 'ui_design' | 'architecture' | 'development' | 'testing' | 'deployment' | 'extraction';

@@ -1,30 +1,50 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 let counter = 0;
-let mermaidReady: Promise<typeof import('mermaid')> | null = null;
+let mermaidMod: typeof import('mermaid') | null = null;
+let lastTheme: string = '';
 
-function getMermaid() {
-  if (!mermaidReady) {
-    mermaidReady = import('mermaid').then((m) => {
-      m.default.initialize({
-        startOnLoad: false,
-        theme: 'dark',
-        themeVariables: {
-          primaryColor: '#6C63FF',
-          primaryTextColor: '#E8E6E3',
-          primaryBorderColor: '#4A4458',
-          lineColor: '#6C63FF',
-          secondaryColor: '#2A2A3E',
-          tertiaryColor: '#1E1E2E',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '13px',
-        },
-        flowchart: { curve: 'basis', padding: 16 },
-      });
-      return m;
+function getEffectiveTheme(): 'dark' | 'default' {
+  const dt = document.documentElement.getAttribute('data-theme');
+  if (dt === 'light') return 'default';
+  if (dt === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches) return 'default';
+  return 'dark';
+}
+
+async function getMermaid() {
+  const theme = getEffectiveTheme();
+  if (!mermaidMod) {
+    const m = await import('mermaid');
+    mermaidMod = m;
+  }
+  if (lastTheme !== theme) {
+    lastTheme = theme;
+    mermaidMod.default.initialize({
+      startOnLoad: false,
+      theme,
+      themeVariables: theme === 'dark' ? {
+        primaryColor: '#6C63FF',
+        primaryTextColor: '#E8E6E3',
+        primaryBorderColor: '#4A4458',
+        lineColor: '#6C63FF',
+        secondaryColor: '#2A2A3E',
+        tertiaryColor: '#1E1E2E',
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '13px',
+      } : {
+        primaryColor: '#2563EB',
+        primaryTextColor: '#1F2937',
+        primaryBorderColor: '#BFDBFE',
+        lineColor: '#2563EB',
+        secondaryColor: '#EFF6FF',
+        tertiaryColor: '#F8FAFC',
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '13px',
+      },
+      flowchart: { curve: 'basis', padding: 16 },
     });
   }
-  return mermaidReady;
+  return mermaidMod;
 }
 
 interface Props {
