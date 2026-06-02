@@ -6,8 +6,7 @@ import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import { TodoSidebar } from '../components/todo';
 import { TodoDetailSkeleton } from '../components/Skeleton';
 import { WorkspaceHeader } from './todo/WorkspaceHeader';
-import { ConversationModeView } from './todo/ConversationModeView';
-import { PipelineModeView } from './todo/PipelineModeView';
+import { UnifiedWorkspaceView } from './todo/UnifiedWorkspaceView';
 import type { Todo } from '../types/api';
 
 export default function TodoDetail() {
@@ -116,12 +115,8 @@ export default function TodoDetail() {
           onOpenSidebar={() => setSidebarOpen(true)}
         />
 
-        {/* Mode-specific content */}
-        {todo.execution_mode === 'conversation' ? (
-          <ConversationModeView todo={todo} setTodo={setTodo} isNarrow={isNarrow} isCompact={isCompact} />
-        ) : (
-          <PipelineModeView todo={todo} setTodo={setTodo} isNarrow={isNarrow} isCompact={isCompact} />
-        )}
+        {/* Unified workspace — same layout for all modes */}
+        <UnifiedWorkspaceView todo={todo} setTodo={setTodo} isNarrow={isNarrow} isCompact={isCompact} />
       </div>
     </div>
   );
