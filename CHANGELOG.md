@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-06-02
+
+### Added — 测试收尾：后端 + 前端
+
+- ArtifactService 测试: update/confirm/get_confirmed_context + 边界 (+11 tests)
+- DomainModelValidator 测试: 空模型分支覆盖 (+4 tests)
+- 前端 Skeleton 组件测试: SkeletonLine/Card/ProjectList/TodoDetail (+4 tests)
+- 前端 ActionMenu 组件测试: 空 items/展开/点击/关闭/danger 样式 (+5 tests)
+- 前端 MarkdownContent 测试: text/bold/code/link/empty (+5 tests)
+- 后端 991→1004, 前端 18→33, **总计 1037 tests**
+
 ## [3.4.0] - 2026-06-02
 
 ### Added — 核心 Service 测试补齐
