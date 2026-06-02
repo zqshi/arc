@@ -166,6 +166,9 @@ class TodoRepository(AbstractTodoRepository):
         model.source_feature_key = entity.source_feature_key or None
         model.github_issue_number = entity.github_issue_number
         model.github_pr_url = entity.github_pr_url or None
+        model.error_reason = entity.error_reason or None
+        model.suspended_reason = entity.suspended_reason or None
+        model.suspended_model_version = entity.suspended_model_version
         await self.db.flush()
         await self.db.refresh(model)
         return self._to_entity(model)
@@ -246,6 +249,9 @@ class TodoRepository(AbstractTodoRepository):
             source_feature_key=model.source_feature_key or "",
             github_issue_number=model.github_issue_number,
             github_pr_url=model.github_pr_url or "",
+            error_reason=model.error_reason or "",
+            suspended_reason=model.suspended_reason or "",
+            suspended_model_version=model.suspended_model_version,
             created_at=model.created_at,
             updated_at=model.updated_at,
             last_seen_at=model.last_seen_at,

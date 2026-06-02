@@ -47,4 +47,7 @@ class Todo(TimestampMixin, Base):
     source_feature_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     github_issue_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     github_pr_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    error_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suspended_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suspended_model_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
