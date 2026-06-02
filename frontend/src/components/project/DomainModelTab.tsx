@@ -135,10 +135,10 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
 
       {/* Stats */}
       <div className="mb-4 flex gap-3">
-        <StatPill icon={<Layers size={11} />} label="子域" count={domainModel.subdomains.length} />
-        <StatPill icon={<Network size={11} />} label="上下文" count={domainModel.contexts.length} />
-        <StatPill icon={<Database size={11} />} label="聚合" count={domainModel.aggregates.length} />
-        <StatPill icon={<Zap size={11} />} label="关系" count={domainModel.relations.length + (domainModel.aggregate_relations?.length || 0)} />
+        <StatPill icon={<Layers size={11} />} label="子域" count={(domainModel.subdomains || []).length} />
+        <StatPill icon={<Network size={11} />} label="上下文" count={(domainModel.contexts || []).length} />
+        <StatPill icon={<Database size={11} />} label="聚合" count={(domainModel.aggregates || []).length} />
+        <StatPill icon={<Zap size={11} />} label="关系" count={(domainModel.relations || []).length + (domainModel.aggregate_relations?.length || 0)} />
       </div>
 
       {graphMode ? (
@@ -146,23 +146,23 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
       ) : (
         <>
           {/* Strategic View */}
-          {(view === 'strategic' || view === 'all') && domainModel.subdomains.length > 0 && (
+          {(view === 'strategic' || view === 'all') && (domainModel.subdomains || []).length > 0 && (
             <section className="mb-5">
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">子域划分</h4>
               <div className="grid gap-2">
-                {domainModel.subdomains.map((sd) => (
-                  <SubdomainCard key={sd.name} subdomain={sd} contexts={domainModel.contexts.filter(c => c.subdomain === sd.name)} />
+                {(domainModel.subdomains || []).map((sd) => (
+                  <SubdomainCard key={sd.name} subdomain={sd} contexts={(domainModel.contexts || []).filter(c => c.subdomain === sd.name)} />
                 ))}
               </div>
             </section>
           )}
 
           {/* Context Relations */}
-          {(view === 'strategic' || view === 'all') && domainModel.relations.length > 0 && (
+          {(view === 'strategic' || view === 'all') && (domainModel.relations || []).length > 0 && (
             <section className="mb-5">
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">上下文关系</h4>
               <div className="space-y-1.5">
-                {domainModel.relations.map((rel, i) => (
+                {(domainModel.relations || []).map((rel, i) => (
                   <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-[11px]">
                     <span className="font-medium text-text-primary">{rel.from}</span>
                     <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">{rel.type}</span>
@@ -176,11 +176,11 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
           )}
 
           {/* Tactical View: Aggregates */}
-          {(view === 'tactical' || view === 'all') && domainModel.aggregates.length > 0 && (
+          {(view === 'tactical' || view === 'all') && (domainModel.aggregates || []).length > 0 && (
             <section className="mb-5">
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">聚合模型</h4>
               <div className="grid gap-2 sm:grid-cols-2">
-                {domainModel.aggregates.map((agg) => (
+                {(domainModel.aggregates || []).map((agg) => (
                   <AggregateCard key={agg.name} aggregate={agg} />
                 ))}
               </div>
@@ -397,9 +397,9 @@ function ReviewButton({ review }: { review: ReturnType<typeof useDomainModelRevi
 
 function isModelEmpty(dm: DomainModel): boolean {
   return (
-    dm.subdomains.length === 0 &&
-    dm.contexts.length === 0 &&
-    dm.aggregates.length === 0 &&
-    dm.relations.length === 0
+    (!dm.subdomains || dm.subdomains.length === 0) &&
+    (!dm.contexts || dm.contexts.length === 0) &&
+    (!dm.aggregates || dm.aggregates.length === 0) &&
+    (!dm.relations || dm.relations.length === 0)
   );
 }
