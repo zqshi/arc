@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  RotateCcw,
   Sparkles,
   Map,
   Loader2,
@@ -60,6 +61,7 @@ interface TodosTabProps {
   handleReleaseVersion: (id: string) => void;
   handleDeleteVersion: (id: string, name: string) => void;
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
+  handleResumeTodo?: (todoId: string) => void;
   setCreateForVersion: (id: string) => void;
   navigate: (path: string) => void;
   onAnalyzeVersion?: (versionId: string) => void;
@@ -353,6 +355,7 @@ function TodoList({
   versionId: string;
   navigate: (path: string) => void;
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
+  handleResumeTodo?: (todoId: string) => void;
 }) {
   return (
     <div className="divide-y divide-border/30">
@@ -394,6 +397,15 @@ function TodoList({
               </span>
             ))}
           </div>
+          {todo.status === 'suspended' && handleResumeTodo && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleResumeTodo(todo.id); }}
+              className="flex-shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium text-amber-600 bg-amber-50 hover:bg-amber-100 opacity-0 group-hover:opacity-100 transition-all"
+              title="恢复需求"
+            >
+              <RotateCcw size={10} /> 恢复
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); handleDeleteTodo(todo.id, todo.title, versionId); }}
             className="flex-shrink-0 rounded p-1 text-text-muted opacity-0 transition-all hover:bg-status-error/10 hover:text-status-error group-hover:opacity-100"
@@ -440,6 +452,7 @@ function ConversationTodoList({
   batchStarting: boolean;
   setBatchStarting: (v: boolean) => void;
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
+  handleResumeTodo?: (todoId: string) => void;
   versionId: string;
 }) {
   const pendingTodos = todos.filter((t) => t.status === 'pending');
