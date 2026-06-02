@@ -138,19 +138,7 @@ export default function ValidationPanel({
 
           {/* Feedback Actions */}
           {feedbacks.length > 0 && (
-            <div className="mt-4 border-t border-border pt-4">
-              <h4 className="mb-2 text-[11px] font-semibold text-text-tertiary">
-                评审反馈 ({feedbacks.filter(f => f.status === 'pending').length} 待处理
-                {feedbacks.filter(f => f.status !== 'pending').length > 0 &&
-                  ` · ${feedbacks.filter(f => f.status === 'accepted').length} 已接受 · ${feedbacks.filter(f => f.status === 'deferred').length} 已延迟 · ${feedbacks.filter(f => f.status === 'rejected').length} 已驳回`
-                })
-              </h4>
-              <div className="space-y-1.5 max-h-[30vh] overflow-y-auto">
-                {feedbacks.map(fb => (
-                  <FeedbackRow key={fb.id} feedback={fb} onResolve={onResolveFeedback} />
-                ))}
-              </div>
-            </div>
+            <FeedbackSection feedbacks={feedbacks} onResolve={onResolveFeedback} />
           )}
         </div>
       </div>
@@ -163,6 +151,70 @@ const SCOPE_LABELS: Record<string, { label: string; color: string }> = {
   structural: { label: '结构性', color: 'text-amber-600 bg-amber-50' },
   breaking: { label: '破坏性', color: 'text-red-600 bg-red-50' },
 };
+
+function FeedbackSection({ feedbacks, onResolve }: { feedbacks: ReviewFeedback[]; onResolve: (id: string, action: string, note?: string) => Promise<void> }) {
+  const [batchLoading, setBatchLoading] = useState<string | null>(null);
+  const pendingFeedbacks = feedbacks.filter(f => f.status === 'pending');
+  const pendingCount = pendingFeedbacks.length;
+  const acceptedCount = feedbacks.filter(f => f.status === 'accepted').length;
+  const deferredCount = feedbacks.filter(f => f.status === 'deferred').length;
+  const rejectedCount = feedbacks.filter(f => f.status === 'rejected').length;
+
+  const handleBatch = async (action: string) => {
+    setBatchLoading(action);
+    try {
+      for (const fb of pendingFeedbacks) {
+        await onResolve(fb.id, action);
+      }
+    } finally {
+      setBatchLoading(null);
+    }
+  };
+
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-[11px] font-semibold text-text-tertiary">
+          评审反馈 ({pendingCount} 待处理
+          {(acceptedCount + deferredCount + rejectedCount) > 0 &&
+            ` · ${acceptedCount} 已接受 · ${deferredCount} 已延迟 · ${rejectedCount} 已驳回`
+          })
+        </h4>
+        {pendingCount > 1 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-text-muted mr-1">批量:</span>
+            <button
+              onClick={() => handleBatch('accept')}
+              disabled={!!batchLoading}
+              className="rounded bg-green-600 px-2 py-0.5 text-[9px] font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {batchLoading === 'accept' ? '...' : '全部接受'}
+            </button>
+            <button
+              onClick={() => handleBatch('defer')}
+              disabled={!!batchLoading}
+              className="rounded bg-blue-600 px-2 py-0.5 text-[9px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {batchLoading === 'defer' ? '...' : '全部延迟'}
+            </button>
+            <button
+              onClick={() => handleBatch('reject')}
+              disabled={!!batchLoading}
+              className="rounded bg-gray-200 px-2 py-0.5 text-[9px] font-medium text-text-secondary hover:bg-gray-300 disabled:opacity-50"
+            >
+              {batchLoading === 'reject' ? '...' : '全部驳回'}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="space-y-1.5 max-h-[30vh] overflow-y-auto">
+        {feedbacks.map(fb => (
+          <FeedbackRow key={fb.id} feedback={fb} onResolve={onResolve} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const FB_STATUS: Record<string, { icon: typeof Clock; color: string }> = {
   pending: { icon: Clock, color: 'text-amber-500' },
