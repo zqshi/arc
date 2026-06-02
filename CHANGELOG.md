@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-06-02
+
+### Added — 核心 Service 测试补齐
+
+- DomainModelExtractor 全部静态方法测试 (+18 tests)
+- VersionService 测试: 版本命名/创建/删除/激活/发布 (+15 tests)
+- TodoService 测试: 标签提取 + LLM 降级 (+3 tests)
+- ExperienceService 测试: confirm/archive/decay (+5 tests)
+- ConversationService 测试: format_experiences + prompt 构建 (+5 tests)
+- 总测试: 948→991 (+43)
+
 ## [3.3.0] - 2026-06-02
 
 ### Changed — 功能集成 + 超限拆分
