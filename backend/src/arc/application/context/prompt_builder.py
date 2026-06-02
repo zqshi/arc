@@ -345,31 +345,47 @@ class PromptBuilder:
     async def _build_methodology_section(
         self, conversation: Conversation, todo: Todo | None, completed: list[str]
     ) -> str:
-        """根据当前进度动态注入方法论指导。
+        """根据当前进度 + 项目 ProcessConstraint 动态注入方法论。
 
-        - 未产出 requirement_spec → 注入需求澄清策略
-        - 未产出 interaction_design → 注入 UI 设计方法论
-        - 未产出 tech_architecture → 注入 DDD 三步方法论
-        - 未产出 dev_report → 注入 TDD + 增量实现
-        - 未产出 test_report → 注入 AC 逐条验证
-        - 其他阶段 → 空
+        三级差异:
+        - strict: 完整方法论，逐步引导，每步独立 gate
+        - moderate: 精简方法论，核心要点一次性给出
+        - free: 不注入方法论（AI 自主决策）
         """
+        from arc.application.execution.constraint_policy import (
+            get_methodology_prompt_for_constraint,
+        )
+        from arc.domain.project.value_objects import ProcessConstraint
+
+        # 获取项目的 process_constraint
+        constraint = ProcessConstraint.FREE
+        if todo and todo.project_id:
+            from arc.infrastructure.repositories.project import ProjectRepository
+
+            project = await ProjectRepository(self._db).get_by_id(todo.project_id)
+            if project:
+                constraint = project.process_constraint
+
+        # 确定当前阶段
         if "requirement_spec" not in completed:
-            return self._build_clarification_methodology(conversation, todo)
+            phase = "clarification"
+        elif "interaction_design" not in completed and "ui_design" not in completed:
+            phase = "ui_design"
+        elif "tech_architecture" not in completed:
+            phase = "architecture"
+        elif "dev_report" not in completed:
+            phase = "development"
+        elif "test_report" not in completed:
+            phase = "testing"
+        else:
+            return ""
 
-        if "interaction_design" not in completed and "ui_design" not in completed:
-            return self._build_ui_design_methodology(conversation)
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
 
-        if "tech_architecture" not in completed:
-            return self._build_architecture_methodology(conversation)
-
-        if "dev_report" not in completed:
-            return self._build_development_methodology(conversation)
-
-        if "test_report" not in completed:
-            return self._build_testing_methodology(conversation)
-
-        return ""
+        return get_methodology_prompt_for_constraint(constraint, phase, user_rounds)
 
     def _build_clarification_methodology(
         self, conversation: Conversation, todo: Todo | None
