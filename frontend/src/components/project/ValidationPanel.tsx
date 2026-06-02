@@ -6,17 +6,17 @@ import { ShieldCheck, X, AlertTriangle, Loader2, RefreshCw, CheckCircle2, Info }
 import type { DomainModelValidation } from '../../types/api';
 import type { ReviewState } from '../../hooks/useDomainModelReview';
 
-const LEVEL_STYLES: Record<string, { label: string; color: string }> = {
-  excellent: { label: '优秀', color: 'text-emerald-500' },
-  good: { label: '良好', color: 'text-blue-500' },
-  needs_improvement: { label: '待改进', color: 'text-amber-500' },
-  poor: { label: '较差', color: 'text-red-500' },
+const LEVEL_STYLES: Record<string, { label: string; color: string; bg: string }> = {
+  excellent: { label: '优秀', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  good: { label: '良好', color: 'text-blue-600', bg: 'bg-blue-50' },
+  needs_improvement: { label: '待改进', color: 'text-amber-600', bg: 'bg-amber-50' },
+  poor: { label: '较差', color: 'text-red-600', bg: 'bg-red-50' },
 };
 
-const SEVERITY_CONFIG: Record<string, { icon: typeof AlertTriangle; color: string; bg: string }> = {
-  error: { icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-500/10' },
-  warning: { icon: AlertTriangle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-  info: { icon: Info, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+const SEVERITY_CONFIG: Record<string, { icon: typeof AlertTriangle; color: string; bg: string; border: string }> = {
+  error: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+  warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+  info: { icon: Info, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
 };
 
 interface ValidationPanelProps {
@@ -80,7 +80,7 @@ export default function ValidationPanel({
               <span className={`text-2xl font-bold ${levelStyle.color}`}>{validation.score}</span>
               <span className="text-xs text-text-muted">/ 100</span>
             </div>
-            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${levelStyle.color} bg-bg-elevated`}>
+            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${levelStyle.color} ${levelStyle.bg}`}>
               {levelStyle.label}
             </span>
           </div>
@@ -116,13 +116,13 @@ export default function ValidationPanel({
                   const cfg = SEVERITY_CONFIG[issue.severity] || SEVERITY_CONFIG.info;
                   const Icon = cfg.icon;
                   return (
-                    <div key={i} className={`rounded-lg border border-border p-3 ${cfg.bg}`}>
+                    <div key={i} className={`rounded-lg border ${cfg.border} p-3 ${cfg.bg}`}>
                       <div className="flex items-center gap-2">
                         <Icon size={12} className={cfg.color} />
                         <span className={`text-[11px] font-semibold ${cfg.color}`}>{issue.title}</span>
-                        <span className="rounded bg-bg-elevated px-1.5 py-0.5 text-[9px] text-text-muted">{issue.category}</span>
+                        <span className="rounded border border-border bg-bg-card px-1.5 py-0.5 text-[9px] text-text-secondary">{issue.category}</span>
                       </div>
-                      <p className="mt-1 pl-5 text-[10px] text-text-secondary">{issue.detail}</p>
+                      <p className="mt-1 pl-5 text-[10px] text-text-primary">{issue.detail}</p>
                       {issue.suggestion && (
                         <p className="mt-1 pl-5 text-[10px] text-accent">→ {issue.suggestion}</p>
                       )}

@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProjectTaskStream } from './useProjectTaskStream';
 import { useExperiences } from './useExperiences';
 import { useDomainModel } from './useDomainModel';
+import { useDomainModelReview } from './useDomainModelReview';
 import type { ActionMenuItem } from '../components/ActionMenu';
 import type { Project, Version, VersionType, Todo, PlanningSession, UserRole } from '../types/api';
 
@@ -50,6 +51,7 @@ export function useProjectDetail() {
   } = useExperiences(id, activeTab);
 
   const { domainModel, domainModelLoading, fetchDomainModel } = useDomainModel(id, activeTab);
+  const domainModelReview = useDomainModelReview(id, domainModel?.version || 0);
 
   const [myRole, setMyRole] = useState<UserRole>('admin');
 
@@ -394,6 +396,7 @@ export function useProjectDetail() {
     handleConfirmExp, handleArchiveExp, handlePromoteExp, handleDistillExp,
     insights, handleAppendConvention,
     domainModel, domainModelLoading, handleRefreshDomainModel, refreshingDM,
+    domainModelReview,
     handleExtractDomainModelFromCode, extractingDMFromCode,
     handleExtractExperiences, extracting,
     analysisResult, analyzing, closeAnalysis, handleAnalyzeVersion,

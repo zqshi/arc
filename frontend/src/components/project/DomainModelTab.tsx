@@ -6,7 +6,7 @@ import ReviewFeedbackPanel from './ReviewFeedbackPanel';
 import ModelHistoryPanel from './ModelHistoryPanel';
 import ValidationPanel from './ValidationPanel';
 import UpgradePanel from './UpgradePanel';
-import { useDomainModelReview } from '../../hooks/useDomainModelReview';
+import type { useDomainModelReview } from '../../hooks/useDomainModelReview';
 
 type ViewMode = 'strategic' | 'tactical' | 'all';
 
@@ -20,6 +20,7 @@ interface DomainModelTabProps {
   projectId?: string;
   domainModel: DomainModel | null;
   loading: boolean;
+  review: ReturnType<typeof useDomainModelReview>;
   onRefresh?: () => Promise<void>;
   refreshing?: boolean;
   onExtractFromCode?: () => Promise<void>;
@@ -27,10 +28,9 @@ interface DomainModelTabProps {
   hasLocalPath?: boolean;
 }
 
-export function DomainModelTab({ projectId, domainModel, loading, onRefresh, refreshing, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
+export function DomainModelTab({ projectId, domainModel, loading, review, onRefresh, refreshing, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
   const [view, setView] = useState<ViewMode>('all');
   const [graphMode, setGraphMode] = useState(false);
-  const review = useDomainModelReview(projectId, domainModel?.version || 0);
 
   if (loading) {
     return (
