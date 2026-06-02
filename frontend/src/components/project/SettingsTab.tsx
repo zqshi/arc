@@ -7,7 +7,7 @@ import { api, ApiError } from '../../api/client';
 import type { ScanEvent } from '../../api/client';
 import FolderPicker from '../FolderPicker';
 import { useToast } from '../Toast';
-import type { ExecutionMode } from '../../types/api';
+import type { ExecutionMode, ProcessConstraint } from '../../types/api';
 
 interface SettingsTabProps {
   projectId: string;
@@ -20,6 +20,7 @@ interface SettingsTabProps {
     conventions: string;
     codebase_summary: string;
     execution_mode: ExecutionMode;
+    process_constraint: ProcessConstraint;
     pipeline_config: Record<string, unknown>;
     conversation_config: Record<string, unknown>;
   };
@@ -429,11 +430,15 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
 
         <ExecutionModeSection
           executionMode={form.execution_mode}
+          processConstraint={form.process_constraint || 'free'}
           pipelineConfig={form.pipeline_config}
           conversationConfig={form.conversation_config}
           impact={impact}
           impactLoaded={impactLoaded}
-          onChange={(mode, pc, cc) => setForm({ ...form, execution_mode: mode, pipeline_config: pc, conversation_config: cc })}
+          onChange={(constraint, pc, cc) => {
+            const execMode = constraint === 'strict' ? 'pipeline' : 'conversation';
+            setForm({ ...form, process_constraint: constraint, execution_mode: execMode, pipeline_config: pc, conversation_config: cc });
+          }}
         />
 
         <div className="rounded-lg border border-border bg-bg-card p-4 lg:col-span-2">

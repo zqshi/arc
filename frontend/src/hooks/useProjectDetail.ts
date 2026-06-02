@@ -32,6 +32,7 @@ export function useProjectDetail() {
   const [form, setForm] = useState({
     name: '', description: '', tech_stack: '', repo_url: '', local_path: '', conventions: '', codebase_summary: '',
     execution_mode: 'pipeline' as 'pipeline' | 'conversation',
+    process_constraint: 'free' as 'strict' | 'moderate' | 'free',
     pipeline_config: {} as Record<string, unknown>,
     conversation_config: {} as Record<string, unknown>,
   });
@@ -83,6 +84,7 @@ export function useProjectDetail() {
         conventions: p.conventions,
         codebase_summary: p.codebase_summary || '',
         execution_mode: p.execution_mode || 'pipeline',
+        process_constraint: (p as Record<string, unknown>).process_constraint as 'strict' | 'moderate' | 'free' || 'free',
         pipeline_config: p.pipeline_config || {},
         conversation_config: p.conversation_config || {},
       });

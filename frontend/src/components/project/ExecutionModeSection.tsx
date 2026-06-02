@@ -1,26 +1,34 @@
 /**
- * ExecutionModeSection — 执行模式切换 + 自驾模式开关。
+ * ExecutionModeSection — 过程约束配置（三级）+ 自驾模式开关。
+ * 替代旧的 pipeline/conversation 二分法。
  */
-import { Workflow, MessageSquare, AlertTriangle, Zap } from 'lucide-react';
-import type { ExecutionMode } from '../../types/api';
-import { EXECUTION_MODE_LABELS, EXECUTION_MODE_DESCRIPTIONS } from '../../types/api';
+import { Shield, Gauge, Wind, AlertTriangle, Zap } from 'lucide-react';
+import type { ProcessConstraint } from '../../types/api';
+import { PROCESS_CONSTRAINT_LABELS, PROCESS_CONSTRAINT_DESCRIPTIONS } from '../../types/api';
 
 interface ExecutionModeSectionProps {
-  executionMode: ExecutionMode;
+  executionMode: string; // deprecated, kept for compat
+  processConstraint: ProcessConstraint;
   pipelineConfig: Record<string, unknown>;
   conversationConfig: Record<string, unknown>;
   impact: { active_count: number; pending_count: number } | null;
   impactLoaded: boolean;
-  onChange: (mode: ExecutionMode, pipelineConfig: Record<string, unknown>, conversationConfig: Record<string, unknown>) => void;
+  onChange: (constraint: ProcessConstraint, pipelineConfig: Record<string, unknown>, conversationConfig: Record<string, unknown>) => void;
 }
 
+const CONSTRAINT_ICONS: Record<ProcessConstraint, typeof Shield> = {
+  strict: Shield,
+  moderate: Gauge,
+  free: Wind,
+};
+
 export function ExecutionModeSection({
-  executionMode, pipelineConfig, conversationConfig, impact, impactLoaded, onChange,
+  processConstraint, pipelineConfig, conversationConfig, impact, impactLoaded, onChange,
 }: ExecutionModeSectionProps) {
   const isAutopilot = Boolean(pipelineConfig?.auto_advance) || conversationConfig?.agent_autonomy === 'full';
 
   const toggleAutopilot = () => {
-    onChange(executionMode, {
+    onChange(processConstraint, {
       ...pipelineConfig,
       auto_advance: !isAutopilot,
     }, {
@@ -31,10 +39,10 @@ export function ExecutionModeSection({
 
   return (
     <>
-      {/* Execution Mode */}
+      {/* Process Constraint */}
       <div className="rounded-lg border border-border bg-bg-card p-4 lg:col-span-2">
-        <p className="mb-3 text-[11px] font-medium text-text-tertiary uppercase tracking-wide">执行模式</p>
-        <p className="mb-3 text-[11px] text-text-muted">决定项目中需求的推进方式。新创建的需求将继承此设置。</p>
+        <p className="mb-3 text-[11px] font-medium text-text-tertiary uppercase tracking-wide">过程约束</p>
+        <p className="mb-3 text-[11px] text-text-muted">决定项目中需求推进的管控力度。新创建的需求将继承此设置。</p>
 
         {/* Impact warning */}
         {impactLoaded && impact && impact.active_count > 0 && (
@@ -43,19 +51,19 @@ export function ExecutionModeSection({
             <div className="text-[11px] text-amber-600">
               <span className="font-medium">当前有 {impact.active_count} 个进行中的需求</span>
               {impact.pending_count > 0 && <span>，{impact.pending_count} 个待启动的需求</span>}
-              <span>。切换模式仅影响新建需求，已有需求保持原有模式不变。</span>
+              <span>。切换仅影响新建需求，已有需求保持原有设置不变。</span>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {(['pipeline', 'conversation'] as ExecutionMode[]).map((mode) => {
-            const isActive = executionMode === mode;
-            const Icon = mode === 'pipeline' ? Workflow : MessageSquare;
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {(['strict', 'moderate', 'free'] as ProcessConstraint[]).map((constraint) => {
+            const isActive = processConstraint === constraint;
+            const Icon = CONSTRAINT_ICONS[constraint];
             return (
               <button
-                key={mode}
-                onClick={() => onChange(mode, pipelineConfig, conversationConfig)}
+                key={constraint}
+                onClick={() => onChange(constraint, pipelineConfig, conversationConfig)}
                 className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
                   isActive
                     ? 'border-accent/50 bg-accent/5 ring-1 ring-accent/20'
@@ -65,11 +73,11 @@ export function ExecutionModeSection({
                 <div className="mb-2 flex items-center gap-2">
                   <Icon size={14} className={isActive ? 'text-accent' : 'text-text-muted'} />
                   <span className={`text-xs font-medium ${isActive ? 'text-accent' : 'text-text-secondary'}`}>
-                    {EXECUTION_MODE_LABELS[mode]}
+                    {PROCESS_CONSTRAINT_LABELS[constraint]}
                   </span>
                 </div>
                 <p className="text-[10px] leading-relaxed text-text-muted">
-                  {EXECUTION_MODE_DESCRIPTIONS[mode]}
+                  {PROCESS_CONSTRAINT_DESCRIPTIONS[constraint]}
                 </p>
               </button>
             );
@@ -89,9 +97,11 @@ export function ExecutionModeSection({
             <div>
               <p className="text-xs font-medium text-text-primary">自驾模式</p>
               <p className="text-[11px] text-text-muted">
-                {executionMode === 'pipeline'
-                  ? 'AI 自动通过阶段关卡，仅在异常时中断'
-                  : 'Agent 完全自主推进，仅在异常时中断'}
+                {processConstraint === 'strict'
+                  ? 'AI 自动通过质量门禁，仅在不达标时中断'
+                  : processConstraint === 'moderate'
+                    ? 'AI 按推荐顺序推进，可自主跳过非关键步骤'
+                    : 'Agent 完全自主推进，仅在需要澄清时暂停'}
               </p>
             </div>
           </div>
