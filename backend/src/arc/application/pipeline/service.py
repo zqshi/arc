@@ -180,7 +180,13 @@ class PipelineService:
         project_ctx = await ProjectContextProvider(self.db).get_context(todo_id)
         conventions = project_ctx.conventions if project_ctx.has_project else ""
 
-        gate_result = await evaluate_gate(phase_type, artifact.content, conventions)
+        # 收集前置已确认产出物 — 用于交叉一致性检查
+        prior_artifacts = await self._collect_prior_artifacts(todo_id, phase_type)
+
+        gate_result = await evaluate_gate(
+            phase_type, artifact.content, conventions,
+            prior_artifacts=prior_artifacts,
+        )
         if not gate_result.passed:
             raise PhaseGateError(gate_result)
 
@@ -193,6 +199,10 @@ class PipelineService:
 
             phase.confirm()
             await self.phase_repo.update(phase)
+
+            # 架构阶段确认后 → 自动合并领域模型
+            if phase_type == PhaseType.ARCHITECTURE:
+                await self._merge_domain_model(todo_id, artifact.content)
 
             nxt = next_phase(phase_type)
             if nxt:
@@ -397,3 +407,44 @@ class PipelineService:
                 await exp_repo.update(exp)
         except Exception as exc:
             logger.warning("Experience confidence feedback failed: %s", exc)
+
+    async def _collect_prior_artifacts(
+        self, todo_id: uuid.UUID, current_phase: PhaseType
+    ) -> dict[str, dict]:
+        """收集当前阶段之前已确认的产出物 — 用于交叉一致性检查。"""
+        from arc.domain.artifact.value_objects import PHASE_ARTIFACT_MAP
+
+        confirmed = await self.artifact_repo.list_confirmed_by_todo(todo_id)
+        result: dict[str, dict] = {}
+        for art in confirmed:
+            # 只收集当前阶段之前的产出物
+            art_phase = None
+            for phase, atype in PHASE_ARTIFACT_MAP.items():
+                if atype == art.artifact_type:
+                    art_phase = phase
+                    break
+            if art_phase and PHASE_ORDER.get(art_phase, 99) < PHASE_ORDER.get(current_phase, 0):
+                result[art.artifact_type.value] = art.content
+        return result
+
+    async def _merge_domain_model(self, todo_id: uuid.UUID, arch_content: dict) -> None:
+        """架构产出物确认后，自动合并到项目级领域模型。
+
+        实现领域模型的持续演进 — 每次需求迭代产出的架构设计
+        都会累积到项目的 domain_model 中，形成持续迭代的领域知识。
+        """
+        from arc.application.execution.domain_model_extractor import DomainModelExtractor
+
+        try:
+            extractor = DomainModelExtractor(self.db)
+            updated = await extractor.extract_and_merge(todo_id, arch_content)
+            if updated:
+                logger.info(
+                    "Domain model auto-merged from architecture confirmation (todo %s)",
+                    todo_id,
+                )
+        except Exception as exc:
+            # 合并失败不阻断主流程
+            logger.warning(
+                "Domain model merge failed for todo %s: %s", todo_id, exc
+            )
