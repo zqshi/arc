@@ -75,11 +75,11 @@ CONSTRAINT_POLICIES: dict[ProcessConstraint, ConstraintPolicy] = {
     ProcessConstraint.FREE: ConstraintPolicy(
         methodology_depth="minimal",
         clarification_max_rounds=3,  # 快速通过
-        ddd_sub_phases=0,  # 无引导
+        ddd_sub_phases=0,  # 不引导步骤
         tdd_enforced=False,
         gate_block_on_warnings=False,
-        cross_check_enabled=False,
-        cross_check_scope="none",
+        cross_check_enabled=True,  # 仍执行交叉检查
+        cross_check_scope="core",  # 核心对 (AC↔test)
         auto_extract=True,
         require_confirm=False,
         show_phase_ui=False,
@@ -106,12 +106,12 @@ def get_methodology_prompt_for_constraint(
 
     - strict: 完整流程，逐步引导
     - moderate: 核心要点，一次性给出
-    - free: 无额外方法论注入
+    - free: 质量底线提示（不引导方法论步骤，但明确产出物质量标准）
     """
     policy = get_policy(constraint)
 
     if policy.methodology_depth == "minimal":
-        return ""  # free 模式不注入方法论
+        return _quality_baseline_prompt(phase)  # free 模式: 质量底线
 
     if phase == "clarification":
         return _clarification_prompt(policy, conversation_round)
@@ -125,6 +125,46 @@ def get_methodology_prompt_for_constraint(
         return _testing_prompt(policy)
 
     return ""
+
+
+def _quality_baseline_prompt(phase: str) -> str:
+    """自由模式的质量底线 — 不约束怎么做，但明确做到什么标准才算完。"""
+    baselines = {
+        "clarification": """\
+## 质量底线
+产出 requirement_spec 时，以下字段不得为空或占位：
+- target_users（至少 1 个具体角色）
+- user_stories（至少覆盖核心场景）
+- acceptance_criteria（每个 P0 story 至少 1 条 AC）
+- boundaries.in_scope + out_of_scope""",
+
+        "ui_design": """\
+## 质量底线
+产出 interaction_design 时：
+- wireframes 每页标注对应用户场景
+- 至少定义空状态和加载态
+- component_specs 每个组件有 states 描述""",
+
+        "architecture": """\
+## 质量底线
+产出 tech_architecture 时：
+- tech_decisions 每个决策必须有 ≥2 个候选方案
+- data_model.entities 与 user_stories 对齐
+- 不得有上下文间循环依赖""",
+
+        "development": """\
+## 质量底线
+产出 dev_report 时：
+- test_results 不得包含 FAIL/ERROR
+- code_changes 不得为空""",
+
+        "testing": """\
+## 质量底线
+产出 test_report 时：
+- criteria_verification 逐条覆盖 P0 验收标准
+- 每个 pass 必须有 evidence（不接受无证据的自述）""",
+    }
+    return baselines.get(phase, "")
 
 
 def _clarification_prompt(policy: ConstraintPolicy, round: int) -> str:
