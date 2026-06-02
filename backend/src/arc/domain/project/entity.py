@@ -102,9 +102,18 @@ class Project:
     ) -> int:
         """受控的领域模型升级 — 自动创建快照，递增版本号。
 
+        Raises:
+            ValueError: new_model 为空或无实质内容时拒绝升级。
+
         Returns:
             新的版本号。
         """
+        if not new_model or (
+            not new_model.get("aggregates")
+            and not new_model.get("subdomains")
+            and not new_model.get("contexts")
+        ):
+            raise ValueError("Cannot upgrade to an empty domain model")
         old_version = self.domain_model.get("version", 0)
         snapshot = {
             "version": old_version,
