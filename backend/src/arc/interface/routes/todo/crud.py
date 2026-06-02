@@ -131,14 +131,23 @@ async def create_todo(req: CreateTodoRequest, db: DbSession, user: CurrentUser):
     from arc.domain.todo.entity import Todo
     from arc.domain.todo.value_objects import Tag
 
-    tags = [Tag(label=t.get("label", ""), color=t.get("color", "#888")) for t in (req.tags or [])]
+    # 从关联项目继承 execution_mode
+    inherit_mode = ExecutionMode.PIPELINE
+    if req.project_id:
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        project = await ProjectRepository(db).get_by_id(UUID(req.project_id), user_id=user.id)
+        if project:
+            inherit_mode = project.execution_mode
+
+    tags = [Tag(label=t.label, color=t.color) for t in (req.tags or [])]
     todo = Todo(
         title=req.title,
         description=req.description or "",
         project_id=UUID(req.project_id) if req.project_id else None,
         version_id=UUID(req.version_id) if req.version_id else None,
         priority=req.priority or 2,
-        execution_mode=ExecutionMode(req.execution_mode) if req.execution_mode else ExecutionMode.PIPELINE,
+        execution_mode=inherit_mode,
         tags=tags,
     )
     repo = TodoRepository(db)
