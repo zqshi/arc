@@ -11,6 +11,8 @@ from arc.domain.project.value_objects import (
     VALID_VERSION_TRANSITIONS,
     ExecutionMode,
     ModelChangeTrigger,
+    ProcessConfig,
+    ProcessConstraint,
     ProjectStatus,
     VersionStatus,
 )
@@ -32,7 +34,9 @@ class Project:
     scan_progress: str = ""
     scan_error: str = ""
     status: ProjectStatus = ProjectStatus.ACTIVE
-    execution_mode: ExecutionMode = ExecutionMode.PIPELINE
+    execution_mode: ExecutionMode = ExecutionMode.PIPELINE  # deprecated
+    process_constraint: ProcessConstraint = ProcessConstraint.FREE
+    process_config: ProcessConfig = field(default_factory=ProcessConfig)
     pipeline_config: dict = field(default_factory=lambda: dict(DEFAULT_PIPELINE_CONFIG))
     conversation_config: dict = field(default_factory=lambda: dict(DEFAULT_CONVERSATION_CONFIG))
     domain_model: dict = field(default_factory=dict)

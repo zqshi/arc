@@ -41,12 +41,23 @@ async def create_project(
     user: CurrentUser,
     org_id: CurrentOrgId = None,
 ):
-    from arc.domain.project.value_objects import ExecutionMode
+    from arc.domain.project.value_objects import ExecutionMode, ProcessConfig, ProcessConstraint
     from arc.infrastructure.repositories.project_member import ProjectMemberRepository
 
     if org_id:
         from arc.application.billing.quota_service import QuotaService
         await QuotaService(db).check_project_limit(org_id)
+
+    # 新项目优先使用 process_constraint，兼容旧 execution_mode
+    constraint = ProcessConstraint(body.process_constraint) if body.process_constraint else None
+    exec_mode = ExecutionMode(body.execution_mode)
+
+    if not constraint:
+        # 从 execution_mode 推导
+        constraint = (
+            ProcessConstraint.STRICT if exec_mode == ExecutionMode.PIPELINE
+            else ProcessConstraint.FREE
+        )
 
     project = Project(
         name=body.name,
@@ -55,7 +66,9 @@ async def create_project(
         tech_stack=body.tech_stack,
         repo_url=body.repo_url,
         conventions=body.conventions,
-        execution_mode=ExecutionMode(body.execution_mode),
+        execution_mode=exec_mode,
+        process_constraint=constraint,
+        process_config=ProcessConfig.from_execution_mode(exec_mode),
     )
     repo = ProjectRepository(db)
     await repo.create(project, user_id=user.id)
@@ -97,6 +110,23 @@ async def update_project(
         from arc.domain.project.value_objects import ExecutionMode
 
         project.set_execution_mode(ExecutionMode(updates.pop("execution_mode")))
+
+    if "process_constraint" in updates and updates["process_constraint"]:
+        from arc.domain.project.value_objects import ProcessConfig, ProcessConstraint
+
+        constraint = ProcessConstraint(updates.pop("process_constraint"))
+        project.process_constraint = constraint
+        # 同步 process_config 和旧 execution_mode
+        project.process_config = ProcessConfig(constraint=constraint)
+        if constraint == ProcessConstraint.STRICT:
+            project.execution_mode = ExecutionMode.PIPELINE
+        else:
+            project.execution_mode = ExecutionMode.CONVERSATION
+
+    if "process_config" in updates and updates["process_config"]:
+        from arc.domain.project.value_objects import ProcessConfig
+
+        project.process_config = ProcessConfig.from_dict(updates.pop("process_config"))
 
     if "pipeline_config" in updates and updates["pipeline_config"]:
         project.update_pipeline_config(updates.pop("pipeline_config"))
