@@ -27,7 +27,7 @@
 | Validator 评审结果无闭环流程 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
 | Pipeline/Conversation 双架构冗余 | P0 | RFC-001 审计 | v4.0.0 |
 | INPUT_SUFFICIENCY_PROMPT 死代码 | P0 | RFC-001 审计 | ✅ RFC-002 (sufficiency_gate.py) |
-| Pipeline 无 tool-use 能力 (能力倒挂) | P0 | RFC-001 审计 | v4.0.0 Phase 1 |
+| Pipeline 无 tool-use 能力 (能力倒挂) | P0 | RFC-001 审计 | ✅ RFC-001 Phase 1 (ConversationService 接入 ToolAwareLoop) |
 | AC ↔ 测试无交叉一致性验证 | P1 | RFC-001 审计 | ✅ RFC-002 (gate.py _check_cross_consistency) |
 | 全阶段无方法论引导 | P0 | RFC-002 审计 | ✅ RFC-002 (7/7 阶段覆盖) |
 | Conversation 模式零门禁 | P0 | RFC-002 审计 | ✅ RFC-002 (artifact_extractor 补 gate) |
@@ -75,7 +75,7 @@
 
 | Phase | 内容 | 关键交付 | 状态 |
 |-------|------|---------|------|
-| Phase 1 | 统一底层执行 | Pipeline 接入 ToolAwareLoop | ⏳ 待实施 |
+| Phase 1 | 统一底层执行 | Pipeline 接入 ToolAwareLoop | ✅ **已完成** |
 | Phase 2 | 统一 Prompt 体系 | 模块化 prompt 替代双系统 prompt | ⏳ 待实施 |
 | Phase 3 | ProcessController | `process_constraint` 配置替代 `execution_mode` 枚举 | ⏳ 待实施 |
 | ~~Phase 4~~ | ~~方法论升级~~ | ~~每阶段方法论 + 交叉验证 + AC check-off~~ | ✅ **RFC-002 已完成** |
