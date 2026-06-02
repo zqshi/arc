@@ -74,6 +74,10 @@ class ArtifactExtractor:
         if tracker and extracted:
             await self.tracker_repo.update(tracker)
 
+        # 对话模式产出物也执行 gate 校验 — 不阻断但记录质量信号
+        for art in extracted:
+            await self._validate_extracted_artifact(art, todo_id)
+
         for art in extracted:
             if art.artifact_type == ArtifactType.TECH_ARCHITECTURE:
                 await self._try_extract_domain_model(todo_id, art.content)
@@ -98,6 +102,60 @@ class ArtifactExtractor:
             logger.warning(
                 "Domain model extraction failed for todo %s", todo_id, exc_info=True
             )
+
+    async def _validate_extracted_artifact(
+        self, artifact: Artifact, todo_id: uuid.UUID
+    ) -> None:
+        """对话模式产出物 gate 校验 — 不阻断，记录质量信号到 artifact metadata。
+
+        质量信号用途:
+        - 前端侧边栏展示产出物质量状态（绿/黄/红）
+        - tracker 中标记需要修正的产出物
+        - 为后续"建议用户确认"提供依据
+        """
+        from arc.application.pipeline.gate import check_required_fields
+        from arc.domain.artifact.value_objects import PHASE_ARTIFACT_MAP
+        from arc.domain.pipeline.value_objects import PhaseType
+
+        # 映射 artifact_type → phase_type
+        phase_type = None
+        for pt, at in PHASE_ARTIFACT_MAP.items():
+            if at == artifact.artifact_type:
+                phase_type = pt
+                break
+
+        if not phase_type:
+            return
+
+        try:
+            # 快速结构检查（不调 LLM，控制成本）
+            gaps = check_required_fields(phase_type, artifact.content)
+
+            # 方法论校验（架构阶段）
+            from arc.application.pipeline.gate import _check_methodology
+            methodology_gaps = _check_methodology(phase_type, artifact.content)
+            gaps.extend(methodology_gaps)
+
+            quality_signal = {
+                "gate_passed": len(gaps) == 0,
+                "structural_gaps": gaps[:5],  # 最多记录5条
+                "checked_at": __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc
+                ).isoformat(),
+            }
+
+            # 更新 artifact content 的 _quality 元数据
+            if isinstance(artifact.content, dict):
+                artifact.content["_quality"] = quality_signal
+                await self.artifact_repo.update(artifact)
+
+            if gaps:
+                logger.info(
+                    "Conversation artifact %s has %d quality gaps: %s",
+                    artifact.artifact_type.value, len(gaps), gaps[:3],
+                )
+        except Exception as exc:
+            logger.debug("Artifact validation skipped for %s: %s", artifact.id, exc)
 
     async def _try_review_after_extract(self, todo_id: uuid.UUID) -> None:
         """领域模型提取后自动触发评审，产出 ReviewFeedback。"""
