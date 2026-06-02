@@ -326,14 +326,26 @@ class PromptBuilder:
         """根据当前进度动态注入方法论指导。
 
         - 未产出 requirement_spec → 注入需求澄清策略
+        - 未产出 interaction_design → 注入 UI 设计方法论
         - 未产出 tech_architecture → 注入 DDD 三步方法论
-        - 其他阶段 → 空（暂不注入）
+        - 未产出 dev_report → 注入 TDD + 增量实现
+        - 未产出 test_report → 注入 AC 逐条验证
+        - 其他阶段 → 空
         """
         if "requirement_spec" not in completed:
             return self._build_clarification_methodology(conversation, todo)
 
+        if "interaction_design" not in completed and "ui_design" not in completed:
+            return self._build_ui_design_methodology(conversation)
+
         if "tech_architecture" not in completed:
             return self._build_architecture_methodology(conversation)
+
+        if "dev_report" not in completed:
+            return self._build_development_methodology(conversation)
+
+        if "test_report" not in completed:
+            return self._build_testing_methodology(conversation)
 
         return ""
 
@@ -372,6 +384,36 @@ class PromptBuilder:
         overview = get_methodology_overview()
         sub_phase = get_sub_phase_prompt(user_rounds)
         return f"{overview}\n\n{sub_phase}"
+
+    def _build_ui_design_methodology(self, conversation: Conversation) -> str:
+        """注入 UI 设计方法论 — 基于 frontend-design + ui-ux-pro-max。"""
+        from arc.application.execution.ui_design_methodology import get_ui_design_prompt
+
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
+        return get_ui_design_prompt(user_rounds)
+
+    def _build_development_methodology(self, conversation: Conversation) -> str:
+        """注入开发方法论 — 基于 superpowers TDD + verification。"""
+        from arc.application.execution.dev_test_methodology import get_development_prompt
+
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
+        return get_development_prompt(user_rounds)
+
+    def _build_testing_methodology(self, conversation: Conversation) -> str:
+        """注入测试方法论 — 基于 superpowers verification-before-completion。"""
+        from arc.application.execution.dev_test_methodology import get_testing_prompt
+
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
+        return get_testing_prompt(user_rounds)
 
     async def _build_sufficiency_hint(
         self, conversation: Conversation, todo: Todo | None
