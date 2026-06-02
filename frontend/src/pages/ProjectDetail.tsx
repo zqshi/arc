@@ -92,6 +92,7 @@ export default function ProjectDetail() {
               handleReleaseVersion={s.handleReleaseVersion}
               handleDeleteVersion={s.handleDeleteVersion}
               handleDeleteTodo={s.handleDeleteTodo}
+              handleResumeTodo={s.handleResumeTodo}
               setCreateForVersion={s.setCreateForVersion}
               navigate={s.navigate}
               onAnalyzeVersion={s.handleAnalyzeVersion}

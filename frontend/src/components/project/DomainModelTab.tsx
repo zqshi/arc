@@ -5,6 +5,7 @@ import { DomainModelGraph } from './DomainModelGraph';
 import ReviewFeedbackPanel from './ReviewFeedbackPanel';
 import ModelHistoryPanel from './ModelHistoryPanel';
 import ValidationPanel from './ValidationPanel';
+import UpgradePanel from './UpgradePanel';
 import { useDomainModelReview } from '../../hooks/useDomainModelReview';
 
 type ViewMode = 'strategic' | 'tactical' | 'all';
@@ -223,6 +224,18 @@ export function DomainModelTab({ projectId, domainModel, loading, onRefresh, ref
           onRevalidate={review.validate}
           revalidating={review.validating}
         />
+      )}
+
+      {/* Upgrade Panel — 当有已接受反馈时显示 */}
+      {projectId && review.feedbacks.filter(f => f.status === 'accepted').length > 0 && (
+        <div className="mt-4">
+          <UpgradePanel
+            projectId={projectId}
+            acceptedFeedbacks={review.feedbacks.filter(f => f.status === 'accepted')}
+            currentModelVersion={domainModel?.version || 0}
+            onUpgradeComplete={() => { review.refreshFeedbacks(); review.refreshSnapshots(); }}
+          />
+        </div>
       )}
 
       {/* Review Feedback Panel */}
