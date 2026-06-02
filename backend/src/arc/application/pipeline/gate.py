@@ -190,6 +190,24 @@ def _check_methodology(phase_type: PhaseType, content: dict) -> list[str]:
             if story_count > 0 and ac_count < story_count:
                 gaps.append(f"验收标准({ac_count}条)少于P0用户故事({story_count}条)，可能覆盖不足")
 
+    elif phase_type == PhaseType.UI_DESIGN:
+        from arc.application.execution.ui_design_methodology import validate_ui_design
+
+        ui_gaps = validate_ui_design(content)
+        gaps.extend(ui_gaps)
+
+    elif phase_type == PhaseType.DEVELOPMENT:
+        from arc.application.execution.dev_test_methodology import validate_development
+
+        dev_gaps = validate_development(content)
+        gaps.extend(dev_gaps)
+
+    elif phase_type == PhaseType.TESTING:
+        from arc.application.execution.dev_test_methodology import validate_testing
+
+        test_gaps = validate_testing(content)
+        gaps.extend(test_gaps)
+
     return gaps
 
 
