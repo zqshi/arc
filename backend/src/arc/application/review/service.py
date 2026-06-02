@@ -34,18 +34,18 @@ class ReviewService:
         domain_model: dict,
         *,
         source_todo_id: uuid.UUID | None = None,
-    ) -> list[ReviewFeedback]:
+    ) -> tuple[list[ReviewFeedback], dict]:
         """执行领域模型评审并将 issues 持久化为 ReviewFeedback。
 
         Returns:
-            新创建的 ReviewFeedback 列表。
+            (新创建的 ReviewFeedback 列表, 原始评审结果 dict)
         """
         raw_result = await validate_domain_model(domain_model)
         issues = raw_result.get("issues", [])
 
         if not issues:
             logger.info("Domain model review: no issues found for project %s", project_id)
-            return []
+            return [], raw_result
 
         model_version = domain_model.get("version", 0)
         feedbacks: list[ReviewFeedback] = []
@@ -68,7 +68,7 @@ class ReviewService:
             "Review: %d feedbacks created for project %s (model v%d)",
             len(feedbacks), project_id, model_version,
         )
-        return feedbacks
+        return feedbacks, raw_result
 
     async def resolve_feedback(
         self,

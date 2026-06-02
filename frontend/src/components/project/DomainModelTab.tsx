@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Boxes, Layers, Network, Database, Zap, Circle, RefreshCw, Loader2, GitFork, ShieldCheck, X, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
-import type { DomainModel, DomainModelAggregate, DomainModelSubdomain, DomainModelValidation } from '../../types/api';
+import { Boxes, Layers, Network, Database, Zap, Circle, RefreshCw, Loader2, GitFork, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import type { DomainModel, DomainModelAggregate, DomainModelSubdomain } from '../../types/api';
 import { DomainModelGraph } from './DomainModelGraph';
 import ReviewFeedbackPanel from './ReviewFeedbackPanel';
 import ModelHistoryPanel from './ModelHistoryPanel';
+import ValidationPanel from './ValidationPanel';
 import { useDomainModelReview } from '../../hooks/useDomainModelReview';
 
 type ViewMode = 'strategic' | 'tactical' | 'all';
@@ -20,19 +21,15 @@ interface DomainModelTabProps {
   loading: boolean;
   onRefresh?: () => Promise<void>;
   refreshing?: boolean;
-  onValidate?: () => Promise<void>;
-  validating?: boolean;
-  validation?: DomainModelValidation | null;
-  onCloseValidation?: () => void;
   onExtractFromCode?: () => Promise<void>;
   extractingFromCode?: boolean;
   hasLocalPath?: boolean;
 }
 
-export function DomainModelTab({ projectId, domainModel, loading, onRefresh, refreshing, onValidate, validating, validation, onCloseValidation, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
+export function DomainModelTab({ projectId, domainModel, loading, onRefresh, refreshing, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
   const [view, setView] = useState<ViewMode>('all');
   const [graphMode, setGraphMode] = useState(false);
-  const review = useDomainModelReview(projectId);
+  const review = useDomainModelReview(projectId, domainModel?.version || 0);
 
   if (loading) {
     return (
@@ -107,16 +104,7 @@ export function DomainModelTab({ projectId, domainModel, loading, onRefresh, ref
               刷新模型
             </button>
           )}
-          {onValidate && (
-            <button
-              onClick={onValidate}
-              disabled={validating}
-              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
-            >
-              {validating ? <Loader2 size={10} className="animate-spin" /> : <ShieldCheck size={10} />}
-              AI 评审
-            </button>
-          )}
+          <ReviewButton review={review} />
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -225,8 +213,16 @@ export function DomainModelTab({ projectId, domainModel, loading, onRefresh, ref
       )}
 
       {/* Validation Result Panel */}
-      {validation && (
-        <ValidationPanel validation={validation} onClose={onCloseValidation} />
+      {review.showValidation && review.lastValidation && (
+        <ValidationPanel
+          validation={review.lastValidation}
+          onClose={review.closeValidation}
+          reviewState={review.reviewState}
+          lastReviewedVersion={review.lastReviewedVersion}
+          currentVersion={domainModel?.version || 0}
+          onRevalidate={review.validate}
+          revalidating={review.validating}
+        />
       )}
 
       {/* Review Feedback Panel */}
@@ -342,99 +338,46 @@ function TagRow({ label, items, color }: { label: string; items: string[]; color
   );
 }
 
-const LEVEL_STYLES: Record<string, { label: string; color: string }> = {
-  excellent: { label: '优秀', color: 'text-emerald-500' },
-  good: { label: '良好', color: 'text-blue-500' },
-  needs_improvement: { label: '待改进', color: 'text-amber-500' },
-  poor: { label: '较差', color: 'text-red-500' },
-};
+function ReviewButton({ review }: { review: ReturnType<typeof useDomainModelReview> }) {
+  if (review.validating) {
+    return (
+      <button disabled className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-muted">
+        <Loader2 size={10} className="animate-spin" /> 评审中...
+      </button>
+    );
+  }
 
-const SEVERITY_CONFIG: Record<string, { icon: typeof AlertTriangle; color: string; bg: string }> = {
-  error: { icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-500/10' },
-  warning: { icon: AlertTriangle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-  info: { icon: Info, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-};
-
-function ValidationPanel({ validation, onClose }: { validation: DomainModelValidation; onClose?: () => void }) {
-  const levelStyle = LEVEL_STYLES[validation.level] || LEVEL_STYLES.poor;
+  if (review.reviewState === 'none') {
+    return (
+      <button
+        onClick={review.validate}
+        className="flex items-center gap-1 rounded-md border border-accent/40 bg-accent/5 px-2 py-1 text-[10px] font-medium text-accent transition-colors hover:bg-accent/10"
+      >
+        <ShieldCheck size={10} /> AI 评审
+      </button>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative mx-4 w-full max-w-2xl animate-slide-up rounded-xl border border-border-active bg-bg-card shadow-2xl sm:mx-auto">
-        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="flex items-center gap-2 font-heading text-sm font-semibold text-text-primary">
-            <ShieldCheck size={14} className="text-accent" /> DDD 领域模型评审
-          </h2>
+    <div className="flex items-center gap-1.5">
+      <button
+        onClick={review.openValidation}
+        className="flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/5 px-2 py-1 text-[10px] font-medium text-emerald-500 transition-colors hover:bg-emerald-500/10"
+      >
+        <CheckCircle2 size={10} /> 查看评审
+      </button>
+      {review.reviewState === 'stale' && (
+        <span className="flex items-center gap-1 text-[10px] text-amber-500">
+          <AlertTriangle size={10} />
+          模型已变更
           <button
-            onClick={onClose}
-            className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:text-text-secondary"
+            onClick={review.validate}
+            className="ml-0.5 underline hover:text-amber-400"
           >
-            <X size={14} />
+            重新评审
           </button>
-        </div>
-
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
-          {/* Score */}
-          <div className="mb-4 flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className={`text-2xl font-bold ${levelStyle.color}`}>{validation.score}</span>
-              <span className="text-xs text-text-muted">/ 100</span>
-            </div>
-            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${levelStyle.color} bg-bg-elevated`}>
-              {levelStyle.label}
-            </span>
-          </div>
-
-          {/* Summary */}
-          <p className="mb-4 text-xs leading-relaxed text-text-secondary">{validation.summary}</p>
-
-          {/* Strengths */}
-          {validation.strengths.length > 0 && (
-            <div className="mb-4">
-              <h4 className="mb-2 text-[11px] font-semibold text-text-tertiary">优势</h4>
-              <div className="space-y-1">
-                {validation.strengths.map((s, i) => (
-                  <div key={i} className="flex items-start gap-2 text-[11px]">
-                    <CheckCircle2 size={12} className="mt-0.5 flex-shrink-0 text-emerald-500" />
-                    <span className="text-text-secondary">{s}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Issues */}
-          {validation.issues.length > 0 && (
-            <div>
-              <h4 className="mb-2 text-[11px] font-semibold text-text-tertiary">
-                问题 ({validation.issues.filter(i => i.severity === 'error').length} 错误,{' '}
-                {validation.issues.filter(i => i.severity === 'warning').length} 警告,{' '}
-                {validation.issues.filter(i => i.severity === 'info').length} 建议)
-              </h4>
-              <div className="space-y-2">
-                {validation.issues.map((issue, i) => {
-                  const cfg = SEVERITY_CONFIG[issue.severity] || SEVERITY_CONFIG.info;
-                  const Icon = cfg.icon;
-                  return (
-                    <div key={i} className={`rounded-lg border border-border p-3 ${cfg.bg}`}>
-                      <div className="flex items-center gap-2">
-                        <Icon size={12} className={cfg.color} />
-                        <span className={`text-[11px] font-semibold ${cfg.color}`}>{issue.title}</span>
-                        <span className="rounded bg-bg-elevated px-1.5 py-0.5 text-[9px] text-text-muted">{issue.category}</span>
-                      </div>
-                      <p className="mt-1 pl-5 text-[10px] text-text-secondary">{issue.detail}</p>
-                      {issue.suggestion && (
-                        <p className="mt-1 pl-5 text-[10px] text-accent">→ {issue.suggestion}</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        </span>
+      )}
     </div>
   );
 }

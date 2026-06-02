@@ -128,10 +128,6 @@ export default function ProjectDetail() {
               loading={s.domainModelLoading}
               onRefresh={s.handleRefreshDomainModel}
               refreshing={s.refreshingDM}
-              onValidate={s.handleValidateDomainModel}
-              validating={s.validatingDM}
-              validation={s.dmValidation}
-              onCloseValidation={() => s.setDmValidation(null)}
               onExtractFromCode={s.handleExtractDomainModelFromCode}
               extractingFromCode={s.extractingDMFromCode}
               hasLocalPath={!!s.form.local_path}
