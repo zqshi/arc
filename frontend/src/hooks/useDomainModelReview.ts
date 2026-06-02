@@ -63,9 +63,30 @@ export function useDomainModelReview(projectId: string | undefined, currentModel
 
   const reviewState: ReviewState = useMemo(() => {
     if (feedbacks.length === 0 && !lastValidation) return 'none';
-    if (currentModelVersion > lastReviewedVersion) return 'stale';
-    return 'reviewed';
+    if (currentModelVersion > lastReviewedVersion && lastReviewedVersion > 0) return 'stale';
+    if (feedbacks.length > 0 || lastValidation) return 'reviewed';
+    return 'none';
   }, [feedbacks.length, lastValidation, currentModelVersion, lastReviewedVersion]);
+
+  // 从 feedbacks 反向构造展示用的 validation 摘要（当 lastValidation 丢失时兜底）
+  const derivedValidation = useMemo((): DomainModelValidation | null => {
+    if (feedbacks.length === 0) return null;
+    const latestFeedbacks = feedbacks.filter(f => f.model_version === lastReviewedVersion);
+    const errors = latestFeedbacks.filter(f => f.issue.severity === 'error').length;
+    const warnings = latestFeedbacks.filter(f => f.issue.severity === 'warning').length;
+    const score = Math.max(0, 100 - errors * 20 - warnings * 5);
+    const level = score >= 80 ? 'good' : score >= 60 ? 'needs_improvement' : 'poor';
+    return {
+      score,
+      level: level as DomainModelValidation['level'],
+      issues: latestFeedbacks.map(f => f.issue),
+      strengths: [],
+      summary: `基于 ${latestFeedbacks.length} 条评审反馈重建 (v${lastReviewedVersion})`,
+    };
+  }, [feedbacks, lastReviewedVersion]);
+
+  // 实际用于展示的 validation：优先用完整结果，降级用 feedbacks 推导
+  const effectiveValidation = lastValidation || derivedValidation;
 
   // ── 评审操作 ──────────────────────────────────────
 
@@ -108,7 +129,7 @@ export function useDomainModelReview(projectId: string | undefined, currentModel
     snapshotsLoading,
     reviewState,
     lastReviewedVersion,
-    lastValidation,
+    lastValidation: effectiveValidation,
     validating,
     showValidation,
     validate,
