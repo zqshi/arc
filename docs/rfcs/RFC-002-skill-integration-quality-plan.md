@@ -1,447 +1,239 @@
-# 执行计划：Skill 集成 + 质量体系升级
+# RFC-002: Skill 集成 + 质量体系升级 — 实施报告
 
+> 状态: ✅ **已实施**  
 > 创建: 2026-06-02  
-> 基于: RFC-001 双架构审计 + 5 个 Skill 分析  
+> 完成: 2026-06-02  
+> 基于: RFC-001 双架构审计 + 9 个外部 Skill 评估  
 > 目标: 将 Arc 从"一个 LLM + 固定 prompt"升级为"方法论驱动 + 门禁保障 + 后验闭环"的执行引擎
 
 ---
 
-## 一、Skill 适配性评估
+## 一、外部 Skill 评估与决策
 
-| Skill | 适配度 | 对应 Arc 阶段 | 核心价值 | 改造成本 |
-|-------|--------|-------------|---------|---------|
-| **decision-thinking-toolkit** | ⭐⭐⭐⭐⭐ | 需求澄清 (Clarification) | 替代死板的 6 层静态追问；提供第一性原理/价值评估/苏格拉底三套组合工具 | 中 |
-| **ddd-toolkit** | ⭐⭐⭐⭐⭐ | 技术架构 (Architecture) | 替代当前"直接输出 JSON"模式；提供战略设计→事件风暴→战术建模的严格流程 + 自动校验 | 中 |
-| **analysis-to-prd** | ⭐⭐⭐⭐ | 需求澄清 → 产出物生成 | **输入充分性校验机制** — 正是 Arc 当前的死代码 `INPUT_SUFFICIENCY_PROMPT` 该做的事 | 低 |
-| **oss-evaluator** | ⭐⭐⭐ | 技术架构 (tech_decisions) | 当架构阶段涉及技术选型时，自动检索评估开源方案 | 低 |
-| **prd-gen** | ⭐⭐ | 需求澄清产出物 | 模板结构和"输入覆盖度评估"理念有参考价值，但 Ezone 绑定不适用 | 仅参考 |
+### 第一批 (本地 zip)
 
-### 决策：集成 3 个，参考 2 个
+| Skill | 适配度 | 决策 | 对应阶段 | 实施状态 |
+|-------|--------|------|---------|---------|
+| **decision-thinking-toolkit** v1.0 | ⭐⭐⭐⭐⭐ | ✅ 集成 | 需求澄清 | ✅ 已实施 |
+| **ddd-toolkit** v0.3.1 | ⭐⭐⭐⭐⭐ | ✅ 集成 | 技术架构 | ✅ 已实施 |
+| **analysis-to-prd** v1.1.0 | ⭐⭐⭐⭐ | ✅ 提取核心 | 充分性检测 | ✅ 已实施 |
+| **oss-evaluator** v0.1.0 | ⭐⭐⭐ | ⏳ 待集成 | 技术选型 | 规格已定，待 web search 工具支持 |
+| **prd-gen** v0.7.5 | ⭐⭐ | 📖 参考 | — | 模板结构影响了 Gate 设计理念 |
 
-- **直接集成改造**: decision-thinking-toolkit, ddd-toolkit, analysis-to-prd (充分性校验逻辑)
-- **选择性集成**: oss-evaluator (作为架构阶段的可选工具)
-- **仅参考设计**: prd-gen (模板结构 + 覆盖度预测机制)
+### 第二批 (GitHub)
 
----
-
-## 二、各阶段质量诊断与改造方案
-
-### 2.1 需求澄清阶段 — 重构
-
-#### 当前问题
-
-| # | 问题 | 严重度 |
-|---|------|--------|
-| 1 | `INPUT_SUFFICIENCY_PROMPT` 死代码，从未执行 | P0 |
-| 2 | `SOCRATIC_LAYERS` 是写死的列表，不区分需求类型 | P1 |
-| 3 | 不做假设挑战、不做方向质疑 | P1 |
-| 4 | Gate 只检查字段存在，不验证逻辑一致性 | P2 |
-
-#### 改造方案：集成 decision-thinking-toolkit
-
-**设计思路**: 将 decision-thinking 的三套工具作为澄清阶段的**子策略**，根据需求类型自动路由：
-
-```python
-class ClarificationStrategy:
-    """需求澄清策略路由器 — 基于 decision-thinking-toolkit 改造"""
-    
-    ROUTE_RULES = {
-        "new_domain": "first_principles",       # 全新领域/方向不明 → 第一性原理
-        "feature_request": "value_assessment",   # 明确功能请求 → 产品价值评估
-        "optimization": "socratic",             # 已有方案待验证 → 苏格拉底追问
-        "unclear": "sufficiency_then_route",    # 信息不足 → 先充分性检测再路由
-    }
-```
-
-**具体集成点**:
-
-| 子策略 | 来源 | 在 Arc 中的触发条件 | 输出 |
-|--------|------|-------------------|------|
-| 充分性检测 | analysis-to-prd Step 2 | **每次用户消息后自动执行** | sufficient=true → 进入深度策略；false → 追问 |
-| 第一性原理 | decision-thinking 工具 1 | 需求方向不明 / 战略转型类 | 重新定义的问题 + 多候选路径 |
-| 产品价值评估 | decision-thinking 工具 2 | 有明确功能方向，需判断值不值 | 六维评分 + 决策建议 |
-| 苏格拉底追问 | decision-thinking 工具 3 | 有方案需要验证 / 假设拷问 | 命题状态 + 风险清单 |
-
-**新增门禁**:
-
-```python
-# 需求澄清阶段的前置门禁（替代死代码 INPUT_SUFFICIENCY_PROMPT）
-SUFFICIENCY_GATE = {
-    "required_signals": [
-        {"name": "target_users", "check": "能回答'谁在用这个功能'"},
-        {"name": "core_problem", "check": "能回答'用户遇到了什么痛点'"},
-        {"name": "feature_direction", "check": "能回答'大致要做什么'"},
-    ],
-    "policy": "all_must_clear_before_generation",
-}
-
-# 需求产出物的后验门禁（新增交叉一致性）
-REQUIREMENT_POST_GATE = {
-    "structural": PHASE_REQUIRED_FIELDS["clarification"],  # 现有
-    "consistency": [
-        "user_stories 是否覆盖所有 target_users",
-        "acceptance_criteria 是否覆盖所有 user_stories",
-        "boundaries.in_scope 是否与 user_stories 对齐",
-        "risk_assessment 是否回应了 assumptions 中低置信度的假设",
-    ],
-}
-```
+| Skill | 适配度 | 决策 | 对应阶段 | 实施状态 |
+|-------|--------|------|---------|---------|
+| **obra/superpowers** | ⭐⭐⭐⭐⭐ | ✅ 集成 | 开发 + 测试 | ✅ 已实施 |
+| **anthropics/frontend-design** | ⭐⭐⭐⭐ | ✅ 集成 | UI 设计 | ✅ 已实施 |
+| **ui-ux-pro-max** | ⭐⭐⭐ | ✅ 部分集成 | UI 设计 Gate | ✅ 检查清单 + 校验规则已实施 |
+| **microsoft/playwright-mcp** | ⭐⭐⭐⭐ | ✅ 沙盒集成 | 验证全阶段 | ✅ 已实施 |
 
 ---
 
-### 2.2 交互设计阶段 — 增强
+## 二、实施交付物清单
 
-#### 当前问题
+### 新建模块 (7 个文件, ~1700 行)
 
-| # | 问题 | 严重度 |
-|---|------|--------|
-| 1 | Prompt 只说"设计交互方案"，无方法论引导 | P1 |
-| 2 | 不验证 wireframe 是否覆盖所有用户场景 | P1 |
-| 3 | 没有可用性启发式检查 | P2 |
+| 文件 | 来源 Skill | 职责 |
+|------|-----------|------|
+| `sufficiency_gate.py` | analysis-to-prd Step 2 | 三项必要信号检测 (target_users / core_problem / feature_direction) |
+| `clarification_strategy.py` | decision-thinking-toolkit | 4 策略自动路由 + prompt 模板 (第一性原理/价值评估/苏格拉底/充分性优先) |
+| `architecture_methodology.py` | ddd-toolkit v0.3.1 | DDD 三步流程 + 13 条校验规则 + 循环依赖检测 |
+| `ui_design_methodology.py` | frontend-design + ui-ux-pro-max | 设计四步递进 + Nielsen 10 启发式 + 反模式 + 产出物校验 |
+| `dev_test_methodology.py` | obra/superpowers | TDD 循环 + 增量实现 + AC 逐条验证 + 证据要求 |
+| `playwright_sandbox.py` | playwright-mcp | 沙盒浏览器验证 (截图/健康检查/E2E断言) |
 
-#### 改造方案
+### 改造模块 (4 个文件)
 
-**方法论注入** (无需外部 skill，内建):
-
-```python
-UI_DESIGN_METHODOLOGY = """
-## 设计方法论（递进执行）
-
-1. **用户旅程映射** — 基于需求规格中的 user_scenarios，绘制完整的用户旅程
-2. **信息架构** — 基于旅程节点，定义页面层级和导航结构
-3. **线框设计** — 逐页面产出 wireframe，每个 wireframe 必须标注对应的 user_story ID
-4. **交互规则** — 状态转换、异常处理、空状态、加载状态
-5. **可用性自检** — 对照 Nielsen 10 启发式原则自检
-"""
-```
-
-**新增门禁**:
-
-```python
-UI_DESIGN_POST_GATE = {
-    "structural": PHASE_REQUIRED_FIELDS["ui_design"],  # 现有
-    "coverage": [
-        "每个 user_scenario 是否有对应 wireframe page",
-        "每个 wireframe 是否标注了对应的 user_story ID",
-    ],
-    "heuristic_check": [
-        "系统状态可见性",
-        "用户控制与自由",
-        "一致性与标准",
-        "错误预防",
-        "容错性",
-    ],
-}
-```
+| 文件 | 改造内容 |
+|------|---------|
+| `prompt_builder.py` | 全阶段方法论动态注入 + 充分性提示 |
+| `prompts.py` | 系统 prompt 模板新增 `{methodology_section}` + `{sufficiency_hint}` |
+| `gate.py` | 方法论校验 + 交叉一致性检查 (5 阶段全覆盖) |
+| `pipeline/service.py` | confirm_phase 增加 prior_artifacts 交叉检查 + 架构确认后自动合并领域模型 |
+| `artifact_extractor.py` | conversation 模式产出物提取后自动执行 gate 校验 |
 
 ---
 
-### 2.3 技术架构阶段 — 重构
+## 三、全阶段方法论覆盖 (最终实现)
 
-#### 当前问题
+### 3.1 需求澄清 (Clarification)
 
-| # | 问题 | 严重度 |
-|---|------|--------|
-| 1 | 直接让 AI 输出 JSON，无设计过程 | P0 |
-| 2 | ADR 不验证是否真的对比了多方案 | P1 |
-| 3 | event_storming 结构有但未引导执行 | P1 |
-| 4 | 不做实体关系一致性检查 | P2 |
+**方法论**: decision-thinking-toolkit 三套工具  
+**实现**: `clarification_strategy.py`
 
-#### 改造方案：集成 ddd-toolkit
+| 策略 | 触发条件 | 递进阶段 |
+|------|---------|---------|
+| 充分性优先 | 信息不足 (描述 < 20 字 + 对话 < 2 轮) | 收集三项基本信号 |
+| 第一性原理 | 新业务/方向不明/竞品跟随 | 原始问题→追问根因→底层约束→重定义→重构方案→挑战假设 |
+| 产品价值评估 | 明确功能请求 | 六维拆解: 用户→场景→痛点→现有方案→核心方法→预期价值 |
+| 苏格拉底追问 | 已有方案待验证/优化 | 概念澄清→假设探查→证据审视→替代观点→后果检验→反诘 |
 
-**设计思路**: 将 ddd-toolkit 的三步流程嵌入架构阶段，作为强制子步骤：
+**门禁**: 
+- 前验: `SufficiencyGate` 三项信号 (target_users/core_problem/feature_direction)
+- 后验: user_stories 覆盖 target_users / AC 数量 ≥ P0 stories
 
-```python
-ARCHITECTURE_SUB_PHASES = [
-    {
-        "step": "strategic_design",
-        "name": "战略设计",
-        "methodology": "识别子域(核心域/支撑域/通用域) → 划分限界上下文 → 定义集成关系",
-        "validation": "validate_strategy",  # ddd-toolkit 自动校验
-        "output_fields": ["domain_design.subdomains", "domain_design.bounded_contexts", "domain_design.context_relations"],
-    },
-    {
-        "step": "event_storming",
-        "name": "事件风暴",
-        "methodology": "在每个上下文内：识别领域事件(过去时态) → 识别命令和角色 → 初步识别聚合",
-        "validation": "validate_event_storming",
-        "output_fields": ["event_storming.events", "event_storming.commands"],
-    },
-    {
-        "step": "tactical_modeling",
-        "name": "战术建模",
-        "methodology": "设计聚合根(事务边界) → 区分实体/值对象 → 定义领域服务 → 聚合间ID引用",
-        "validation": "validate_modeling",
-        "output_fields": ["data_model.entities", "api_design", "tech_decisions"],
-    },
-]
-```
+### 3.2 交互设计 (UI Design)
 
-**ddd-toolkit 校验规则内嵌** (从 skill 提取):
+**方法论**: anthropics/frontend-design + ui-ux-pro-max  
+**实现**: `ui_design_methodology.py`
 
-```python
-DDD_VALIDATION_RULES = {
-    "strategic": [
-        "核心域数量与业务规模匹配（小系统1个，大系统5-10个）",
-        "通用域标注了'优先外采'或'自建理由'",
-        "无循环依赖（上下文间）",
-        "集成关系明确（ACL/OHS/共享内核/遵奉者）",
-    ],
-    "event_storming": [
-        "事件命名为过去时态",
-        "每个事件都有触发命令和触发角色",
-        "聚合边界不超过5个实体",
-    ],
-    "tactical": [
-        "聚合根维护不变量",
-        "聚合间只通过ID引用",
-        "值对象不可变",
-        "领域服务无状态",
-    ],
-}
-```
+| 步骤 | 对话轮次 | 内容 |
+|------|---------|------|
+| 设计思维 | 0-2 | 目的/调性/约束/差异化 |
+| 信息架构 | 2-4 | 用户旅程 + 页面层级 + 信息优先级 |
+| 线框设计 | 4-8 | 逐页面产出 + story ID 标注 + 状态定义 |
+| 可用性自检 | 8+ | Nielsen 10 启发式 + 反模式 checklist |
 
-**新增门禁**:
+**门禁**:
+- wireframe 关联 user_story ID
+- 空状态/加载态定义
+- 预交付 8 项 checklist
 
-```python
-ARCHITECTURE_POST_GATE = {
-    "structural": PHASE_REQUIRED_FIELDS["architecture"],  # 现有
-    "ddd_validation": DDD_VALIDATION_RULES,  # 新增
-    "adr_quality": [
-        "每个 tech_decision 必须有 ≥2 options_considered",
-        "每个 decision 的 reason 必须引用具体 constraint 或 requirement",
-        "trade_offs 不得为空",
-    ],
-    "coverage": [
-        "api_design 的 endpoint 数量 ≥ user_stories 数量",
-        "data_model.entities 与 domain_design.bounded_contexts 对齐",
-    ],
-}
-```
+**验证** (Playwright 沙盒):
+- `render_and_screenshot(html)` → prototype 可渲染性验证
 
-**技术选型场景**: 集成 oss-evaluator
+### 3.3 技术架构 (Architecture)
 
-当 `tech_decisions` 中涉及外部依赖选择时，自动触发：
+**方法论**: ddd-toolkit v0.3.1  
+**实现**: `architecture_methodology.py`
 
-```python
-async def evaluate_tech_choice(decision: dict) -> dict:
-    """当 tech_decision 涉及外部库/框架选型时，调用 oss-evaluator 逻辑"""
-    if not _involves_external_dependency(decision):
-        return decision
-    
-    # P0 业务匹配度 → P1 商用合规性 → P2 社区维护 → P3 技术质量 → P4 部署可行性
-    evaluation = await _run_oss_evaluation(decision["options_considered"])
-    decision["evaluation_evidence"] = evaluation
-    return decision
-```
+| 子阶段 | 对话轮次 | 产出 | 校验规则 |
+|--------|---------|------|---------|
+| 战略设计 | 0-4 | subdomains + bounded_contexts + relations | 有核心域/通用域标注外采/无循环依赖/集成类型明确 |
+| 事件风暴 | 4-8 | events + commands | 过去时态/有触发命令/有触发角色 |
+| 战术建模 | 8+ | entities + api_design + tech_decisions | 聚合≤5实体/ID引用/ADR≥2选项/trade_offs非空 |
+
+**门禁**: 13 条规则 (3 violations 阻断 + 10 warnings 记录)  
+**交叉检查**: API 端点数 ≥ P0 user_stories 数  
+**领域模型**: gate 通过后自动合并到 `project.domain_model`
+
+### 3.4 开发实现 (Development)
+
+**方法论**: obra/superpowers (TDD + verification-before-completion)  
+**实现**: `dev_test_methodology.py`
+
+| 阶段 | 内容 |
+|------|------|
+| 任务拆分 | implementation_plan → 原子步骤 (2-5min) |
+| TDD 循环 | RED → GREEN → REFACTOR → COMMIT |
+| 增量推进 | 逐步骤 + 持续验证 |
+| 收尾验证 | 全量测试 + lint + 覆盖度 |
+
+**门禁**: test_results 无 FAIL / code_changes 非空  
+**调试方法论**: 复现→定位→根因→验证 (4 阶段)
+
+### 3.5 测试验证 (Testing)
+
+**方法论**: obra/superpowers (verification-before-completion)  
+**实现**: `dev_test_methodology.py`
+
+| 原则 | 实现 |
+|------|------|
+| AC 逐条验证 | 每个 AC-N 必须有 pass/fail + evidence |
+| 证据驱动 | pass 必须有 stdout/断言日志/截图证据 |
+| P0 100% 覆盖 | P0 AC 数量 ≤ criteria_verification 数量 |
+
+**门禁**: criteria_verification 非空 / pass 有证据 / P0 覆盖度  
+**交叉检查**: AC ID 在 criteria_verification 中逐条匹配  
+**验证** (Playwright 沙盒): `run_assertions(url, [{type, text}])` → E2E 自动化
+
+### 3.6 部署上线 (Deployment)
+
+**验证** (Playwright 沙盒): `verify_url_health(url)` → HTTP status + body preview
+
+### 3.7 经验沉淀 (Extraction)
+
+**增强**: 假设回环验证 — `requirements.assumptions` 中每个假设在 experience.assumptions_validated 中有对应条目
 
 ---
 
-### 2.4 开发实现阶段 — 补全
-
-#### 当前问题
-
-| # | 问题 | 严重度 |
-|---|------|--------|
-| 1 | Pipeline 模式无工具执行（能力倒挂） | P0 |
-| 2 | 无 TDD 引导 | P1 |
-| 3 | 无代码审查反馈循环 | P1 |
-
-#### 改造方案
-
-```python
-DEVELOPMENT_METHODOLOGY = """
-## 开发方法论
-
-1. **任务拆分** — 将 implementation_plan 拆为可独立验证的增量步骤
-2. **TDD 循环** — 每步：先写失败测试 → 最小实现 → 重构
-3. **验证闭环** — 每步完成后执行测试，确认 pass
-4. **代码审查** — 最终产出前自审：DDD分层/命名/职责单一
-"""
-
-DEVELOPMENT_POST_GATE = {
-    "structural": ["execution_log", "code_changes", "test_results"],
-    "executable_checks": [
-        "test_results 中无 FAIL 状态",
-        "code_changes 覆盖了 implementation_plan 的所有步骤",
-    ],
-}
-```
-
----
-
-### 2.5 测试验证阶段 — 补全
-
-#### 当前问题
-
-| # | 问题 | 严重度 |
-|---|------|--------|
-| 1 | 不逐条对照 AC | P0 |
-| 2 | 纯文本自述，不可审计 | P1 |
-
-#### 改造方案
-
-```python
-TESTING_POST_GATE = {
-    "structural": ["criteria_verification", "issues_found", "coverage_summary"],
-    "ac_coverage": {
-        "rule": "requirements.acceptance_criteria 中每个 AC-N 必须在 criteria_verification 中有对应条目",
-        "check": "len(unmatched_acs) == 0",
-    },
-    "evidence_required": [
-        "每个 pass 状态的 criteria 必须有 evidence 字段（测试命令输出/截图描述）",
-    ],
-}
-```
-
----
-
-### 2.6 经验沉淀阶段 — 增强
-
-#### 当前状态: 基本完善，增加假设验证回环
-
-```python
-EXTRACTION_POST_GATE = {
-    "structural": ["problem", "solution", "decisions"],
-    "assumption_validation": [
-        "requirements.assumptions 中的每个假设在 experience.assumptions_validated 中有对应条目",
-        "每个假设标注 was_correct + lesson",
-    ],
-}
-```
-
----
-
-## 三、统一质量保障体系架构
+## 四、质量保障架构 (已实现)
 
 ```
 ┌────────────────────────────────────────────────────────────┐
 │                    QualityAssurance                          │
 │                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐   │
-│  │ Sufficiency  │  │   Gate       │  │ CrossCheck     │   │
-│  │   Check      │  │ (per-phase)  │  │ (cross-phase)  │   │
+│  │ Sufficiency  │  │ Methodology  │  │ CrossCheck     │   │
+│  │   Gate       │  │ Validation   │  │ (cross-phase)  │   │
 │  │              │  │              │  │                │   │
-│  │ 信息够不够？  │  │ 产出物合格？  │  │ 上下游一致？   │   │
+│  │ 信息够不够？  │  │ 方法论合规？  │  │ 上下游一致？   │   │
 │  └──────┬───────┘  └──────┬───────┘  └───────┬────────┘   │
 │         │                  │                   │            │
 │    PRE-GATE           POST-GATE          CROSS-GATE        │
 │  (生成产出物前)     (确认产出物时)      (阶段切换时)        │
 │                                                             │
-│  触发时机:          触发时机:           触发时机:            │
-│  - 每轮 AI 回复后   - 用户点确认时      - 进入下一阶段时     │
-│  - 判断是否该        - 自动提取产出物后  - 全链路一致性       │
-│    停止追问                                                 │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              Playwright Sandbox                        │  │
+│  │  render_and_screenshot | verify_url_health |          │  │
+│  │  run_assertions                                       │  │
+│  │  独立子进程 | headless | timeout 30s | 仅返回结果     │  │
+│  └──────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────┘
 ```
 
-### 交叉一致性检查矩阵
+### 交叉一致性检查矩阵 (已实现)
 
-| 上游产出 | 下游产出 | 检查规则 |
-|---------|---------|---------|
-| requirement_spec.user_stories | ui_design.wireframes | 每个 story 有对应 wireframe |
-| requirement_spec.user_stories | architecture.api_design | 每个 story 有对应 API |
-| requirement_spec.acceptance_criteria | testing.criteria_verification | 逐条 check-off |
-| requirement_spec.boundaries.constraints | architecture.tech_decisions | 每个约束被决策回应 |
-| architecture.data_model.entities | domain_model.aggregates | 实体 ↔ 聚合对齐 |
-| architecture.implementation_plan | development.code_changes | 每个 step 有对应 change |
-| requirement_spec.assumptions | extraction.assumptions_validated | 假设回环验证 |
+| 检查点 | 上游 | 下游 | 实现位置 |
+|--------|------|------|---------|
+| story ↔ user 覆盖 | target_users | user_stories.role | `gate.py` _check_methodology |
+| AC ↔ story P0 | user_stories (P0) | acceptance_criteria | `gate.py` _check_methodology |
+| API ↔ story 覆盖 | user_stories (P0) | api_design | `gate.py` _check_cross_consistency |
+| AC ↔ test 覆盖 | acceptance_criteria | criteria_verification | `gate.py` _check_cross_consistency |
+| wireframe ↔ story | user_story | wireframes.story_id | `ui_design_methodology.py` validate |
 
 ---
 
-## 四、执行排期
+## 五、领域模型持续演进闭环
 
-### Phase 1: 基础修复 (1-2 个版本)
+```
+需求迭代 N                    需求迭代 N+1
+    │                              │
+    ▼                              ▼
+Architecture 产出物          PromptBuilder 注入最新 domain_model
+    │                              ▲
+    ▼                              │
+Gate 通过                     project.domain_model (持续累积)
+    │                              ▲
+    ▼                              │
+DomainModelExtractor ──────────────┘
+  extract_and_merge()
+  合并: subdomains + contexts + aggregates + events
+```
 
-| # | 工作项 | 优先级 | 预估 |
-|---|--------|--------|------|
-| 1 | **激活充分性检测** — 将 `INPUT_SUFFICIENCY_PROMPT` 从死代码变为实际调用，集成 analysis-to-prd 的 Step 2 三项检测逻辑 | P0 | 2h |
-| 2 | **Pipeline 接入 ToolAwareLoop** — 解决能力倒挂 | P0 | 4h |
-| 3 | **统一 Gate 调用点** — conversation 模式也在自动提取产出物后触发 gate 评审 | P0 | 3h |
-| 4 | 增强 gate 评审 — 加入 ADR 多方案验证 + AC 覆盖度检查 | P1 | 3h |
-
-### Phase 2: 方法论注入 (2-3 个版本)
-
-| # | 工作项 | 优先级 | 预估 |
-|---|--------|--------|------|
-| 5 | **集成 decision-thinking 到需求澄清** — 实现策略路由器 + 三套子策略的 prompt 模板 | P0 | 6h |
-| 6 | **集成 ddd-toolkit 到架构阶段** — 三步子流程 + 校验规则 | P0 | 6h |
-| 7 | UI 设计方法论注入 — 用户旅程 → 信息架构 → wireframe 递进 | P1 | 3h |
-| 8 | 测试阶段 AC 逐条 check-off 机制 | P1 | 3h |
-
-### Phase 3: 交叉验证 (1-2 个版本)
-
-| # | 工作项 | 优先级 | 预估 |
-|---|--------|--------|------|
-| 9 | 实现 CrossCheck 引擎 — 跨阶段一致性验证 | P1 | 6h |
-| 10 | 集成 oss-evaluator 到架构阶段 tech_decisions | P2 | 3h |
-| 11 | 假设回环验证 — extraction 阶段回查 clarification 阶段的 assumptions | P2 | 2h |
-
-### Phase 4: 引擎统一 (与 RFC-001 合并)
-
-| # | 工作项 | 优先级 | 预估 |
-|---|--------|--------|------|
-| 12 | 合并双执行路径为 UnifiedEngine | P0 | 8h |
-| 13 | ProcessController 配置化 | P1 | 4h |
-| 14 | 前端 UI 自适应（阶梯/纯聊天统一组件） | P1 | 6h |
+**实现路径**:
+1. `PipelineService.confirm_phase(ARCHITECTURE)` → `_merge_domain_model()`
+2. `ArtifactExtractor.process_message()` → `_try_extract_domain_model()`
+3. `PromptBuilder._build_project_context()` → `build_ddd_tdd_section(project.domain_model)`
 
 ---
 
-## 五、Skill 改造规格
-
-### 5.1 decision-thinking → `ClarificationStrategyService`
-
-**改造要点**:
-- 去掉文件系统操作（不创建本地 .md 文件）
-- 三套工具改为 prompt 注入策略（不依赖外部脚本）
-- 路由逻辑内嵌到 `build_system_prompt()` 中，根据需求类型动态切换
-- 保留逐章节引导的对话设计模式（不一次性抛出全模板）
-
-**代码位置**: `backend/src/arc/application/execution/clarification_strategy.py` (新建)
-
-### 5.2 ddd-toolkit → `ArchitectureMethodologyService`
-
-**改造要点**:
-- 去掉 PlantUML/脚本生成（产出直接进入 `domain_model` JSONB）
-- 三步子流程映射为架构阶段的 3 个 sub-step marker
-- 校验规则内嵌为 `DDD_VALIDATION_RULES` dict
-- 保留"quick 规则检查 + deep LLM 分析"双模式 gate
-
-**代码位置**: `backend/src/arc/application/execution/architecture_methodology.py` (新建)
-
-### 5.3 analysis-to-prd → `SufficiencyGate`
-
-**改造要点**:
-- 只提取 Step 2 的三项充分性检测逻辑
-- 改为每轮对话后自动执行（非一次性检测）
-- 检测结果作为 metadata 附加在 conversation message 上
-- sufficient=true 时在 AI 回复中注入"可以开始生成产出物了"的信号
-
-**代码位置**: `backend/src/arc/application/execution/sufficiency_gate.py` (新建)
-
-### 5.4 oss-evaluator → `TechSelectionTool`
-
-**改造要点**:
-- 作为 `ToolRegistry` 的可选工具注册
-- 在架构阶段 prompt 中告知 AI："当你需要评估外部依赖时，使用 evaluate_oss 工具"
-- 五维评估逻辑 (P0-P4) 内嵌为 tool handler
-- 依赖 web search 能力（当前 ToolRegistry 不支持，需新增）
-
-**代码位置**: `backend/src/arc/application/execution/tools.py` 中新增 `evaluate_oss` tool
-
----
-
-## 六、质量指标（改造前后对比）
+## 六、质量指标 (改造前后对比)
 
 | 指标 | 改造前 | 改造后 |
 |------|--------|--------|
-| 需求充分性自动检测 | ❌ (死代码) | ✅ 每轮对话后执行 |
-| 澄清策略种类 | 1 (静态 Socratic) | 4 (充分性 + 第一性原理 + 价值评估 + 苏格拉底) |
-| 架构设计有方法论引导 | ❌ | ✅ 战略设计 → 事件风暴 → 战术建模 |
-| DDD 校验规则 | 0 | 13 条 (战略4 + 事件3 + 战术4 + ADR2) |
-| 交叉一致性检查 | 0 | 7 对 |
-| AC ↔ 测试逐条对照 | ❌ | ✅ |
-| Pipeline 工具执行能力 | ❌ | ✅ |
-| Conversation 模式门禁 | ❌ | ✅ |
-| 技术选型有评估证据 | ❌ | ✅ (oss-evaluator) |
-| 假设验证回环 | ❌ | ✅ (clarification → extraction) |
+| 方法论覆盖阶段数 | 0/7 | **7/7** |
+| 需求充分性自动检测 | ❌ (死代码) | ✅ 三项信号检测 |
+| 澄清策略种类 | 1 (静态列表) | **4** (动态路由) |
+| UI 设计方法论 | 无 | **四步递进 + Nielsen 10** |
+| DDD 校验规则 | 0 | **13 条** |
+| 开发方法论 | 无 | **TDD + 增量实现** |
+| 测试 AC 逐条对照 | ❌ | ✅ |
+| 交叉一致性检查 | 0 对 | **5 对** |
+| 浏览器自动验证 | ❌ | ✅ (Playwright 沙盒) |
+| Conversation 模式门禁 | ❌ | ✅ (产出物提取后自动 gate) |
+| 领域模型自动合并 | 手动触发 | ✅ gate 通过后自动 |
+| 方法论校验维度 (gate) | 1 (结构检查) | **3** (结构 + 方法论 + 交叉) |
+
+---
+
+## 七、待办 (后续版本)
+
+| # | 工作项 | 依赖 | 状态 |
+|---|--------|------|------|
+| 1 | oss-evaluator 完整集成 | ToolRegistry 支持 web search | ⏳ 待 web search tool |
+| 2 | Playwright 前端集成 | 前端展示截图/验证结果 | ⏳ 待前端适配 |
+| 3 | 充分性检测 LLM 调用版 (非轻量提示) | 成本评估 | ⏳ 待 A/B 测试 |
+| 4 | RFC-001 引擎统一 | 本 RFC 稳定后 | ⏳ v4.0.0 |
