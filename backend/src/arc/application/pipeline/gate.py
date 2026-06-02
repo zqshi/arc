@@ -75,16 +75,32 @@ async def evaluate_gate(
     phase_type: PhaseType,
     content: dict,
     conventions: str = "",
+    *,
+    prior_artifacts: dict | None = None,
 ) -> GateResult:
-    """Full gate evaluation: structural check + LLM quality assessment."""
+    """Full gate evaluation: structural check + methodology validation + LLM quality assessment.
+
+    Args:
+        prior_artifacts: 已确认的前置阶段产出物，用于交叉一致性检查。
+                        key=artifact_type (str), value=content (dict)
+    """
     structural_gaps = check_required_fields(phase_type, content)
+
+    # --- 方法论校验 (DDD / ADR) ---
+    methodology_gaps = _check_methodology(phase_type, content)
+    structural_gaps.extend(methodology_gaps)
+
+    # --- 交叉一致性检查 ---
+    if prior_artifacts:
+        cross_gaps = _check_cross_consistency(phase_type, content, prior_artifacts)
+        structural_gaps.extend(cross_gaps)
 
     if len(structural_gaps) >= 3:
         return GateResult(
             passed=False,
             score=2,
             gaps=structural_gaps,
-            suggestion="产出物缺少多个关键字段，请继续与AI对话补充信息后重新生成。",
+            suggestion="产出物缺少多个关键字段或未通过方法论校验，请继续完善。",
         )
 
     from arc.application.ai.llm_adapter import LLMMessage
@@ -135,3 +151,87 @@ async def evaluate_gate(
         gaps=all_gaps,
         suggestion=result_data.get("suggestion", "请补充完善产出物内容。"),
     )
+
+
+# ---------------------------------------------------------------------------
+# 方法论校验 (Skill 集成)
+# ---------------------------------------------------------------------------
+
+
+def _check_methodology(phase_type: PhaseType, content: dict) -> list[str]:
+    """根据阶段执行方法论专项校验。"""
+    gaps = []
+
+    if phase_type == PhaseType.ARCHITECTURE:
+        from arc.application.execution.architecture_methodology import validate_architecture
+
+        result = validate_architecture(content)
+        gaps.extend(result.violations)
+        # warnings 不阻断，仅记录
+        for w in result.warnings:
+            logger.info("Architecture gate warning: %s", w)
+
+    elif phase_type == PhaseType.CLARIFICATION:
+        # 需求规格交叉自洽性检查
+        user_stories = content.get("user_stories", [])
+        target_users = content.get("target_users", [])
+        ac = content.get("acceptance_criteria", [])
+
+        if user_stories and target_users:
+            user_types = {u.get("type", "") for u in target_users if isinstance(u, dict)}
+            story_roles = {s.get("role", "") for s in user_stories if isinstance(s, dict)}
+            uncovered = user_types - story_roles - {""}
+            if uncovered:
+                gaps.append(f"用户故事未覆盖目标用户: {', '.join(uncovered)}")
+
+        if user_stories and ac:
+            story_count = len([s for s in user_stories if isinstance(s, dict) and s.get("priority") == "P0"])
+            ac_count = len(ac)
+            if story_count > 0 and ac_count < story_count:
+                gaps.append(f"验收标准({ac_count}条)少于P0用户故事({story_count}条)，可能覆盖不足")
+
+    return gaps
+
+
+def _check_cross_consistency(
+    phase_type: PhaseType,
+    content: dict,
+    prior_artifacts: dict,
+) -> list[str]:
+    """跨阶段交叉一致性检查。"""
+    gaps = []
+
+    if phase_type == PhaseType.ARCHITECTURE:
+        # 检查 API 是否覆盖了需求中的用户故事
+        req_spec = prior_artifacts.get("requirement_spec", {})
+        stories = req_spec.get("user_stories", []) if isinstance(req_spec, dict) else []
+        api_design = content.get("api_design", [])
+
+        if stories and isinstance(api_design, list):
+            p0_stories = [s for s in stories if isinstance(s, dict) and s.get("priority") == "P0"]
+            if p0_stories and len(api_design) < len(p0_stories):
+                gaps.append(
+                    f"API 端点({len(api_design)}个)少于P0用户故事({len(p0_stories)}个)，"
+                    "可能有功能未覆盖"
+                )
+
+    elif phase_type == PhaseType.TESTING:
+        # 检查测试是否逐条覆盖了验收标准
+        req_spec = prior_artifacts.get("requirement_spec", {})
+        acs = req_spec.get("acceptance_criteria", []) if isinstance(req_spec, dict) else []
+        verifications = content.get("criteria_verification", [])
+
+        if acs and verifications:
+            ac_ids = {ac.get("id", "") for ac in acs if isinstance(ac, dict)} - {""}
+            verified_criteria = set()
+            for v in verifications:
+                if isinstance(v, dict):
+                    criteria_text = v.get("criteria", "")
+                    for ac_id in ac_ids:
+                        if ac_id in criteria_text:
+                            verified_criteria.add(ac_id)
+            unverified = ac_ids - verified_criteria
+            if unverified:
+                gaps.append(f"验收标准未被测试覆盖: {', '.join(sorted(unverified))}")
+
+    return gaps

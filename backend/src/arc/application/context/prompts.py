@@ -52,9 +52,13 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你正在帮用户完成「{title}」。
 
 {deliverable_section}
 
+{methodology_section}
+
 {project_context}
 
 {experience_context}
+
+{sufficiency_hint}
 
 ## 当前任务
 标题: {title}

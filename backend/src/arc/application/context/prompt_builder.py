@@ -117,16 +117,28 @@ class PromptBuilder:
         autonomy = await self._get_autonomy(todo)
         autopilot_section = AUTOPILOT_SECTION if autonomy == "full" else ""
 
+        # 方法论注入 — 根据当前阶段和进度动态选择
+        methodology_section = await self._build_methodology_section(
+            conversation, todo, completed
+        )
+
+        # 充分性提示 — 需求阶段尚未产出时注入
+        sufficiency_hint = ""
+        if "requirement_spec" not in completed and todo:
+            sufficiency_hint = await self._build_sufficiency_hint(conversation, todo)
+
         return CONVERSATION_MODE_SYSTEM_PROMPT.format(
             title=todo.title if todo else "",
             description=todo.description if todo else "",
             deliverable_section=deliverable_section,
+            methodology_section=methodology_section,
             project_context=(
                 project_context
                 + code_capability
                 + ("\n\n" + autopilot_section if autopilot_section else "")
             ),
             experience_context=experience_context,
+            sufficiency_hint=sufficiency_hint,
             completed_artifacts=completed_artifacts_text,
         )
 
@@ -303,3 +315,86 @@ class PromptBuilder:
         if not project or not project.conversation_config:
             return "supervised"
         return project.conversation_config.get("agent_autonomy", "supervised")
+
+    # ------------------------------------------------------------------
+    # Methodology injection (Skill 集成)
+    # ------------------------------------------------------------------
+
+    async def _build_methodology_section(
+        self, conversation: Conversation, todo: Todo | None, completed: list[str]
+    ) -> str:
+        """根据当前进度动态注入方法论指导。
+
+        - 未产出 requirement_spec → 注入需求澄清策略
+        - 未产出 tech_architecture → 注入 DDD 三步方法论
+        - 其他阶段 → 空（暂不注入）
+        """
+        if "requirement_spec" not in completed:
+            return self._build_clarification_methodology(conversation, todo)
+
+        if "tech_architecture" not in completed:
+            return self._build_architecture_methodology(conversation)
+
+        return ""
+
+    def _build_clarification_methodology(
+        self, conversation: Conversation, todo: Todo | None
+    ) -> str:
+        """注入需求澄清策略 — 基于 decision-thinking-toolkit。"""
+        from arc.application.execution.clarification_strategy import (
+            build_clarification_prompt,
+            route_strategy,
+        )
+
+        title = todo.title if todo else ""
+        description = todo.description if todo else ""
+        # 估算对话轮次 — 只计用户消息
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
+
+        strategy = route_strategy(title, description, user_rounds)
+        return build_clarification_prompt(strategy, user_rounds)
+
+    def _build_architecture_methodology(self, conversation: Conversation) -> str:
+        """注入架构方法论 — 基于 ddd-toolkit。"""
+        from arc.application.execution.architecture_methodology import (
+            get_methodology_overview,
+            get_sub_phase_prompt,
+        )
+
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
+
+        overview = get_methodology_overview()
+        sub_phase = get_sub_phase_prompt(user_rounds)
+        return f"{overview}\n\n{sub_phase}"
+
+    async def _build_sufficiency_hint(
+        self, conversation: Conversation, todo: Todo | None
+    ) -> str:
+        """构建充分性提示 — 需求阶段尚未产出时注入。
+
+        轻量版: 不调用 LLM，仅基于对话轮次给出定性提示。
+        完整版 check_sufficiency() 在产出物生成前由 ExecutionEngine 调用。
+        """
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
+
+        if user_rounds < 2:
+            return (
+                "[提示] 当前信息尚不充分，请先引导用户说清楚：目标用户是谁、"
+                "要解决什么问题、大致想做什么。不要急于生成产出物。"
+            )
+        if user_rounds < 4:
+            return (
+                "[提示] 基本信息已初步收集，但可能仍有模糊点。"
+                "继续追问以确保信息充分后再产出交付物。"
+            )
+        return ""
+
