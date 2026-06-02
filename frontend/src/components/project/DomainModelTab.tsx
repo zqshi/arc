@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { Boxes, Layers, Network, Database, Zap, Circle, RefreshCw, Loader2, GitFork, ShieldCheck, X, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import type { DomainModel, DomainModelAggregate, DomainModelSubdomain, DomainModelValidation } from '../../types/api';
 import { DomainModelGraph } from './DomainModelGraph';
+import ReviewFeedbackPanel from './ReviewFeedbackPanel';
+import ModelHistoryPanel from './ModelHistoryPanel';
+import { useDomainModelReview } from '../../hooks/useDomainModelReview';
 
 type ViewMode = 'strategic' | 'tactical' | 'all';
 
@@ -12,6 +15,7 @@ const SUBDOMAIN_STYLES: Record<string, { border: string; bg: string; dot: string
 };
 
 interface DomainModelTabProps {
+  projectId?: string;
   domainModel: DomainModel | null;
   loading: boolean;
   onRefresh?: () => Promise<void>;
@@ -25,9 +29,10 @@ interface DomainModelTabProps {
   hasLocalPath?: boolean;
 }
 
-export function DomainModelTab({ domainModel, loading, onRefresh, refreshing, onValidate, validating, validation, onCloseValidation, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
+export function DomainModelTab({ projectId, domainModel, loading, onRefresh, refreshing, onValidate, validating, validation, onCloseValidation, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
   const [view, setView] = useState<ViewMode>('all');
   const [graphMode, setGraphMode] = useState(false);
+  const review = useDomainModelReview(projectId);
 
   if (loading) {
     return (
@@ -222,6 +227,29 @@ export function DomainModelTab({ domainModel, loading, onRefresh, refreshing, on
       {/* Validation Result Panel */}
       {validation && (
         <ValidationPanel validation={validation} onClose={onCloseValidation} />
+      )}
+
+      {/* Review Feedback Panel */}
+      {projectId && (
+        <div className="mt-4">
+          <ReviewFeedbackPanel
+            feedbacks={review.feedbacks}
+            loading={review.feedbacksLoading}
+            onResolve={review.resolveFeedback}
+          />
+        </div>
+      )}
+
+      {/* Model Version History */}
+      {projectId && (
+        <div className="mt-4">
+          <ModelHistoryPanel
+            snapshots={review.snapshots}
+            currentVersion={domainModel?.version || 0}
+            loading={review.snapshotsLoading}
+            onRollback={review.rollbackModel}
+          />
+        </div>
       )}
     </div>
   );

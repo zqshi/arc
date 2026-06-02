@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-06-02
+
+### Added — 面板接入端到端联通
+
+- useDomainModelReview hook: 评审反馈 + 历史快照数据管理 (加载/处理/回滚)
+- DomainModelTab: 接入 ReviewFeedbackPanel + ModelHistoryPanel，传入 projectId
+- 评审反馈面板: 展开详情 + accept/defer/reject 直接操作
+- 版本历史面板: 时间线展示 + 一键回滚
+- 领域模型升级系统从后端 API → 前端 UI **全链路贯通**
+
 ## [3.6.0] - 2026-06-02
 
 ### Added — 前端功能贯通
