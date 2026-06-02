@@ -73,28 +73,47 @@ class ConversationService:
         from arc.application.execution.agent_loop import AgentLoop, LoopConfig
 
         llm_messages = await self._build_llm_messages(conversation)
-        config = LoopConfig(
-            max_continuations=2,
-            max_validation_retries=0,
-            max_tokens_per_call=16384,
-            token_budget=60000,
-            wall_timeout_seconds=180.0,
-        )
+
+        # 检测项目路径 — 有路径时升级为 ToolAwareLoop (解决 pipeline 能力倒挂)
+        project_path = await self._get_project_local_path(conversation.todo_id)
 
         message_id = None
         full_content = ""
+        loop_metrics: dict = {}
 
-        async with adapter_pool.acquire() as adapter:
-            loop = AgentLoop(adapter, config)
-            async for event in loop.run(llm_messages):
-                if event.type == "chunk":
+        if project_path:
+            # Tool-aware path — 与 ExecutionEngine 同等能力
+            async for event_dict in self._tool_aware_stream(llm_messages, project_path):
+                if "message_id" in event_dict and event_dict.get("content"):
                     if message_id is None:
-                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
-                    yield {"message_id": message_id, "content": event.content}
-                elif event.type == "complete":
-                    full_content = event.content
-                    if message_id is None:
-                        message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                        message_id = event_dict["message_id"]
+                    full_content += event_dict["content"]
+                if event_dict.get("event") == "complete_metrics":
+                    loop_metrics = event_dict.get("metrics", {})
+                    continue
+                yield event_dict
+        else:
+            # Text-only fallback
+            config = LoopConfig(
+                max_continuations=2,
+                max_validation_retries=0,
+                max_tokens_per_call=16384,
+                token_budget=60000,
+                wall_timeout_seconds=180.0,
+            )
+
+            async with adapter_pool.acquire() as adapter:
+                loop = AgentLoop(adapter, config)
+                async for event in loop.run(llm_messages):
+                    if event.type == "chunk":
+                        if message_id is None:
+                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+                        yield {"message_id": message_id, "content": event.content}
+                    elif event.type == "complete":
+                        full_content = event.content
+                        loop_metrics = event.metadata.get("metrics", {})
+                        if message_id is None:
+                            message_id = event.metadata.get("message_id", str(uuid.uuid4()))
 
         if not message_id:
             message_id = str(uuid.uuid4())
@@ -102,7 +121,8 @@ class ConversationService:
         metadata: dict = {
             "message_id": message_id,
             "streamed": True,
-            "agent_loop": loop.metrics.__dict__,
+            "agent_loop": loop_metrics,
+            "mode": "pipeline_tool_aware" if project_path else "pipeline_text",
         }
         if self._last_experience_refs:
             metadata["referenced_experiences"] = self._last_experience_refs
@@ -167,6 +187,11 @@ class ConversationService:
         except KeyError:
             prompt = template
 
+        # 方法论注入 — Pipeline 模式也享受方法论引导
+        methodology = self._get_phase_methodology(phase_type, conversation)
+        if methodology:
+            prompt += f"\n\n{methodology}"
+
         if project_section:
             prompt += f"\n\n{project_section}"
 
@@ -178,6 +203,35 @@ class ConversationService:
             )
 
         return prompt
+
+    @staticmethod
+    def _get_phase_methodology(phase_type: PhaseType, conversation: Conversation) -> str:
+        """为 Pipeline 模式的每个阶段注入对应方法论。"""
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
+
+        if phase_type == PhaseType.UI_DESIGN:
+            from arc.application.execution.ui_design_methodology import get_ui_design_prompt
+            return get_ui_design_prompt(user_rounds)
+
+        if phase_type == PhaseType.ARCHITECTURE:
+            from arc.application.execution.architecture_methodology import (
+                get_methodology_overview,
+                get_sub_phase_prompt,
+            )
+            return f"{get_methodology_overview()}\n\n{get_sub_phase_prompt(user_rounds)}"
+
+        if phase_type == PhaseType.DEVELOPMENT:
+            from arc.application.execution.dev_test_methodology import get_development_prompt
+            return get_development_prompt(user_rounds)
+
+        if phase_type == PhaseType.TESTING:
+            from arc.application.execution.dev_test_methodology import get_testing_prompt
+            return get_testing_prompt(user_rounds)
+
+        return ""
 
     def _build_clarification_prompt(self, conversation: Conversation, todo, confirmed: dict) -> str:
         """Build Socratic clarification prompt with layer awareness."""
@@ -322,3 +376,101 @@ class ConversationService:
             parts.append(section)
 
         return "\n".join(parts)
+
+    # ------------------------------------------------------------------
+    # Tool-aware execution (解决 Pipeline 能力倒挂 — RFC-001 Phase 1)
+    # ------------------------------------------------------------------
+
+    async def _get_project_local_path(self, todo_id: uuid.UUID) -> str | None:
+        """获取项目本地路径 — 有路径时启用 ToolAwareLoop。"""
+        from pathlib import Path
+
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return None
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.local_path:
+            return None
+        resolved = Path(project.local_path).expanduser().resolve()
+        if resolved.is_dir():
+            return str(resolved)
+        return None
+
+    async def _tool_aware_stream(
+        self,
+        llm_messages: list,
+        project_path: str,
+    ) -> AsyncIterator[dict]:
+        """Tool-aware 执行路径 — Pipeline 模式也具备工具执行能力。
+
+        与 ExecutionEngine._tool_aware_stream() 同等能力:
+        - 文件读写/命令执行
+        - 漂移检测
+        - 死循环检测
+        """
+        from arc.application.ai.adapter_pool import adapter_pool
+        from arc.application.execution.drift_detector import DriftDetector
+        from arc.application.execution.error_loop_detector import ErrorLoopDetector
+        from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
+        from arc.application.execution.tools import ToolRegistry
+
+        registry = ToolRegistry(project_path)
+
+        # 提取用户目标用于漂移检测
+        user_goal = ""
+        for m in reversed(llm_messages):
+            if m.role == "user":
+                user_goal = m.content[:500]
+                break
+
+        drift_detector = DriftDetector(user_goal) if user_goal else None
+        error_detector = ErrorLoopDetector()
+
+        message_id = str(uuid.uuid4())
+
+        async with adapter_pool.acquire() as adapter:
+            loop = ToolAwareLoop(
+                adapter, registry,
+                drift_detector=drift_detector,
+                error_loop_detector=error_detector,
+            )
+            async for event in loop.run(llm_messages):
+                for mapped in self._map_tool_event(event, message_id):
+                    yield mapped
+
+    @staticmethod
+    def _map_tool_event(event, default_mid: str) -> list[dict]:
+        """将 ToolLoopEvent 映射为前端 SSE 字典。"""
+        results = []
+        mid = event.metadata.get("message_id", default_mid)
+
+        if event.type == "text_delta":
+            results.append({"message_id": mid, "content": event.content})
+        elif event.type == "tool_call":
+            results.append({
+                "message_id": mid,
+                "event": "tool_call",
+                "tool_name": event.content,
+                "tool_input": event.metadata.get("input", {}),
+                "round": event.metadata.get("round", 0),
+            })
+        elif event.type == "tool_result":
+            results.append({
+                "message_id": mid,
+                "event": "tool_result",
+                "tool_name": event.metadata.get("tool_name", ""),
+                "output_preview": event.content,
+                "is_error": event.metadata.get("is_error", False),
+            })
+        elif event.type == "complete":
+            results.append({
+                "event": "complete_metrics",
+                "metrics": {
+                    "tool_rounds": event.metadata.get("tool_rounds", 0),
+                    "total_tokens": event.metadata.get("total_tokens", 0),
+                    "elapsed_ms": event.metadata.get("elapsed_ms", 0),
+                },
+            })
+        return results
