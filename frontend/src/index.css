@@ -29,56 +29,51 @@
 
 /* ── 亮色主题覆盖 ── */
 [data-theme="light"] {
-  --color-bg-primary: #FAFAFA;
-  --color-bg-sidebar: #F1F3F5;
+  --color-bg-primary: #F5F5F5;
+  --color-bg-sidebar: #EBEBEB;
   --color-bg-card: #FFFFFF;
-  --color-bg-elevated: #F1F3F5;
+  --color-bg-elevated: #EBEBEB;
   --color-bg-input: #FFFFFF;
-  --color-border: #D4D4D8;
-  --color-border-active: #A1A1AA;
+  --color-border: #C4C4C4;
+  --color-border-active: #8C8C8C;
   --color-accent: #2563EB;
   --color-accent-hover: #1D4ED8;
   --color-accent-subtle: rgba(37, 99, 235, 0.08);
-  --color-text-primary: #18181B;
-  --color-text-secondary: #52525B;
-  --color-text-tertiary: #71717A;
-  --color-text-muted: #A1A1AA;
-  --color-status-pending: #71717A;
-  --color-status-analyzing: #D97706;
-  --color-status-dev: #2563EB;
-  --color-status-review: #7C3AED;
-  --color-status-done: #059669;
-  --color-status-error: #DC2626;
+  --color-text-primary: #141414;
+  --color-text-secondary: #3D3D3D;
+  --color-text-tertiary: #595959;
+  --color-text-muted: #737373;
+  --color-status-pending: #595959;
+  --color-status-analyzing: #B45309;
+  --color-status-dev: #1D4ED8;
+  --color-status-review: #6D28D9;
+  --color-status-done: #047857;
+  --color-status-error: #B91C1C;
 }
 
-/* ── 跟随系统：亮色偏好时切换 ── */
+/* ── 跟随系统：亮色偏好时切换（与 light 完全一致） ── */
 @media (prefers-color-scheme: light) {
   [data-theme="system"] {
-    --color-bg-primary: #FAFAFA;
-    --color-bg-sidebar: #F1F3F5;
+    --color-bg-primary: #F5F5F5;
+    --color-bg-sidebar: #EBEBEB;
     --color-bg-card: #FFFFFF;
-    --color-bg-elevated: #F1F3F5;
+    --color-bg-elevated: #EBEBEB;
     --color-bg-input: #FFFFFF;
-    --color-border: #D4D4D8;
-    --color-border-active: #A1A1AA;
+    --color-border: #C4C4C4;
+    --color-border-active: #8C8C8C;
     --color-accent: #2563EB;
     --color-accent-hover: #1D4ED8;
     --color-accent-subtle: rgba(37, 99, 235, 0.08);
-    --color-text-primary: #18181B;
-    --color-text-secondary: #52525B;
-    --color-text-tertiary: #71717A;
-    --color-text-muted: #A1A1AA;
-    --color-status-pending: #71717A;
-    --color-status-analyzing: #D97706;
-    --color-status-dev: #2563EB;
-    --color-status-review: #7C3AED;
-    --color-status-done: #059669;
-    --color-status-error: #DC2626;
-  }
-}
-    --color-status-review: #7C3AED;
-    --color-status-done: #059669;
-    --color-status-error: #DC2626;
+    --color-text-primary: #141414;
+    --color-text-secondary: #3D3D3D;
+    --color-text-tertiary: #595959;
+    --color-text-muted: #737373;
+    --color-status-pending: #595959;
+    --color-status-analyzing: #B45309;
+    --color-status-dev: #1D4ED8;
+    --color-status-review: #6D28D9;
+    --color-status-done: #047857;
+    --color-status-error: #B91C1C;
   }
 }
 
