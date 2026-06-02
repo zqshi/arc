@@ -29,21 +29,21 @@
 
 /* ── 亮色主题覆盖 ── */
 [data-theme="light"] {
-  --color-bg-primary: #FFFFFF;
-  --color-bg-sidebar: #F8F9FA;
+  --color-bg-primary: #FAFAFA;
+  --color-bg-sidebar: #F1F3F5;
   --color-bg-card: #FFFFFF;
-  --color-bg-elevated: #F3F4F6;
-  --color-bg-input: #F9FAFB;
-  --color-border: #E5E7EB;
-  --color-border-active: #D1D5DB;
+  --color-bg-elevated: #F1F3F5;
+  --color-bg-input: #FFFFFF;
+  --color-border: #D4D4D8;
+  --color-border-active: #A1A1AA;
   --color-accent: #2563EB;
   --color-accent-hover: #1D4ED8;
   --color-accent-subtle: rgba(37, 99, 235, 0.08);
-  --color-text-primary: #111827;
-  --color-text-secondary: #6B7280;
-  --color-text-tertiary: #9CA3AF;
-  --color-text-muted: #D1D5DB;
-  --color-status-pending: #9CA3AF;
+  --color-text-primary: #18181B;
+  --color-text-secondary: #52525B;
+  --color-text-tertiary: #71717A;
+  --color-text-muted: #A1A1AA;
+  --color-status-pending: #71717A;
   --color-status-analyzing: #D97706;
   --color-status-dev: #2563EB;
   --color-status-review: #7C3AED;
@@ -54,23 +54,28 @@
 /* ── 跟随系统：亮色偏好时切换 ── */
 @media (prefers-color-scheme: light) {
   [data-theme="system"] {
-    --color-bg-primary: #FFFFFF;
-    --color-bg-sidebar: #F8F9FA;
+    --color-bg-primary: #FAFAFA;
+    --color-bg-sidebar: #F1F3F5;
     --color-bg-card: #FFFFFF;
-    --color-bg-elevated: #F3F4F6;
-    --color-bg-input: #F9FAFB;
-    --color-border: #E5E7EB;
-    --color-border-active: #D1D5DB;
+    --color-bg-elevated: #F1F3F5;
+    --color-bg-input: #FFFFFF;
+    --color-border: #D4D4D8;
+    --color-border-active: #A1A1AA;
     --color-accent: #2563EB;
     --color-accent-hover: #1D4ED8;
     --color-accent-subtle: rgba(37, 99, 235, 0.08);
-    --color-text-primary: #111827;
-    --color-text-secondary: #6B7280;
-    --color-text-tertiary: #9CA3AF;
-    --color-text-muted: #D1D5DB;
-    --color-status-pending: #9CA3AF;
+    --color-text-primary: #18181B;
+    --color-text-secondary: #52525B;
+    --color-text-tertiary: #71717A;
+    --color-text-muted: #A1A1AA;
+    --color-status-pending: #71717A;
     --color-status-analyzing: #D97706;
     --color-status-dev: #2563EB;
+    --color-status-review: #7C3AED;
+    --color-status-done: #059669;
+    --color-status-error: #DC2626;
+  }
+}
     --color-status-review: #7C3AED;
     --color-status-done: #059669;
     --color-status-error: #DC2626;
