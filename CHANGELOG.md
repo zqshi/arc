@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-06-02
+
+### Added — AI 评审持久化 + 主题模式
+
+**AI 评审三态按钮:**
+- 未评审 → "AI 评审"（蓝色）
+- 已评审 + 模型未变 → "查看评审 ✅"（绿色），点击弹窗展示结果
+- 已评审 + 模型已变 → "查看评审" + "⚠️ 模型已变更"，弹窗内可重新评审
+- 评审状态持久化到 useDomainModelReview hook，tab 切换不丢失
+- 后端 validate 路由消除重复 LLM 调用（ReviewService 一次搞定）
+- ValidationPanel 提取为独立组件（DomainModelTab 520→392 行）
+
+**主题模式:**
+- 暗色 / 亮色 / 跟随系统 三种模式
+- useTheme hook + localStorage 持久化
+- Sidebar 底部主题切换按钮（Moon → Sun → Monitor 循环）
+- 亮色变量集完整覆盖所有 CSS 自定义属性
+
 ## [3.7.0] - 2026-06-02
 
 ### Added — 面板接入端到端联通

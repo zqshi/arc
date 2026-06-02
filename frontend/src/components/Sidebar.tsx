@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FolderOpen, Lightbulb, Settings, Menu, X, LogOut } from 'lucide-react';
+import { FolderOpen, Lightbulb, Settings, Menu, X, LogOut, Sun, Moon, Monitor } from 'lucide-react';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../hooks/useTheme';
+import type { ThemeMode } from '../hooks/useTheme';
 import { useBreakpoint } from '../hooks/useMediaQuery';
 
 const navItems = [
@@ -210,8 +212,33 @@ export default function Sidebar() {
         >
           <Settings size={18} strokeWidth={1.8} />
         </Link>
+        <ThemeToggle />
         {user && <UserPopover user={user} onLogout={handleLogout} />}
       </div>
     </aside>
+  );
+}
+
+const THEME_CYCLE: ThemeMode[] = ['dark', 'light', 'system'];
+const THEME_ICONS = { dark: Moon, light: Sun, system: Monitor };
+const THEME_LABELS = { dark: '暗色', light: '亮色', system: '跟随系统' };
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const Icon = THEME_ICONS[theme];
+
+  const next = () => {
+    const idx = THEME_CYCLE.indexOf(theme);
+    setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]);
+  };
+
+  return (
+    <button
+      onClick={next}
+      title={`主题: ${THEME_LABELS[theme]}`}
+      className="flex h-9 w-9 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-accent-subtle hover:text-text-secondary"
+    >
+      <Icon size={16} strokeWidth={1.8} />
+    </button>
   );
 }

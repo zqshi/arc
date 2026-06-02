@@ -76,7 +76,9 @@ class TestReviewServiceValidateAndPersist:
             mock_validate.return_value = {"score": 90, "issues": [], "strengths": ["good"], "summary": "ok"}
             result = await svc.validate_and_persist(uuid.uuid4(), {"version": 1})
 
-        assert result == []
+        feedbacks, raw = result
+        assert feedbacks == []
+        assert raw["score"] == 90
         mock_repo.create.assert_not_called()
 
     @pytest.mark.asyncio
@@ -91,17 +93,18 @@ class TestReviewServiceValidateAndPersist:
             project_id = uuid.uuid4()
             result = await svc.validate_and_persist(project_id, {"version": 5})
 
-        assert len(result) == 2
+        feedbacks, raw = result
+        assert len(feedbacks) == 2
         assert mock_repo.create.call_count == 2
 
         # 第一个: strategic + error → breaking
-        fb1 = result[0]
+        fb1 = feedbacks[0]
         assert fb1.scope == ModelChangeScope.BREAKING
         assert fb1.model_version == 5
         assert fb1.project_id == project_id
 
         # 第二个: naming → additive
-        fb2 = result[1]
+        fb2 = feedbacks[1]
         assert fb2.scope == ModelChangeScope.ADDITIVE
 
     @pytest.mark.asyncio
@@ -113,7 +116,8 @@ class TestReviewServiceValidateAndPersist:
             mock_validate.return_value = {"score": 70, "issues": issues}
             result = await svc.validate_and_persist(uuid.uuid4(), {"version": 1}, source_todo_id=todo_id)
 
-        assert result[0].source_todo_id == todo_id
+        feedbacks, _ = result
+        assert feedbacks[0].source_todo_id == todo_id
 
 
 class TestReviewServiceResolveFeedback:
