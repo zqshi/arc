@@ -29,21 +29,21 @@
 
 /* ── 亮色主题覆盖 ── */
 [data-theme="light"] {
-  --color-bg-primary: #F5F5F5;
-  --color-bg-sidebar: #EBEBEB;
+  --color-bg-primary: #F4F4F5;
+  --color-bg-sidebar: #FFFFFF;
   --color-bg-card: #FFFFFF;
-  --color-bg-elevated: #EBEBEB;
+  --color-bg-elevated: #F4F4F5;
   --color-bg-input: #FFFFFF;
-  --color-border: #C4C4C4;
-  --color-border-active: #8C8C8C;
+  --color-border: rgba(0, 0, 0, 0.06);
+  --color-border-active: rgba(0, 0, 0, 0.12);
   --color-accent: #2563EB;
   --color-accent-hover: #1D4ED8;
-  --color-accent-subtle: rgba(37, 99, 235, 0.08);
-  --color-text-primary: #141414;
-  --color-text-secondary: #3D3D3D;
-  --color-text-tertiary: #595959;
-  --color-text-muted: #737373;
-  --color-status-pending: #595959;
+  --color-accent-subtle: rgba(37, 99, 235, 0.06);
+  --color-text-primary: #18181B;
+  --color-text-secondary: #3F3F46;
+  --color-text-tertiary: #52525B;
+  --color-text-muted: #71717A;
+  --color-status-pending: #52525B;
   --color-status-analyzing: #B45309;
   --color-status-dev: #1D4ED8;
   --color-status-review: #6D28D9;
@@ -54,26 +54,52 @@
 /* ── 跟随系统：亮色偏好时切换（与 light 完全一致） ── */
 @media (prefers-color-scheme: light) {
   [data-theme="system"] {
-    --color-bg-primary: #F5F5F5;
-    --color-bg-sidebar: #EBEBEB;
+    --color-bg-primary: #F4F4F5;
+    --color-bg-sidebar: #FFFFFF;
     --color-bg-card: #FFFFFF;
-    --color-bg-elevated: #EBEBEB;
+    --color-bg-elevated: #F4F4F5;
     --color-bg-input: #FFFFFF;
-    --color-border: #C4C4C4;
-    --color-border-active: #8C8C8C;
+    --color-border: rgba(0, 0, 0, 0.06);
+    --color-border-active: rgba(0, 0, 0, 0.12);
     --color-accent: #2563EB;
     --color-accent-hover: #1D4ED8;
-    --color-accent-subtle: rgba(37, 99, 235, 0.08);
-    --color-text-primary: #141414;
-    --color-text-secondary: #3D3D3D;
-    --color-text-tertiary: #595959;
-    --color-text-muted: #737373;
-    --color-status-pending: #595959;
+    --color-accent-subtle: rgba(37, 99, 235, 0.06);
+    --color-text-primary: #18181B;
+    --color-text-secondary: #3F3F46;
+    --color-text-tertiary: #52525B;
+    --color-text-muted: #71717A;
+    --color-status-pending: #52525B;
     --color-status-analyzing: #B45309;
     --color-status-dev: #1D4ED8;
     --color-status-review: #6D28D9;
     --color-status-done: #047857;
     --color-status-error: #B91C1C;
+  }
+}
+
+/* ── 亮色模式：卡片用阴影代替生硬边框 ── */
+[data-theme="light"] .border-border,
+[data-theme="light"] .border {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] .border-border,
+  [data-theme="system"] .border {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+}
+
+/* 亮色模式侧边栏分隔线柔和 */
+[data-theme="light"] .border-r,
+[data-theme="light"] .border-b {
+  box-shadow: none;
+}
+
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] .border-r,
+  [data-theme="system"] .border-b {
+    box-shadow: none;
   }
 }
 
