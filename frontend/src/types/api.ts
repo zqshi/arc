@@ -1,5 +1,5 @@
 // ─── Core Enums ──────────────────────────────────────────
-export type TodoStatus = 'pending' | 'active' | 'done' | 'error' | 'abandoned';
+export type TodoStatus = 'pending' | 'active' | 'suspended' | 'done' | 'error' | 'abandoned';
 export type PhaseType = 'clarification' | 'ui_design' | 'architecture' | 'development' | 'testing' | 'deployment' | 'extraction';
 export type PhaseStatus = 'pending' | 'active' | 'awaiting_confirm' | 'confirmed' | 'skipped';
 export type ArtifactType = 'requirement_spec' | 'ui_design' | 'tech_architecture' | 'dev_report' | 'test_report' | 'deploy_report' | 'experience_card' | 'interaction_design' | 'ui_spec' | 'prototype';
@@ -416,6 +416,7 @@ export const EXPERIENCE_STATUS_LABELS: Record<ExperienceStatus, string> = {
 export const STATUS_LABELS: Record<TodoStatus, string> = {
   pending: '待启动',
   active: '进行中',
+  suspended: '已暂停',
   done: '已完成',
   error: '异常',
   abandoned: '已废弃',
@@ -556,6 +557,60 @@ export interface DomainModelValidation {
   issues: DomainModelValidationIssue[];
   strengths: string[];
   summary: string;
+  feedbacks_created?: number;
+}
+
+// ─── Review Feedback (v3.0+) ─────────────────────────────
+export type ReviewFeedbackStatus = 'pending' | 'accepted' | 'deferred' | 'rejected';
+export type ModelChangeScope = 'additive' | 'structural' | 'breaking';
+export type RiskLevel = 'none' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface ReviewFeedback {
+  id: string;
+  project_id: string;
+  source_todo_id: string | null;
+  model_version: number;
+  scope: ModelChangeScope;
+  status: ReviewFeedbackStatus;
+  issue: DomainModelValidationIssue;
+  resolution_note: string;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface DomainModelSnapshot {
+  version: number;
+  trigger: string;
+  trigger_todo_id: string;
+  created_at: string;
+}
+
+export interface ImpactItem {
+  todo_id: string;
+  todo_title: string;
+  current_phase: string;
+  affected_aggregates: string[];
+  risk: RiskLevel;
+  recommendation: string;
+}
+
+export interface ImpactReport {
+  project_id: string;
+  affected_aggregates: string[];
+  change_scope: ModelChangeScope;
+  max_risk: RiskLevel;
+  blocked_count: number;
+  summary: string;
+  items: ImpactItem[];
+}
+
+export interface UpgradeResult {
+  success: boolean;
+  strategy: 'block' | 'defer';
+  new_model_version: number | null;
+  suspended_todo_ids: string[];
+  auto_resumed_todo_ids: string[];
+  deferred_feedback_ids: string[];
 }
 
 export const EXECUTION_MODE_LABELS: Record<ExecutionMode, string> = {
