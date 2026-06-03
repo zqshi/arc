@@ -74,6 +74,14 @@ export function TaskCard({ todo, taskState, navigate, onDelete, onComplete, onRe
           {todo.title}
         </span>
         {isDone && <CheckCircle2 size={13} className="text-status-done" />}
+        {isDone && onReopen && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onReopen(todo.id); }}
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+          >
+            <RotateCcw size={9} /> 恢复
+          </button>
+        )}
         {todo.blocked_by && todo.blocked_by.length > 0 && !isDone && (
           <span className="flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400" title="被阻塞">
             <Lock size={8} /> 阻塞
