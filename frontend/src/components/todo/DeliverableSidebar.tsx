@@ -46,12 +46,13 @@ export function DeliverableSidebar({
   // free 模式: 极简进度指示器（不打扰，但进度可见、原型可预览）
   if (constraint === 'free') {
     if (!tracker || tracker.completion_pct === 0) return null;
+    const pct = Math.round(tracker.completion_pct * 100);
     return (
       <div className="flex w-10 flex-shrink-0 flex-col items-center border-l border-border bg-bg-sidebar py-3 gap-2">
         {/* 进度环 */}
         <button
           onClick={onToggle}
-          title={`交付进度 ${tracker.completion_pct}%`}
+          title={`交付进度 ${pct}%`}
           className="relative flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-bg-elevated"
         >
           <svg width="28" height="28" className="-rotate-90">
@@ -59,11 +60,11 @@ export function DeliverableSidebar({
             <circle
               cx="14" cy="14" r="11" fill="none" stroke="currentColor" strokeWidth="2"
               className="text-accent"
-              strokeDasharray={`${(tracker.completion_pct / 100) * 69.1} 69.1`}
+              strokeDasharray={`${tracker.completion_pct * 69.1} 69.1`}
               strokeLinecap="round"
             />
           </svg>
-          <span className="absolute text-[8px] font-bold text-text-secondary">{tracker.completion_pct}</span>
+          <span className="absolute text-[8px] font-bold text-text-secondary">{pct}</span>
         </button>
         {/* 原型预览快捷入口 */}
         {hasPrototype && (
@@ -216,12 +217,12 @@ export function DeliverableSidebar({
           <div className="mt-4 border-t border-border pt-3">
             <div className="flex items-center justify-between text-[10px] text-text-muted">
               <span>完成度</span>
-              <span className="font-medium">{tracker.completion_pct}%</span>
+              <span className="font-medium">{Math.round(tracker.completion_pct * 100)}%</span>
             </div>
             <div className="mt-1 h-1 rounded-full bg-bg-elevated">
               <div
                 className="h-1 rounded-full bg-accent transition-all"
-                style={{ width: `${tracker.completion_pct}%` }}
+                style={{ width: `${tracker.completion_pct * 100}%` }}
               />
             </div>
           </div>
