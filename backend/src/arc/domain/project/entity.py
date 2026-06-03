@@ -81,7 +81,13 @@ class Project:
         self.updated_at = datetime.now(UTC)
 
     def update_conversation_config(self, config: dict) -> None:
-        self.conversation_config = {**DEFAULT_CONVERSATION_CONFIG, **config}
+        base = {**DEFAULT_CONVERSATION_CONFIG, **(self.conversation_config or {})}
+        for key, val in config.items():
+            if isinstance(val, dict) and isinstance(base.get(key), dict):
+                base[key] = {**base[key], **val}
+            else:
+                base[key] = val
+        self.conversation_config = base
         self.updated_at = datetime.now(UTC)
 
     def configure_github(self, token: str, owner: str, repo: str, webhook_secret: str) -> None:
