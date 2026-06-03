@@ -143,11 +143,12 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
 
   const isReady = !!conversationId;
 
-  // 确定 strict 模式的 currentPhase (从 tracker 推导)
+  // 确定 strict 模式的 currentPhase — 必须按 tracker.required 顺序查找第一个未完成项
   const currentPhase = tracker
-    ? Object.entries(tracker.deliverables).find(
-        ([, status]) => status === 'in_progress' || status === 'pending'
-      )?.[0]
+    ? tracker.required.find((type) => {
+        const status = tracker.deliverables[type];
+        return !status || status === 'in_progress' || status === 'pending';
+      })
     : undefined;
 
   return (
