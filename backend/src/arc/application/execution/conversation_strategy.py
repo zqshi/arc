@@ -107,6 +107,9 @@ class ConversationExecutionService:
         if todo.status == TodoStatus.PENDING:
             todo.start_conversation()
             await self.todo_repo.update(todo)
+            # 自动激活版本
+            if todo.version_id:
+                await self._auto_activate_version(todo.version_id)
 
         tracker = await self._create_tracker(todo_id, required_deliverables)
         return conv, tracker
@@ -219,6 +222,7 @@ class ConversationExecutionService:
         """补偿性状态推进：如果 todo 仍为 PENDING，推进到 ACTIVE。
 
         场景: 对话已在进行但 status 未更新（如 WS 路径跳过 initialize）。
+        同时检查关联版本：如果版本还在 planning，自动激活为 active。
         """
         todo = await self.todo_repo.get_by_id(todo_id)
         if not todo or todo.status != TodoStatus.PENDING:
@@ -226,10 +230,28 @@ class ConversationExecutionService:
         try:
             todo.start_conversation()
             await self.todo_repo.update(todo)
+            # 自动激活版本：用户开始需求迭代时，版本自动从 planning → active
+            if todo.version_id:
+                await self._auto_activate_version(todo.version_id)
             await self.db.commit()
             logger.info("Compensated todo %s status: pending → active", todo_id)
         except Exception as exc:
             logger.debug("Todo %s status compensation failed: %s", todo_id, exc)
+
+    async def _auto_activate_version(self, version_id: uuid.UUID) -> None:
+        """当版本下有需求开始迭代时，自动将版本从 planning 推进到 active。"""
+        from arc.infrastructure.repositories.project import VersionRepository
+        version_repo = VersionRepository(self.db)
+        version = await version_repo.get_by_id(version_id)
+        if not version or version.status.value != "planning":
+            return
+        try:
+            from arc.domain.project.value_objects import VersionStatus
+            version.activate()
+            await version_repo.update(version)
+            logger.info("Auto-activated version %s: planning → active", version_id)
+        except Exception as exc:
+            logger.debug("Version %s auto-activate failed: %s", version_id, exc)
 
     async def _get_project_constraint(self, todo) -> str:
         """获取项目的 process_constraint 级别。"""
