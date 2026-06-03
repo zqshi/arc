@@ -290,18 +290,24 @@ class PlanningService:
         from arc.infrastructure.models.planning import VersionAnalysisModel
         from sqlalchemy import select
 
-        result = await self.db.execute(
-            select(VersionAnalysisModel)
-            .where(
-                VersionAnalysisModel.version_id == version_id,
-                VersionAnalysisModel.fingerprint == fingerprint,
+        try:
+            result = await self.db.execute(
+                select(VersionAnalysisModel)
+                .where(
+                    VersionAnalysisModel.version_id == version_id,
+                    VersionAnalysisModel.fingerprint == fingerprint,
+                )
+                .order_by(VersionAnalysisModel.created_at.desc())
+                .limit(1)
             )
-            .order_by(VersionAnalysisModel.created_at.desc())
-            .limit(1)
-        )
-        cached = result.scalar_one_or_none()
-        if cached:
-            return cached.content, True
+            cached = result.scalar_one_or_none()
+            if cached:
+                return cached.content, True
+        except Exception:
+            # 表可能不存在（migration 未跑），跳过缓存
+            import logging
+            logging.getLogger(__name__).debug("version_analyses table not available, skip cache")
+            await self.db.rollback()
 
         # 生成新分析
         project = await self.project_repo.get_by_id(project_id)
@@ -336,14 +342,18 @@ class PlanningService:
 
         content = response.content
 
-        # 持久化
-        analysis = VersionAnalysisModel(
-            version_id=version_id,
-            fingerprint=fingerprint,
-            content=content,
-        )
-        self.db.add(analysis)
-        await self.db.flush()
+        # 持久化（容错：表不存在时跳过）
+        try:
+            analysis = VersionAnalysisModel(
+                version_id=version_id,
+                fingerprint=fingerprint,
+                content=content,
+            )
+            self.db.add(analysis)
+            await self.db.flush()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug("Failed to persist analysis, skipping")
 
         return content, False
 

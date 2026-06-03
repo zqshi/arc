@@ -240,11 +240,16 @@ export function TodosTab({
                       <CheckCircle size={10} /> 发布版本
                     </button>
                   )}
+                  {canWrite && v.status === 'active' && onAnalyzeVersion && (
+                    <button
+                      onClick={() => onAnalyzeVersion(v.id)}
+                      className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-text-secondary hover:border-accent hover:text-accent"
+                    >
+                      <Sparkles size={10} /> {v.has_analysis ? '查看分析' : 'AI 分析'}
+                    </button>
+                  )}
                   <ActionMenu items={(() => {
                     const items: ActionMenuItem[] = [];
-                    if (v.status === 'active' && onAnalyzeVersion) {
-                      items.push({ label: 'AI 分析', icon: <Sparkles size={12} />, onClick: () => onAnalyzeVersion(v.id) });
-                    }
                     if (v.status !== 'released') {
                       items.push({ label: '删除版本', icon: <Trash2 size={12} />, danger: true, onClick: () => handleDeleteVersion(v.id, v.name) });
                     }
