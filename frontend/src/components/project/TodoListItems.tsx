@@ -135,6 +135,7 @@ export function ConversationTodoList({
   batchStarting,
   setBatchStarting,
   handleDeleteTodo,
+  handleCompleteTodo,
   versionId,
 }: {
   todos: Todo[];
@@ -145,6 +146,7 @@ export function ConversationTodoList({
   setBatchStarting: (v: boolean) => void;
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
   handleResumeTodo?: (todoId: string) => void;
+  handleCompleteTodo?: (todoId: string) => void;
   versionId: string;
 }) {
   const pendingTodos = todos.filter((t) => t.status === 'pending');
@@ -188,6 +190,7 @@ export function ConversationTodoList({
           taskState={getTaskState(todo.id)}
           navigate={navigate}
           onDelete={(id, title) => handleDeleteTodo(id, title, versionId)}
+          onComplete={handleCompleteTodo}
         />
       ))}
     </div>
