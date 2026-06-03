@@ -307,8 +307,8 @@ async def analyze_iteration(
     from arc.application.planning.planning_service import PlanningService
 
     svc = PlanningService(db)
-    analysis = await svc.analyze_iteration(project_id, version_id)
-    return {"analysis": analysis}
+    content, cached = await svc.analyze_iteration(project_id, version_id)
+    return {"analysis": content, "cached": cached}
 
 
 @router.post(

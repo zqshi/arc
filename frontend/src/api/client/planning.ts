@@ -69,7 +69,7 @@ export function createPlanningMethods(request: RequestFn) {
     revisePlanningSession: (projectId: string, sessionId: string): Promise<PlanningSession> =>
       request(`/api/projects/${projectId}/planning-sessions/${sessionId}/revise`, { method: 'POST' }),
 
-    analyzeIteration: (projectId: string, versionId: string): Promise<{ analysis: string }> =>
+    analyzeIteration: (projectId: string, versionId: string): Promise<{ analysis: string; cached: boolean }> =>
       request(`/api/projects/${projectId}/versions/${versionId}/analyze`, { method: 'POST' }),
 
     detectConflicts: (projectId: string, versionId: string): Promise<ConflictAnalysis> =>

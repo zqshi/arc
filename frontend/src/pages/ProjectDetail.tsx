@@ -175,6 +175,9 @@ export default function ProjectDetail() {
             <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                 <Sparkles size={14} className="text-accent" /> AI 迭代分析
+                {s.analysisCached && (
+                  <span className="rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] font-normal text-text-muted">缓存</span>
+                )}
               </h2>
               <button
                 onClick={s.closeAnalysis}
