@@ -145,8 +145,13 @@ def _build_stream_generator(svc, conv, use_autopilot: bool):
                     continue
 
                 # --- Text content chunk ---
-                if ai_msg_id is None:
-                    ai_msg_id = chunk.get("message_id")
+                chunk_msg_id = chunk.get("message_id")
+                if ai_msg_id is None or (chunk_msg_id and chunk_msg_id != ai_msg_id):
+                    # 新消息开始（首轮或 autopilot 新一轮）
+                    if ai_msg_id is not None:
+                        # 结束上一条消息
+                        yield {"type": "stream_end", "message_id": ai_msg_id}
+                    ai_msg_id = chunk_msg_id
                     yield {"type": "stream_start", "message_id": ai_msg_id}
                     if project_id and todo_id:
                         await project_task_stream.emit(
