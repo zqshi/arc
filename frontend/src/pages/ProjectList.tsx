@@ -4,6 +4,7 @@ import { Plus, FolderOpen, Archive, Trash2, RotateCw } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
 import ActionMenu from '../components/ActionMenu';
+import CreateProjectModal from '../components/CreateProjectModal';
 import { ProjectListSkeleton } from '../components/Skeleton';
 import type { ActionMenuItem } from '../components/ActionMenu';
 import type { Project } from '../types/api';
@@ -13,8 +14,6 @@ export default function ProjectList() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDesc, setNewDesc] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -38,16 +37,10 @@ export default function ProjectList() {
     fetchProjects();
   }, [fetchProjects]);
 
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
+  const handleCreate = async (data: Parameters<typeof api.createProject>[0]) => {
     try {
-      const project = await api.createProject({
-        name: newName.trim(),
-        description: newDesc.trim(),
-      });
+      const project = await api.createProject(data);
       setShowCreate(false);
-      setNewName('');
-      setNewDesc('');
       navigate(`/project/${project.id}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) return;
@@ -206,63 +199,10 @@ export default function ProjectList() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowCreate(false)} />
-          <div className="relative mx-4 w-full max-w-[480px] animate-slide-up rounded-xl border border-border-active bg-bg-card shadow-2xl sm:mx-auto">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-              <h2 className="font-heading text-sm font-semibold text-text-primary">新建项目</h2>
-              <button
-                onClick={() => setShowCreate(false)}
-                className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:text-text-secondary"
-              >
-                ×
-              </button>
-            </div>
-            <div className="px-5 py-4">
-              <div className="mb-4">
-                <label className="mb-1.5 block text-[11px] font-medium text-text-tertiary">
-                  项目名称 <span className="text-status-error">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="例如：Arc 工作台"
-                  className="h-9 w-full rounded-md border border-border bg-bg-input px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleCreate();
-                  }}
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[11px] font-medium text-text-tertiary">描述</label>
-                <textarea
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="项目的简要描述"
-                  rows={2}
-                  className="w-full resize-none rounded-md border border-border bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-              <button
-                onClick={() => setShowCreate(false)}
-                className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={!newName.trim()}
-                className="rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent-hover disabled:opacity-40"
-              >
-                创建
-              </button>
-            </div>
-          </div>
-        </div>
+        <CreateProjectModal
+          onClose={() => setShowCreate(false)}
+          onCreate={handleCreate}
+        />
       )}
     </div>
   );
