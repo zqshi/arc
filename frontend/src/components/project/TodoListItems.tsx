@@ -30,12 +30,14 @@ export function TodoList({
   navigate,
   handleDeleteTodo,
   handleResumeTodo,
+  handleCompleteTodo,
 }: {
   todos: Todo[];
   versionId: string;
   navigate: (path: string) => void;
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
   handleResumeTodo?: (todoId: string) => void;
+  handleCompleteTodo?: (todoId: string) => void;
 }) {
   return (
     <div className="divide-y divide-border/30">
@@ -43,6 +45,7 @@ export function TodoList({
         const isDone = todo.status === 'done';
         const isAbandoned = todo.status === 'abandoned';
         const dimmed = isDone || isAbandoned;
+        const canComplete = todo.status === 'active' || todo.status === 'pending';
         return (
         <div
           key={todo.id}
@@ -77,6 +80,15 @@ export function TodoList({
               </span>
             ))}
           </div>
+          {canComplete && handleCompleteTodo && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleCompleteTodo(todo.id); }}
+              className="flex-shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium text-status-done bg-status-done/10 hover:bg-status-done/20 opacity-0 group-hover:opacity-100 transition-all"
+              title="标记完成"
+            >
+              <CheckCircle2 size={10} /> 完成
+            </button>
+          )}
           {todo.status === 'suspended' && handleResumeTodo && (
             <button
               onClick={(e) => { e.stopPropagation(); handleResumeTodo(todo.id); }}
