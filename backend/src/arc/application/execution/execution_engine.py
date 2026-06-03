@@ -124,6 +124,10 @@ class ExecutionEngine:
                 "streamed": True,
                 "mode": "conversation",
                 "agent_loop": loop_metrics,
+                "referenced_experiences": [
+                    {"id": str(eid)}
+                    for eid in self._prompt_builder.injected_experience_ids
+                ],
             },
             id=uuid.UUID(message_id),
         )
@@ -379,9 +383,65 @@ class ExecutionEngine:
                 return
             svc = ExperienceService(self._db)
             await svc.extract_from_todo(todo)
+
+            # T3: 经验反馈闭环 — 更新被复用的经验
+            await self._update_reused_experiences(todo_id)
         except Exception as exc:
             logger.warning(
                 "Experience extraction failed for todo %s: %s", todo_id, exc
+            )
+
+    async def _update_reused_experiences(self, todo_id: uuid.UUID) -> None:
+        """回溯对话中引用的经验，标记为成功复用。
+
+        逻辑：todo 完成 = 注入的经验对完成有贡献 → apply_feedback(helpful=True)
+        """
+        from arc.infrastructure.repositories.conversation import ConversationRepository
+        from arc.infrastructure.repositories.experience import ExperienceRepository
+
+        try:
+            conv_repo = ConversationRepository(self._db)
+            exp_repo = ExperienceRepository(self._db)
+
+            conversations = await conv_repo.list_by_todo_id(todo_id)
+            reused_ids: set[str] = set()
+
+            for conv in conversations:
+                for msg in conv.messages:
+                    if msg.metadata and "referenced_experiences" in msg.metadata:
+                        for ref in msg.metadata["referenced_experiences"]:
+                            if isinstance(ref, dict) and "id" in ref:
+                                reused_ids.add(ref["id"])
+                            elif isinstance(ref, str):
+                                reused_ids.add(ref)
+
+            # 同时检查 prompt_builder 追踪的 ID
+            if self._prompt_builder.injected_experience_ids:
+                for eid in self._prompt_builder.injected_experience_ids:
+                    reused_ids.add(str(eid))
+
+            if not reused_ids:
+                return
+
+            import uuid as _uuid
+            for eid_str in reused_ids:
+                try:
+                    eid = _uuid.UUID(eid_str)
+                    exp = await exp_repo.get_by_id(eid)
+                    if exp:
+                        exp.apply_feedback(helpful=True)
+                        await exp_repo.update(exp)
+                except (ValueError, Exception) as exc:
+                    logger.debug("Skip reuse update for %s: %s", eid_str, exc)
+
+            if reused_ids:
+                logger.info(
+                    "Updated %d reused experiences for todo %s",
+                    len(reused_ids), todo_id,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Reused experience update failed for todo %s: %s", todo_id, exc
             )
 
 

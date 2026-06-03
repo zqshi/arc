@@ -41,6 +41,12 @@ class PromptBuilder:
     def __init__(self, db: AsyncSession):
         self._db = db
         self._context_controller = None  # lazy init
+        self._injected_experience_ids: list[uuid.UUID] = []  # T3: 追踪注入的经验 ID
+
+    @property
+    def injected_experience_ids(self) -> list[uuid.UUID]:
+        """返回最近一次 build_llm_messages 注入的经验 ID 列表。"""
+        return self._injected_experience_ids
 
     def _get_context_controller(self):
         """延迟初始化 ContextController + CompressionManager。"""
@@ -210,6 +216,7 @@ class PromptBuilder:
 
     async def _build_experience_context(self, todo: Todo | None) -> str:
         """构建经验上下文，使用 MemoryScorer 五维打分排序。"""
+        self._injected_experience_ids = []  # 每次重置
         if not todo:
             return ""
         try:
@@ -246,6 +253,7 @@ class PromptBuilder:
                 for exp, score in top_k:
                     if score < 0.2:
                         continue
+                    self._injected_experience_ids.append(exp.id)
                     parts.append(
                         f"### {exp.title} (相关度: {score:.2f})\n"
                         f"**问题**: {exp.problem}\n"

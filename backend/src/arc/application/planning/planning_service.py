@@ -36,6 +36,10 @@ PLANNING_SYSTEM_PROMPT = """\
 约束条件：
 {constraints}
 
+{experience_context}
+
+{domain_model_context}
+
 功能清单：
 {features}
 
@@ -130,9 +134,21 @@ class PlanningService:
         constraints_text = self._format_constraints(session.constraints)
         features_text = json.dumps(features, ensure_ascii=False, indent=2)
 
+        # T1: 注入历史经验 — 让规划不再从零开始
+        experience_context = await self._build_planning_experience_context(
+            session.project_id
+        )
+
+        # T2: 注入领域模型 — 让规划理解架构现实
+        domain_model_context = await self._build_domain_model_context(
+            session.project_id
+        )
+
         prompt = PLANNING_SYSTEM_PROMPT.format(
             constraints=constraints_text,
             features=features_text,
+            experience_context=experience_context,
+            domain_model_context=domain_model_context,
         )
 
         from arc.application.ai.llm_adapter import LLMMessage
@@ -485,3 +501,116 @@ class PlanningService:
             phase_label = f" [{t.current_phase.value}]" if t.current_phase else ""
             lines.append(f"- [{status_label}]{phase_label} {t.title}")
         return "\n".join(lines)
+
+    # ── 智能上下文构建 ─────────────────────────────────────
+
+    async def _build_planning_experience_context(
+        self, project_id: uuid.UUID
+    ) -> str:
+        """构建规划阶段的经验上下文 — 估算偏差、范围变更、技术决策。"""
+        from arc.application.experience.scorer import MemoryScorer
+        from arc.infrastructure.repositories.experience import ExperienceRepository
+
+        try:
+            exp_repo = ExperienceRepository(self.db)
+            # 获取本项目的估算类 + 范围变更类经验
+            all_exps = await exp_repo.list_by_project_id(project_id, limit=30)
+            if not all_exps:
+                return ""
+
+            # 优先取规划相关类型
+            planning_categories = {"estimation", "scope_change", "architecture_decision"}
+            planning_exps = [
+                e for e in all_exps
+                if e.category.value in planning_categories
+            ]
+            # 不足时补充其他经验
+            if len(planning_exps) < 5:
+                other = [e for e in all_exps if e not in planning_exps]
+                planning_exps.extend(other[: 5 - len(planning_exps)])
+
+            if not planning_exps:
+                return ""
+
+            # 用 MemoryScorer 打分排序
+            scorer = MemoryScorer()
+            scored = scorer.score_batch(planning_exps)
+            top_k = scored[:5]
+
+            parts = ["## 历史经验（基于本项目过往迭代）\n"]
+            parts.append(
+                "以下是本项目过往版本的经验教训，请在规划时参考，"
+                "特别注意估算偏差和范围变更记录：\n"
+            )
+            for exp, score in top_k:
+                if score < 0.1:
+                    continue
+                parts.append(f"### {exp.title}")
+                parts.append(f"- 问题: {exp.problem}")
+                parts.append(f"- 方案: {exp.solution}")
+                if exp.applicable_scenarios:
+                    parts.append(f"- 适用场景: {exp.applicable_scenarios}")
+                parts.append("")
+
+            return "\n".join(parts) if len(parts) > 2 else ""
+        except Exception:
+            return ""
+
+    async def _build_domain_model_context(self, project_id: uuid.UUID) -> str:
+        """构建领域模型上下文 — 让规划理解架构现实。"""
+        try:
+            project = await self.project_repo.get_by_id(project_id)
+            if not project or not project.domain_model:
+                return ""
+
+            dm = project.domain_model
+            subdomains = dm.get("subdomains", [])
+            aggregates = dm.get("aggregates", [])
+            relations = dm.get("aggregate_relations", []) or dm.get("relations", [])
+
+            if not aggregates and not subdomains:
+                return ""
+
+            parts = ["## 当前架构现实（领域模型）\n"]
+            parts.append(
+                "以下是项目当前的领域模型，规划新功能时请考虑：\n"
+                "- 新功能涉及哪些已有聚合？扩展现有聚合 vs 新增聚合的复杂度差异\n"
+                "- 跨聚合的功能通常比单聚合内功能更复杂\n"
+                "- 新增子域意味着更高的架构风险\n"
+            )
+
+            if subdomains:
+                parts.append("### 子域划分")
+                for sd in subdomains:
+                    parts.append(
+                        f"- **{sd.get('name', '')}** ({sd.get('type', '')}):"
+                        f" {sd.get('description', '')}"
+                    )
+                parts.append("")
+
+            if aggregates:
+                parts.append("### 聚合 (Aggregates)")
+                for agg in aggregates[:15]:  # 限制长度
+                    ctx = agg.get("context", "")
+                    ctx_label = f" [{ctx}]" if ctx else ""
+                    entities = agg.get("entities", [])
+                    entity_names = ", ".join(entities[:5]) if entities else ""
+                    parts.append(
+                        f"- **{agg.get('name', '')}**{ctx_label}: "
+                        f"{agg.get('description', '')}"
+                        + (f" (实体: {entity_names})" if entity_names else "")
+                    )
+                parts.append("")
+
+            if relations:
+                parts.append("### 聚合间关系")
+                for rel in relations[:10]:
+                    parts.append(
+                        f"- {rel.get('from', '')} → {rel.get('to', '')} "
+                        f"[{rel.get('type', '')}]: {rel.get('description', '')}"
+                    )
+                parts.append("")
+
+            return "\n".join(parts)
+        except Exception:
+            return ""
