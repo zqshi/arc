@@ -114,15 +114,16 @@ class TestMessageRole:
 
 class TestExperienceScope:
     def test_enum_values_complete(self):
-        expected = {"personal", "project"}
+        expected = {"personal", "project", "global"}
         assert {es.value for es in ExperienceScope} == expected
 
     def test_enum_count(self):
-        assert len(ExperienceScope) == 2
+        assert len(ExperienceScope) == 3
 
     def test_str_equality(self):
         assert ExperienceScope.PERSONAL == "personal"
         assert ExperienceScope.PROJECT == "project"
+        assert ExperienceScope.GLOBAL == "global"
 
 
 class TestExperienceStatus:

@@ -309,3 +309,29 @@ async def analyze_iteration(
     svc = PlanningService(db)
     analysis = await svc.analyze_iteration(project_id, version_id)
     return {"analysis": analysis}
+
+
+@router.post(
+    "/{project_id}/versions/{version_id}/detect-conflicts",
+)
+async def detect_conflicts(
+    project_id: uuid.UUID,
+    version_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """T5: 检测版本内需求间的领域模型冲突。"""
+    from arc.application.planning.conflict_detector import ConflictDetector
+    from arc.infrastructure.repositories.todo import TodoRepository
+
+    todo_repo = TodoRepository(db)
+    todos, _ = await todo_repo.list_all(version_id=version_id, limit=200)
+    features = [
+        {"title": t.title, "description": t.description or ""}
+        for t in todos
+        if t.status.value not in ("done", "abandoned")
+    ]
+
+    detector = ConflictDetector(db)
+    result = await detector.detect(project_id, features)
+    return result

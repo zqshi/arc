@@ -244,6 +244,28 @@ async def feedback_experience(
         raise HTTPException(status_code=code, detail=detail)
 
 
+@router.post("/{experience_id}/promote-global")
+async def promote_to_global(
+    experience_id: str, db: DbSession, user: CurrentUser
+):
+    """T6: 将高质量经验提升为全局经验（跨项目共享）。"""
+    from arc.infrastructure.repositories.experience import ExperienceRepository
+
+    repo = ExperienceRepository(db)
+    exp = await repo.get_by_id(UUID(experience_id))
+    if not exp:
+        raise HTTPException(status_code=404, detail="经验不存在")
+
+    try:
+        exp.promote_to_global()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await repo.update(exp)
+    await db.commit()
+    return _to_response(exp)
+
+
 def _to_response(exp) -> ExperienceResponse:
     return ExperienceResponse(
         id=str(exp.id),

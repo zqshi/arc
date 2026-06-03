@@ -513,39 +513,48 @@ class PlanningService:
 
         try:
             exp_repo = ExperienceRepository(self.db)
-            # 获取本项目的估算类 + 范围变更类经验
             all_exps = await exp_repo.list_by_project_id(project_id, limit=30)
             if not all_exps:
                 return ""
 
-            # 优先取规划相关类型
+            # T4: 提取估算校准数据 — 结构化表格
+            estimation_exps = [
+                e for e in all_exps if e.category.value == "estimation"
+            ]
+            calibration_section = self._format_estimation_calibration(estimation_exps)
+
+            # 取规划相关经验
             planning_categories = {"estimation", "scope_change", "architecture_decision"}
             planning_exps = [
                 e for e in all_exps
                 if e.category.value in planning_categories
             ]
-            # 不足时补充其他经验
             if len(planning_exps) < 5:
                 other = [e for e in all_exps if e not in planning_exps]
                 planning_exps.extend(other[: 5 - len(planning_exps)])
 
-            if not planning_exps:
+            if not planning_exps and not calibration_section:
                 return ""
 
-            # 用 MemoryScorer 打分排序
             scorer = MemoryScorer()
             scored = scorer.score_batch(planning_exps)
             top_k = scored[:5]
 
             parts = ["## 历史经验（基于本项目过往迭代）\n"]
+
+            # T4: 估算校准表格优先展示
+            if calibration_section:
+                parts.append(calibration_section)
+                parts.append("")
+
             parts.append(
-                "以下是本项目过往版本的经验教训，请在规划时参考，"
-                "特别注意估算偏差和范围变更记录：\n"
+                "### 经验教训\n"
+                "以下是过往版本的具体经验，规划时参考：\n"
             )
             for exp, score in top_k:
                 if score < 0.1:
                     continue
-                parts.append(f"### {exp.title}")
+                parts.append(f"**{exp.title}**")
                 parts.append(f"- 问题: {exp.problem}")
                 parts.append(f"- 方案: {exp.solution}")
                 if exp.applicable_scenarios:
@@ -555,6 +564,46 @@ class PlanningService:
             return "\n".join(parts) if len(parts) > 2 else ""
         except Exception:
             return ""
+
+    @staticmethod
+    def _format_estimation_calibration(estimation_exps: list) -> str:
+        """T4: 将估算类经验格式化为校准表格 — 让 AI 看到历史偏差趋势。"""
+        if not estimation_exps:
+            return ""
+
+        parts = [
+            "### 估算校准数据\n",
+            "以下是本项目历史版本的规划 vs 实际交付数据，"
+            "请据此校准本次规划的颗粒度和工作量估算：\n",
+            "| 版本 | 规划数 | 完成数 | 完成率 | 教训 |",
+            "|------|--------|--------|--------|------|",
+        ]
+
+        for exp in estimation_exps[-5:]:  # 最近 5 个版本
+            # 从 problem/solution 中解析数字
+            problem = exp.problem or ""
+            solution = exp.solution or ""
+
+            planned = _extract_number(problem, "规划")
+            delivered = _extract_number(problem, "交付") or _extract_number(solution, "总计")
+            rate = ""
+            if "完成率" in solution:
+                import re
+                m = re.search(r"完成率\s*(\d+%)", solution)
+                if m:
+                    rate = m.group(1)
+
+            title_short = exp.title.replace("版本 ", "").replace(" 交付偏差", "")
+            lesson = ""
+            if exp.applicable_scenarios:
+                lesson = exp.applicable_scenarios[:30]
+
+            parts.append(
+                f"| {title_short} | {planned or '?'} | {delivered or '?'} "
+                f"| {rate or '?'} | {lesson} |"
+            )
+
+        return "\n".join(parts)
 
     async def _build_domain_model_context(self, project_id: uuid.UUID) -> str:
         """构建领域模型上下文 — 让规划理解架构现实。"""
@@ -614,3 +663,11 @@ class PlanningService:
             return "\n".join(parts)
         except Exception:
             return ""
+
+
+def _extract_number(text: str, keyword: str) -> str | None:
+    """从文本中提取关键词后面的数字。"""
+    import re
+    pattern = rf"{keyword}\s*(\d+)"
+    m = re.search(pattern, text)
+    return m.group(1) if m else None
