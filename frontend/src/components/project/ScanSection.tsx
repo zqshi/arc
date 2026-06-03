@@ -1,7 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ScanSearch, RefreshCw, AlertCircle } from 'lucide-react';
+import { ScanSearch, RefreshCw, AlertCircle, GitCompare } from 'lucide-react';
 import { api } from '../../api/client';
 import type { ScanEvent } from '../../api/client';
+
+interface ScanDiff {
+  type: 'initial' | 'incremental' | 'summary_only';
+  aggregates_added?: string[] | number;
+  aggregates_removed?: string[];
+  subdomains_added?: string[] | number;
+  subdomains_removed?: string[];
+  contexts_added?: string[] | number;
+  summary_changed?: boolean;
+}
 
 interface ScanSectionProps {
   projectId: string;
@@ -11,6 +21,7 @@ interface ScanSectionProps {
   initialScanStatus?: 'idle' | 'scanning' | 'completed' | 'error';
   scanProgressText?: string;
   scanErrorText?: string;
+  lastScanDiff?: ScanDiff | null;
   onRefresh: () => void;
   onSummaryChange: (summary: string) => void;
 }
@@ -23,6 +34,7 @@ export function ScanSection({
   initialScanStatus,
   scanProgressText,
   scanErrorText,
+  lastScanDiff,
   onRefresh,
   onSummaryChange,
 }: ScanSectionProps) {
@@ -220,6 +232,34 @@ export function ScanSection({
       ) : !scanning && !scanError && (
         <p className="text-[10px] text-text-muted">尚未扫描。点击扫描后，AI 将分析代码库结构并生成总结，供后续 Agent 交互使用。</p>
       )}
+      {/* T4: 扫描增量 diff 展示 */}
+      {lastScanDiff && lastScanDiff.type === 'incremental' && (
+        <ScanDiffBadge diff={lastScanDiff} />
+      )}
+    </div>
+  );
+}
+
+function ScanDiffBadge({ diff }: { diff: ScanDiff }) {
+  const items: string[] = [];
+  if (Array.isArray(diff.aggregates_added) && diff.aggregates_added.length > 0) {
+    items.push(`+${diff.aggregates_added.length} 聚合 (${diff.aggregates_added.join(', ')})`);
+  }
+  if (Array.isArray(diff.aggregates_removed) && diff.aggregates_removed.length > 0) {
+    items.push(`-${diff.aggregates_removed.length} 聚合 (${diff.aggregates_removed.join(', ')})`);
+  }
+  if (Array.isArray(diff.subdomains_added) && diff.subdomains_added.length > 0) {
+    items.push(`+${diff.subdomains_added.length} 子域`);
+  }
+  if (!items.length) return null;
+
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-accent/20 bg-accent/5 px-3 py-1.5">
+      <GitCompare size={11} className="text-accent" />
+      <p className="text-[10px] text-text-secondary">
+        <span className="font-medium text-accent">上次变更:</span>{' '}
+        {items.join(' · ')}
+      </p>
     </div>
   );
 }

@@ -55,6 +55,9 @@ export function createExperienceMethods(request: RequestFn) {
     promoteExperience: (id: string): Promise<Experience> =>
       request(`/api/experiences/${id}/promote`, { method: 'POST' }),
 
+    promoteToGlobal: (id: string): Promise<Experience> =>
+      request(`/api/experiences/${id}/promote-global`, { method: 'POST' }),
+
     distillExperience: (id: string): Promise<Experience> =>
       request(`/api/experiences/${id}/distill`, { method: 'POST' }),
 

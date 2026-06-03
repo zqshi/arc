@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useToast } from '../Toast';
+import { ConflictDetectionPanel } from './ConflictDetectionPanel';
 import type { PlanningSession, ScopeDiff } from '../../types/api';
 
 interface VersionPlanningPanelProps {
@@ -130,6 +131,11 @@ export function VersionPlanningPanel({ projectId, versionId, onTodosCreated, onP
           onCancel={() => { setScopeDiff(null); setDiffSessionId(null); }}
         />
       )}
+
+      {/* 冲突检测 */}
+      <div className="rounded-lg border border-border bg-bg-card p-3">
+        <ConflictDetectionPanel projectId={projectId} versionId={versionId} />
+      </div>
     </div>
   );
 }

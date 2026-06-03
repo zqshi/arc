@@ -2,6 +2,7 @@ import type {
   AgentSession,
   AgentEvent,
   AvailableAgentsResponse,
+  ConflictAnalysis,
   PlanningDocument,
   PlanningSession,
   ScopeDiff,
@@ -70,5 +71,8 @@ export function createPlanningMethods(request: RequestFn) {
 
     analyzeIteration: (projectId: string, versionId: string): Promise<{ analysis: string }> =>
       request(`/api/projects/${projectId}/versions/${versionId}/analyze`, { method: 'POST' }),
+
+    detectConflicts: (projectId: string, versionId: string): Promise<ConflictAnalysis> =>
+      request(`/api/projects/${projectId}/versions/${versionId}/detect-conflicts`, { method: 'POST' }),
   };
 }
