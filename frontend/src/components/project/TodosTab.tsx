@@ -45,6 +45,7 @@ interface TodosTabProps {
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
   handleResumeTodo?: (todoId: string) => void;
   handleCompleteTodo?: (todoId: string) => void;
+  handleReopenTodo?: (todoId: string) => void;
   setCreateForVersion: (id: string) => void;
   navigate: (path: string) => void;
   onAnalyzeVersion?: (versionId: string) => void;
@@ -76,6 +77,7 @@ export function TodosTab({
   handleDeleteVersion,
   handleDeleteTodo,
   handleCompleteTodo,
+  handleReopenTodo,
   setCreateForVersion,
   navigate,
   onAnalyzeVersion,
@@ -323,6 +325,7 @@ export function TodosTab({
                       setBatchStarting={setBatchStarting}
                       handleDeleteTodo={handleDeleteTodo}
                       handleCompleteTodo={handleCompleteTodo}
+                      handleReopenTodo={handleReopenTodo}
                       versionId={v.id}
                     />
                   ) : (

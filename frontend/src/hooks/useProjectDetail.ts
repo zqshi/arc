@@ -238,6 +238,17 @@ export function useProjectDetail() {
     }
   };
 
+  const handleReopenTodo = async (todoId: string) => {
+    try {
+      await api.reopenTodo(todoId);
+      fetchData({ silent: true });
+      toast('需求已恢复为进行中', 'success');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.detail : '操作失败';
+      toast(msg, 'error');
+    }
+  };
+
   const handleConfirmExp = async (expId: string) => {
     try {
       await api.confirmExperience(expId);
@@ -405,7 +416,7 @@ export function useProjectDetail() {
     versionType, setVersionType,
     handleCreateVersion, handleActivateVersion, handleReleaseVersion, handleDeleteVersion,
     createForVersion, setCreateForVersion, handleCreateTodo,
-    handleDeleteTodo, handleResumeTodo, handleCompleteTodo,
+    handleDeleteTodo, handleResumeTodo, handleCompleteTodo, handleReopenTodo,
     experiences, expLoading, expFilter, setExpFilter,
     expCategoryFilter, setExpCategoryFilter,
     handleConfirmExp, handleArchiveExp, handlePromoteExp, handleDistillExp,

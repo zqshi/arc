@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Send, ChevronDown, ChevronRight, ExternalLink, Loader2, AlertCircle, CheckCircle2, Lock, Trash2 } from 'lucide-react';
+import { Send, ChevronDown, ChevronRight, ExternalLink, Loader2, AlertCircle, CheckCircle2, Lock, Trash2, RotateCcw } from 'lucide-react';
 import type { Todo } from '../../types/api';
 import type { TaskState } from '../../hooks/useProjectTaskStream';
 import { api } from '../../api/client';
@@ -10,6 +10,7 @@ interface TaskCardProps {
   navigate: (path: string) => void;
   onDelete?: (todoId: string, todoTitle: string) => void;
   onComplete?: (todoId: string) => void;
+  onReopen?: (todoId: string) => void;
 }
 
 const STATUS_INDICATOR: Record<string, { color: string; label: string }> = {
@@ -18,16 +19,18 @@ const STATUS_INDICATOR: Record<string, { color: string; label: string }> = {
   error: { color: 'bg-status-error', label: '异常' },
 };
 
-export function TaskCard({ todo, taskState, navigate, onDelete, onComplete }: TaskCardProps) {
+export function TaskCard({ todo, taskState, navigate, onDelete, onComplete, onReopen }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const indicator = STATUS_INDICATOR[taskState.status] || STATUS_INDICATOR.idle;
   const isRunning = taskState.status === 'running';
   const isDone = todo.status === 'done';
   const hasContent = taskState.lastContent.length > 0;
+  const hasArtifacts = taskState.artifacts.length > 0;
 
   const handleSend = async () => {
     const msg = input.trim();
@@ -151,30 +154,62 @@ export function TaskCard({ todo, taskState, navigate, onDelete, onComplete }: Ta
           )}
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-border/20 px-4 py-2">
-            <button
-              onClick={(e) => { e.stopPropagation(); navigate(`/todo/${todo.id}`); }}
-              className="flex items-center gap-1 text-[10px] font-medium text-accent hover:underline"
-            >
-              查看完整对话 <ExternalLink size={10} />
-            </button>
-            <div className="flex items-center gap-2">
-              {onComplete && !isDone && (todo.status === 'active' || todo.status === 'pending') && (
+          <div className="border-t border-border/20 px-4 py-2">
+            {/* Confirm complete prompt */}
+            {confirmComplete && (
+              <div className="mb-2 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+                <AlertCircle size={12} className="flex-shrink-0 text-amber-400" />
+                <span className="flex-1 text-[10px] text-amber-300">
+                  {!hasArtifacts ? '该需求尚未产出任何交付物，确定标记完成？' : '确定标记该需求为完成？'}
+                </span>
                 <button
-                  onClick={(e) => { e.stopPropagation(); onComplete(todo.id); }}
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-status-done bg-status-done/10 transition-colors hover:bg-status-done/20"
+                  onClick={(e) => { e.stopPropagation(); onComplete!(todo.id); setConfirmComplete(false); }}
+                  className="rounded bg-status-done/20 px-2 py-0.5 text-[10px] font-medium text-status-done hover:bg-status-done/30"
                 >
-                  <CheckCircle2 size={10} /> 完成
+                  确认
                 </button>
-              )}
-              {onDelete && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(todo.id, todo.title); }}
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-status-error/10 hover:text-status-error"
+                  onClick={(e) => { e.stopPropagation(); setConfirmComplete(false); }}
+                  className="rounded bg-text-muted/10 px-2 py-0.5 text-[10px] text-text-muted hover:bg-text-muted/20"
                 >
-                  <Trash2 size={10} /> 删除
+                  取消
                 </button>
-              )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/todo/${todo.id}`); }}
+                className="flex items-center gap-1 text-[10px] font-medium text-accent hover:underline"
+              >
+                查看完整对话 <ExternalLink size={10} />
+              </button>
+              <div className="flex items-center gap-2">
+                {onComplete && !isDone && (todo.status === 'active' || todo.status === 'pending') && !confirmComplete && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmComplete(true); }}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-status-done bg-status-done/10 transition-colors hover:bg-status-done/20"
+                  >
+                    <CheckCircle2 size={10} /> 完成
+                  </button>
+                )}
+                {isDone && onReopen && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onReopen(todo.id); }}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-400 bg-amber-500/10 transition-colors hover:bg-amber-500/20"
+                  >
+                    <RotateCcw size={10} /> 恢复
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(todo.id, todo.title); }}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-status-error/10 hover:text-status-error"
+                  >
+                    <Trash2 size={10} /> 删除
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
