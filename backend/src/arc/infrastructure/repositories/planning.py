@@ -6,6 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.planning.entity import DeliverableTracker, Document, PlanningSession
+from arc.domain.planning.repository import (
+    DeliverableTrackerRepository as DeliverableTrackerRepositoryABC,
+    DocumentRepository as DocumentRepositoryABC,
+    PlanningSessionRepository as PlanningSessionRepositoryABC,
+)
 from arc.domain.planning.value_objects import (
     DeliverableStatus,
     DocumentStatus,
@@ -18,7 +23,7 @@ from arc.infrastructure.models.planning import (
 )
 
 
-class DocumentRepository:
+class DocumentRepository(DocumentRepositoryABC):
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -89,7 +94,7 @@ class DocumentRepository:
         )
 
 
-class PlanningSessionRepository:
+class PlanningSessionRepository(PlanningSessionRepositoryABC):
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -168,7 +173,7 @@ class PlanningSessionRepository:
         )
 
 
-class DeliverableTrackerRepository:
+class DeliverableTrackerRepository(DeliverableTrackerRepositoryABC):
     def __init__(self, db: AsyncSession):
         self.db = db
 
