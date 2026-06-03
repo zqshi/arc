@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Trash2,
   Sparkles,
+  RotateCw,
   Map,
 } from 'lucide-react';
 import type { Version, VersionStatus, VersionType, Todo, PlanningSession } from '../../types/api';
@@ -241,12 +242,26 @@ export function TodosTab({
                     </button>
                   )}
                   {canWrite && v.status === 'active' && onAnalyzeVersion && (
-                    <button
-                      onClick={() => onAnalyzeVersion(v.id)}
-                      className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-text-secondary hover:border-accent hover:text-accent"
-                    >
-                      <Sparkles size={10} /> {v.has_analysis ? '查看分析' : 'AI 分析'}
-                    </button>
+                    (() => {
+                      const hasAnalysis = v.has_analysis;
+                      const isStale = v.analysis_stale;
+                      // 三态：无分析 / 有分析无变更 / 有分析已变更
+                      const label = !hasAnalysis ? 'AI 分析' : isStale ? '重新分析' : '查看报告';
+                      const style = !hasAnalysis
+                        ? 'border-accent/40 text-accent hover:bg-accent/10'
+                        : isStale
+                        ? 'border-amber-500/40 text-amber-600 hover:bg-amber-500/10'
+                        : 'border-border text-text-secondary hover:border-accent hover:text-accent';
+                      const Icon = isStale ? RotateCw : Sparkles;
+                      return (
+                        <button
+                          onClick={() => onAnalyzeVersion(v.id)}
+                          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${style}`}
+                        >
+                          <Icon size={10} /> {label}
+                        </button>
+                      );
+                    })()
                   )}
                   <ActionMenu items={(() => {
                     const items: ActionMenuItem[] = [];

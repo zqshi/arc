@@ -81,6 +81,7 @@ class VersionResponse(BaseModel):
     changelog: str = ""
     todo_stats: dict[str, int] | None = None
     has_analysis: bool = False
+    analysis_stale: bool = False
     created_at: str
     updated_at: str
 

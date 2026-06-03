@@ -189,6 +189,7 @@ export interface Version {
   changelog: string;
   todo_stats?: { pending: number; active: number; done: number; error: number; total: number };
   has_analysis?: boolean;
+  analysis_stale?: boolean;
   created_at: string;
   updated_at: string;
 }

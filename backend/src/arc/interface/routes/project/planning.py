@@ -304,11 +304,11 @@ async def analyze_iteration(
     db: DbSession,
     user: CurrentUser,
 ):
-    from arc.application.planning.planning_service import PlanningService
+    from arc.application.planning.analysis_service import AnalysisService
 
-    svc = PlanningService(db)
-    content, cached = await svc.analyze_iteration(project_id, version_id)
-    return {"analysis": content, "cached": cached}
+    svc = AnalysisService(db)
+    content, cached, suggestions = await svc.analyze_iteration(project_id, version_id)
+    return {"analysis": content, "cached": cached, "suggestions": suggestions}
 
 
 @router.post(

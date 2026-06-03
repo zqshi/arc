@@ -33,24 +33,59 @@ async def list_versions(
     versions = await repo.list_by_project(project_id, skip=skip, limit=page_size)
     all_stats = await repo.batch_count_todos_by_status([v.id for v in versions])
 
-    # 查询哪些版本有分析结果
-    analysis_set: set[uuid.UUID] = set()
+    # 查询分析状态：has_analysis + analysis_stale
+    analysis_info: dict[uuid.UUID, dict] = {}  # {version_id: {has: bool, stale: bool}}
     try:
-        from sqlalchemy import select
+        from sqlalchemy import select, func
         from arc.infrastructure.models.planning import VersionAnalysisModel
+        from arc.infrastructure.models.todo import Todo as TodoModel
+
         version_ids = [v.id for v in versions]
         if version_ids:
-            result = await db.execute(
-                select(VersionAnalysisModel.version_id)
+            # 获取每个版本最新分析的 fingerprint
+            from sqlalchemy.orm import aliased
+            subq = (
+                select(
+                    VersionAnalysisModel.version_id,
+                    VersionAnalysisModel.fingerprint,
+                )
                 .where(VersionAnalysisModel.version_id.in_(version_ids))
-                .distinct()
+                .order_by(VersionAnalysisModel.version_id, VersionAnalysisModel.created_at.desc())
+                .distinct(VersionAnalysisModel.version_id)
             )
-            analysis_set = set(result.scalars().all())
+            result = await db.execute(subq)
+            latest_fps: dict[uuid.UUID, str] = {row[0]: row[1] for row in result.all()}
+
+            # 计算每个版本的当前 fingerprint
+            import hashlib
+            for v in versions:
+                vid = v.id
+                if vid not in latest_fps:
+                    analysis_info[vid] = {"has": False, "stale": False}
+                    continue
+                # 计算当前 fingerprint
+                stats_for_fp = all_stats.get(vid, {})
+                todo_result = await db.execute(
+                    select(TodoModel.id, TodoModel.status)
+                    .where(TodoModel.version_id == vid)
+                    .order_by(TodoModel.id)
+                )
+                parts = sorted(f"{r[0]}:{r[1]}" for r in todo_result.all())
+                current_fp = hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+                analysis_info[vid] = {
+                    "has": True,
+                    "stale": current_fp != latest_fps[vid],
+                }
     except Exception:
         pass  # 表不存在时跳过
 
     return [
-        _version_resp(v, all_stats.get(v.id, {}), has_analysis=v.id in analysis_set)
+        _version_resp(
+            v,
+            all_stats.get(v.id, {}),
+            has_analysis=analysis_info.get(v.id, {}).get("has", False),
+            analysis_stale=analysis_info.get(v.id, {}).get("stale", False),
+        )
         for v in versions
     ]
 

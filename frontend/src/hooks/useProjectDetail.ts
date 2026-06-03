@@ -62,6 +62,7 @@ export function useProjectDetail() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisCached, setAnalysisCached] = useState(false);
+  const [analysisSuggestions, setAnalysisSuggestions] = useState<Array<{priority: string; action: string; reason: string}>>([]);
   const [drawerSession, setDrawerSession] = useState<PlanningSession | null>(null);
   const [completeConfirm, setCompleteConfirm] = useState<{ todoId: string; hasDeliverables: boolean } | null>(null);
 
@@ -196,6 +197,27 @@ export function useProjectDetail() {
       navigate(`/todo/${todo.id}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) return;
+      toast('创建需求失败', 'error');
+    }
+  };
+
+  const createTodoFromSuggestion = async (data: { title: string; description: string; priority: number }) => {
+    if (!id) return;
+    // 找到第一个 active 或 planning 版本作为目标
+    const targetVersion = versions.find((v) => v.status === 'planning') || versions.find((v) => v.status === 'active');
+    if (!targetVersion) {
+      toast('没有可用的版本来承接新需求', 'error');
+      return;
+    }
+    try {
+      await api.createTodo({
+        title: data.title,
+        description: data.description,
+        project_id: id,
+        version_id: targetVersion.id,
+        priority: data.priority,
+      });
+    } catch {
       toast('创建需求失败', 'error');
     }
   };
@@ -366,10 +388,12 @@ export function useProjectDetail() {
     setAnalyzing(true);
     setAnalysisResult(null);
     setAnalysisCached(false);
+    setAnalysisSuggestions([]);
     try {
       const result = await api.analyzeIteration(id, versionId);
       setAnalysisResult(result.analysis);
       setAnalysisCached(result.cached ?? false);
+      setAnalysisSuggestions(result.suggestions ?? []);
     } catch (err) {
       toast(`分析失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
     } finally {
@@ -436,7 +460,7 @@ export function useProjectDetail() {
     versionGoal, setVersionGoal,
     versionType, setVersionType,
     handleCreateVersion, handleActivateVersion, handleReleaseVersion, handleDeleteVersion,
-    createForVersion, setCreateForVersion, handleCreateTodo,
+    createForVersion, setCreateForVersion, handleCreateTodo, createTodoFromSuggestion,
     handleDeleteTodo, handleResumeTodo, handleCompleteTodo, handleReopenTodo,
     completeConfirm, setCompleteConfirm, confirmCompleteTodo,
     experiences, expLoading, expFilter, setExpFilter,
@@ -447,7 +471,7 @@ export function useProjectDetail() {
     domainModelReview,
     handleExtractDomainModelFromCode, extractingDMFromCode,
     handleExtractExperiences, extracting,
-    analysisResult, analyzing, analysisCached, closeAnalysis, handleAnalyzeVersion,
+    analysisResult, analyzing, analysisCached, analysisSuggestions, closeAnalysis, handleAnalyzeVersion,
     drawerSession, setDrawerSession,
     fetchData,
     isAdmin, canWrite, projectActions,
