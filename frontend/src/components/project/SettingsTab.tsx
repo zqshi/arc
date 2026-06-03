@@ -4,6 +4,7 @@ import { GitHubSection } from './GitHubSection';
 import { ExecutionModeSection } from './ExecutionModeSection';
 import { ScanSection } from './ScanSection';
 import { GitSyncSection } from './GitSyncSection';
+import { LLMConfigSection } from './LLMConfigSection';
 import { Field } from './FormFields';
 import { api, ApiError } from '../../api/client';
 import FolderPicker from '../FolderPicker';
@@ -240,6 +241,14 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
             onSummaryChange={(summary) => setForm({ ...form, codebase_summary: summary })}
           />
         </div>
+
+        <LLMConfigSection
+          config={(form.conversation_config?.llm || {}) as Record<string, unknown>}
+          onChange={(llmConfig) => setForm({
+            ...form,
+            conversation_config: { ...form.conversation_config, llm: llmConfig },
+          })}
+        />
 
         <GitHubSection
           isConnected={ghIsConnected}
