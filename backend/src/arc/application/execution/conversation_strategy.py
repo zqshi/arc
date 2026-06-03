@@ -74,11 +74,27 @@ class ConversationExecutionService:
         )
         conv.add_message(role=MessageRole.SYSTEM, content=f"对话模式启动：{todo.title}")
 
-        greeting = (
-            f"你好！我来帮你完成「{todo.title}」。\n\n"
-            f"在对话过程中，我会根据我们的讨论自动产出结构化交付物。"
-            f"你可以随时在侧边面板查看进度。\n\n"
-        )
+        # 根据项目 constraint 级别生成适配的欢迎语
+        constraint = await self._get_project_constraint(todo)
+        greeting = f"你好！我来帮你完成「{todo.title}」。\n\n"
+
+        if constraint == "strict":
+            greeting += (
+                "我会按照标准研发流程逐步推进，每个阶段产出结构化交付物，"
+                "通过门禁确认后才进入下一阶段。右侧面板会实时展示进度。\n\n"
+            )
+        elif constraint == "moderate":
+            greeting += (
+                "我会在对话中自动产出结构化交付物，"
+                "你可以随时在右侧面板查看进度和已产出的成果。\n\n"
+            )
+        else:
+            # free 模式 — 不提侧边面板（初始不可见），强调自然对话
+            greeting += (
+                "我们自然聊，我会在讨论过程中自动提炼和归档结构化成果。"
+                "当有交付物产出时，会在对话中通知你。\n\n"
+            )
+
         if todo.description:
             greeting += f"我看到你的描述是：{todo.description}\n\n"
             greeting += "先聊聊这个需求要解决什么问题？有哪些关键的用户场景？"
@@ -181,6 +197,16 @@ class ConversationExecutionService:
             "completion_pct": tracker.completion_pct,
             "is_complete": tracker.is_complete,
         }
+
+    async def _get_project_constraint(self, todo) -> str:
+        """获取项目的 process_constraint 级别。"""
+        if not todo or not todo.project_id:
+            return "free"
+        from arc.infrastructure.repositories.project import ProjectRepository
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project:
+            return "free"
+        return project.process_constraint.value
 
     async def _get_project_local_path(self, todo_id: uuid.UUID) -> str | None:
         from pathlib import Path
