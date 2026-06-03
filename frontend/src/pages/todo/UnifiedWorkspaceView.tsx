@@ -42,7 +42,6 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [tracker, setTracker] = useState<DeliverableTracker | null>(null);
   const [initializing, setInitializing] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(!isNarrow);
   const [drawerArtifact, setDrawerArtifact] = useState<Artifact | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(480);
   const [codeChanges, setCodeChanges] = useState<CodeChangesInfo | null>(null);
@@ -51,6 +50,11 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
   const processConstraint: ProcessConstraint =
     (todo as unknown as Record<string, string>).process_constraint as ProcessConstraint
     || (todo.execution_mode === 'pipeline' ? 'strict' : 'free');
+
+  // sidebar 默认展开状态：strict/moderate 默认展开，free 默认收起
+  const [showSidebar, setShowSidebar] = useState(
+    () => !isNarrow && processConstraint !== 'free'
+  );
 
   const {
     messages: wsMessages,
