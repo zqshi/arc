@@ -44,6 +44,7 @@ class MessageRole(StrEnum):
 class ExperienceScope(StrEnum):
     PERSONAL = "personal"
     PROJECT = "project"
+    GLOBAL = "global"
 
 
 class ExperienceStatus(StrEnum):

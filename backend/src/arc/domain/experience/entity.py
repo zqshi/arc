@@ -74,6 +74,24 @@ class Experience:
         self.scope = ExperienceScope.PERSONAL
         self.updated_at = datetime.now(UTC)
 
+    def promote_to_global(self) -> None:
+        """提升为全局经验 — 跨项目共享。
+
+        条件: reuse_count >= 3 且 confidence >= 0.8
+        """
+        if self.scope == ExperienceScope.GLOBAL:
+            raise ValueError("Already a global experience")
+        if self.reuse_count < 3:
+            raise ValueError(
+                f"复用次数不足: {self.reuse_count}/3, 至少需要被复用3次才能提升为全局经验"
+            )
+        if self.confidence < 0.8:
+            raise ValueError(
+                f"置信度不足: {self.confidence:.2f}/0.80, 需要更高置信度才能提升为全局经验"
+            )
+        self.scope = ExperienceScope.GLOBAL
+        self.updated_at = datetime.now(UTC)
+
     def increment_reuse(self) -> None:
         self.reuse_count += 1
         self.last_reused_at = datetime.now(UTC)

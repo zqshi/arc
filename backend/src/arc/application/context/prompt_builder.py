@@ -225,13 +225,24 @@ class PromptBuilder:
 
             exp_repo = ExperienceRepository(self._db)
 
-            # 获取候选经验（个人 + 项目范围）
+            # 获取候选经验（项目 + 全局范围）
             candidates = []
             if todo.project_id:
                 project_exps = await exp_repo.list_by_project_id(
                     todo.project_id, limit=20,
                 )
                 candidates.extend(project_exps)
+
+            # T6: 同时获取全局经验（跨项目共享的高质量经验）
+            from arc.domain.todo.value_objects import ExperienceScope
+            try:
+                global_exps = await exp_repo.list_by_scope(
+                    ExperienceScope.GLOBAL, limit=10,
+                )
+                seen_ids = {e.id for e in candidates}
+                candidates.extend(e for e in global_exps if e.id not in seen_ids)
+            except Exception:
+                pass
 
             # 使用 MemoryScorer 打分排序
             scorer = MemoryScorer()
