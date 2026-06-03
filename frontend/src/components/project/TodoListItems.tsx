@@ -31,6 +31,7 @@ export function TodoList({
   handleDeleteTodo,
   handleResumeTodo,
   handleCompleteTodo,
+  handleReopenTodo,
 }: {
   todos: Todo[];
   versionId: string;
@@ -38,6 +39,7 @@ export function TodoList({
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
   handleResumeTodo?: (todoId: string) => void;
   handleCompleteTodo?: (todoId: string) => void;
+  handleReopenTodo?: (todoId: string) => void;
 }) {
   return (
     <div className="divide-y divide-border/30">
@@ -87,6 +89,15 @@ export function TodoList({
               title="标记完成"
             >
               <CheckCircle2 size={10} /> 完成
+            </button>
+          )}
+          {isDone && handleReopenTodo && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleReopenTodo(todo.id); }}
+              className="flex-shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-all"
+              title="恢复为进行中"
+            >
+              <RotateCcw size={10} /> 恢复
             </button>
           )}
           {todo.status === 'suspended' && handleResumeTodo && (
@@ -148,7 +159,6 @@ export function ConversationTodoList({
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
   handleResumeTodo?: (todoId: string) => void;
   handleCompleteTodo?: (todoId: string) => void;
-  handleReopenTodo?: (todoId: string) => void;
   handleReopenTodo?: (todoId: string) => void;
   versionId: string;
 }) {

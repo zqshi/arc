@@ -5,7 +5,7 @@ import type { Components } from 'react-markdown';
 const components: Components = {
   pre({ children }) {
     return (
-      <pre className="my-1.5 overflow-x-auto rounded-md bg-[#1e1e2e] p-3 text-[11px] leading-relaxed">
+      <pre className="my-3 overflow-x-auto rounded-lg bg-[#1e1e2e] p-4 text-xs leading-relaxed">
         {children}
       </pre>
     );
@@ -16,55 +16,64 @@ const components: Components = {
       return <code className="text-[#cdd6f4]">{children}</code>;
     }
     return (
-      <code className="rounded bg-bg-elevated px-1 py-0.5 text-[11px] text-accent">
+      <code className="rounded bg-bg-elevated px-1.5 py-0.5 text-[11px] font-medium text-accent">
         {children}
       </code>
     );
   },
   ul({ children }) {
-    return <ul className="my-1 list-disc space-y-0.5 pl-4">{children}</ul>;
+    return <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>;
   },
   ol({ children }) {
-    return <ol className="my-1 list-decimal space-y-0.5 pl-4">{children}</ol>;
+    return <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>;
   },
   li({ children }) {
-    return <li className="text-xs leading-relaxed">{children}</li>;
+    return <li className="text-[13px] leading-relaxed text-text-secondary">{children}</li>;
   },
   p({ children }) {
-    return <p className="my-1 first:mt-0 last:mb-0">{children}</p>;
+    return <p className="my-2 text-[13px] leading-relaxed text-text-secondary first:mt-0 last:mb-0">{children}</p>;
   },
   strong({ children }) {
     return <strong className="font-semibold text-text-primary">{children}</strong>;
   },
+  h1({ children }) {
+    return <h1 className="mt-6 mb-3 text-lg font-bold text-text-primary first:mt-0">{children}</h1>;
+  },
+  h2({ children }) {
+    return <h2 className="mt-5 mb-2.5 text-base font-bold text-text-primary first:mt-0">{children}</h2>;
+  },
   h3({ children }) {
-    return <h3 className="mt-2 mb-1 text-xs font-semibold text-text-primary">{children}</h3>;
+    return <h3 className="mt-4 mb-2 text-sm font-semibold text-text-primary first:mt-0">{children}</h3>;
   },
   h4({ children }) {
-    return <h4 className="mt-1.5 mb-0.5 text-[11px] font-semibold text-text-primary">{children}</h4>;
+    return <h4 className="mt-3 mb-1.5 text-[13px] font-semibold text-text-primary first:mt-0">{children}</h4>;
   },
   blockquote({ children }) {
     return (
-      <blockquote className="my-1 border-l-2 border-accent/30 pl-2 text-text-muted">
+      <blockquote className="my-3 rounded-r-md border-l-3 border-accent/40 bg-accent/5 py-2 pl-4 pr-3 text-[13px] text-text-secondary">
         {children}
       </blockquote>
     );
   },
   table({ children }) {
     return (
-      <div className="my-1.5 overflow-x-auto">
-        <table className="w-full border-collapse text-[11px]">{children}</table>
+      <div className="my-3 overflow-x-auto rounded-lg border border-border">
+        <table className="w-full border-collapse text-[12px]">{children}</table>
       </div>
     );
   },
   th({ children }) {
     return (
-      <th className="border border-border bg-bg-elevated px-2 py-1 text-left font-medium text-text-primary">
+      <th className="border-b border-border bg-bg-elevated px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
         {children}
       </th>
     );
   },
   td({ children }) {
-    return <td className="border border-border px-2 py-1">{children}</td>;
+    return <td className="border-b border-border/50 px-3 py-2 text-[12px] text-text-secondary">{children}</td>;
+  },
+  hr() {
+    return <hr className="my-4 border-border/50" />;
   },
 };
 

@@ -245,9 +245,6 @@ export function TodosTab({
                     if (v.status === 'active' && onAnalyzeVersion) {
                       items.push({ label: 'AI 分析', icon: <Sparkles size={12} />, onClick: () => onAnalyzeVersion(v.id) });
                     }
-                    if (v.status === 'active') {
-                      items.push({ label: '发布版本', icon: <CheckCircle size={12} />, onClick: () => handleReleaseVersion(v.id) });
-                    }
                     if (v.status !== 'released') {
                       items.push({ label: '删除版本', icon: <Trash2 size={12} />, danger: true, onClick: () => handleDeleteVersion(v.id, v.name) });
                     }
@@ -335,6 +332,7 @@ export function TodosTab({
                       navigate={navigate}
                       handleDeleteTodo={handleDeleteTodo}
                       handleCompleteTodo={handleCompleteTodo}
+                      handleReopenTodo={handleReopenTodo}
                     />
                   )}
                 </div>
