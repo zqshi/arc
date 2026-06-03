@@ -261,6 +261,27 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   ],
   "coverage_summary": "覆盖总结"
 }""",
+    "deploy_report": """{
+  "deploy_log": {
+    "environment": "部署目标环境 (dev/staging/production)",
+    "method": "部署方式 (CI/CD / 手动 / 脚本)",
+    "steps_executed": [
+      {"step": "步骤名", "status": "success/failed", "output": "关键输出"}
+    ],
+    "duration_seconds": 0
+  },
+  "health_check_result": {
+    "endpoints_checked": [
+      {"url": "/api/health", "status": 200, "latency_ms": 0}
+    ],
+    "all_passed": true
+  },
+  "rollback_plan": "回滚方案描述",
+  "config_changes": [
+    {"key": "配置项", "old_value": "旧值", "new_value": "新值", "reason": "变更原因"}
+  ],
+  "release_notes": "面向用户的版本说明"
+}""",
     "experience_card": """{
   "problem": "解决了什么问题",
   "solution": "最终方案",

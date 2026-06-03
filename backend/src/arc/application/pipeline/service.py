@@ -419,8 +419,8 @@ class PipelineService:
         for art in confirmed:
             # 只收集当前阶段之前的产出物
             art_phase = None
-            for phase, atype in PHASE_ARTIFACT_MAP.items():
-                if atype == art.artifact_type:
+            for phase, atypes in PHASE_ARTIFACT_MAP.items():
+                if art.artifact_type in atypes:
                     art_phase = phase
                     break
             if art_phase and PHASE_ORDER.get(art_phase, 99) < PHASE_ORDER.get(current_phase, 0):

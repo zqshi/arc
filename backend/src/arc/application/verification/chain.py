@@ -21,17 +21,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# 从 agent_loop.py 复用的交付物字段定义
-DELIVERABLE_REQUIRED_FIELDS: dict[str, list[str]] = {
-    "requirement_spec": ["background", "user_stories", "acceptance_criteria", "boundaries"],
-    "interaction_design": ["user_flows", "page_map"],
-    "ui_spec": ["design_tokens", "component_specs"],
-    "prototype": ["pages"],
-    "tech_architecture": ["data_model", "api_design", "tech_decisions"],
-    "dev_report": ["test_design", "implementation", "validation"],
-    "test_report": ["criteria_verification"],
-    "experience_card": ["problem", "solution", "decisions"],
-}
+# 从 domain 层引入单一事实来源
+from arc.domain.artifact.value_objects import DELIVERABLE_REQUIRED_FIELDS  # noqa: E402
 
 _DELIVERABLE_RE = re.compile(
     r"\[DELIVERABLE:(\w+)\]\s*```(?:json)?\s*(.*?)```",

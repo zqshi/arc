@@ -19,14 +19,23 @@ class ArtifactType(StrEnum):
     UI_DESIGN = "ui_design"
 
 
-PHASE_ARTIFACT_MAP: dict[PhaseType, ArtifactType] = {
-    PhaseType.CLARIFICATION: ArtifactType.REQUIREMENT_SPEC,
-    PhaseType.UI_DESIGN: ArtifactType.INTERACTION_DESIGN,
-    PhaseType.ARCHITECTURE: ArtifactType.TECH_ARCHITECTURE,
-    PhaseType.DEVELOPMENT: ArtifactType.DEV_REPORT,
-    PhaseType.TESTING: ArtifactType.TEST_REPORT,
-    PhaseType.DEPLOYMENT: ArtifactType.DEPLOY_REPORT,
-    PhaseType.EXTRACTION: ArtifactType.EXPERIENCE_CARD,
+PHASE_ARTIFACT_MAP: dict[PhaseType, list[ArtifactType]] = {
+    PhaseType.CLARIFICATION: [ArtifactType.REQUIREMENT_SPEC],
+    PhaseType.UI_DESIGN: [
+        ArtifactType.INTERACTION_DESIGN,
+        ArtifactType.UI_SPEC,
+        ArtifactType.PROTOTYPE,
+    ],
+    PhaseType.ARCHITECTURE: [ArtifactType.TECH_ARCHITECTURE],
+    PhaseType.DEVELOPMENT: [ArtifactType.DEV_REPORT],
+    PhaseType.TESTING: [ArtifactType.TEST_REPORT],
+    PhaseType.DEPLOYMENT: [ArtifactType.DEPLOY_REPORT],
+    PhaseType.EXTRACTION: [ArtifactType.EXPERIENCE_CARD],
+}
+
+# 向后兼容：返回每个 phase 的主交付物（第一个）
+PHASE_PRIMARY_ARTIFACT: dict[PhaseType, ArtifactType] = {
+    phase: artifacts[0] for phase, artifacts in PHASE_ARTIFACT_MAP.items()
 }
 
 ARTIFACT_LABELS: dict[ArtifactType, str] = {
@@ -41,4 +50,17 @@ ARTIFACT_LABELS: dict[ArtifactType, str] = {
     ArtifactType.EXPERIENCE_CARD: "经验卡片",
     # Legacy
     ArtifactType.UI_DESIGN: "UI设计(旧)",
+}
+
+# 交付物必填字段定义 — 单一事实来源 (消除 agent_loop.py / chain.py 重复)
+DELIVERABLE_REQUIRED_FIELDS: dict[str, list[str]] = {
+    "requirement_spec": ["background", "user_stories", "acceptance_criteria", "boundaries"],
+    "interaction_design": ["user_flows", "page_map"],
+    "ui_spec": ["design_tokens", "component_specs"],
+    "prototype": ["pages"],
+    "tech_architecture": ["data_model", "api_design", "tech_decisions"],
+    "dev_report": ["test_design", "implementation", "validation"],
+    "test_report": ["criteria_verification"],
+    "deploy_report": ["deploy_log", "health_check_result"],
+    "experience_card": ["problem", "solution", "decisions"],
 }
