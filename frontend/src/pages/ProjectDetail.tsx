@@ -170,29 +170,27 @@ export default function ProjectDetail() {
 
       {(s.analyzing || s.analysisResult) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={s.closeAnalysis} />
-          <div className="relative mx-4 w-full max-w-3xl animate-slide-up rounded-2xl border border-border-active bg-bg-card shadow-2xl sm:mx-auto">
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h2 className="flex items-center gap-2.5 text-base font-semibold text-text-primary">
-                <Sparkles size={16} className="text-accent" /> AI 迭代分析
+          <div className="absolute inset-0 bg-black/60" onClick={s.closeAnalysis} />
+          <div className="relative mx-4 w-full max-w-3xl animate-slide-up rounded-xl border border-border-active bg-bg-card shadow-2xl sm:mx-auto">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+                <Sparkles size={14} className="text-accent" /> AI 迭代分析
               </h2>
               <button
                 onClick={s.closeAnalysis}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-secondary transition-colors"
+                className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-elevated hover:text-text-secondary transition-colors"
               >
                 ×
               </button>
             </div>
-            <div className="max-h-[75vh] overflow-y-auto px-6 py-5">
+            <div className="max-h-[75vh] overflow-y-auto px-5 py-4">
               {s.analyzing ? (
                 <div className="flex items-center justify-center py-16">
-                  <Loader2 size={22} className="animate-spin text-accent" />
-                  <span className="ml-3 text-sm text-text-muted">AI 正在分析迭代状态...</span>
+                  <Loader2 size={20} className="animate-spin text-accent" />
+                  <span className="ml-2 text-sm text-text-muted">AI 正在分析迭代状态...</span>
                 </div>
               ) : s.analysisResult ? (
-                <div className="prose-analysis">
-                  <MarkdownContent content={s.analysisResult} />
-                </div>
+                <MarkdownContent content={s.analysisResult} />
               ) : null}
             </div>
           </div>
