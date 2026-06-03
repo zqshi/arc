@@ -130,12 +130,14 @@ class ConversationExecutionService:
         orchestration_enabled = await self._is_orchestration_enabled(
             conversation.todo_id
         )
+        llm_config = await self._get_llm_config(conversation.todo_id)
 
         async for chunk in self._engine.generate_response_stream(
             conversation,
             project_path=project_path,
             sandbox_policy=sandbox_policy,
             orchestration_enabled=orchestration_enabled,
+            llm_config=llm_config,
         ):
             yield chunk
 
@@ -306,6 +308,18 @@ class ConversationExecutionService:
             return False
         orch_cfg = project.conversation_config.get("orchestration", {})
         return bool(orch_cfg.get("enabled", False))
+
+    async def _get_llm_config(self, todo_id: uuid.UUID) -> dict | None:
+        """获取项目级 LLM 配置（conversation_config.llm）。"""
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or not todo.project_id:
+            return None
+        project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+        if not project or not project.conversation_config:
+            return None
+        return project.conversation_config.get("llm") or None
 
     # ------------------------------------------------------------------
     # Tracker management

@@ -72,6 +72,7 @@ class ExecutionEngine:
         project_path: str | None = None,
         sandbox_policy=None,
         orchestration_enabled: bool = False,
+        llm_config: dict | None = None,
     ) -> AsyncIterator[dict]:
         """生成 AI 流式回复。"""
         from arc.application.hooks.manager import HookPoint
@@ -98,6 +99,7 @@ class ExecutionEngine:
         if project_path:
             async for event_dict in self._tool_aware_stream(
                 llm_messages, project_path, sandbox_policy, orchestration_enabled,
+                llm_config=llm_config,
             ):
                 if "message_id" in event_dict and event_dict.get("content"):
                     if message_id is None:
@@ -243,6 +245,7 @@ class ExecutionEngine:
         project_path: str,
         sandbox_policy,
         orchestration_enabled: bool,
+        llm_config: dict | None = None,
     ) -> AsyncIterator[dict]:
         from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.context.compression import CompressionManager
@@ -288,7 +291,7 @@ class ExecutionEngine:
             event_stream = orch.execute(llm_messages, registry)
         else:
             async def _single():
-                async with adapter_pool.acquire() as adapter:
+                async with adapter_pool.acquire_for_project(llm_config) as adapter:
                     loop = ToolAwareLoop(
                         adapter, registry,
                         compression=compression,
