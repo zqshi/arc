@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Bot, RefreshCw, Package } from 'lucide-react';
 import MarkdownContent from '../MarkdownContent';
 import { ExperienceRefBadge } from './ExperienceRefBadge';
+import { ToolCallsCollapsed } from './ToolCallDisplay';
 import type { Message, ExperienceRef } from '../../types/api';
 
 const DELIVERABLE_LABELS: Record<string, string> = {
@@ -254,6 +255,19 @@ function MessageBubble({ msg, todoId }: { msg: Message; todoId: string }) {
           <ExperienceRefBadge
             refs={msg.metadata.referenced_experiences as ExperienceRef[]}
             todoId={todoId}
+          />
+        )}
+        {/* 历史消息中的工具调用记录 */}
+        {isAssistant && Array.isArray(msg.metadata?.tool_calls) && msg.metadata.tool_calls.length > 0 && (
+          <ToolCallsCollapsed
+            toolCalls={msg.metadata.tool_calls.map((tc: Record<string, unknown>, i: number) => ({
+              id: `hist-${msg.id}-${i}`,
+              tool_name: (tc.tool_name as string) || '',
+              tool_input: { path: tc.tool_input_summary || '' },
+              output_preview: (tc.output_preview as string) || '',
+              is_error: !!tc.is_error,
+              status: 'done' as const,
+            }))}
           />
         )}
       </div>

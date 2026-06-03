@@ -28,6 +28,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _summarize_tool_input(tool_name: str, tool_input: dict) -> str:
+    """生成工具调用的简洁摘要（用于持久化到 metadata）。"""
+    match tool_name:
+        case "read_file":
+            return tool_input.get("path", "")
+        case "write_file":
+            path = tool_input.get("path", "")
+            content = tool_input.get("content", "")
+            return f"{path} ({len(content.splitlines())} lines)"
+        case "list_directory":
+            return tool_input.get("path", ".")
+        case "grep_search":
+            return f'"{tool_input.get("pattern", "")}"'
+        case "run_command":
+            cmd = tool_input.get("command", "")
+            return cmd[:80] + ("..." if len(cmd) > 80 else "")
+        case _:
+            return str(tool_input)[:60]
+
+
 class ExecutionEngine:
     """编排 LLM 流式执行，支持 tool-use / text-only / 多 Agent 三种路径。
 
@@ -87,6 +107,7 @@ class ExecutionEngine:
         message_id: str | None = None
         full_content = ""
         loop_metrics: dict = {}
+        tool_calls_log: list[dict] = []  # 收集工具调用记录
 
         if project_path:
             async for event_dict in self._tool_aware_stream(
@@ -99,6 +120,21 @@ class ExecutionEngine:
                 if event_dict.get("event") == "complete_metrics":
                     loop_metrics = event_dict.get("metrics", {})
                     continue
+                # 收集工具调用记录用于持久化
+                if event_dict.get("event") == "tool_call":
+                    tool_calls_log.append({
+                        "tool_name": event_dict.get("tool_name", ""),
+                        "tool_input_summary": _summarize_tool_input(
+                            event_dict.get("tool_name", ""),
+                            event_dict.get("tool_input", {}),
+                        ),
+                    })
+                elif event_dict.get("event") == "tool_result":
+                    if tool_calls_log:
+                        tool_calls_log[-1]["is_error"] = event_dict.get("is_error", False)
+                        tool_calls_log[-1]["output_preview"] = event_dict.get(
+                            "output_preview", ""
+                        )[:200]
                 yield event_dict
         else:
             async for event_dict in self._text_only_stream(
@@ -124,6 +160,7 @@ class ExecutionEngine:
                 "streamed": True,
                 "mode": "conversation",
                 "agent_loop": loop_metrics,
+                "tool_calls": tool_calls_log[:50] if tool_calls_log else [],
                 "referenced_experiences": [
                     {"id": str(eid)}
                     for eid in self._prompt_builder.injected_experience_ids

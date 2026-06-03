@@ -82,7 +82,92 @@ class ArtifactExtractor:
             if art.artifact_type == ArtifactType.TECH_ARCHITECTURE:
                 await self._try_extract_domain_model(todo_id, art.content)
 
+        # requirement_spec 产出后，智能推断适用的交付物范围
+        for art in extracted:
+            if art.artifact_type == ArtifactType.REQUIREMENT_SPEC and tracker:
+                await self._infer_deliverable_scope(tracker, art.content)
+
         return extracted
+
+    async def _infer_deliverable_scope(
+        self, tracker: DeliverableTracker, req_spec: dict,
+    ) -> None:
+        """根据 requirement_spec 内容推断适用的交付物范围，裁剪 tracker.required。
+
+        规则基于需求类型特征词匹配，不调用 LLM（零延迟）：
+        - 无 UI 相关描述 → 跳过 interaction_design, ui_spec, prototype
+        - 纯 bug 修复 → 只保留核心四项
+        - 其他保留全量
+        """
+        from arc.domain.planning.value_objects import DeliverableStatus
+        from arc.domain.project.value_objects import REQUIRED_DELIVERABLES
+
+        # 提取信号
+        stories = req_spec.get("user_stories", [])
+        boundaries = req_spec.get("boundaries", {})
+        in_scope = boundaries.get("in_scope", []) if isinstance(boundaries, dict) else []
+        background = req_spec.get("background", "")
+        all_text = (
+            background + " "
+            + " ".join(str(s) for s in stories)
+            + " ".join(str(s) for s in in_scope)
+        ).lower()
+
+        # 判断需求类型
+        has_ui_signal = any(kw in all_text for kw in [
+            "ui", "界面", "页面", "交互", "前端", "组件", "按钮", "表单",
+            "弹窗", "列表", "视觉", "样式", "布局", "响应式", "移动端",
+        ])
+        is_bug_fix = any(kw in all_text for kw in [
+            "bug", "修复", "fix", "回归", "崩溃", "报错", "异常",
+        ]) and not any(kw in all_text for kw in ["新增", "新功能", "feature"])
+
+        has_deploy_signal = any(kw in all_text for kw in [
+            "部署", "上线", "deploy", "ci", "cd", "docker", "k8s",
+        ])
+
+        # 计算适用范围
+        skip_types: set[str] = set()
+
+        if not has_ui_signal:
+            skip_types.update(["interaction_design", "ui_spec", "prototype"])
+
+        if is_bug_fix:
+            skip_types.update([
+                "interaction_design", "ui_spec", "prototype",
+                "tech_architecture", "deploy_report",
+            ])
+
+        if not has_deploy_signal and not is_bug_fix:
+            # 默认保留 deploy_report，但纯前端任务可跳过
+            has_backend_signal = any(kw in all_text for kw in [
+                "api", "后端", "数据库", "服务", "接口", "backend",
+            ])
+            if not has_backend_signal and has_ui_signal:
+                skip_types.add("deploy_report")
+
+        # 应用裁剪
+        if not skip_types:
+            return  # 全量保留，不修改
+
+        new_required = [d for d in REQUIRED_DELIVERABLES if d not in skip_types]
+
+        # 不能裁剪到少于 4 项（最低保障）
+        if len(new_required) < 4:
+            return
+
+        # 更新 tracker
+        tracker.required = new_required
+        # 移除被跳过项的 pending 状态（已产出的保留）
+        for skip_type in skip_types:
+            if tracker.deliverables.get(skip_type) == DeliverableStatus.PENDING:
+                del tracker.deliverables[skip_type]
+
+        await self.tracker_repo.update(tracker)
+        logger.info(
+            "Inferred deliverable scope: skipped %s, remaining %d items",
+            skip_types, len(new_required),
+        )
 
     async def _try_extract_domain_model(
         self, todo_id: uuid.UUID, content: dict

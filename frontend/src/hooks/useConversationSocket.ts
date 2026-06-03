@@ -241,6 +241,7 @@ export function useConversationSocket(conversationId: string | null) {
 
           case 'stream_start':
             setIsStreaming(true);
+            setToolCalls([]); // 新一轮开始时清空上一轮工具记录
             break;
 
           case 'stream_resume':
