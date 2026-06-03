@@ -41,15 +41,15 @@ interface DeliverableSidebarProps {
 export function DeliverableSidebar({
   constraint, tracker, todoId, currentPhase, onItemClick, visible, onToggle,
 }: DeliverableSidebarProps) {
-  // 三模式统一：收起态 — 窄条 + 图标，点击展开
+  // 三模式统一：收起态 — 窄条 + 图标置顶，点击展开
   if (!visible) {
     return (
       <button
         onClick={onToggle}
-        className="flex w-8 flex-shrink-0 flex-col items-center justify-center border-l border-border bg-bg-sidebar transition-colors hover:bg-bg-elevated"
+        className="flex w-8 flex-shrink-0 flex-col items-start border-l border-border bg-bg-sidebar pt-3 transition-colors hover:bg-bg-elevated"
         title="展开交付物面板"
       >
-        <FileText size={13} className="text-text-muted" />
+        <FileText size={13} className="mx-auto text-text-muted" />
       </button>
     );
   }
