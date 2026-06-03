@@ -322,6 +322,7 @@ export function TodosTab({
                       batchStarting={batchStarting}
                       setBatchStarting={setBatchStarting}
                       handleDeleteTodo={handleDeleteTodo}
+                      handleCompleteTodo={handleCompleteTodo}
                       versionId={v.id}
                     />
                   ) : (

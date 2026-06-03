@@ -9,6 +9,7 @@ interface TaskCardProps {
   taskState: TaskState;
   navigate: (path: string) => void;
   onDelete?: (todoId: string, todoTitle: string) => void;
+  onComplete?: (todoId: string) => void;
 }
 
 const STATUS_INDICATOR: Record<string, { color: string; label: string }> = {
@@ -17,7 +18,7 @@ const STATUS_INDICATOR: Record<string, { color: string; label: string }> = {
   error: { color: 'bg-status-error', label: '异常' },
 };
 
-export function TaskCard({ todo, taskState, navigate, onDelete }: TaskCardProps) {
+export function TaskCard({ todo, taskState, navigate, onDelete, onComplete }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -157,14 +158,24 @@ export function TaskCard({ todo, taskState, navigate, onDelete }: TaskCardProps)
             >
               查看完整对话 <ExternalLink size={10} />
             </button>
-            {onDelete && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(todo.id, todo.title); }}
-                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-status-error/10 hover:text-status-error"
-              >
-                <Trash2 size={10} /> 删除
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {onComplete && !isDone && (todo.status === 'active' || todo.status === 'pending') && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onComplete(todo.id); }}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-status-done bg-status-done/10 transition-colors hover:bg-status-done/20"
+                >
+                  <CheckCircle2 size={10} /> 完成
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(todo.id, todo.title); }}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-status-error/10 hover:text-status-error"
+                >
+                  <Trash2 size={10} /> 删除
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
