@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -12,6 +14,9 @@ class ProjectCreate(BaseModel):
     conventions: str = ""
     execution_mode: str = "pipeline"  # deprecated, kept for compat
     process_constraint: str = "free"
+    # 工作区策略
+    workspace_type: Literal["local", "github", "temporary"] = "temporary"
+    github_token: str = ""  # workspace_type=github 时可选传入
 
 
 class ProjectUpdate(BaseModel):

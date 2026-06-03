@@ -142,13 +142,18 @@ export interface Project {
   updated_at: string;
 }
 
+export type WorkspaceType = 'local' | 'github' | 'temporary';
+
 export interface CreateProjectRequest {
   name: string;
   description?: string;
   tech_stack?: string;
   repo_url?: string;
+  local_path?: string;
   conventions?: string;
   execution_mode?: ExecutionMode;
+  workspace_type?: WorkspaceType;
+  github_token?: string;
 }
 
 export interface UpdateProjectRequest {

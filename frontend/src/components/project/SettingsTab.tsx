@@ -135,6 +135,23 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
   const [impact, setImpact] = useState<{ active_count: number; pending_count: number } | null>(null);
   const [impactLoaded, setImpactLoaded] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+
+  const isTemporaryWorkspace = form.local_path?.includes('/.arc/workspaces/');
+
+  const handleMigrateWorkspace = async (targetPath: string) => {
+    setMigrating(true);
+    try {
+      const updated = await api.migrateWorkspace(projectId, targetPath);
+      setForm({ ...form, local_path: updated.local_path });
+      toast('工作区迁移完成', 'success');
+      onRefresh();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.detail : '迁移失败', 'error');
+    } finally {
+      setMigrating(false);
+    }
+  };
 
   const onRefreshRef = useRef(onRefresh);
   onRefreshRef.current = onRefresh;
@@ -193,6 +210,22 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
               )}
             </button>
             <p className="mt-1 text-[10px] text-text-muted">Coding Agent 将在此目录下读写代码</p>
+            {isTemporaryWorkspace && (
+              <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+                <p className="text-[11px] font-medium text-amber-400">⚡ 临时工作区</p>
+                <p className="mt-0.5 text-[10px] text-text-muted">
+                  当前使用自动创建的临时目录。建议关联正式项目目录以便版本管理。
+                </p>
+                <button
+                  type="button"
+                  disabled={migrating}
+                  onClick={() => setShowFolderPicker(true)}
+                  className="mt-1.5 rounded bg-amber-500/20 px-2 py-1 text-[10px] font-medium text-amber-300 hover:bg-amber-500/30 disabled:opacity-50"
+                >
+                  {migrating ? '迁移中...' : '选择目录并迁移'}
+                </button>
+              </div>
+            )}
           </div>
 
           <ScanSection
@@ -289,7 +322,13 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
       <FolderPicker
         open={showFolderPicker}
         onClose={() => setShowFolderPicker(false)}
-        onSelect={(path) => setForm({ ...form, local_path: path })}
+        onSelect={(path) => {
+          if (isTemporaryWorkspace) {
+            handleMigrateWorkspace(path);
+          } else {
+            setForm({ ...form, local_path: path });
+          }
+        }}
         initialPath={form.local_path || '~'}
       />
     </section>

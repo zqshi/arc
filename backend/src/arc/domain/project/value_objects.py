@@ -43,6 +43,14 @@ class AgentAutonomy(StrEnum):
     SUPERVISED = "supervised"
 
 
+class WorkspaceType(StrEnum):
+    """项目工作区类型 — 创建时选择。"""
+
+    LOCAL = "local"          # 关联已有本地目录
+    GITHUB = "github"        # 从 GitHub 克隆
+    TEMPORARY = "temporary"  # 临时工作区（~/.arc/workspaces/{project_id}/）
+
+
 class VersionStatus(StrEnum):
     PLANNING = "planning"
     ACTIVE = "active"

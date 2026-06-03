@@ -34,6 +34,9 @@ export function createProjectMethods(request: RequestFn) {
     activateProject: (id: string): Promise<Project> =>
       request(`/api/projects/${id}/activate`, { method: 'POST' }),
 
+    migrateWorkspace: (projectId: string, targetPath: string): Promise<Project> =>
+      request(`/api/projects/${projectId}/workspace/migrate`, { method: 'POST', body: JSON.stringify({ target_path: targetPath }) }),
+
     deleteProject: (id: string): Promise<void> =>
       request(`/api/projects/${id}`, { method: 'DELETE' }),
 
