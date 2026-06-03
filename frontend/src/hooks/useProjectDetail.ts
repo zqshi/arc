@@ -62,6 +62,7 @@ export function useProjectDetail() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [drawerSession, setDrawerSession] = useState<PlanningSession | null>(null);
+  const [completeConfirm, setCompleteConfirm] = useState<{ todoId: string; hasDeliverables: boolean } | null>(null);
 
   const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) return;
@@ -228,7 +229,7 @@ export function useProjectDetail() {
   };
 
   const handleCompleteTodo = async (todoId: string) => {
-    // 统一确认：检查是否有交付物产出
+    // 检查交付物产出情况，设置确认弹窗状态
     let hasDeliverables = false;
     try {
       const tracker = await api.getDeliverables(todoId);
@@ -238,18 +239,20 @@ export function useProjectDetail() {
       hasDeliverables = produced.length > 0;
     } catch { /* tracker 不存在视为无交付物 */ }
 
-    const message = hasDeliverables
-      ? '确定将该需求标记为已完成？'
-      : '⚠️ 该需求尚未产出任何交付物，确定标记为已完成？';
-    if (!window.confirm(message)) return;
+    setCompleteConfirm({ todoId, hasDeliverables });
+  };
 
+  const confirmCompleteTodo = async () => {
+    if (!completeConfirm) return;
     try {
-      await api.completeTodo(todoId);
+      await api.completeTodo(completeConfirm.todoId);
       fetchData({ silent: true });
       toast('需求已完成', 'success');
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : '操作失败';
       toast(msg, 'error');
+    } finally {
+      setCompleteConfirm(null);
     }
   };
 
@@ -432,6 +435,7 @@ export function useProjectDetail() {
     handleCreateVersion, handleActivateVersion, handleReleaseVersion, handleDeleteVersion,
     createForVersion, setCreateForVersion, handleCreateTodo,
     handleDeleteTodo, handleResumeTodo, handleCompleteTodo, handleReopenTodo,
+    completeConfirm, setCompleteConfirm, confirmCompleteTodo,
     experiences, expLoading, expFilter, setExpFilter,
     expCategoryFilter, setExpCategoryFilter,
     handleConfirmExp, handleArchiveExp, handlePromoteExp, handleDistillExp,
