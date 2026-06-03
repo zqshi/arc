@@ -32,7 +32,27 @@ async def list_versions(
     skip = (page - 1) * page_size
     versions = await repo.list_by_project(project_id, skip=skip, limit=page_size)
     all_stats = await repo.batch_count_todos_by_status([v.id for v in versions])
-    return [_version_resp(v, all_stats.get(v.id, {})) for v in versions]
+
+    # 查询哪些版本有分析结果
+    analysis_set: set[uuid.UUID] = set()
+    try:
+        from sqlalchemy import select
+        from arc.infrastructure.models.planning import VersionAnalysisModel
+        version_ids = [v.id for v in versions]
+        if version_ids:
+            result = await db.execute(
+                select(VersionAnalysisModel.version_id)
+                .where(VersionAnalysisModel.version_id.in_(version_ids))
+                .distinct()
+            )
+            analysis_set = set(result.scalars().all())
+    except Exception:
+        pass  # 表不存在时跳过
+
+    return [
+        _version_resp(v, all_stats.get(v.id, {}), has_analysis=v.id in analysis_set)
+        for v in versions
+    ]
 
 
 @router.post("/{project_id}/versions", response_model=VersionResponse, status_code=201)

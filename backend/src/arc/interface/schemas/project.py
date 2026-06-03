@@ -80,6 +80,7 @@ class VersionResponse(BaseModel):
     order: int = 0
     changelog: str = ""
     todo_stats: dict[str, int] | None = None
+    has_analysis: bool = False
     created_at: str
     updated_at: str
 
