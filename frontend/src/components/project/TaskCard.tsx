@@ -77,7 +77,7 @@ export function TaskCard({ todo, taskState, navigate, onDelete, onComplete, onRe
         {isDone && onReopen && (
           <button
             onClick={(e) => { e.stopPropagation(); onReopen(todo.id); }}
-            className="flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/25 hover:border-amber-500/60 transition-colors"
+            className="flex items-center gap-1 rounded-md border border-amber-500 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-amber-100 transition-colors"
           >
             <RotateCcw size={11} /> 恢复
           </button>
@@ -204,7 +204,7 @@ export function TaskCard({ todo, taskState, navigate, onDelete, onComplete, onRe
                 {isDone && onReopen && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onReopen(todo.id); }}
-                    className="flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/25 hover:border-amber-500/60 transition-colors"
+                    className="flex items-center gap-1 rounded-md border border-amber-500 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-amber-100 transition-colors"
                   >
                     <RotateCcw size={11} /> 恢复
                   </button>

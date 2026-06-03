@@ -94,7 +94,7 @@ export function TodoList({
           {isDone && handleReopenTodo && (
             <button
               onClick={(e) => { e.stopPropagation(); handleReopenTodo(todo.id); }}
-              className="flex-shrink-0 flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/25 hover:border-amber-500/60 transition-colors"
+              className="flex-shrink-0 flex items-center gap-1 rounded-md border border-amber-500 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-amber-100 transition-colors"
             >
               <RotateCcw size={11} /> 恢复
             </button>
