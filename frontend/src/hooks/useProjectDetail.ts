@@ -228,6 +228,21 @@ export function useProjectDetail() {
   };
 
   const handleCompleteTodo = async (todoId: string) => {
+    // 统一确认：检查是否有交付物产出
+    let hasDeliverables = false;
+    try {
+      const tracker = await api.getDeliverables(todoId);
+      const produced = Object.values(tracker.deliverables || {}).filter(
+        (s) => s === 'produced' || s === 'confirmed'
+      );
+      hasDeliverables = produced.length > 0;
+    } catch { /* tracker 不存在视为无交付物 */ }
+
+    const message = hasDeliverables
+      ? '确定将该需求标记为已完成？'
+      : '⚠️ 该需求尚未产出任何交付物，确定标记为已完成？';
+    if (!window.confirm(message)) return;
+
     try {
       await api.completeTodo(todoId);
       fetchData({ silent: true });
