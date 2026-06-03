@@ -3,6 +3,7 @@ import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Database }
 import ActionMenu from '../components/ActionMenu';
 import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 import MarkdownContent from '../components/MarkdownContent';
 import DeliverableDrawer from '../components/DeliverableDrawer';
 import { TodosTab, SettingsTab, ExperiencesTab, DomainModelTab } from '../components/project';
@@ -211,6 +212,21 @@ export default function ProjectDetail() {
           </div>
         </div>
       )}
+
+      {/* Complete todo confirmation */}
+      <ConfirmDialog
+        open={!!s.completeConfirm}
+        title={s.completeConfirm?.hasDeliverables ? '标记需求完成' : '确认完成'}
+        message={
+          s.completeConfirm?.hasDeliverables
+            ? '确定将该需求标记为已完成？'
+            : '该需求尚未产出任何交付物，确定标记为已完成？后续可通过「恢复」按钮撤销。'
+        }
+        variant={s.completeConfirm?.hasDeliverables ? 'default' : 'warning'}
+        confirmLabel="标记完成"
+        onConfirm={s.confirmCompleteTodo}
+        onCancel={() => s.setCompleteConfirm(null)}
+      />
     </div>
   );
 }
