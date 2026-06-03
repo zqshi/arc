@@ -27,8 +27,12 @@ interface DomainModelTabProps {
 }
 
 export function DomainModelTab({ projectId, domainModel, loading, review, onRefresh, refreshing, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
-  const [view, setView] = useState<ViewMode>('all');
-  const [graphMode, setGraphMode] = useState(false);
+  const [view, setView] = useState<ViewMode>(() => {
+    return (localStorage.getItem('arc:domainModel:view') as ViewMode) || 'all';
+  });
+  const [graphMode, setGraphMode] = useState(() => {
+    return localStorage.getItem('arc:domainModel:graphMode') === 'true';
+  });
 
   if (loading) {
     return (
@@ -112,7 +116,7 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
       <div className="mb-4 flex items-center justify-between">
         <div className="flex gap-3">
           <button
-            onClick={() => setGraphMode(!graphMode)}
+            onClick={() => { const next = !graphMode; setGraphMode(next); localStorage.setItem('arc:domainModel:graphMode', String(next)); }}
             className={`flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${
               graphMode ? 'border-accent/40 bg-accent/10 text-accent' : 'border-border text-text-muted hover:bg-bg-elevated hover:text-text-secondary'
             }`}
@@ -124,7 +128,7 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
             {views.map(({ key, label }) => (
               <button
                 key={key}
-                onClick={() => setView(key)}
+                onClick={() => { setView(key); localStorage.setItem('arc:domainModel:view', key); }}
                 className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
                   view === key ? 'bg-accent/10 text-accent' : 'text-text-muted hover:text-text-secondary'
                 }`}
