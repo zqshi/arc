@@ -181,6 +181,7 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
                 todoId={id!}
                 onRetry={wsRetry}
                 retryDisabled={wsRetryDisabled}
+                hideStreamingIndicator={toolCalls.length > 0}
               />
               {/* Approval dialog */}
               {pendingApproval && (
@@ -190,7 +191,10 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
               {workers.length > 0 && (
                 <WorkerProgress workers={workers} phase={orchestrationPhase} />
               )}
-              {/* Tool calls */}
+              {/* Tool calls — 实时展示工具执行过程 */}
+              {isStreaming && toolCalls.length > 0 && (
+                <ToolCallsLive toolCalls={toolCalls} />
+              )}
               <ToolCallsStreamingStatus toolCalls={toolCalls} isStreaming={isStreaming} />
             </div>
 
