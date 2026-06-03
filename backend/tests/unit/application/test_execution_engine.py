@@ -87,12 +87,16 @@ class TestMapToolEvent:
         assert results[0]["event"] == "complete_metrics"
         assert results[0]["metrics"]["tool_rounds"] == 5
 
-    def test_error_returns_empty(self) -> None:
+    def test_error_returns_tool_error_event(self) -> None:
         event = MagicMock()
         event.type = "error"
         event.content = "something broke"
+        event.metadata = {"message_id": "msg-1"}
         results = _map_tool_event(event)
-        assert results == []
+        assert len(results) == 1
+        assert results[0]["event"] == "tool_error"
+        assert results[0]["detail"] == "something broke"
+        assert results[0]["message_id"] == "msg-1"
 
     def test_approval_required(self) -> None:
         event = MagicMock()

@@ -76,6 +76,11 @@ def map_tool_event(event) -> list[dict]:
         results.append({"event": "approval_required", **event.metadata})
     elif event.type == "error":
         logger.error("Tool loop error: %s", event.content)
+        results.append({
+            "message_id": mid,
+            "event": "tool_error",
+            "detail": event.content,
+        })
     elif event.type == "complete":
         logger.info(
             "Tool loop complete: %d rounds, %d tokens, %dms",

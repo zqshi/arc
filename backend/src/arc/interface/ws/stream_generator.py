@@ -39,6 +39,12 @@ async def _mark_todo_complete(todo_id: UUID) -> None:
             todo = await todo_repo.get_by_id(todo_id)
             if not todo or todo.status.value == "done":
                 return
+
+            # 补偿: 如果 todo 还是 pending，先推到 active 再完成
+            if todo.status.value == "pending":
+                todo.start_conversation()
+                await todo_repo.update(todo)
+
             todo.complete()
             await todo_repo.update(todo)
 
@@ -88,6 +94,21 @@ def _build_stream_generator(svc, conv, use_autopilot: bool):
                             {"event": "task_status", "todo_id": todo_id,
                              "status": "running",
                              "stage": f"调用工具: {chunk.get('tool_name', '')}"},
+                        )
+                    continue
+
+                if event_type == "tool_error":
+                    yield {
+                        "type": "tool_error",
+                        "message_id": chunk.get("message_id", ""),
+                        "detail": chunk.get("detail", "工具执行异常"),
+                    }
+                    if project_id and todo_id:
+                        await project_task_stream.emit(
+                            project_id,
+                            {"event": "task_status", "todo_id": todo_id,
+                             "status": "error",
+                             "stage": chunk.get("detail", "工具执行异常")},
                         )
                     continue
 

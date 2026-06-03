@@ -114,7 +114,15 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
   }, [id, fetchTracker, toast, setTodo]);
 
   useEffect(() => { fetchConversation(); fetchTracker(); }, [fetchConversation, fetchTracker]);
-  useEffect(() => { if (!isStreaming && conversationId) fetchTracker(); }, [isStreaming, conversationId, fetchTracker]);
+  useEffect(() => {
+    if (!isStreaming && conversationId) {
+      fetchTracker();
+      // 流结束后刷新 todo 实体，同步状态变更（pending→active, active→done）
+      if (id) {
+        api.getTodo(id).then((updated) => setTodo(updated)).catch(() => { /* */ });
+      }
+    }
+  }, [isStreaming, conversationId, fetchTracker, id, setTodo]);
   useEffect(() => { if (artifactsVersion > 0) fetchTracker(); }, [artifactsVersion, fetchTracker]);
   useEffect(() => {
     if (!isStreaming || !conversationId) return;
