@@ -23,14 +23,12 @@ export function TaskCard({ todo, taskState, navigate, onDelete, onComplete, onRe
   const [expanded, setExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [confirmComplete, setConfirmComplete] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const indicator = STATUS_INDICATOR[taskState.status] || STATUS_INDICATOR.idle;
   const isRunning = taskState.status === 'running';
   const isDone = todo.status === 'done';
   const hasContent = taskState.lastContent.length > 0;
-  const hasArtifacts = taskState.artifacts.length > 0;
 
   const handleSend = async () => {
     const msg = input.trim();
@@ -163,28 +161,6 @@ export function TaskCard({ todo, taskState, navigate, onDelete, onComplete, onRe
 
           {/* Footer */}
           <div className="border-t border-border/20 px-4 py-2">
-            {/* Confirm complete prompt */}
-            {confirmComplete && (
-              <div className="mb-2 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
-                <AlertCircle size={12} className="flex-shrink-0 text-amber-400" />
-                <span className="flex-1 text-[10px] text-amber-300">
-                  {!hasArtifacts ? '该需求尚未产出任何交付物，确定标记完成？' : '确定标记该需求为完成？'}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onComplete!(todo.id); setConfirmComplete(false); }}
-                  className="rounded bg-status-done/20 px-2 py-0.5 text-[10px] font-medium text-status-done hover:bg-status-done/30"
-                >
-                  确认
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setConfirmComplete(false); }}
-                  className="rounded bg-text-muted/10 px-2 py-0.5 text-[10px] text-text-muted hover:bg-text-muted/20"
-                >
-                  取消
-                </button>
-              </div>
-            )}
-
             <div className="flex items-center justify-between">
               <button
                 onClick={(e) => { e.stopPropagation(); navigate(`/todo/${todo.id}`); }}
@@ -193,9 +169,9 @@ export function TaskCard({ todo, taskState, navigate, onDelete, onComplete, onRe
                 查看完整对话 <ExternalLink size={10} />
               </button>
               <div className="flex items-center gap-2">
-                {onComplete && !isDone && (todo.status === 'active' || todo.status === 'pending') && !confirmComplete && (
+                {onComplete && !isDone && (todo.status === 'active' || todo.status === 'pending') && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); setConfirmComplete(true); }}
+                    onClick={(e) => { e.stopPropagation(); onComplete(todo.id); }}
                     className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-status-done bg-status-done/10 transition-colors hover:bg-status-done/20"
                   >
                     <CheckCircle2 size={10} /> 完成
