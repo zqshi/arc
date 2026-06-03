@@ -326,6 +326,22 @@ export interface ScopeDiff {
   unchanged_count?: number;
 }
 
+export interface ConflictItem {
+  type: 'write_conflict' | 'cross_aggregate' | 'new_aggregate';
+  severity: 'high' | 'medium' | 'low';
+  features: string[];
+  aggregate: string;
+  description: string;
+  suggestion: string;
+}
+
+export interface ConflictAnalysis {
+  conflicts: ConflictItem[];
+  risk_summary: string;
+  parallel_safe: string[];
+  sequential_required: Array<{ first: string; then: string; reason: string }>;
+}
+
 export interface UpdateExperienceRequest {
   title?: string;
   problem?: string;
