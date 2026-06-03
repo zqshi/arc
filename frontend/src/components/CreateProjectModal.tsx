@@ -71,7 +71,10 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
             {step === 'info' ? '新建项目' : '选择工作区'}
           </h2>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-text-muted">{step === 'info' ? '1/2' : '2/2'}</span>
+            <span className="flex items-center gap-1">
+              <span className={`h-1.5 w-4 rounded-full transition-colors ${step === 'info' ? 'bg-accent' : 'bg-accent/30'}`} />
+              <span className={`h-1.5 w-4 rounded-full transition-colors ${step === 'workspace' ? 'bg-accent' : 'bg-accent/30'}`} />
+            </span>
             <button
               onClick={onClose}
               className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:text-text-secondary"

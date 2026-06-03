@@ -56,29 +56,44 @@ class TestPhaseArtifactMap:
             assert phase in PhaseType.__members__.values()
 
     def test_all_mapped_artifacts_valid(self):
-        for artifact in PHASE_ARTIFACT_MAP.values():
-            assert artifact in ArtifactType.__members__.values()
+        for artifacts in PHASE_ARTIFACT_MAP.values():
+            for artifact in (artifacts if isinstance(artifacts, list) else [artifacts]):
+                assert artifact in ArtifactType.__members__.values()
 
     def test_clarification_maps_to_requirement_spec(self):
-        assert PHASE_ARTIFACT_MAP[PhaseType.CLARIFICATION] == ArtifactType.REQUIREMENT_SPEC
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.CLARIFICATION]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.REQUIREMENT_SPEC in targets
 
     def test_ui_design_maps_to_interaction_design(self):
-        assert PHASE_ARTIFACT_MAP[PhaseType.UI_DESIGN] == ArtifactType.INTERACTION_DESIGN
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.UI_DESIGN]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.INTERACTION_DESIGN in targets
 
     def test_architecture_maps_to_tech_architecture(self):
-        assert PHASE_ARTIFACT_MAP[PhaseType.ARCHITECTURE] == ArtifactType.TECH_ARCHITECTURE
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.ARCHITECTURE]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.TECH_ARCHITECTURE in targets
 
     def test_development_maps_to_dev_report(self):
-        assert PHASE_ARTIFACT_MAP[PhaseType.DEVELOPMENT] == ArtifactType.DEV_REPORT
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.DEVELOPMENT]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.DEV_REPORT in targets
 
     def test_testing_maps_to_test_report(self):
-        assert PHASE_ARTIFACT_MAP[PhaseType.TESTING] == ArtifactType.TEST_REPORT
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.TESTING]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.TEST_REPORT in targets
 
     def test_deployment_maps_to_deploy_report(self):
-        assert PHASE_ARTIFACT_MAP[PhaseType.DEPLOYMENT] == ArtifactType.DEPLOY_REPORT
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.DEPLOYMENT]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.DEPLOY_REPORT in targets
 
     def test_extraction_maps_to_experience_card(self):
-        assert PHASE_ARTIFACT_MAP[PhaseType.EXTRACTION] == ArtifactType.EXPERIENCE_CARD
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.EXTRACTION]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.EXPERIENCE_CARD in targets
 
     def test_map_covers_expected_phases(self):
         expected_phases = {

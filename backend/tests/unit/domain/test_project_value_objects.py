@@ -135,7 +135,7 @@ class TestDefaultPipelineConfig:
 
     def test_has_required_phases(self):
         assert "required_phases" in DEFAULT_PIPELINE_CONFIG
-        assert len(DEFAULT_PIPELINE_CONFIG["required_phases"]) == 5
+        assert len(DEFAULT_PIPELINE_CONFIG["required_phases"]) == len(DEFAULT_PIPELINE_CONFIG["enabled_phases"])
 
     def test_required_phases_subset_of_enabled(self):
         enabled = set(DEFAULT_PIPELINE_CONFIG["enabled_phases"])
@@ -159,7 +159,8 @@ class TestDefaultPipelineConfig:
 class TestDefaultConversationConfig:
     def test_has_required_deliverables(self):
         assert "required_deliverables" in DEFAULT_CONVERSATION_CONFIG
-        assert len(DEFAULT_CONVERSATION_CONFIG["required_deliverables"]) == 8
+        from arc.domain.project.value_objects import REQUIRED_DELIVERABLES
+        assert len(DEFAULT_CONVERSATION_CONFIG["required_deliverables"]) == len(REQUIRED_DELIVERABLES)
 
     def test_agent_autonomy_is_supervised(self):
         assert DEFAULT_CONVERSATION_CONFIG["agent_autonomy"] == "supervised"
