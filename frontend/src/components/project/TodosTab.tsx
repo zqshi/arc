@@ -243,9 +243,6 @@ export function TodosTab({
                     if (v.status === 'active' && onAnalyzeVersion) {
                       items.push({ label: 'AI 分析', icon: <Sparkles size={12} />, onClick: () => onAnalyzeVersion(v.id) });
                     }
-                    if (v.status === 'planning') {
-                      items.push({ label: '开始迭代', icon: <Play size={12} />, onClick: () => handleActivateVersion(v.id) });
-                    }
                     if (v.status === 'active') {
                       items.push({ label: '发布版本', icon: <CheckCircle size={12} />, onClick: () => handleReleaseVersion(v.id) });
                     }
