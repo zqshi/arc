@@ -221,7 +221,7 @@ class ScanTaskManager:
         self, project_id: str, summary: str, fingerprint: str,
         domain_model: dict | None = None,
     ) -> None:
-        """Save scan result to database (summary + domain model)."""
+        """Save scan result to database (summary + domain model + diff)."""
         from datetime import UTC, datetime
         from uuid import UUID
 
@@ -232,6 +232,10 @@ class ScanTaskManager:
             repo = ProjectRepository(db)
             project = await repo.get_by_id(UUID(project_id))
             if project:
+                # T7: 计算增量 diff（在覆盖前）
+                old_dm = project.domain_model or {}
+                old_summary = project.codebase_summary or ""
+
                 project.codebase_summary = summary
                 project.scan_fingerprint = fingerprint
 
@@ -251,8 +255,70 @@ class ScanTaskManager:
                         existing_dm["version"] = existing_dm.get("version", 0) + 1
                         project.domain_model = existing_dm
 
+                # T7: 生成 scan diff 并附加到 domain_model 元数据
+                scan_diff = self._compute_scan_diff(
+                    old_dm, project.domain_model or {},
+                    old_summary, summary,
+                )
+                if scan_diff and project.domain_model:
+                    scan_history = project.domain_model.get("_scan_history", [])
+                    scan_history.append({
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "fingerprint": fingerprint,
+                        "diff": scan_diff,
+                    })
+                    # 只保留最近 10 次 diff 记录
+                    project.domain_model["_scan_history"] = scan_history[-10:]
+                    project.domain_model["_last_scan_diff"] = scan_diff
+
                 await repo.update(project)
                 await db.commit()
+
+    @staticmethod
+    def _compute_scan_diff(
+        old_dm: dict, new_dm: dict,
+        old_summary: str, new_summary: str,
+    ) -> dict | None:
+        """计算两次扫描之间的领域模型变更。"""
+        if not old_dm and not new_dm:
+            return None
+        if not old_dm:
+            # 首次扫描
+            return {
+                "type": "initial",
+                "aggregates_added": len(new_dm.get("aggregates", [])),
+                "subdomains_added": len(new_dm.get("subdomains", [])),
+                "contexts_added": len(new_dm.get("contexts", [])),
+            }
+
+        old_aggs = {a.get("name") for a in old_dm.get("aggregates", []) if a.get("name")}
+        new_aggs = {a.get("name") for a in new_dm.get("aggregates", []) if a.get("name")}
+        old_subs = {s.get("name") for s in old_dm.get("subdomains", []) if s.get("name")}
+        new_subs = {s.get("name") for s in new_dm.get("subdomains", []) if s.get("name")}
+        old_ctxs = {c.get("name") for c in old_dm.get("contexts", []) if c.get("name")}
+        new_ctxs = {c.get("name") for c in new_dm.get("contexts", []) if c.get("name")}
+
+        added_aggs = new_aggs - old_aggs
+        removed_aggs = old_aggs - new_aggs
+        added_subs = new_subs - old_subs
+        removed_subs = old_subs - new_subs
+        added_ctxs = new_ctxs - old_ctxs
+
+        if not any([added_aggs, removed_aggs, added_subs, removed_subs, added_ctxs]):
+            # 检查 summary 是否变化
+            if old_summary != new_summary:
+                return {"type": "summary_only", "summary_changed": True}
+            return None
+
+        return {
+            "type": "incremental",
+            "aggregates_added": sorted(added_aggs),
+            "aggregates_removed": sorted(removed_aggs),
+            "subdomains_added": sorted(added_subs),
+            "subdomains_removed": sorted(removed_subs),
+            "contexts_added": sorted(added_ctxs),
+            "summary_changed": old_summary != new_summary,
+        }
 
     @staticmethod
     def _merge_domain_model(existing: dict, new: dict) -> None:

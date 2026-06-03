@@ -1,6 +1,14 @@
 from __future__ import annotations
 
 
+class DomainError(Exception):
+    """领域层基础错误 — 不含 HTTP 状态码，纯业务语义。"""
+
+    def __init__(self, detail: str):
+        self.detail = detail
+        super().__init__(detail)
+
+
 class AppError(Exception):
     def __init__(self, detail: str, error_code: str = "APP_ERROR", status_code: int = 400):
         self.detail = detail
