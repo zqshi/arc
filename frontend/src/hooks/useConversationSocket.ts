@@ -54,6 +54,12 @@ interface WsToolResultEvent {
   parallel?: boolean;
 }
 
+interface WsToolErrorEvent {
+  type: 'tool_error';
+  message_id: string;
+  detail: string;
+}
+
 interface WsQuotaExceededEvent {
   type: 'quota_exceeded';
   detail: string;
@@ -92,6 +98,7 @@ type WsEvent =
   | WsArtifactsExtractedEvent
   | WsToolCallEvent
   | WsToolResultEvent
+  | WsToolErrorEvent
   | WsQuotaExceededEvent
   | WsApprovalRequiredEvent
   | { type: 'stream_resume'; message_id: string; buffered_content: string }
@@ -340,6 +347,11 @@ export function useConversationSocket(conversationId: string | null) {
             });
             break;
           }
+
+          case 'tool_error':
+            setError(data.detail);
+            setIsStreaming(false);
+            break;
 
           case 'approval_required':
             setPendingApproval({

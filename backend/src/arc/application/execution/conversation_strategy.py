@@ -119,6 +119,9 @@ class ConversationExecutionService:
         self, conversation: Conversation,
     ) -> AsyncIterator[dict]:
         """生成 AI 流式回复。委托给 ExecutionEngine。"""
+        # 补偿性状态推进：对话已在进行，确保 todo 状态为 active
+        await self._ensure_todo_active(conversation.todo_id)
+
         project_path = await self._get_project_local_path(conversation.todo_id)
         sandbox_policy = await self._get_sandbox_policy(conversation.todo_id)
         orchestration_enabled = await self._is_orchestration_enabled(
@@ -137,6 +140,9 @@ class ConversationExecutionService:
         self, conversation: Conversation,
     ) -> AsyncIterator[dict]:
         """自驾模式。委托给 ExecutionEngine。"""
+        # 补偿性状态推进：自驾模式运行中确保 todo 状态为 active
+        await self._ensure_todo_active(conversation.todo_id)
+
         project_path = await self._get_project_local_path(conversation.todo_id)
         sandbox_policy = await self._get_sandbox_policy(conversation.todo_id)
         orchestration_enabled = await self._is_orchestration_enabled(
@@ -163,6 +169,17 @@ class ConversationExecutionService:
             return {"required": [], "deliverables": {}, "completion_pct": 0}
 
         todo = await self.todo_repo.get_by_id(todo_id)
+
+        # 补偿性状态推进：有 tracker 说明对话已开始，确保状态为 active
+        if todo and todo.status == TodoStatus.PENDING:
+            try:
+                todo.start_conversation()
+                await self.todo_repo.update(todo)
+                await self.db.commit()
+                logger.info("Compensated todo %s status: pending → active", todo_id)
+            except Exception:
+                logger.debug("Todo %s status compensation skipped", todo_id)
+
         tracker = await self._sync_tracker_required(tracker, todo, None)
 
         from arc.domain.planning.value_objects import DeliverableStatus
@@ -197,6 +214,22 @@ class ConversationExecutionService:
             "completion_pct": tracker.completion_pct,
             "is_complete": tracker.is_complete,
         }
+
+    async def _ensure_todo_active(self, todo_id: uuid.UUID) -> None:
+        """补偿性状态推进：如果 todo 仍为 PENDING，推进到 ACTIVE。
+
+        场景: 对话已在进行但 status 未更新（如 WS 路径跳过 initialize）。
+        """
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if not todo or todo.status != TodoStatus.PENDING:
+            return
+        try:
+            todo.start_conversation()
+            await self.todo_repo.update(todo)
+            await self.db.commit()
+            logger.info("Compensated todo %s status: pending → active", todo_id)
+        except Exception as exc:
+            logger.debug("Todo %s status compensation failed: %s", todo_id, exc)
 
     async def _get_project_constraint(self, todo) -> str:
         """获取项目的 process_constraint 级别。"""
