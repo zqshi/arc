@@ -9,13 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Arc</title>
-    <!-- 字体：非阻塞加载，避免 CDN 超时导致白屏 -->
-    <link rel="preload" href="https://fonts.loli.net/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" />
-    <noscript><link href="https://fonts.loli.net/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" /></noscript>
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
-    <noscript><link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet" /></noscript>
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
-    <noscript><link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.css" rel="stylesheet" /></noscript>
+    <!-- 字体：使用系统字体栈，避免外部 CDN 依赖 -->
   </head>
   <body>
     <div id="root"></div>

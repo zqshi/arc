@@ -44,6 +44,7 @@ interface TodosTabProps {
   handleDeleteVersion: (id: string, name: string) => void;
   handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
   handleResumeTodo?: (todoId: string) => void;
+  handleCompleteTodo?: (todoId: string) => void;
   setCreateForVersion: (id: string) => void;
   navigate: (path: string) => void;
   onAnalyzeVersion?: (versionId: string) => void;
@@ -74,6 +75,7 @@ export function TodosTab({
   handleReleaseVersion,
   handleDeleteVersion,
   handleDeleteTodo,
+  handleCompleteTodo,
   setCreateForVersion,
   navigate,
   onAnalyzeVersion,
@@ -220,6 +222,22 @@ export function TodosTab({
                       <Plus size={10} /> 需求
                     </button>
                   )}
+                  {canWrite && v.status === 'planning' && (
+                    <button
+                      onClick={() => handleActivateVersion(v.id)}
+                      className="flex items-center gap-1 rounded-md bg-accent/10 border border-accent/30 px-2 py-1 text-[10px] font-medium text-accent hover:bg-accent/20"
+                    >
+                      <Play size={10} /> 开始迭代
+                    </button>
+                  )}
+                  {canWrite && v.status === 'active' && done === total && total > 0 && (
+                    <button
+                      onClick={() => handleReleaseVersion(v.id)}
+                      className="flex items-center gap-1 rounded-md bg-status-done/10 border border-status-done/30 px-2 py-1 text-[10px] font-medium text-status-done hover:bg-status-done/20"
+                    >
+                      <CheckCircle size={10} /> 发布版本
+                    </button>
+                  )}
                   <ActionMenu items={(() => {
                     const items: ActionMenuItem[] = [];
                     if (v.status === 'active' && onAnalyzeVersion) {
@@ -315,6 +333,7 @@ export function TodosTab({
                       versionId={v.id}
                       navigate={navigate}
                       handleDeleteTodo={handleDeleteTodo}
+                      handleCompleteTodo={handleCompleteTodo}
                     />
                   )}
                 </div>

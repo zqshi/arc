@@ -33,6 +33,12 @@ export function createTodoMethods(request: RequestFn) {
     deleteTodo: (id: string): Promise<void> =>
       request(`/api/todos/${id}`, { method: 'DELETE' }),
 
+    completeTodo: (id: string): Promise<Todo> =>
+      request(`/api/todos/${id}/complete`, { method: 'POST' }),
+
+    reopenTodo: (id: string): Promise<Todo> =>
+      request(`/api/todos/${id}/reopen`, { method: 'POST' }),
+
     addDependency: (todoId: string, dependsOnId: string): Promise<void> =>
       request(`/api/todos/${todoId}/dependencies`, { method: 'POST', body: JSON.stringify({ depends_on_id: dependsOnId }) }),
 
