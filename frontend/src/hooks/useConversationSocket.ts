@@ -409,6 +409,7 @@ export function useConversationSocket(conversationId: string | null) {
   const sendMessage = useCallback((content: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'message', content }));
+      setIsStreaming(true); // 立即展示思考状态，避免发送后无反馈
       setToolCalls([]);
       setWorkers([]);
       setOrchestrationPhase('idle');
@@ -421,6 +422,7 @@ export function useConversationSocket(conversationId: string | null) {
   const retry = useCallback(() => {
     if (retryDisabled) return;
     setError(null);
+    setIsStreaming(true); // 立即展示思考状态
     setRetryDisabled(true);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'retry' }));
