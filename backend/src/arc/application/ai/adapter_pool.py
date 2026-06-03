@@ -267,6 +267,29 @@ class AdapterPool:
         yield adapter
 
     @asynccontextmanager
+    async def acquire_for_project(self, llm_config: dict | None):
+        """Acquire an adapter using project-level LLM config.
+
+        If config is None/empty/incomplete, falls back to the global default.
+        Project adapters are NOT cached in the pool — they're ephemeral.
+        """
+        if not llm_config or not llm_config.get("api_key"):
+            # No project override — use global
+            adapter = self._ensure_adapter(_DEFAULT_KEY)
+            yield adapter
+            return
+
+        from arc.application.ai.llm_adapter import create_llm_adapter_from_config
+        from arc.application.ai.resilience import ResilientAdapter
+
+        inner = create_llm_adapter_from_config(llm_config)
+        adapter = TracingAdapter(ResilientAdapter(inner))
+        try:
+            yield adapter
+        finally:
+            await inner.close()
+
+    @asynccontextmanager
     async def acquire_worker(self):
         """Acquire a worker adapter (cheap model) with concurrency control.
 

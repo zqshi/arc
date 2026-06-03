@@ -190,6 +190,44 @@ def create_llm_adapter() -> LLMAdapter:
     raise ValueError(f"Unsupported LLM provider: {provider!r}")
 
 
+def create_llm_adapter_from_config(llm_config: dict) -> LLMAdapter:
+    """Create an adapter from project-level LLM configuration.
+
+    Falls back to global settings if config is incomplete.
+    """
+    provider = (llm_config.get("provider") or "").lower()
+    model = llm_config.get("model") or ""
+    api_key = llm_config.get("api_key") or ""
+    base_url = llm_config.get("base_url") or ""
+
+    if not provider or not api_key:
+        # 配置不完整，回退全局
+        return create_llm_adapter()
+
+    if provider in ("openai", "deepseek", "custom"):
+        from arc.application.ai.openai_adapter import OpenAIAdapter
+
+        return OpenAIAdapter(
+            api_key=api_key,
+            model=model or "gpt-4o",
+            base_url=base_url or (
+                "https://api.deepseek.com/v1" if provider == "deepseek"
+                else "https://api.openai.com/v1"
+            ),
+        )
+    if provider == "anthropic":
+        from arc.application.ai.anthropic_adapter import AnthropicAdapter
+
+        return AnthropicAdapter(
+            api_key=api_key,
+            model=model or "claude-sonnet-4-6",
+            base_url=base_url or None,
+        )
+
+    # 未知 provider 回退全局
+    return create_llm_adapter()
+
+
 # ---------------------------------------------------------------------------
 # Re-exports for backward compatibility
 # ---------------------------------------------------------------------------
