@@ -1,16 +1,18 @@
-"""过程约束策略分发器 — 根据 ProcessConstraint 决定方法论深度和行为差异。
+"""过程约束策略分发器 — 根据 ProcessConstraint 决定交互方式和方法论深度。
 
-三个模式的核心区别不仅是"管控力度"，更是"推理深度"和"质量保障策略"的差异。
+核心原则：三种模式的交付物全量一致（9项），差异只在交互方式。
+确保任何模式下项目都能形成闭环、高质量沉淀经验、构建完整领域模型。
 
 | 维度 | strict | moderate | free |
 |------|--------|----------|------|
 | 方法论深度 | 完整流程 (全部子步骤) | 精简流程 (核心步骤) | 最轻量 (仅充分性检测) |
 | 门禁严格度 | violations 阻断 + warnings 也阻断 | violations 阻断 + warnings 放行 | 仅记录不阻断 |
-| 交叉验证 | 全量 (story↔API, AC↔test, ...) | 核心对 (AC↔test) | 不执行 |
+| 交叉验证 | 全量 (story↔API, AC↔test, ...) | 核心对 (AC↔test) | 核心对 (AC↔test) |
 | 澄清深度 | 完整三策略递进 | 单策略直达 | 充分性通过即可产出 |
 | DDD 引导 | 三步强制递进 (每步独立 gate) | 概览 + 自由产出 | 无引导 |
 | TDD 约束 | 强制 RED→GREEN→REFACTOR | 建议测试优先 | 无约束 |
 | 产出物确认 | 必须显式确认 | 自动提取 + 建议确认 | 自动提取即生效 |
+| 侧边栏 | 全量有序锁定 | 全量无序展示 | 极简进度环 + 预览入口 |
 """
 
 from __future__ import annotations
@@ -141,9 +143,18 @@ def _quality_baseline_prompt(phase: str) -> str:
         "ui_design": """\
 ## 质量底线
 产出 interaction_design 时：
-- wireframes 每页标注对应用户场景
+- user_flows 每个流程有完整 mermaid 流程图
+- page_map 标注页面间跳转关系
 - 至少定义空状态和加载态
-- component_specs 每个组件有 states 描述""",
+
+产出 ui_spec 时：
+- design_tokens 必须包含 colors + typography + spacing
+- component_specs 每个组件有 states 描述和尺寸规范
+
+产出 prototype 时：
+- pages 每页有完整可渲染 HTML（含 Tailwind）
+- 标注对应用户场景
+- 核心操作路径 ≤ 3 步可达""",
 
         "architecture": """\
 ## 质量底线
@@ -163,6 +174,20 @@ def _quality_baseline_prompt(phase: str) -> str:
 产出 test_report 时：
 - criteria_verification 逐条覆盖 P0 验收标准
 - 每个 pass 必须有 evidence（不接受无证据的自述）""",
+
+        "deployment": """\
+## 质量底线
+产出 deploy_report 时：
+- deploy_log.steps_executed 每步有明确 status
+- health_check_result 至少检查一个关键端点
+- rollback_plan 不得为空""",
+
+        "extraction": """\
+## 质量底线
+产出 experience_card 时：
+- problem + solution 不得为占位文本
+- decisions 至少包含 1 个有 options_considered 的决策点
+- pitfalls 记录至少 1 个实际遇到的问题""",
     }
     return baselines.get(phase, "")
 

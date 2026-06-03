@@ -346,6 +346,7 @@ PHASE_REQUIRED_FIELDS: dict[PhaseType, list[str]] = {
 
 PHASES_NO_SKIP: set[PhaseType] = {
     PhaseType.CLARIFICATION,
+    PhaseType.UI_DESIGN,
     PhaseType.ARCHITECTURE,
     PhaseType.DEVELOPMENT,
     PhaseType.TESTING,

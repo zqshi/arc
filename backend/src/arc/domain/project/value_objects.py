@@ -68,26 +68,46 @@ DEFAULT_PIPELINE_CONFIG: dict = {
     ],
     "required_phases": [
         "clarification",
+        "ui_design",
         "architecture",
         "development",
         "testing",
+        "deployment",
         "extraction",
     ],
     "gate_strictness": "strict",
     "auto_advance": False,
 }
 
+# 产品研发全量交付物 — 单一事实来源
+#
+# 三种模式的差异是交互方式（门禁/确认/展示），不是交付标准。
+# 交付物全量一致，确保任何模式下项目都能形成闭环、高质量沉淀经验、构建模型。
+REQUIRED_DELIVERABLES: list[str] = [
+    "requirement_spec",
+    "interaction_design",
+    "ui_spec",
+    "prototype",
+    "tech_architecture",
+    "dev_report",
+    "test_report",
+    "deploy_report",
+    "experience_card",
+]
+
+# 向后兼容 — 所有模式指向同一列表
+STRICT_DELIVERABLES: list[str] = REQUIRED_DELIVERABLES
+MODERATE_DELIVERABLES: list[str] = REQUIRED_DELIVERABLES
+FREE_DELIVERABLES: list[str] = REQUIRED_DELIVERABLES
+
+DELIVERABLES_BY_CONSTRAINT: dict[str, list[str]] = {
+    "strict": REQUIRED_DELIVERABLES,
+    "moderate": REQUIRED_DELIVERABLES,
+    "free": REQUIRED_DELIVERABLES,
+}
+
 DEFAULT_CONVERSATION_CONFIG: dict = {
-    "required_deliverables": [
-        "requirement_spec",
-        "interaction_design",
-        "ui_spec",
-        "prototype",
-        "tech_architecture",
-        "dev_report",
-        "test_report",
-        "experience_card",
-    ],
+    "required_deliverables": REQUIRED_DELIVERABLES,
     "agent_autonomy": "supervised",
     "auto_archive": True,
     "loop_config": {

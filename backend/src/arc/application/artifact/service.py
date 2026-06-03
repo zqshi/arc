@@ -9,7 +9,7 @@ from arc.application.ai.json_extract import extract_json
 from arc.application.pipeline.prompt_registry import prompt_registry
 from arc.application.pipeline.prompts import PHASE_EXTRACTION_PROMPTS
 from arc.domain.artifact.entity import Artifact
-from arc.domain.artifact.value_objects import PHASE_ARTIFACT_MAP, ArtifactType
+from arc.domain.artifact.value_objects import PHASE_PRIMARY_ARTIFACT, ArtifactType
 from arc.domain.pipeline.value_objects import PhaseType
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.conversation import ConversationRepository
@@ -79,7 +79,7 @@ class ArtifactService:
             "usage": response.usage,
         }
 
-        artifact_type = PHASE_ARTIFACT_MAP[phase_type]
+        artifact_type = PHASE_PRIMARY_ARTIFACT[phase_type]
         existing = await self.artifact_repo.get_by_phase_id(phase.id)
 
         if existing:

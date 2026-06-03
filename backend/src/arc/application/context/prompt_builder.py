@@ -125,10 +125,10 @@ class PromptBuilder:
 
             try:
                 pt = PhaseType(phase_scope)
-                scoped_type = PHASE_ARTIFACT_MAP.get(pt)
-                if scoped_type:
-                    scoped_value = scoped_type.value
-                    required = [scoped_value] if scoped_value in required else [scoped_value]
+                scoped_types = PHASE_ARTIFACT_MAP.get(pt, [])
+                if scoped_types:
+                    scoped_values = [t.value for t in scoped_types]
+                    required = [v for v in scoped_values if v in required] or scoped_values
             except ValueError:
                 pass  # invalid phase_scope, use full list
 

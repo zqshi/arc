@@ -239,14 +239,21 @@ class ConversationExecutionService:
             todo = await self.todo_repo.get_by_id(todo_id)
             if todo and todo.project_id:
                 project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-                if project and project.conversation_config:
-                    required_types = project.conversation_config.get(
-                        "required_deliverables"
-                    )
+                if project:
+                    # 优先从项目自定义配置取
+                    if project.conversation_config:
+                        required_types = project.conversation_config.get(
+                            "required_deliverables"
+                        )
+                    # 没有自定义配置时，按 constraint 级别选择
+                    if not required_types:
+                        from arc.domain.project.value_objects import DELIVERABLES_BY_CONSTRAINT
+                        required_types = DELIVERABLES_BY_CONSTRAINT.get(
+                            project.process_constraint.value
+                        )
         if not required_types:
-            from arc.domain.project.value_objects import DEFAULT_CONVERSATION_CONFIG
-
-            required_types = DEFAULT_CONVERSATION_CONFIG["required_deliverables"]
+            from arc.domain.project.value_objects import FREE_DELIVERABLES
+            required_types = FREE_DELIVERABLES
 
         return await self.extractor.get_or_create_tracker(todo_id, required_types)
 
@@ -260,14 +267,19 @@ class ConversationExecutionService:
                 from arc.infrastructure.repositories.project import ProjectRepository
 
                 project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-                if project and project.conversation_config:
-                    canonical = project.conversation_config.get(
-                        "required_deliverables"
-                    )
+                if project:
+                    if project.conversation_config:
+                        canonical = project.conversation_config.get(
+                            "required_deliverables"
+                        )
+                    if not canonical:
+                        from arc.domain.project.value_objects import DELIVERABLES_BY_CONSTRAINT
+                        canonical = DELIVERABLES_BY_CONSTRAINT.get(
+                            project.process_constraint.value
+                        )
         if not canonical:
-            from arc.domain.project.value_objects import DEFAULT_CONVERSATION_CONFIG
-
-            canonical = DEFAULT_CONVERSATION_CONFIG["required_deliverables"]
+            from arc.domain.project.value_objects import FREE_DELIVERABLES
+            canonical = FREE_DELIVERABLES
 
         from arc.domain.planning.value_objects import DeliverableStatus
 

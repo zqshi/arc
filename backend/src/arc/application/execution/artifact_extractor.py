@@ -119,8 +119,8 @@ class ArtifactExtractor:
 
         # 映射 artifact_type → phase_type
         phase_type = None
-        for pt, at in PHASE_ARTIFACT_MAP.items():
-            if at == artifact.artifact_type:
+        for pt, atypes in PHASE_ARTIFACT_MAP.items():
+            if artifact.artifact_type in atypes:
                 phase_type = pt
                 break
 
