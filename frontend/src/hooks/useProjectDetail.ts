@@ -61,6 +61,7 @@ export function useProjectDetail() {
 
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisCached, setAnalysisCached] = useState(false);
   const [drawerSession, setDrawerSession] = useState<PlanningSession | null>(null);
   const [completeConfirm, setCompleteConfirm] = useState<{ todoId: string; hasDeliverables: boolean } | null>(null);
 
@@ -364,9 +365,11 @@ export function useProjectDetail() {
     if (!id) return;
     setAnalyzing(true);
     setAnalysisResult(null);
+    setAnalysisCached(false);
     try {
-      const { analysis } = await api.analyzeIteration(id, versionId);
-      setAnalysisResult(analysis);
+      const result = await api.analyzeIteration(id, versionId);
+      setAnalysisResult(result.analysis);
+      setAnalysisCached(result.cached ?? false);
     } catch (err) {
       toast(`分析失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
     } finally {
@@ -444,7 +447,7 @@ export function useProjectDetail() {
     domainModelReview,
     handleExtractDomainModelFromCode, extractingDMFromCode,
     handleExtractExperiences, extracting,
-    analysisResult, analyzing, closeAnalysis, handleAnalyzeVersion,
+    analysisResult, analyzing, analysisCached, closeAnalysis, handleAnalyzeVersion,
     drawerSession, setDrawerSession,
     fetchData,
     isAdmin, canWrite, projectActions,

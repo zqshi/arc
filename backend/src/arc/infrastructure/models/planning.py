@@ -7,6 +7,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base, TimestampMixin
 
 
+class VersionAnalysisModel(TimestampMixin, Base):
+    """版本 AI 分析结果缓存。"""
+
+    __tablename__ = "version_analyses"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("versions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class DocumentModel(TimestampMixin, Base):
     __tablename__ = "documents"
 

@@ -271,17 +271,42 @@ class PlanningService:
         self,
         project_id: uuid.UUID,
         version_id: uuid.UUID,
-    ) -> str:
-        """分析当前迭代状态并给出建议。"""
+    ) -> tuple[str, bool]:
+        """分析当前迭代状态并给出建议。
+
+        Returns:
+            (content, cached) — cached=True 表示命中缓存，未重新生成。
+        """
         version = await self.version_repo.get_by_id(version_id)
         if not version:
             raise ValueError("版本不存在")
 
-        project = await self.project_repo.get_by_id(project_id)
         todos, _ = await self.todo_repo.list_all(version_id=version_id, limit=1000)
+
+        # 计算 fingerprint — todo_ids + statuses 的哈希
+        fingerprint = self._compute_analysis_fingerprint(todos)
+
+        # 查缓存
+        from arc.infrastructure.models.planning import VersionAnalysisModel
+        from sqlalchemy import select
+
+        result = await self.db.execute(
+            select(VersionAnalysisModel)
+            .where(
+                VersionAnalysisModel.version_id == version_id,
+                VersionAnalysisModel.fingerprint == fingerprint,
+            )
+            .order_by(VersionAnalysisModel.created_at.desc())
+            .limit(1)
+        )
+        cached = result.scalar_one_or_none()
+        if cached:
+            return cached.content, True
+
+        # 生成新分析
+        project = await self.project_repo.get_by_id(project_id)
         status_summary = self._format_todo_status(todos)
 
-        # Build project context for the analysis
         project_context = ""
         if project:
             ctx_parts = []
@@ -309,7 +334,27 @@ class PlanningService:
         finally:
             await adapter.close()
 
-        return response.content
+        content = response.content
+
+        # 持久化
+        analysis = VersionAnalysisModel(
+            version_id=version_id,
+            fingerprint=fingerprint,
+            content=content,
+        )
+        self.db.add(analysis)
+        await self.db.flush()
+
+        return content, False
+
+    @staticmethod
+    def _compute_analysis_fingerprint(todos) -> str:
+        """计算版本需求范围的指纹 — todo_ids + statuses 的 sha256 前 16 位。"""
+        import hashlib
+
+        parts = sorted(f"{t.id}:{t.status.value}" for t in todos)
+        raw = "|".join(parts)
+        return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
     # ── Scope diff ───────────────────────────────────────
 
