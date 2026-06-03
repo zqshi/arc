@@ -100,6 +100,52 @@ def _build_anthropic_messages_with_tools(
 
 
 # ---------------------------------------------------------------------------
+# Output preview builder — 结构化摘要替代原始截断
+# ---------------------------------------------------------------------------
+
+
+def _build_output_preview(tool_name: str, tool_input: dict, result: ToolResult) -> str:
+    """为不同工具类型生成结构化的 output_preview（供前端展示）。"""
+    content = result.content
+    if result.is_error:
+        return content[:200]
+
+    match tool_name:
+        case "read_file":
+            lines = content.count("\n") + 1
+            path = tool_input.get("path", "")
+            return f"{path} — {lines} lines, {len(content)} chars"
+        case "write_file":
+            path = tool_input.get("path", "")
+            written = tool_input.get("content", "")
+            return f"✓ {path} ({len(written.splitlines())} lines written)"
+        case "run_command":
+            lines = content.strip().splitlines()
+            exit_info = ""
+            # 检查最后一行是否有 exit code
+            if lines and "exit code" in lines[-1].lower():
+                exit_info = lines[-1]
+                lines = lines[:-1]
+            preview_lines = lines[:3]
+            preview = "\n".join(preview_lines)
+            if len(lines) > 3:
+                preview += f"\n... ({len(lines) - 3} more lines)"
+            if exit_info:
+                preview += f"\n{exit_info}"
+            return preview[:300]
+        case "grep_search":
+            matches = content.count("\n") + (1 if content.strip() else 0)
+            pattern = tool_input.get("pattern", "")
+            return f'"{pattern}" — {matches} matches'
+        case "list_directory":
+            entries = content.count("\n")
+            path = tool_input.get("path", ".")
+            return f"{path}/ — {entries} entries"
+        case _:
+            return content[:200]
+
+
+# ---------------------------------------------------------------------------
 # Main tool loop
 # ---------------------------------------------------------------------------
 
@@ -224,7 +270,7 @@ class ToolAwareLoop:
                             )
                         yield ToolLoopEvent(
                             type="tool_result",
-                            content=result.content[:500],
+                            content=_build_output_preview(tc.name, tc.input, result),
                             metadata={
                                 "tool_id": tc.id,
                                 "tool_name": tc.name,
@@ -265,7 +311,7 @@ class ToolAwareLoop:
 
                     yield ToolLoopEvent(
                         type="tool_result",
-                        content=result.content[:500],
+                        content=_build_output_preview(tc.name, tc.input, result),
                         metadata={
                             "tool_id": tc.id,
                             "tool_name": tc.name,
