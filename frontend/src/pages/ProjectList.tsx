@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, FolderOpen, Archive, Trash2, RotateCw } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmProvider';
 import ActionMenu from '../components/ActionMenu';
 import CreateProjectModal from '../components/CreateProjectModal';
 import { ProjectListSkeleton } from '../components/Skeleton';
@@ -17,6 +18,7 @@ export default function ProjectList() {
   const [showArchived, setShowArchived] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const confirm = useConfirm();
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
@@ -69,7 +71,8 @@ export default function ProjectList() {
   };
 
   const handleDelete = async (project: Project) => {
-    if (!window.confirm(`确定删除项目「${project.name}」？删除后可在管理后台恢复。`)) return;
+    const ok = await confirm({ title: '删除项目', message: `确定删除项目「${project.name}」？删除后可在管理后台恢复。`, confirmLabel: '删除', variant: 'danger' });
+    if (!ok) return;
     try {
       await api.deleteProject(project.id);
       fetchProjects();
