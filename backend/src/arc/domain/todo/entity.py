@@ -47,10 +47,14 @@ class Todo:
         self.updated_at = datetime.now(UTC)
 
     def start_pipeline(self) -> None:
+        if self.status != TodoStatus.PENDING:
+            raise InvalidStatusTransitionError(self.status, TodoStatus.ACTIVE)
         self._transition_to(TodoStatus.ACTIVE)
         self.current_phase = PhaseType.CLARIFICATION
 
     def start_conversation(self) -> None:
+        if self.status != TodoStatus.PENDING:
+            raise InvalidStatusTransitionError(self.status, TodoStatus.ACTIVE)
         self._transition_to(TodoStatus.ACTIVE)
         self.current_phase = None
 
@@ -62,6 +66,22 @@ class Todo:
 
     def complete(self) -> None:
         self._transition_to(TodoStatus.DONE)
+
+    def force_complete(self) -> None:
+        """强制完成 — 允许从 pending 直接到 done（跳过 active）。"""
+        if self.status == TodoStatus.PENDING:
+            self._transition_to(TodoStatus.ACTIVE)
+        self._transition_to(TodoStatus.DONE)
+
+    def reopen(self) -> None:
+        """从 done/error 状态重新打开到 active/pending。"""
+        if self.status == TodoStatus.ERROR:
+            self._transition_to(TodoStatus.PENDING)
+            self.current_phase = None
+        elif self.status == TodoStatus.DONE:
+            self._transition_to(TodoStatus.ACTIVE)
+        else:
+            raise InvalidStatusTransitionError(self.status, TodoStatus.ACTIVE)
 
     def mark_error(self, reason: str) -> None:
         if not reason or not reason.strip():
@@ -85,7 +105,9 @@ class Todo:
         self.suspended_model_version = model_version
 
     def resume_after_upgrade(self) -> None:
-        """模型升级完成，恢复执行。"""
+        """模型升级完成，恢复执行。仅允许从 SUSPENDED 状态调用。"""
+        if self.status != TodoStatus.SUSPENDED:
+            raise InvalidStatusTransitionError(self.status, TodoStatus.ACTIVE)
         self._transition_to(TodoStatus.ACTIVE)
         self.suspended_reason = ""
         self.suspended_model_version = None

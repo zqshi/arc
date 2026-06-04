@@ -6,6 +6,7 @@ from arc.interface.routes.project.github import router as github_router
 from arc.interface.routes.project.members import router as members_router
 from arc.interface.routes.project.operations import router as operations_router
 from arc.interface.routes.project.planning import router as planning_router
+from arc.interface.routes.project.prototype import router as prototype_router
 from arc.interface.routes.project.review import router as review_router
 from arc.interface.routes.project.scanning import router as scanning_router
 from arc.interface.routes.project.versions import router as versions_router
@@ -17,6 +18,7 @@ router = APIRouter()
 # no prefix.
 for _sub in (
     core_router,
+    prototype_router,
     operations_router,
     members_router,
     versions_router,

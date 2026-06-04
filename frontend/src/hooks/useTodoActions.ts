@@ -16,7 +16,6 @@ export function useTodoActions(
   confirm?: (options: { title: string; message: string; confirmLabel?: string; variant?: string }) => Promise<boolean>,
 ) {
   const [createForVersion, setCreateForVersion] = useState<string | null>(null);
-  const [completeConfirm, setCompleteConfirm] = useState<{ todoId: string; hasDeliverables: boolean } | null>(null);
 
   const handleCreateTodo = async (title: string, description: string, priority?: number) => {
     if (!projectId || !createForVersion) return;
@@ -104,20 +103,26 @@ export function useTodoActions(
       );
       hasDeliverables = produced.length > 0;
     } catch { /* tracker 不存在视为无交付物 */ }
-    setCompleteConfirm({ todoId, hasDeliverables });
-  };
 
-  const confirmCompleteTodo = async () => {
-    if (!completeConfirm) return;
+    const ok = confirm
+      ? await confirm({
+          title: hasDeliverables ? '标记需求完成' : '确认完成',
+          message: hasDeliverables
+            ? '确定将该需求标记为已完成？'
+            : '该需求尚未产出任何交付物，确定标记为已完成？后续可通过「恢复」按钮撤销。',
+          confirmLabel: '标记完成',
+          variant: hasDeliverables ? 'default' : 'warning',
+        })
+      : window.confirm(hasDeliverables ? '确定标记完成？' : '尚未产出交付物，确定标记完成？');
+    if (!ok) return;
+
     try {
-      await api.completeTodo(completeConfirm.todoId);
+      await api.completeTodo(todoId);
       fetchData({ silent: true });
       toast('需求已完成', 'success');
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : '操作失败';
       toast(msg, 'error');
-    } finally {
-      setCompleteConfirm(null);
     }
   };
 
@@ -137,6 +142,5 @@ export function useTodoActions(
     handleCreateTodo, createTodoFromSuggestion,
     handleDeleteTodo, handleResumeTodo,
     handleCompleteTodo, handleReopenTodo,
-    completeConfirm, setCompleteConfirm, confirmCompleteTodo,
   };
 }

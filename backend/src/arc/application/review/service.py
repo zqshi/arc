@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import logging
 import uuid
+from typing import TYPE_CHECKING
 
-from arc.application.execution.domain_model_validator import validate_domain_model
 from arc.application.review.classifier import classify_change_scope
 from arc.domain.review.entity import ReviewFeedback
 from arc.domain.review.repository import IReviewFeedbackRepository
@@ -18,6 +18,9 @@ from arc.domain.review.value_objects import (
     ReviewIssueCategory,
     ReviewIssueSeverity,
 )
+
+if TYPE_CHECKING:
+    pass  # 保留 TYPE_CHECKING block 以备后续类型标注使用
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,8 @@ class ReviewService:
         Returns:
             (新创建的 ReviewFeedback 列表, 原始评审结果 dict)
         """
+        from arc.application.execution.domain_model_validator import validate_domain_model
+
         raw_result = await validate_domain_model(domain_model)
         issues = raw_result.get("issues", [])
 
