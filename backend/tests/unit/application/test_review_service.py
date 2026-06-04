@@ -72,7 +72,7 @@ class TestReviewServiceValidateAndPersist:
     @pytest.mark.asyncio
     async def test_no_issues_returns_empty(self, mock_repo):
         svc = ReviewService(mock_repo)
-        with patch("arc.application.review.service.validate_domain_model", new_callable=AsyncMock) as mock_validate:
+        with patch("arc.application.execution.domain_model_validator.validate_domain_model", new_callable=AsyncMock) as mock_validate:
             mock_validate.return_value = {"score": 90, "issues": [], "strengths": ["good"], "summary": "ok"}
             result = await svc.validate_and_persist(uuid.uuid4(), {"version": 1})
 
@@ -88,7 +88,7 @@ class TestReviewServiceValidateAndPersist:
             {"severity": "error", "category": "strategic", "title": "issue1", "detail": "d1", "suggestion": "s1"},
             {"severity": "warning", "category": "naming", "title": "issue2", "detail": "d2", "suggestion": "s2"},
         ]
-        with patch("arc.application.review.service.validate_domain_model", new_callable=AsyncMock) as mock_validate:
+        with patch("arc.application.execution.domain_model_validator.validate_domain_model", new_callable=AsyncMock) as mock_validate:
             mock_validate.return_value = {"score": 50, "issues": issues}
             project_id = uuid.uuid4()
             result = await svc.validate_and_persist(project_id, {"version": 5})
@@ -112,7 +112,7 @@ class TestReviewServiceValidateAndPersist:
         svc = ReviewService(mock_repo)
         todo_id = uuid.uuid4()
         issues = [{"severity": "info", "category": "completeness", "title": "t", "detail": "d", "suggestion": "s"}]
-        with patch("arc.application.review.service.validate_domain_model", new_callable=AsyncMock) as mock_validate:
+        with patch("arc.application.execution.domain_model_validator.validate_domain_model", new_callable=AsyncMock) as mock_validate:
             mock_validate.return_value = {"score": 70, "issues": issues}
             result = await svc.validate_and_persist(uuid.uuid4(), {"version": 1}, source_todo_id=todo_id)
 

@@ -193,13 +193,8 @@ async def complete_todo(todo_id: str, db: DbSession, user: CurrentUser):
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
-    # 如果还是 pending，先推到 active 再 complete
-    if todo.status == TodoStatus.PENDING:
-        todo.start_conversation()
-        await repo.update(todo)
-
     try:
-        todo.complete()
+        todo.force_complete()
     except Exception as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -215,15 +210,10 @@ async def reopen_todo(todo_id: str, db: DbSession, user: CurrentUser):
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
-    if todo.status == TodoStatus.ERROR:
-        todo.retry()
-    elif todo.status == TodoStatus.DONE:
-        # done → active (需要扩展状态机)
-        todo.status = TodoStatus.ACTIVE
-        from datetime import UTC, datetime
-        todo.updated_at = datetime.now(UTC)
-    else:
-        raise HTTPException(status_code=409, detail=f"无法从 {todo.status.value} 状态重新打开")
+    try:
+        todo.reopen()
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
     await repo.update(todo)
     return to_response(todo)

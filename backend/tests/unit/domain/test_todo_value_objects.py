@@ -55,8 +55,8 @@ class TestValidTransitions:
             TodoStatus.SUSPENDED,
         }
 
-    def test_done_is_terminal(self):
-        assert VALID_TRANSITIONS[TodoStatus.DONE] == set()
+    def test_done_can_reopen(self):
+        assert VALID_TRANSITIONS[TodoStatus.DONE] == {TodoStatus.ACTIVE}
 
     def test_error_can_go_back_to_pending(self):
         assert VALID_TRANSITIONS[TodoStatus.ERROR] == {TodoStatus.PENDING}

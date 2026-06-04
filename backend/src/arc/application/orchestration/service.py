@@ -17,12 +17,10 @@ import logging
 import re
 import time
 import uuid
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.adapter_pool import AdapterPool
 from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
-from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
-from arc.application.execution.tools import ToolRegistry
 from arc.application.orchestration.prompts import (
     PLANNING_PROMPT,
     SYNTHESIS_PROMPT,
@@ -30,6 +28,10 @@ from arc.application.orchestration.prompts import (
 )
 from arc.domain.orchestration.entity import OrchestrationPlan, Subtask
 from arc.domain.orchestration.value_objects import SubtaskType, WorkerRole, WorkerStatus
+
+if TYPE_CHECKING:
+    from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
+    from arc.application.execution.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +209,8 @@ class OrchestrationService:
         plan_id: str,
     ) -> str:
         """Execute a single worker subtask."""
+        from arc.application.execution.tool_loop import ToolAwareLoop
+
         subtask.start()
         start = time.monotonic()
 
@@ -296,6 +300,8 @@ class OrchestrationService:
         registry: ToolRegistry,
     ) -> AsyncIterator[ToolLoopEvent]:
         """Standard single-agent execution (no orchestration overhead)."""
+        from arc.application.execution.tool_loop import ToolAwareLoop
+
         async with self._pool.acquire() as adapter:
             loop = ToolAwareLoop(adapter, registry)
             async for event in loop.run(messages):

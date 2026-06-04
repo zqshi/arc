@@ -17,7 +17,7 @@ VALID_TRANSITIONS: dict[TodoStatus, set[TodoStatus]] = {
     TodoStatus.PENDING: {TodoStatus.ACTIVE, TodoStatus.ERROR, TodoStatus.ABANDONED},
     TodoStatus.ACTIVE: {TodoStatus.DONE, TodoStatus.ERROR, TodoStatus.ABANDONED, TodoStatus.SUSPENDED},
     TodoStatus.SUSPENDED: {TodoStatus.ACTIVE},
-    TodoStatus.DONE: set(),
+    TodoStatus.DONE: {TodoStatus.ACTIVE},
     TodoStatus.ERROR: {TodoStatus.PENDING},
     TodoStatus.ABANDONED: set(),
 }
