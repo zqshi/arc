@@ -34,7 +34,7 @@ class TestProjectContextToPromptSection:
             version_goal="MVP",
             conventions="使用 DDD 架构",
             sibling_requirements=[
-                {"title": "用户管理", "status": "active"},
+                {"title": "用户管理", "status": "active", "from_analysis": False},
             ],
         )
         section = ctx.to_prompt_section()
@@ -49,6 +49,40 @@ class TestProjectContextToPromptSection:
         ctx = ProjectContext(project_name="Arc", tech_stack="Go")
         section = ctx.to_prompt_section()
         assert "当前版本" not in section
+
+    def test_version_analysis_summary_injected(self) -> None:
+        """v5.1.0: 版本分析缓存注入到 prompt section。"""
+        ctx = ProjectContext(
+            project_name="Arc",
+            version_name="v2.0",
+            version_analysis_summary="**行动建议**:\n- [P0] 优化性能",
+        )
+        section = ctx.to_prompt_section()
+        assert "版本分析洞察" in section
+        assert "优化性能" in section
+
+    def test_version_analysis_empty_not_shown(self) -> None:
+        """无分析缓存时不输出版本分析段。"""
+        ctx = ProjectContext(
+            project_name="Arc",
+            version_name="v2.0",
+            version_analysis_summary="",
+        )
+        section = ctx.to_prompt_section()
+        assert "版本分析洞察" not in section
+
+    def test_sibling_from_analysis_tag(self) -> None:
+        """v5.1.0: sibling 来源标记 AI建议 vs 手动。"""
+        ctx = ProjectContext(
+            project_name="Arc",
+            sibling_requirements=[
+                {"title": "AI推荐需求", "status": "pending", "from_analysis": True},
+                {"title": "手动创建需求", "status": "active", "from_analysis": False},
+            ],
+        )
+        section = ctx.to_prompt_section()
+        assert "AI建议" in section
+        assert "手动" in section
 
 
 class TestProjectContextToAgentSection:
@@ -70,7 +104,17 @@ class TestProjectContextToAgentSection:
     def test_with_siblings(self) -> None:
         ctx = ProjectContext(
             project_name="Arc",
-            sibling_requirements=[{"title": "登录", "status": "done"}],
+            sibling_requirements=[{"title": "登录", "status": "done", "from_analysis": False}],
         )
         section = ctx.to_agent_section()
         assert "登录" in section
+
+    def test_analysis_in_agent_section(self) -> None:
+        """v5.1.0: agent section 也包含版本分析。"""
+        ctx = ProjectContext(
+            project_name="Arc",
+            version_analysis_summary="当前版本进度正常",
+        )
+        section = ctx.to_agent_section()
+        assert "版本分析洞察" in section
+        assert "进度正常" in section
