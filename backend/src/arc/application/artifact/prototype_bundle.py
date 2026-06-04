@@ -201,3 +201,51 @@ showPage(0);
 </script>
 </body>
 </html>"""
+
+    async def persist_to_project(
+        self,
+        project_id: uuid.UUID,
+        current_todo_id: uuid.UUID | None = None,
+    ) -> str | None:
+        """将项目全量原型持久化到项目本地目录。
+
+        写入路径: {project.local_path}/.arc/prototype/index.html
+        每个页面额外写入独立 HTML: {project.local_path}/.arc/prototype/pages/{name}.html
+
+        Returns:
+            站点目录路径，或 None（项目无 local_path）。
+        """
+        from pathlib import Path
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        project = await ProjectRepository(self._db).get_by_id(project_id)
+        if not project or not project.local_path:
+            return None
+
+        bundle = await self.build_bundle(project_id, current_todo_id)
+        if not bundle.pages:
+            return None
+
+        site_dir = Path(project.local_path) / ".arc" / "prototype"
+        pages_dir = site_dir / "pages"
+        pages_dir.mkdir(parents=True, exist_ok=True)
+
+        # 写入聚合 shell
+        (site_dir / "index.html").write_text(bundle.shell_html, encoding="utf-8")
+
+        # 写入每个页面独立 HTML（方便引用和部署）
+        for page in bundle.pages:
+            safe_name = page.name.replace("/", "_").replace(" ", "_")
+            page_html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>body{{margin:0;padding:16px;background:#1E1E2E;color:#E8E6E3;font-family:system-ui,sans-serif}}*{{box-sizing:border-box}}</style>
+</head><body>{page.html}</body></html>"""
+            (pages_dir / f"{safe_name}.html").write_text(page_html, encoding="utf-8")
+
+        logger.info(
+            "Persisted prototype site for project %s: %d pages → %s",
+            project_id, len(bundle.pages), site_dir,
+        )
+        return str(site_dir)
