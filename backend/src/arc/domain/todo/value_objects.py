@@ -33,6 +33,7 @@ class ConversationPurpose(StrEnum):
     REVIEW = "review"
     UNIFIED = "unified"
     PLANNING = "planning"
+    EXTRACTION = "extraction"
 
 
 class MessageRole(StrEnum):
