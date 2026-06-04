@@ -87,7 +87,25 @@ class ArtifactExtractor:
             if art.artifact_type == ArtifactType.REQUIREMENT_SPEC and tracker:
                 await self._infer_deliverable_scope(tracker, art.content)
 
+        # prototype 产出后，自动持久化到项目站点目录
+        has_prototype = any(a.artifact_type == ArtifactType.PROTOTYPE for a in extracted)
+        if has_prototype:
+            await self._auto_persist_prototype(todo_id)
+
         return extracted
+
+    async def _auto_persist_prototype(self, todo_id) -> None:
+        """原型产出后自动持久化到项目 .arc/prototype/ 目录。"""
+        try:
+            from arc.infrastructure.repositories.todo import TodoRepository
+            todo = await TodoRepository(self._db).get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return
+            from arc.application.artifact.prototype_bundle import PrototypeBundleService
+            svc = PrototypeBundleService(self._db)
+            await svc.persist_to_project(todo.project_id, todo_id)
+        except Exception as exc:
+            logger.debug("Auto-persist prototype failed: %s", exc)
 
     async def _infer_deliverable_scope(
         self, tracker: DeliverableTracker, req_spec: dict,
