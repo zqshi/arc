@@ -74,38 +74,8 @@ class ConversationExecutionService:
         )
         conv.add_message(role=MessageRole.SYSTEM, content=f"对话模式启动：{todo.title}")
 
-        # 根据项目 constraint 级别生成适配的欢迎语
-        constraint = await self._get_project_constraint(todo)
-        greeting = f"你好！我来帮你完成「{todo.title}」。\n\n"
-
-        if constraint == "strict":
-            greeting += (
-                "我会按照标准研发流程逐步推进，每个阶段产出结构化交付物，"
-                "通过门禁确认后才进入下一阶段。右侧面板会实时展示进度。\n\n"
-            )
-        elif constraint == "moderate":
-            greeting += (
-                "我会在对话中自动产出结构化交付物，"
-                "你可以随时在右侧面板查看进度和已产出的成果。\n\n"
-            )
-        else:
-            # free 模式 — 不提侧边面板（初始不可见），强调自然对话
-            greeting += (
-                "我们自然聊，我会在讨论过程中自动提炼和归档结构化成果。"
-                "当有交付物产出时，会在对话中通知你。\n\n"
-            )
-
-        if todo.description:
-            desc_preview = todo.description[:300]
-            # 判断描述是否已经足够丰富（有明确的来源上下文）
-            has_rich_context = len(todo.description) > 50 or todo.description.startswith("[P")
-            greeting += f"我看到你的描述是：{desc_preview}\n\n"
-            if has_rich_context:
-                greeting += "我已了解需求背景，直接开始推进。有什么需要澄清的随时告诉我。"
-            else:
-                greeting += "先聊聊这个需求要解决什么问题？有哪些关键的用户场景？"
-        else:
-            greeting += "先描述一下你想做什么？解决什么问题？"
+        # 上下文感知 greeting — 基于分析缓存 + todo 来源 + 描述丰富度
+        greeting = await self._build_context_aware_greeting(todo)
 
         conv.add_message(role=MessageRole.ASSISTANT, content=greeting)
         await self.conv_repo.create(conv)
@@ -260,6 +230,98 @@ class ConversationExecutionService:
             logger.info("Auto-activated version %s: planning → active", version_id)
         except Exception as exc:
             logger.debug("Version %s auto-activate failed: %s", version_id, exc)
+
+    async def _build_context_aware_greeting(self, todo) -> str:
+        """基于版本分析缓存 + todo 来源 + 描述丰富度生成上下文感知的开场白。
+
+        不调用 LLM，纯粹基于已有数据动态组装。
+        """
+        constraint = await self._get_project_constraint(todo)
+        parts: list[str] = []
+
+        # 1. 开头 — 表明意图
+        parts.append(f"你好！我来帮你完成「{todo.title}」。")
+
+        # 2. 版本分析洞察（如果有缓存 — 展示 AI 对项目状态的理解）
+        analysis_insight = await self._get_analysis_insight_for_greeting(todo)
+        if analysis_insight:
+            parts.append(analysis_insight)
+
+        # 3. 来源感知 — AI建议来源的需求展示理解
+        if todo.source_session_id:
+            parts.append(
+                "这个需求来自版本分析建议，我已了解其背景和优先级定位。"
+            )
+
+        # 4. 流程说明 — 基于 constraint 级别
+        if constraint == "strict":
+            parts.append(
+                "我会按标准研发流程逐步推进，每阶段产出结构化交付物，"
+                "通过门禁确认后进入下一阶段。右侧面板实时展示进度。"
+            )
+        elif constraint == "moderate":
+            parts.append(
+                "我会在对话中自动产出结构化交付物，"
+                "你可以随时在右侧面板查看进度和已产出成果。"
+            )
+        # free 模式不做流程声明 — 自然对话
+
+        # 5. 需求理解 + 引导
+        if todo.description:
+            desc_preview = todo.description[:300]
+            has_rich_context = (
+                len(todo.description) > 50
+                or todo.description.startswith("[P")
+                or bool(todo.source_session_id)
+            )
+            parts.append(f"需求描述：{desc_preview}")
+            if has_rich_context:
+                parts.append(
+                    "背景信息已足够清晰，我直接开始推进。"
+                    "如有需要补充的随时告诉我。"
+                )
+            else:
+                parts.append("先聊聊这个需求要解决什么问题？有哪些关键的用户场景？")
+        else:
+            parts.append("先描述一下你想做什么？解决什么问题？")
+
+        return "\n\n".join(parts)
+
+    async def _get_analysis_insight_for_greeting(self, todo) -> str:
+        """从版本分析缓存中提取一句精简洞察用于 greeting。"""
+        if not todo.version_id:
+            return ""
+        try:
+            from arc.application.planning.analysis_service import AnalysisService
+
+            svc = AnalysisService(self.db)
+            result = await svc.get_latest(todo.version_id)
+            if not result:
+                return ""
+
+            _, suggestions = result
+            if not suggestions:
+                return ""
+
+            # 提取与当前 todo 相关的建议（如有）或总体概况
+            related = [
+                s for s in suggestions
+                if todo.title.lower() in s.get("action", "").lower()
+            ]
+            if related:
+                s = related[0]
+                return (
+                    f"版本分析中对此需求的定位：**[{s.get('priority', '?')}]** "
+                    f"{s.get('reason', s.get('action', ''))}"
+                )
+
+            # 无直接相关的，给出版本整体状况
+            p0_count = sum(1 for s in suggestions if s.get("priority") == "P0")
+            if p0_count:
+                return f"当前版本有 {p0_count} 项 P0 优先事项，我会注意与它们的协调。"
+            return ""
+        except Exception:
+            return ""
 
     async def _get_project_constraint(self, todo) -> str:
         """获取项目的 process_constraint 级别。"""
