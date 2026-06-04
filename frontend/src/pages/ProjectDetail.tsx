@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Database, CheckSquare, Square, Plus } from 'lucide-react';
+import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Database, CheckSquare, Square, Plus, Monitor } from 'lucide-react';
 import ActionMenu from '../components/ActionMenu';
 import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
@@ -145,6 +145,14 @@ export default function ProjectDetail() {
             </button>
           ))}
         </nav>
+
+        <button
+          onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}/api/projects/${s.id}/prototype-preview`, '_blank')}
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-text-muted hover:border-accent hover:text-accent transition-colors"
+          title="在新标签页预览项目原型"
+        >
+          <Monitor size={13} /> 预览原型
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
