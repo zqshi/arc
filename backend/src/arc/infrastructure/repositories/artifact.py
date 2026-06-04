@@ -87,6 +87,21 @@ class ArtifactRepository:
         )
         return [self._to_entity(r) for r in result.scalars().all()]
 
+    async def list_by_version_and_type(
+        self, version_id: uuid.UUID, artifact_type: "ArtifactType",
+    ) -> list[Artifact]:
+        """查询版本下指定类型的所有 artifact（通过 todo.version_id 关联）。"""
+        from arc.infrastructure.models.todo import Todo as TodoModel
+
+        result = await self.db.execute(
+            select(ArtifactModel)
+            .join(TodoModel, TodoModel.id == ArtifactModel.todo_id)
+            .where(TodoModel.version_id == version_id)
+            .where(ArtifactModel.artifact_type == artifact_type.value)
+            .order_by(ArtifactModel.created_at)
+        )
+        return [self._to_entity(r) for r in result.scalars().all()]
+
     async def list_by_todo_ids(
         self, todo_ids: list[uuid.UUID],
     ) -> dict[uuid.UUID, list[Artifact]]:

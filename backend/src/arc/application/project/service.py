@@ -108,10 +108,31 @@ class VersionService:
         if changelog:
             version.set_changelog(changelog)
 
+        # 自动生成原型快照（snapshot）
+        await self._snapshot_prototype(project_id, version_id, version)
+
         await self.version_repo.update(version)
 
         carry_over_version = await self._carry_over_todos(version)
         return version, carry_over_version
+
+    async def _snapshot_prototype(
+        self, project_id: uuid.UUID, version_id: uuid.UUID, version: "Version"
+    ) -> None:
+        """版本发布时生成不可变的原型快照。"""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        try:
+            from arc.application.artifact.prototype_bundle import PrototypeBundleService
+
+            svc = PrototypeBundleService(self.db)
+            url = await svc.publish_bundle(project_id, version_id, snapshot=True)
+            if url:
+                version.set_prototype_preview_url(url)
+                logger.info("Prototype snapshot for version %s: %s", version_id, url)
+        except Exception as exc:
+            logger.warning("Failed to snapshot prototype for version %s: %s", version_id, exc)
 
     async def _generate_changelog(
         self, version: Version, done_todos: list

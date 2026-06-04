@@ -174,14 +174,27 @@ export function createSystemMethods(request: RequestFn, base: string) {
     getPlanLimits: (): Promise<PlanLimitsResponse> =>
       request('/api/billing/plans'),
 
-    getPrototypeBundle: (projectId: string, todoId?: string): Promise<{
+    getPrototypeBundle: (projectId: string, todoId?: string, versionId?: string): Promise<{
       pages: Array<{ name: string; source_todo_id: string; source_todo_title: string; is_new: boolean }>;
       shell_html: string;
       total_pages: number;
       new_pages: number;
     }> => {
-      const qs = todoId ? `?todo_id=${todoId}` : '';
+      const params = new URLSearchParams();
+      if (todoId) params.set('todo_id', todoId);
+      if (versionId) params.set('version_id', versionId);
+      const qs = params.toString() ? `?${params}` : '';
       return request(`/api/projects/${projectId}/prototype-bundle${qs}`);
+    },
+
+    getPrototypeStatus: (projectId: string, versionId?: string): Promise<{
+      has_prototype: boolean;
+      preview_url: string | null;
+      total_pages: number;
+      version_id: string | null;
+    }> => {
+      const qs = versionId ? `?version_id=${versionId}` : '';
+      return request(`/api/projects/${projectId}/prototype-status${qs}`);
     },
   };
 }

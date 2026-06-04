@@ -95,7 +95,7 @@ class ArtifactExtractor:
         return extracted
 
     async def _auto_persist_prototype(self, todo_id) -> None:
-        """原型产出后自动持久化到项目 .arc/prototype/ 目录。"""
+        """原型产出后自动发布到 S3（版本级 latest）并 fallback 写入本地目录。"""
         try:
             from arc.infrastructure.repositories.todo import TodoRepository
             todo = await TodoRepository(self._db).get_by_id(todo_id)
@@ -103,6 +103,26 @@ class ArtifactExtractor:
                 return
             from arc.application.artifact.prototype_bundle import PrototypeBundleService
             svc = PrototypeBundleService(self._db)
+
+            # 优先：发布到 S3（如果有 version_id 且 storage 已配置）
+            if todo.version_id:
+                from arc.config import settings
+                if settings.storage_endpoint:
+                    url = await svc.publish_bundle(
+                        todo.project_id, todo.version_id, current_todo_id=todo_id
+                    )
+                    if url:
+                        # 更新版本的 preview_url
+                        from arc.infrastructure.repositories.project import VersionRepository
+                        version_repo = VersionRepository(self._db)
+                        version = await version_repo.get_by_id(todo.version_id)
+                        if version:
+                            version.set_prototype_preview_url(url)
+                            await version_repo.update(version)
+                        logger.debug("Auto-published prototype to S3: %s", url)
+                        return
+
+            # Fallback：写入本地目录
             await svc.persist_to_project(todo.project_id, todo_id)
         except Exception as exc:
             logger.debug("Auto-persist prototype failed: %s", exc)

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Database, CheckSquare, Square, Plus, Monitor } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, FileText, Lightbulb, Settings, Sparkles, Loader2, Database, CheckSquare, Square, Plus, Monitor, ChevronDown } from 'lucide-react';
 import ActionMenu from '../components/ActionMenu';
 import { VersionListSkeleton } from '../components/Skeleton';
 import CreateTodoModal from '../components/CreateTodoModal';
@@ -8,6 +8,7 @@ import MarkdownContent from '../components/MarkdownContent';
 import DeliverableDrawer from '../components/DeliverableDrawer';
 import { TodosTab, SettingsTab, ExperiencesTab, DomainModelTab } from '../components/project';
 import { useProjectDetail } from '../hooks/useProjectDetail';
+import { api } from '../api/client';
 
 type TabKey = 'todos' | 'experiences' | 'domain_model' | 'settings';
 
@@ -99,6 +100,41 @@ export default function ProjectDetail() {
   const s = useProjectDetail();
   const [roadmapDrawerWidth, setRoadmapDrawerWidth] = useState(560);
 
+  // ── 原型预览状态 ──
+  const [protoStatus, setProtoStatus] = useState<{
+    has_prototype: boolean;
+    preview_url: string | null;
+    total_pages: number;
+    version_id: string | null;
+  } | null>(null);
+  const [protoVersionId, setProtoVersionId] = useState<string | null>(null);
+  const [showVersionPicker, setShowVersionPicker] = useState(false);
+
+  useEffect(() => {
+    if (!s.id) return;
+    api.getPrototypeStatus(s.id, protoVersionId ?? undefined)
+      .then(setProtoStatus)
+      .catch(() => setProtoStatus(null));
+  }, [s.id, protoVersionId, s.versions]);
+
+  const handlePreview = () => {
+    if (!s.id) return;
+    const token = localStorage.getItem('access_token') || '';
+    const params = new URLSearchParams({ token });
+    if (protoVersionId) params.set('version_id', protoVersionId);
+    window.open(
+      `${import.meta.env.VITE_API_URL || ''}/api/projects/${s.id}/prototype-preview?${params}`,
+      '_blank',
+    );
+  };
+
+  // 已发布版本列表（用于版本选择器）
+  const previewableVersions = (s.versions || []).filter(
+    v => v.status === 'active' || v.status === 'released',
+  );
+  const selectedVersion = previewableVersions.find(v => v.id === protoVersionId);
+  const hasPrototype = protoStatus?.has_prototype ?? false;
+
   if (s.loading || !s.project) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
@@ -147,16 +183,60 @@ export default function ProjectDetail() {
           ))}
         </nav>
 
-        <button
-          onClick={() => {
-            const token = localStorage.getItem('access_token') || '';
-            window.open(`${import.meta.env.VITE_API_URL || ''}/api/projects/${s.id}/prototype-preview?token=${encodeURIComponent(token)}`, '_blank');
-          }}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-text-muted hover:border-accent hover:text-accent transition-colors"
-          title="在新标签页预览项目原型"
-        >
-          <Monitor size={13} /> 预览原型
-        </button>
+        <div className="ml-auto flex items-center gap-1">
+          {/* 版本选择器 */}
+          {previewableVersions.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowVersionPicker(!showVersionPicker)}
+                className="flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-[10px] text-text-muted hover:border-accent/50 hover:text-text-secondary transition-colors"
+              >
+                {selectedVersion?.name || '当前版本'}
+                <ChevronDown size={10} />
+              </button>
+              {showVersionPicker && (
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[120px] rounded-md border border-border bg-bg-primary py-1 shadow-lg">
+                  <button
+                    onClick={() => { setProtoVersionId(null); setShowVersionPicker(false); }}
+                    className={`block w-full px-3 py-1.5 text-left text-[10px] hover:bg-bg-elevated ${!protoVersionId ? 'text-accent' : 'text-text-secondary'}`}
+                  >
+                    自动（当前版本）
+                  </button>
+                  {previewableVersions.map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => { setProtoVersionId(v.id); setShowVersionPicker(false); }}
+                      className={`block w-full px-3 py-1.5 text-left text-[10px] hover:bg-bg-elevated ${protoVersionId === v.id ? 'text-accent' : 'text-text-secondary'}`}
+                    >
+                      {v.name} {v.status === 'released' ? '✓' : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {/* 预览按钮 */}
+          <button
+            onClick={handlePreview}
+            disabled={!hasPrototype}
+            className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors ${
+              hasPrototype
+                ? 'border-border text-text-muted hover:border-accent hover:text-accent'
+                : 'border-border/50 text-text-muted/40 cursor-not-allowed'
+            }`}
+            title={hasPrototype
+              ? `预览原型 (${protoStatus?.total_pages || 0} 个页面)`
+              : '暂无原型页面，请先完成需求设计'
+            }
+          >
+            <Monitor size={13} /> 预览原型
+            {protoStatus && hasPrototype && (
+              <span className="ml-0.5 rounded bg-accent/10 px-1 py-0.5 text-[9px] text-accent">
+                {protoStatus.total_pages}
+              </span>
+            )}
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-6 py-6">

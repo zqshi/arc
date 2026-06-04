@@ -78,6 +78,7 @@ class TestConversationPurpose:
             "development",
             "testing",
             "deployment",
+            "extraction",
             "review",
             "unified",
             "planning",
@@ -85,7 +86,7 @@ class TestConversationPurpose:
         assert {cp.value for cp in ConversationPurpose} == expected
 
     def test_enum_count(self):
-        assert len(ConversationPurpose) == 9
+        assert len(ConversationPurpose) == 10
 
     def test_str_equality(self):
         assert ConversationPurpose.UNIFIED == "unified"

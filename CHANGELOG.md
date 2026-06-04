@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — 原型预览架构升级 (v5.3.0)
+
+- Version 增加 `prototype_preview_url` 字段，支持 S3 持久化预览
+- 新增 `GET /api/projects/{id}/prototype-status` 接口，前端据此控制按钮状态
+- `PrototypeBundleService.publish_bundle()` — 版本级原型聚合上传到 S3
+- 版本 Release 自动生成不可变 prototype snapshot
+- Artifact 产出后自动触发 S3 latest 更新
+- 前端预览按钮：空状态置灰 + 版本切换下拉 + 页面数量显示
+
+### Changed
+
+- `prototype-preview` 路由：优先 S3 redirect → 本地文件 → 动态生成 → 友好 HTML 错误页
+- `prototype-bundle` 路由新增 `version_id` 过滤参数
+- `_auto_persist_prototype` 优先走 S3 发布，本地写入降为 fallback
+
 ## [5.2.0] - 2026-06-04
 
 ### Changed — 技术债务清理
