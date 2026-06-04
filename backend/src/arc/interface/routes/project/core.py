@@ -244,6 +244,38 @@ async def persist_prototype_site(
         raise HTTPException(404, "没有原型页面可持久化")
     return {"site_path": site_path, "status": "persisted"}
 
+
+@router.get("/{project_id}/prototype-preview")
+async def prototype_preview(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """返回项目原型站点 HTML，供浏览器直接渲染。"""
+    from pathlib import Path
+
+    from starlette.responses import HTMLResponse
+
+    from arc.application.artifact.prototype_bundle import PrototypeBundleService
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # 先尝试读取已持久化的站点
+    if project.local_path:
+        site_file = Path(project.local_path) / ".arc" / "prototype" / "index.html"
+        if site_file.exists():
+            return HTMLResponse(site_file.read_text(encoding="utf-8"))
+
+    # 不存在则实时生成并返回（不持久化，因为可能没 local_path）
+    svc = PrototypeBundleService(db)
+    bundle = await svc.build_bundle(project_id)
+    if not bundle.shell_html:
+        raise HTTPException(404, "项目暂无原型页面")
+    return HTMLResponse(bundle.shell_html)
+
 @router.post("/{project_id}/batch-start-conversations")
 async def batch_start_conversations(
     project_id: uuid.UUID,
