@@ -122,3 +122,68 @@ class TestTodoTimestamps:
         original = todo.updated_at
         todo.start_pipeline()
         assert todo.updated_at >= original
+
+
+class TestForceComplete:
+    def test_force_complete_from_pending(self) -> None:
+        todo = Todo(title="t")
+        assert todo.status == TodoStatus.PENDING
+        todo.force_complete()
+        assert todo.status == TodoStatus.DONE
+
+    def test_force_complete_from_active(self) -> None:
+        todo = Todo(title="t")
+        todo.start_pipeline()
+        todo.force_complete()
+        assert todo.status == TodoStatus.DONE
+
+
+class TestReopen:
+    def test_reopen_from_done(self) -> None:
+        todo = Todo(title="t")
+        todo.start_pipeline()
+        todo.complete()
+        todo.reopen()
+        assert todo.status == TodoStatus.ACTIVE
+
+    def test_reopen_from_error(self) -> None:
+        todo = Todo(title="t")
+        todo.start_pipeline()
+        todo.mark_error("test error")
+        todo.reopen()
+        assert todo.status == TodoStatus.PENDING
+        assert todo.current_phase is None
+
+    def test_reopen_from_pending_raises(self) -> None:
+        todo = Todo(title="t")
+        with pytest.raises(InvalidStatusTransitionError):
+            todo.reopen()
+
+    def test_reopen_from_active_raises(self) -> None:
+        todo = Todo(title="t")
+        todo.start_pipeline()
+        with pytest.raises(InvalidStatusTransitionError):
+            todo.reopen()
+
+
+class TestStartGuards:
+    def test_start_pipeline_only_from_pending(self) -> None:
+        todo = Todo(title="t")
+        todo.start_pipeline()
+        todo.complete()
+        with pytest.raises(InvalidStatusTransitionError):
+            todo.start_pipeline()
+
+    def test_start_conversation_only_from_pending(self) -> None:
+        todo = Todo(title="t")
+        todo.start_conversation()
+        todo.complete()
+        with pytest.raises(InvalidStatusTransitionError):
+            todo.start_conversation()
+
+    def test_resume_only_from_suspended(self) -> None:
+        todo = Todo(title="t")
+        todo.start_pipeline()
+        todo.complete()
+        with pytest.raises(InvalidStatusTransitionError):
+            todo.resume_after_upgrade()
