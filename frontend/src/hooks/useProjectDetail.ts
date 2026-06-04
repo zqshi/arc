@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Archive, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmProvider';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjectTaskStream } from './useProjectTaskStream';
@@ -21,6 +22,7 @@ export function useProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { setProject: setCurrentProject } = useCurrentProject();
   const { user: authUser } = useAuth();
 
@@ -105,8 +107,8 @@ export function useProjectDetail() {
   const { domainModel, domainModelLoading, fetchDomainModel } = useDomainModel(id, activeTab);
   const domainModelReview = useDomainModelReview(id, domainModel?.version || 0);
 
-  const versionActions = useVersionActions(id, toast, refreshVersions);
-  const todoActions = useTodoActions(id, navigate, toast, versionTodos, setVersionTodos, fetchData, versions);
+  const versionActions = useVersionActions(id, toast, refreshVersions, confirm);
+  const todoActions = useTodoActions(id, navigate, toast, versionTodos, setVersionTodos, fetchData, versions, confirm);
   const analysis = useVersionAnalysis(id, versions, setVersions, toast);
 
   // ── Simple handlers ─────────────────────────────────────
@@ -151,7 +153,7 @@ export function useProjectDetail() {
 
   // ── Project actions ─────────────────────────────────────
   const handleArchiveProject = async () => { if (!id) return; try { await api.archiveProject(id); toast('项目已归档', 'success'); navigate('/'); } catch { toast('归档失败', 'error'); } };
-  const handleDeleteProject = async () => { if (!id || !project) return; if (!window.confirm(`确定删除项目「${project.name}」？此操作不可撤销。`)) return; try { await api.deleteProject(id); toast('项目已删除', 'success'); navigate('/'); } catch (err) { toast(err instanceof ApiError ? err.detail : '删除失败', 'error'); } };
+  const handleDeleteProject = async () => { if (!id || !project) return; const ok = await confirm({ title: '删除项目', message: `确定删除项目「${project.name}」？此操作不可撤销。`, confirmLabel: '删除', variant: 'danger' }); if (!ok) return; try { await api.deleteProject(id); toast('项目已删除', 'success'); navigate('/'); } catch (err) { toast(err instanceof ApiError ? err.detail : '删除失败', 'error'); } };
 
   const isAdmin = myRole === 'admin';
   const canWrite = myRole === 'admin' || myRole === 'member';

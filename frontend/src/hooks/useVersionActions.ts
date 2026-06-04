@@ -9,6 +9,7 @@ export function useVersionActions(
   projectId: string | undefined,
   toast: (msg: string, type?: string) => void,
   refreshVersions: () => Promise<void>,
+  confirm?: (options: { title: string; message: string; confirmLabel?: string; variant?: string }) => Promise<boolean>,
 ) {
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [versionName, setVersionName] = useState('');
@@ -59,7 +60,10 @@ export function useVersionActions(
 
   const handleDeleteVersion = async (versionId: string, name: string) => {
     if (!projectId) return;
-    if (!window.confirm(`确定删除版本「${name}」？此操作不可撤销。`)) return;
+    const ok = confirm
+      ? await confirm({ title: '删除版本', message: `确定删除版本「${name}」？此操作不可撤销。`, confirmLabel: '删除', variant: 'danger' })
+      : window.confirm(`确定删除版本「${name}」？此操作不可撤销。`);
+    if (!ok) return;
     try {
       await api.deleteVersion(projectId, versionId);
       await refreshVersions();

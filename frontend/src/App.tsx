@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
+import { ConfirmProvider } from './components/ConfirmProvider';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -52,6 +53,7 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <ToastProvider>
+            <ConfirmProvider>
             <Suspense fallback={<PageLoading />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
@@ -67,6 +69,7 @@ export default function App() {
                 </Route>
               </Routes>
             </Suspense>
+            </ConfirmProvider>
           </ToastProvider>
         </BrowserRouter>
       </AuthProvider>

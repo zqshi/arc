@@ -13,6 +13,7 @@ export function useTodoActions(
   setVersionTodos: React.Dispatch<React.SetStateAction<Record<string, Todo[]>>>,
   fetchData: (opts?: { silent?: boolean }) => Promise<void>,
   versions: Array<{ id: string; status: string }>,
+  confirm?: (options: { title: string; message: string; confirmLabel?: string; variant?: string }) => Promise<boolean>,
 ) {
   const [createForVersion, setCreateForVersion] = useState<string | null>(null);
   const [completeConfirm, setCompleteConfirm] = useState<{ todoId: string; hasDeliverables: boolean } | null>(null);
@@ -64,7 +65,10 @@ export function useTodoActions(
   };
 
   const handleDeleteTodo = async (todoId: string, todoTitle: string, versionId: string) => {
-    if (!window.confirm(`确定删除需求「${todoTitle}」？此操作不可撤销。`)) return;
+    const ok = confirm
+      ? await confirm({ title: '删除需求', message: `确定删除需求「${todoTitle}」？此操作不可撤销。`, confirmLabel: '删除', variant: 'danger' })
+      : window.confirm(`确定删除需求「${todoTitle}」？此操作不可撤销。`);
+    if (!ok) return;
     try {
       await api.deleteTodo(todoId);
       setVersionTodos((prev) => ({
