@@ -212,6 +212,12 @@ export function useProjectDetail() {
       toast('没有可用的版本来承接新需求', 'error');
       return;
     }
+    // 去重：检查目标版本中是否已有同名需求
+    const existingTodos = versionTodos[targetVersion.id] || [];
+    if (existingTodos.some((t) => t.title === data.title)) {
+      toast('该需求已存在，跳过重复创建', 'warning');
+      return;
+    }
     try {
       await api.createTodo({
         title: data.title,
