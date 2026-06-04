@@ -399,12 +399,24 @@ export function useProjectDetail() {
     setAnalysisCached(false);
     setAnalysisSuggestions([]);
     try {
-      const result = await api.analyzeIteration(id, versionId);
+      // 判断是否可以直接读取缓存（has_analysis && !analysis_stale）
+      const targetVersion = versions.find((v) => v.id === versionId);
+      const canReadCache = targetVersion?.has_analysis && !targetVersion?.analysis_stale;
+
+      let result;
+      if (canReadCache) {
+        // 直接读取已有分析，不触发重新生成
+        result = await api.getAnalysis(id, versionId);
+      } else {
+        // 触发生成（首次 or 已过期）
+        result = await api.analyzeIteration(id, versionId);
+      }
+
       setAnalysisResult(result.analysis);
-      setAnalysisCached(result.cached ?? false);
+      setAnalysisCached(result.cached ?? canReadCache ?? false);
       setAnalysisSuggestions(result.suggestions ?? []);
-      // 刷新 versions 列表让按钮状态更新（has_analysis / analysis_stale）
-      if (!result.cached) {
+      // 新生成时刷新 versions 列表让按钮状态更新
+      if (!canReadCache && !result.cached) {
         const v = await api.listVersions(id);
         setVersions(v);
       }
