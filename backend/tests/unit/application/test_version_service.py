@@ -131,3 +131,87 @@ class TestActivateVersion:
 
         with pytest.raises(ValueError, match="没有需求"):
             await svc.activate_version(v.project_id, v.id)
+
+
+class TestGenerateChangelog:
+    """v5.1.0: AI changelog 生成 + fallback 逻辑。"""
+
+    @pytest.fixture
+    def changelog_service(self, mock_db):
+        with patch("arc.application.project.service.VersionRepository") as MockVRepo, \
+             patch("arc.application.project.service.TodoRepository") as MockTRepo:
+            MockVRepo.return_value = AsyncMock()
+            MockTRepo.return_value = AsyncMock()
+            svc = VersionService(mock_db)
+            yield svc
+
+    @pytest.mark.asyncio
+    async def test_empty_todos_returns_empty(self, changelog_service):
+        svc = changelog_service
+        v = Version(project_id=uuid.uuid4(), name="v1.0")
+        result = await svc._generate_changelog(v, [])
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_llm_failure(self, changelog_service):
+        """LLM 失败时降级为 bullet list。"""
+        svc = changelog_service
+        v = Version(project_id=uuid.uuid4(), name="v1.0", goal="MVP")
+
+        todo1 = MagicMock()
+        todo1.title = "用户登录"
+        todo1.description = "实现 JWT 登录"
+        todo2 = MagicMock()
+        todo2.title = "注册功能"
+        todo2.description = ""
+
+        with patch("arc.application.ai.resilience.create_resilient_adapter", side_effect=Exception("no LLM")):
+            result = await svc._generate_changelog(v, [todo1, todo2])
+
+        assert "- 用户登录" in result
+        assert "- 注册功能" in result
+
+    @pytest.mark.asyncio
+    async def test_llm_success(self, changelog_service):
+        """LLM 成功时返回 AI 生成内容。"""
+        svc = changelog_service
+        v = Version(project_id=uuid.uuid4(), name="v1.0")
+
+        todo = MagicMock()
+        todo.title = "用户登录"
+        todo.description = "JWT + 短信验证"
+
+        mock_response = MagicMock()
+        mock_response.content = "### 新功能\n- 用户登录（JWT + 短信验证码）"
+
+        mock_adapter = AsyncMock()
+        mock_adapter.chat = AsyncMock(return_value=mock_response)
+        mock_adapter.close = AsyncMock()
+
+        with patch("arc.application.ai.resilience.create_resilient_adapter", return_value=mock_adapter):
+            result = await svc._generate_changelog(v, [todo])
+
+        assert "用户登录" in result
+        assert "新功能" in result
+
+    @pytest.mark.asyncio
+    async def test_llm_returns_empty_uses_fallback(self, changelog_service):
+        """LLM 返回空内容时降级为 fallback。"""
+        svc = changelog_service
+        v = Version(project_id=uuid.uuid4(), name="v1.0")
+
+        todo = MagicMock()
+        todo.title = "修复BUG"
+        todo.description = ""
+
+        mock_response = MagicMock()
+        mock_response.content = ""  # LLM returned empty
+
+        mock_adapter = AsyncMock()
+        mock_adapter.chat = AsyncMock(return_value=mock_response)
+        mock_adapter.close = AsyncMock()
+
+        with patch("arc.application.ai.resilience.create_resilient_adapter", return_value=mock_adapter):
+            result = await svc._generate_changelog(v, [todo])
+
+        assert "- 修复BUG" in result
