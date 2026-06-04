@@ -139,6 +139,31 @@ class AnalysisService:
         from arc.application.ai.resilience import create_resilient_adapter
         return create_resilient_adapter()
 
+    async def _ensure_table(self) -> bool:
+        """确保 version_analyses 表存在，不存在则自动创建。"""
+        try:
+            from sqlalchemy import text
+            await self.db.execute(text(
+                "CREATE TABLE IF NOT EXISTS version_analyses ("
+                "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), "
+                "version_id UUID NOT NULL REFERENCES versions(id) ON DELETE CASCADE, "
+                "fingerprint VARCHAR(64) NOT NULL, "
+                "content TEXT NOT NULL, "
+                "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+                "updated_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+            ))
+            await self.db.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_version_analyses_version_id ON version_analyses(version_id)"
+            ))
+            await self.db.commit()
+            return True
+        except Exception:
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            return False
+
     async def _get_cached(self, version_id: uuid.UUID, fingerprint: str):
         """查询缓存。返回 (content, suggestions) 或 None。"""
         try:
@@ -159,11 +184,13 @@ class AnalysisService:
                 suggestions = self._extract_suggestions(cached.content)
                 return cached.content, suggestions
         except Exception:
-            logger.debug("version_analyses table not available, skip cache")
+            logger.debug("version_analyses cache query failed, trying to create table")
             try:
                 await self.db.rollback()
             except Exception:
                 pass
+            # 尝试自动建表
+            await self._ensure_table()
         return None
 
     async def _persist(self, version_id: uuid.UUID, fingerprint: str, content: str, suggestions: list[dict]):
@@ -178,7 +205,19 @@ class AnalysisService:
             self.db.add(analysis)
             await self.db.flush()
         except Exception:
-            logger.debug("Failed to persist analysis, skipping")
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            # 建表后重试一次
+            if await self._ensure_table():
+                try:
+                    from arc.infrastructure.models.planning import VersionAnalysisModel as VAM
+                    a = VAM(version_id=version_id, fingerprint=fingerprint, content=content)
+                    self.db.add(a)
+                    await self.db.flush()
+                except Exception:
+                    logger.debug("Persist retry failed, skipping")
 
     @staticmethod
     def _compute_fingerprint(todos) -> str:
