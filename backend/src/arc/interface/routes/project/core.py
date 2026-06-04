@@ -222,6 +222,28 @@ async def get_prototype_bundle(
     }
 
 
+@router.post("/{project_id}/prototype-site/persist")
+async def persist_prototype_site(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """将原型聚合站点持久化到项目本地目录。"""
+    from arc.application.artifact.prototype_bundle import PrototypeBundleService
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if not project.local_path:
+        raise HTTPException(400, "项目未关联本地目录")
+
+    svc = PrototypeBundleService(db)
+    site_path = await svc.persist_to_project(project_id)
+    if not site_path:
+        raise HTTPException(404, "没有原型页面可持久化")
+    return {"site_path": site_path, "status": "persisted"}
+
 @router.post("/{project_id}/batch-start-conversations")
 async def batch_start_conversations(
     project_id: uuid.UUID,

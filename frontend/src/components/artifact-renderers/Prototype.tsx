@@ -1,10 +1,13 @@
 import { Monitor, Layers, Navigation } from 'lucide-react';
 import { SectionCard, TextBlock } from './shared';
 import { asString, asArray } from './utils';
-import WireframePreview from './WireframePreview';
+import InteractivePrototype from '../prototype/InteractivePrototype';
+import type { SelectedElementInfo } from '../prototype/inspector';
 
 interface Props {
   content: Record<string, unknown>;
+  onElementSelected?: (info: SelectedElementInfo) => void;
+  onRequestModify?: (info: SelectedElementInfo, instruction: string) => void;
 }
 
 interface Page {
@@ -20,7 +23,7 @@ interface ComponentItem {
   props?: string;
 }
 
-export default function Prototype({ content }: Props) {
+export default function Prototype({ content, onElementSelected, onRequestModify }: Props) {
   const pages = asArray(content.pages) as Page[];
   const componentLibrary = asArray(content.component_library) as ComponentItem[];
   const navigation = asString(content.navigation);
@@ -33,10 +36,12 @@ export default function Prototype({ content }: Props) {
             {pages.map((page, i) => (
               <div key={i}>
                 {page.html ? (
-                  <WireframePreview
+                  <InteractivePrototype
                     pageName={page.name || `页面 ${i + 1}`}
                     description={page.description}
                     html={page.html}
+                    onElementSelected={onElementSelected}
+                    onRequestModify={onRequestModify}
                   />
                 ) : (
                   <div className="rounded-md border border-border/50 bg-bg-card p-3">
@@ -59,10 +64,12 @@ export default function Prototype({ content }: Props) {
             {componentLibrary.map((comp, i) => (
               <div key={i}>
                 {comp.html ? (
-                  <WireframePreview
+                  <InteractivePrototype
                     pageName={comp.name || `组件 ${i + 1}`}
                     description={comp.props}
                     html={comp.html}
+                    onElementSelected={onElementSelected}
+                    onRequestModify={onRequestModify}
                   />
                 ) : (
                   <div className="rounded-md border border-border/50 bg-bg-card p-2.5">
