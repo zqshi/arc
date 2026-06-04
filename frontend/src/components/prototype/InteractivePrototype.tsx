@@ -213,4 +213,4 @@ export default forwardRef<InteractivePrototypeHandle, Props>(function Interactiv
       )}
     </div>
   );
-}
+});
