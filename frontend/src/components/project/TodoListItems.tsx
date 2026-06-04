@@ -68,6 +68,9 @@ export function TodoList({
           {todo.priority === 2 && (
             <span className="flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-bold bg-amber-500/15 text-amber-600">P1</span>
           )}
+          {todo.priority >= 3 && (
+            <span className="flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-bold bg-text-muted/10 text-text-muted">P2</span>
+          )}
           <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusBadgeBg[todo.status]}`}>
             {STATUS_LABELS[todo.status]}
           </span>

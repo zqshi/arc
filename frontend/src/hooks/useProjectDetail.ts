@@ -183,10 +183,10 @@ export function useProjectDetail() {
     }
   };
 
-  const handleCreateTodo = async (title: string, description: string) => {
+  const handleCreateTodo = async (title: string, description: string, priority?: number) => {
     if (!id || !createForVersion) return;
     try {
-      const todo = await api.createTodo({ title, description, project_id: id, version_id: createForVersion });
+      const todo = await api.createTodo({ title, description, project_id: id, version_id: createForVersion, priority });
       setVersionTodos((prev) => ({
         ...prev,
         [createForVersion]: [todo, ...(prev[createForVersion] || [])],
