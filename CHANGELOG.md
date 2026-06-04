@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-06-04
+
+### Added — 上下文注入 + 优先级可视化 + AI Changelog
+
+**Prompt 上下文注入改造:**
+- 版本分析缓存结果注入 system prompt（AI 对话时了解项目迭代状态）
+- 同版本需求来源标记（AI建议 vs 手动创建）
+- 对话 greeting 改为上下文感知（基于分析缓存 + 来源 + 描述丰富度动态生成）
+
+**版本发布自动 Changelog:**
+- 发布版本时 AI 总结需求列表生成结构化 changelog（按功能分类）
+- LLM 失败时自动降级为 bullet list
+
+**需求优先级可视化:**
+- TodoList 和 TaskCard 组件展示 P0(红)/P1(橙)/P2(灰) 标签
+- 创建需求时支持选择优先级（三选一按钮组，默认 P1）
+
 ## [3.8.0] - 2026-06-02
 
 ### Added — AI 评审持久化 + 主题模式
