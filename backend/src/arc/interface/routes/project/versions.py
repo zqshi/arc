@@ -36,25 +36,23 @@ async def list_versions(
     # 查询分析状态：has_analysis + analysis_stale
     analysis_info: dict[uuid.UUID, dict] = {}  # {version_id: {has: bool, stale: bool}}
     try:
-        from sqlalchemy import select, func
+        from sqlalchemy import select, text
         from arc.infrastructure.models.planning import VersionAnalysisModel
         from arc.infrastructure.models.todo import Todo as TodoModel
 
         version_ids = [v.id for v in versions]
         if version_ids:
-            # 获取每个版本最新分析的 fingerprint
-            from sqlalchemy.orm import aliased
-            subq = (
-                select(
-                    VersionAnalysisModel.version_id,
-                    VersionAnalysisModel.fingerprint,
-                )
+            # 获取每个版本最新分析的 fingerprint（兼容写法，不用 DISTINCT ON）
+            result = await db.execute(
+                select(VersionAnalysisModel.version_id, VersionAnalysisModel.fingerprint)
                 .where(VersionAnalysisModel.version_id.in_(version_ids))
-                .order_by(VersionAnalysisModel.version_id, VersionAnalysisModel.created_at.desc())
-                .distinct(VersionAnalysisModel.version_id)
+                .order_by(VersionAnalysisModel.created_at.desc())
             )
-            result = await db.execute(subq)
-            latest_fps: dict[uuid.UUID, str] = {row[0]: row[1] for row in result.all()}
+            # 取每个 version_id 的第一条（最新）
+            latest_fps: dict[uuid.UUID, str] = {}
+            for row in result.all():
+                if row[0] not in latest_fps:
+                    latest_fps[row[0]] = row[1]
 
             # 计算每个版本的当前 fingerprint
             import hashlib
@@ -63,8 +61,6 @@ async def list_versions(
                 if vid not in latest_fps:
                     analysis_info[vid] = {"has": False, "stale": False}
                     continue
-                # 计算当前 fingerprint
-                stats_for_fp = all_stats.get(vid, {})
                 todo_result = await db.execute(
                     select(TodoModel.id, TodoModel.status)
                     .where(TodoModel.version_id == vid)
