@@ -81,7 +81,8 @@ function SuggestionsPanel({ suggestions, onCreateTodos, existingTodoTitles }: { 
               {s.reason && <p className="mt-0.5 text-[11px] text-text-muted">{s.reason}</p>}
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
