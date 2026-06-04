@@ -397,6 +397,11 @@ export function useProjectDetail() {
       setAnalysisResult(result.analysis);
       setAnalysisCached(result.cached ?? false);
       setAnalysisSuggestions(result.suggestions ?? []);
+      // 刷新 versions 列表让按钮状态更新（has_analysis / analysis_stale）
+      if (!result.cached) {
+        const v = await api.listVersions(id);
+        setVersions(v);
+      }
     } catch (err) {
       toast(`分析失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
     } finally {
