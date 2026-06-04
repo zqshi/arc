@@ -77,7 +77,25 @@ async def list_versions(
                     "stale": current_fp != latest_fps[vid],
                 }
     except Exception:
-        pass  # 表不存在时跳过
+        # 表可能不存在 — 尝试自动创建
+        try:
+            await db.rollback()
+            from sqlalchemy import text
+            await db.execute(text(
+                "CREATE TABLE IF NOT EXISTS version_analyses ("
+                "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), "
+                "version_id UUID NOT NULL REFERENCES versions(id) ON DELETE CASCADE, "
+                "fingerprint VARCHAR(64) NOT NULL, "
+                "content TEXT NOT NULL, "
+                "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+                "updated_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+            ))
+            await db.commit()
+        except Exception:
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
     return [
         _version_resp(
