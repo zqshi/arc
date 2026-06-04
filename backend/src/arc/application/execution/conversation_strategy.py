@@ -96,8 +96,14 @@ class ConversationExecutionService:
             )
 
         if todo.description:
-            greeting += f"我看到你的描述是：{todo.description}\n\n"
-            greeting += "先聊聊这个需求要解决什么问题？有哪些关键的用户场景？"
+            desc_preview = todo.description[:300]
+            # 判断描述是否已经足够丰富（有明确的来源上下文）
+            has_rich_context = len(todo.description) > 50 or todo.description.startswith("[P")
+            greeting += f"我看到你的描述是：{desc_preview}\n\n"
+            if has_rich_context:
+                greeting += "我已了解需求背景，直接开始推进。有什么需要澄清的随时告诉我。"
+            else:
+                greeting += "先聊聊这个需求要解决什么问题？有哪些关键的用户场景？"
         else:
             greeting += "先描述一下你想做什么？解决什么问题？"
 

@@ -262,17 +262,37 @@ async def persist_prototype_site(
 async def prototype_preview(
     project_id: uuid.UUID,
     db: DbSession,
-    user: CurrentUser,
+    token: str | None = None,
 ):
-    """返回项目原型站点 HTML，供浏览器直接渲染。"""
-    from pathlib import Path
+    """返回项目原型站点 HTML，供浏览器直接渲染。
 
+    支持 ?token=xxx query param 鉴权（新 tab 打开场景）。
+    """
+    from pathlib import Path
+    from uuid import UUID as _UUID
+
+    from fastapi import Query
     from starlette.responses import HTMLResponse
 
     from arc.application.artifact.prototype_bundle import PrototypeBundleService
 
+    # 鉴权：从 query token 获取用户
+    auth_user_id = None
+    if token:
+        try:
+            from arc.application.auth.jwt import verify_access_token
+            from arc.infrastructure.repositories.user import UserRepository
+            payload = verify_access_token(token)
+            u = await UserRepository(db).get_by_id(_UUID(payload["sub"]))
+            if u and u.is_active:
+                auth_user_id = u.id
+        except Exception:
+            pass
+    if not auth_user_id:
+        raise HTTPException(401, "未提供认证信息")
+
     repo = ProjectRepository(db)
-    project = await repo.get_by_id(project_id, user_id=user.id)
+    project = await repo.get_by_id(project_id, user_id=auth_user_id)
     if not project:
         raise HTTPException(404, "Project not found")
 

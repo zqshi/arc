@@ -148,7 +148,10 @@ export default function ProjectDetail() {
         </nav>
 
         <button
-          onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}/api/projects/${s.id}/prototype-preview`, '_blank')}
+          onClick={() => {
+            const token = localStorage.getItem('access_token') || '';
+            window.open(`${import.meta.env.VITE_API_URL || ''}/api/projects/${s.id}/prototype-preview?token=${encodeURIComponent(token)}`, '_blank');
+          }}
           className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-text-muted hover:border-accent hover:text-accent transition-colors"
           title="在新标签页预览项目原型"
         >
@@ -290,7 +293,7 @@ export default function ProjectDetail() {
                         for (const item of items) {
                           await s.createTodoFromSuggestion({
                             title: item.action,
-                            description: `[${item.priority}] ${item.reason}`,
+                            description: `[${item.priority}] 来源：AI 迭代分析建议\n\n背景：${item.reason}\n\n该需求由 AI 分析当前版本状态后推荐，可直接推进执行。`,
                             priority: item.priority === 'P0' ? 1 : item.priority === 'P1' ? 2 : 3,
                           });
                         }

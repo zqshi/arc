@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Server, Bot, Cpu, CheckCircle, XCircle, CreditCard } from 'lucide-react';
 import { api, ApiError } from '../api/client';
+import { LLMConfigSection } from '../components/project/LLMConfigSection';
 import type { SystemSettings, UsageResponse } from '../types/api';
 
 export default function SettingsPage() {
@@ -126,7 +127,7 @@ export default function SettingsPage() {
             </section>
           )}
 
-          {/* LLM Provider */}
+          {/* LLM Configuration — Editable */}
           <section className="rounded-lg border border-border bg-bg-card p-4">
             <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
               <Cpu size={13} /> LLM 配置
@@ -137,38 +138,23 @@ export default function SettingsPage() {
                 <span className="font-semibold text-accent">
                   {providerLabels[settings.llm_provider] || settings.llm_provider}
                 </span>
+                <span className="ml-2 text-text-muted">（环境变量配置）</span>
               </span>
             </div>
-            <div className="space-y-3">
-              {providerConfigs.map((p) => (
-                <div
-                  key={p.key}
-                  className={`rounded-md border p-3 ${
-                    settings.llm_provider === p.key
-                      ? 'border-accent/40 bg-accent/5'
-                      : 'border-border'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-text-primary">{p.label}</span>
-                      {settings.llm_provider === p.key && (
-                        <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium text-accent">
-                          活跃
-                        </span>
-                      )}
-                    </div>
-                    <StatusBadge label="API Key" ok={p.keySet} small />
-                  </div>
-                  <div className="mt-2 space-y-1 text-[11px] text-text-muted">
-                    <p>模型: <span className="text-text-secondary">{p.model}</span></p>
-                    <p>端点: <span className="text-text-secondary">{p.baseUrl || '(默认)'}</span></p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <LLMConfigSection
+              config={{
+                provider: settings.llm_provider,
+                model: settings[`${settings.llm_provider}_model` as keyof SystemSettings] as string || '',
+                base_url: settings[`${settings.llm_provider}_base_url` as keyof SystemSettings] as string || '',
+              }}
+              onChange={() => {
+                // 系统级 LLM 配置通过环境变量管理，此处展示当前状态
+                // 实际修改需编辑 .env 文件
+              }}
+            />
             <p className="mt-3 text-[10px] text-text-muted">
-              修改配置请编辑项目根目录 <code className="rounded bg-bg-elevated px-1 py-0.5">.env</code> 文件后重启后端服务
+              系统级 LLM 配置通过环境变量管理。修改请编辑 <code className="rounded bg-bg-elevated px-1 py-0.5">.env</code> 后重启服务。
+              项目可在项目设置中配置独立的 API Key 覆盖全局配置。
             </p>
           </section>
 
