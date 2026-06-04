@@ -267,105 +267,6 @@ class PlanningService:
         await self.session_repo.update(session)
         return created_versions
 
-    async def analyze_iteration(
-        self,
-        project_id: uuid.UUID,
-        version_id: uuid.UUID,
-    ) -> tuple[str, bool]:
-        """分析当前迭代状态并给出建议。
-
-        Returns:
-            (content, cached) — cached=True 表示命中缓存，未重新生成。
-        """
-        version = await self.version_repo.get_by_id(version_id)
-        if not version:
-            raise ValueError("版本不存在")
-
-        todos, _ = await self.todo_repo.list_all(version_id=version_id, limit=1000)
-
-        # 计算 fingerprint — todo_ids + statuses 的哈希
-        fingerprint = self._compute_analysis_fingerprint(todos)
-
-        # 查缓存
-        from arc.infrastructure.models.planning import VersionAnalysisModel
-        from sqlalchemy import select
-
-        try:
-            result = await self.db.execute(
-                select(VersionAnalysisModel)
-                .where(
-                    VersionAnalysisModel.version_id == version_id,
-                    VersionAnalysisModel.fingerprint == fingerprint,
-                )
-                .order_by(VersionAnalysisModel.created_at.desc())
-                .limit(1)
-            )
-            cached = result.scalar_one_or_none()
-            if cached:
-                return cached.content, True
-        except Exception:
-            # 表可能不存在（migration 未跑），跳过缓存
-            import logging
-            logging.getLogger(__name__).debug("version_analyses table not available, skip cache")
-            await self.db.rollback()
-
-        # 生成新分析
-        project = await self.project_repo.get_by_id(project_id)
-        status_summary = self._format_todo_status(todos)
-
-        project_context = ""
-        if project:
-            ctx_parts = []
-            if project.tech_stack:
-                ctx_parts.append(f"技术栈: {project.tech_stack}")
-            if project.codebase_summary:
-                ctx_parts.append(f"\n## 代码库概况\n{project.codebase_summary}")
-            if project.conventions:
-                ctx_parts.append(f"\n## 项目规范\n{project.conventions}")
-            project_context = "\n".join(ctx_parts)
-
-        prompt = ITERATION_REVIEW_PROMPT.format(
-            version_name=version.name,
-            version_goal=version.goal,
-            todo_status_summary=status_summary,
-            project_context=project_context,
-        )
-
-        from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.ai.resilience import create_resilient_adapter
-
-        adapter = create_resilient_adapter()
-        try:
-            response = await adapter.chat([LLMMessage(role="user", content=prompt)])
-        finally:
-            await adapter.close()
-
-        content = response.content
-
-        # 持久化（容错：表不存在时跳过）
-        try:
-            analysis = VersionAnalysisModel(
-                version_id=version_id,
-                fingerprint=fingerprint,
-                content=content,
-            )
-            self.db.add(analysis)
-            await self.db.flush()
-        except Exception:
-            import logging
-            logging.getLogger(__name__).debug("Failed to persist analysis, skipping")
-
-        return content, False
-
-    @staticmethod
-    def _compute_analysis_fingerprint(todos) -> str:
-        """计算版本需求范围的指纹 — todo_ids + statuses 的 sha256 前 16 位。"""
-        import hashlib
-
-        parts = sorted(f"{t.id}:{t.status.value}" for t in todos)
-        raw = "|".join(parts)
-        return hashlib.sha256(raw.encode()).hexdigest()[:16]
-
     # ── Scope diff ───────────────────────────────────────
 
     @staticmethod
@@ -527,11 +428,6 @@ class PlanningService:
     def _format_constraints(constraints: dict) -> str:
         from arc.application.planning.planning_context import format_constraints
         return format_constraints(constraints)
-
-    @staticmethod
-    def _format_todo_status(todos: list) -> str:
-        from arc.application.planning.planning_context import format_todo_status
-        return format_todo_status(todos)
 
     async def _build_planning_experience_context(
         self, project_id: uuid.UUID
