@@ -8,7 +8,7 @@
  * - Undo 支持
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { MousePointer2, Undo2, Code, X } from 'lucide-react';
 import { injectInspector, type SelectedElementInfo } from './inspector';
 
@@ -18,6 +18,11 @@ interface Props {
   description?: string;
   onElementSelected?: (info: SelectedElementInfo) => void;
   onRequestModify?: (info: SelectedElementInfo, instruction: string) => void;
+}
+
+export interface InteractivePrototypeHandle {
+  applyHtml: (html: string) => void;
+  undo: () => void;
 }
 
 const TAILWIND_CDN = 'https://cdn.tailwindcss.com';
@@ -39,7 +44,7 @@ function buildSrcDoc(html: string): string {
 </html>`;
 }
 
-export default function InteractivePrototype({ html, pageName, description, onElementSelected, onRequestModify }: Props) {
+export default forwardRef<InteractivePrototypeHandle, Props>(function InteractivePrototype({ html, pageName, description, onElementSelected, onRequestModify }, ref) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(350);
   const [inspectMode, setInspectMode] = useState(false);
@@ -80,6 +85,16 @@ export default function InteractivePrototype({ html, pageName, description, onEl
     iframe.addEventListener('load', adjustHeight);
     return () => iframe.removeEventListener('load', adjustHeight);
   }, [html]);
+
+  // Expose applyHtml/undo via ref
+  useImperativeHandle(ref, () => ({
+    applyHtml: (newHtml: string) => {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'apply_html', html: newHtml }, '*');
+    },
+    undo: () => {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'undo' }, '*');
+    },
+  }));
 
   // 切换 inspect 模式
   const toggleInspect = useCallback(() => {

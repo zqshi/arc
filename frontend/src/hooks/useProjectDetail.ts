@@ -92,8 +92,11 @@ export function useProjectDetail() {
         conversation_config: p.conversation_config || {},
       });
       setDirty(false);
-      const activeIds = new Set(v.filter((ver) => ver.status === 'active').map((ver) => ver.id));
-      setExpandedVersions(activeIds.size > 0 ? activeIds : new Set(v.slice(0, 1).map((ver) => ver.id)));
+      // 仅首次加载或非静默刷新时重置展开状态
+      if (!opts?.silent) {
+        const activeIds = new Set(v.filter((ver) => ver.status === 'active').map((ver) => ver.id));
+        setExpandedVersions(activeIds.size > 0 ? activeIds : new Set(v.slice(0, 1).map((ver) => ver.id)));
+      }
     } catch {
       navigate('/');
     } finally {
