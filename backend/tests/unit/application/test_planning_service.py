@@ -51,26 +51,29 @@ class TestFormatConstraints:
 
 class TestFormatTodoStatus:
     def test_empty(self) -> None:
-        result = PlanningService._format_todo_status([])
-        assert "暂无需求" in result
+        from arc.application.planning.analysis_service import AnalysisService
+        result = AnalysisService._format_todo_status([])
+        assert "无需求" in result
 
     def test_with_todos(self) -> None:
+        from arc.application.planning.analysis_service import AnalysisService
+
         t1 = MagicMock()
+        t1.id = "id1"
         t1.status.value = "pending"
         t1.title = "登录功能"
-        t1.current_phase = None
+        t1.description = ""
 
         t2 = MagicMock()
+        t2.id = "id2"
         t2.status.value = "active"
         t2.title = "注册功能"
-        t2.current_phase = MagicMock()
-        t2.current_phase.value = "development"
+        t2.description = "用户注册"
 
-        result = PlanningService._format_todo_status([t1, t2])
-        assert "待启动" in result
+        result = AnalysisService._format_todo_status([t1, t2])
+        assert "pending" in result
         assert "登录功能" in result
-        assert "进行中" in result
-        assert "[development]" in result
+        assert "active" in result
 
 
 class TestExtractAllFeaturesFromData:
