@@ -132,30 +132,27 @@ export default function SettingsPage() {
             <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
               <Cpu size={13} /> LLM 配置
             </h2>
-            <div className="mb-3 rounded-md bg-accent/10 px-3 py-2">
-              <span className="text-xs text-text-secondary">
-                当前使用:{' '}
-                <span className="font-semibold text-accent">
-                  {providerLabels[settings.llm_provider] || settings.llm_provider}
-                </span>
-                <span className="ml-2 text-text-muted">（环境变量配置）</span>
-              </span>
-            </div>
             <LLMConfigSection
               config={{
                 provider: settings.llm_provider,
-                model: settings[`${settings.llm_provider}_model` as keyof SystemSettings] as string || '',
-                base_url: settings[`${settings.llm_provider}_base_url` as keyof SystemSettings] as string || '',
+                model: (settings as Record<string, unknown>)[`${settings.llm_provider}_model`] as string || '',
+                base_url: (settings as Record<string, unknown>)[`${settings.llm_provider}_base_url`] as string || '',
               }}
-              onChange={() => {
-                // 系统级 LLM 配置通过环境变量管理，此处展示当前状态
-                // 实际修改需编辑 .env 文件
+              onChange={async (config) => {
+                try {
+                  const payload: Record<string, string> = {};
+                  if (config.provider) payload.llm_provider = config.provider;
+                  if (config.model) payload[`${config.provider || settings.llm_provider}_model`] = config.model;
+                  if (config.base_url) payload[`${config.provider || settings.llm_provider}_base_url`] = config.base_url;
+                  if (config.api_key) payload[`${config.provider || settings.llm_provider}_api_key`] = config.api_key;
+                  await api.updateSettings(payload);
+                  // 刷新展示
+                  const s = await api.getSettings();
+                  setSettings(s);
+                } catch { /* */ }
               }}
+              showSaveHint
             />
-            <p className="mt-3 text-[10px] text-text-muted">
-              系统级 LLM 配置通过环境变量管理。修改请编辑 <code className="rounded bg-bg-elevated px-1 py-0.5">.env</code> 后重启服务。
-              项目可在项目设置中配置独立的 API Key 覆盖全局配置。
-            </p>
           </section>
 
           {/* Agent Config */}
