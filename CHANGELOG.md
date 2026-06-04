@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-06-04
+
+### Changed — 技术债务清理
+
+- `useProjectDetail.ts` 拆分为 4 个 focused hooks（510行→最大190行）
+  - `useVersionActions` — 版本 CRUD
+  - `useTodoActions` — 需求 CRUD
+  - `useVersionAnalysis` — 版本分析 UI 状态
+- 补全 17 个单元测试覆盖 v5.1.0 新增功能（provider/service/strategy）
+
 ## [5.1.0] - 2026-06-04
 
 ### Added — 上下文注入 + 优先级可视化 + AI Changelog
