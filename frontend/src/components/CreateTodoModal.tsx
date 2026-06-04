@@ -4,21 +4,29 @@ import { X } from 'lucide-react';
 interface CreateTodoModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (title: string, description: string) => void;
+  onCreate: (title: string, description: string, priority?: number) => void;
   projectId: string;
   versionId: string;
   versionName?: string;
 }
 
+const PRIORITY_OPTIONS = [
+  { value: 1, label: 'P0', desc: '紧急', color: 'bg-status-error/15 text-status-error border-status-error/30' },
+  { value: 2, label: 'P1', desc: '重要', color: 'bg-amber-500/15 text-amber-600 border-amber-500/30' },
+  { value: 3, label: 'P2', desc: '一般', color: 'bg-text-muted/10 text-text-muted border-text-muted/20' },
+] as const;
+
 export default function CreateTodoModal({ open, onClose, onCreate, versionName }: CreateTodoModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState(2); // 默认 P1
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setTitle('');
       setDescription('');
+      setPriority(2);
       setTimeout(() => titleRef.current?.focus(), 50);
     }
   }, [open]);
@@ -37,7 +45,7 @@ export default function CreateTodoModal({ open, onClose, onCreate, versionName }
   const handleSubmit = () => {
     const trimmed = title.trim();
     if (!trimmed) return;
-    onCreate(trimmed, description.trim());
+    onCreate(trimmed, description.trim(), priority);
     onClose();
   };
 
@@ -83,7 +91,7 @@ export default function CreateTodoModal({ open, onClose, onCreate, versionName }
             />
           </div>
 
-          <div>
+          <div className="mb-4">
             <label className="mb-1.5 block text-[11px] font-medium text-text-tertiary">描述</label>
             <textarea
               placeholder="补充需求的背景和目标（选填）"
@@ -94,7 +102,29 @@ export default function CreateTodoModal({ open, onClose, onCreate, versionName }
             />
           </div>
 
-          <p className="mt-2 text-[10px] text-text-muted">
+          {/* Priority Selector */}
+          <div>
+            <label className="mb-1.5 block text-[11px] font-medium text-text-tertiary">优先级</label>
+            <div className="flex gap-2">
+              {PRIORITY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPriority(opt.value)}
+                  className={`flex-1 rounded-md border px-3 py-1.5 text-center text-xs font-medium transition-all ${
+                    priority === opt.value
+                      ? `${opt.color} border-current shadow-sm`
+                      : 'border-border bg-bg-elevated text-text-muted hover:text-text-secondary'
+                  }`}
+                >
+                  <span className="font-bold">{opt.label}</span>
+                  <span className="ml-1 text-[10px] opacity-70">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p className="mt-3 text-[10px] text-text-muted">
             标签将由 AI 根据内容自动提取
           </p>
         </div>

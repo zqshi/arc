@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 
@@ -8,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.domain.project.entity import Version
 from arc.infrastructure.repositories.project import VersionRepository
 from arc.infrastructure.repositories.todo import TodoRepository
+
+logger = logging.getLogger(__name__)
 
 
 def _next_version_name(existing_versions: list[Version], version_type: str) -> str:
@@ -98,14 +101,63 @@ class VersionService:
         version.release()
 
         todos, _ = await self.todo_repo.list_all(version_id=version_id, limit=10000)
-        changelog_lines = [f"- {t.title}" for t in todos if t.status.value == "done"]
-        if changelog_lines:
-            version.set_changelog("\n".join(changelog_lines))
+        done_todos = [t for t in todos if t.status.value == "done"]
+
+        # AI 生成 changelog，失败时降级为简单列表
+        changelog = await self._generate_changelog(version, done_todos)
+        if changelog:
+            version.set_changelog(changelog)
 
         await self.version_repo.update(version)
 
         carry_over_version = await self._carry_over_todos(version)
         return version, carry_over_version
+
+    async def _generate_changelog(
+        self, version: Version, done_todos: list
+    ) -> str:
+        """AI 生成版本 changelog，失败时降级为 bullet list。"""
+        if not done_todos:
+            return ""
+
+        # 构建 fallback
+        fallback = "\n".join(f"- {t.title}" for t in done_todos)
+
+        # 构建 LLM prompt
+        todo_details = []
+        for t in done_todos:
+            line = f"- {t.title}"
+            if t.description:
+                line += f"\n  描述: {t.description[:200]}"
+            todo_details.append(line)
+
+        prompt = (
+            f"你是一个产品经理，正在为版本 {version.name} 生成变更日志。\n\n"
+            f"版本目标: {version.goal or '未指定'}\n\n"
+            f"本版本完成的需求:\n{''.join(todo_details)}\n\n"
+            "请生成一段简洁的中文变更日志（changelog），要求:\n"
+            "1. 按功能类别分组（如: 新功能、优化、修复）\n"
+            "2. 每条用 `- ` 开头，一句话概括\n"
+            "3. 整体不超过 500 字\n"
+            "4. 不要输出标题（如「变更日志」），直接输出内容\n"
+            "5. 用户能从中快速了解这个版本做了什么"
+        )
+
+        try:
+            from arc.application.ai.resilience import create_resilient_adapter
+            from arc.application.ai.llm_adapter import LLMMessage
+
+            adapter = create_resilient_adapter()
+            try:
+                response = await adapter.chat([LLMMessage(role="user", content=prompt)])
+                if response.content and len(response.content.strip()) > 10:
+                    return response.content.strip()
+            finally:
+                await adapter.close()
+        except Exception:
+            logger.debug("AI changelog generation failed, using fallback", exc_info=True)
+
+        return fallback
 
     async def _carry_over_todos(self, released_version: Version) -> Version | None:
         todos, _ = await self.todo_repo.list_all(version_id=released_version.id, limit=10000)

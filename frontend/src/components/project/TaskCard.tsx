@@ -71,6 +71,15 @@ export function TaskCard({ todo, taskState, navigate, onDelete, onComplete, onRe
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">
           {todo.title}
         </span>
+        {todo.priority <= 1 && (
+          <span className="flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-bold bg-status-error/15 text-status-error">P0</span>
+        )}
+        {todo.priority === 2 && (
+          <span className="flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-bold bg-amber-500/15 text-amber-600">P1</span>
+        )}
+        {todo.priority >= 3 && (
+          <span className="flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-bold bg-text-muted/10 text-text-muted">P2</span>
+        )}
         {isDone && <CheckCircle2 size={13} className="text-status-done" />}
         {isDone && onReopen && (
           <button
