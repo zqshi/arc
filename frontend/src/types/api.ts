@@ -187,6 +187,7 @@ export interface Version {
   parent_version_id: string | null;
   order: number;
   changelog: string;
+  prototype_preview_url: string;
   todo_stats?: { pending: number; active: number; done: number; error: number; total: number };
   has_analysis?: boolean;
   analysis_stale?: boolean;

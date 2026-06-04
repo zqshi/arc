@@ -79,6 +79,7 @@ class VersionResponse(BaseModel):
     parent_version_id: str | None = None
     order: int = 0
     changelog: str = ""
+    prototype_preview_url: str = ""
     todo_stats: dict[str, int] | None = None
     has_analysis: bool = False
     analysis_stale: bool = False

@@ -53,6 +53,7 @@ def _version_resp(v: Version, todo_stats: dict[str, int] | None = None, has_anal
         parent_version_id=str(v.parent_version_id) if v.parent_version_id else None,
         order=v.order,
         changelog=v.changelog,
+        prototype_preview_url=v.prototype_preview_url,
         todo_stats=stats,
         has_analysis=has_analysis,
         analysis_stale=analysis_stale,

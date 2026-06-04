@@ -204,8 +204,13 @@ class Version:
     parent_version_id: uuid.UUID | None = None
     order: int = 0
     changelog: str = ""
+    prototype_preview_url: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    def set_prototype_preview_url(self, url: str) -> None:
+        self.prototype_preview_url = url
+        self.updated_at = datetime.now(UTC)
 
     def activate(self) -> None:
         self._transition_to(VersionStatus.ACTIVE)
