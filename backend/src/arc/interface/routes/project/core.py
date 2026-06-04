@@ -122,6 +122,19 @@ async def create_project(
 
         asyncio.create_task(_background_clone())
 
+    # 关联本地目录后自动触发代码扫描
+    if body.workspace_type == "local" and project.local_path:
+        import asyncio as _asyncio
+
+        async def _background_scan():
+            try:
+                from arc.application.project.scan_task import scan_manager
+                await scan_manager.start_scan(str(project.id), project.local_path)
+            except Exception:
+                pass
+
+        _asyncio.create_task(_background_scan())
+
     return _project_resp(project)
 
 

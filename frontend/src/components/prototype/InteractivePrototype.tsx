@@ -52,7 +52,7 @@ export default forwardRef<InteractivePrototypeHandle, Props>(function Interactiv
   const [modifyInput, setModifyInput] = useState('');
   const [showCode, setShowCode] = useState(false);
 
-  // 监听 iframe postMessage
+  // 监听 iframe postMessage + 外部 apply 事件
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
       if (!e.data || typeof e.data !== 'object') return;
@@ -64,6 +64,10 @@ export default forwardRef<InteractivePrototypeHandle, Props>(function Interactiv
       if (e.data.type === 'apply_done') {
         setSelectedElement(null);
         setModifyInput('');
+      }
+      // 从对话中的「应用到原型」按钮触发
+      if (e.data.type === 'arc_apply_prototype_html' && e.data.html) {
+        iframeRef.current?.contentWindow?.postMessage({ type: 'apply_html', html: e.data.html }, '*');
       }
     }
     window.addEventListener('message', handleMessage);
