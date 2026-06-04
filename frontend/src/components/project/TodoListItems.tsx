@@ -62,6 +62,12 @@ export function TodoList({
             )}
           </span>
           <span className={`min-w-0 flex-1 truncate text-xs ${isDone ? 'text-text-muted line-through' : isAbandoned ? 'text-text-muted line-through' : 'text-text-primary'}`}>{todo.title}</span>
+          {todo.priority <= 1 && (
+            <span className="flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-bold bg-status-error/15 text-status-error">P0</span>
+          )}
+          {todo.priority === 2 && (
+            <span className="flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-bold bg-amber-500/15 text-amber-600">P1</span>
+          )}
           <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusBadgeBg[todo.status]}`}>
             {STATUS_LABELS[todo.status]}
           </span>
