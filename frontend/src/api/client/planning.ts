@@ -69,6 +69,9 @@ export function createPlanningMethods(request: RequestFn) {
     revisePlanningSession: (projectId: string, sessionId: string): Promise<PlanningSession> =>
       request(`/api/projects/${projectId}/planning-sessions/${sessionId}/revise`, { method: 'POST' }),
 
+    getAnalysis: (projectId: string, versionId: string): Promise<{ analysis: string; cached: boolean; suggestions: Array<{priority: string; action: string; reason: string}> }> =>
+      request(`/api/projects/${projectId}/versions/${versionId}/analysis`),
+
     analyzeIteration: (projectId: string, versionId: string): Promise<{ analysis: string; cached: boolean; suggestions: Array<{priority: string; action: string; reason: string}> }> =>
       request(`/api/projects/${projectId}/versions/${versionId}/analyze`, { method: 'POST' }),
 

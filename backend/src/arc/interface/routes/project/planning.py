@@ -295,6 +295,26 @@ async def list_version_planning_sessions(
     return [_planning_session_resp(s) for s in sessions[offset : offset + page_size]]
 
 
+@router.get(
+    "/{project_id}/versions/{version_id}/analysis",
+)
+async def get_analysis(
+    project_id: uuid.UUID,
+    version_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """读取已有的分析结果（不触发生成）。"""
+    from arc.application.planning.analysis_service import AnalysisService
+
+    svc = AnalysisService(db)
+    cached_result = await svc.get_latest(version_id)
+    if not cached_result:
+        raise HTTPException(404, "暂无分析结果")
+    content, suggestions = cached_result
+    return {"analysis": content, "cached": True, "suggestions": suggestions}
+
+
 @router.post(
     "/{project_id}/versions/{version_id}/analyze",
 )

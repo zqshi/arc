@@ -41,6 +41,25 @@ class AnalysisService:
     def __init__(self, db: "AsyncSession"):
         self.db = db
 
+    async def get_latest(self, version_id: uuid.UUID) -> tuple[str, list[dict]] | None:
+        """读取最新的分析结果（不触发生成）。"""
+        try:
+            from sqlalchemy import select
+            from arc.infrastructure.models.planning import VersionAnalysisModel
+
+            result = await self.db.execute(
+                select(VersionAnalysisModel)
+                .where(VersionAnalysisModel.version_id == version_id)
+                .order_by(VersionAnalysisModel.created_at.desc())
+                .limit(1)
+            )
+            cached = result.scalar_one_or_none()
+            if cached:
+                return cached.content, self._extract_suggestions(cached.content)
+        except Exception:
+            pass
+        return None
+
     async def analyze_iteration(
         self,
         project_id: uuid.UUID,
