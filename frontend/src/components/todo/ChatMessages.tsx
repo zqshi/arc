@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Bot, RefreshCw, Package } from 'lucide-react';
 import MarkdownContent from '../MarkdownContent';
+import HtmlApplyButton from '../prototype/HtmlApplyButton';
 import { ExperienceRefBadge } from './ExperienceRefBadge';
 import { ToolCallsCollapsed } from './ToolCallDisplay';
 import type { Message, ExperienceRef } from '../../types/api';
@@ -230,7 +231,13 @@ function MessageBubble({ msg, todoId }: { msg: Message; todoId: string }) {
             }`}
           >
             {isAssistant ? (
-              <MarkdownContent content={cleanContent} />
+              <>
+                <MarkdownContent content={cleanContent} />
+                <HtmlApplyButton content={cleanContent} onApply={(html) => {
+                  // Broadcast apply event — InteractivePrototype listens via window message
+                  window.postMessage({ type: 'arc_apply_prototype_html', html }, '*');
+                }} />
+              </>
             ) : (
               <div className="whitespace-pre-wrap">{cleanContent}</div>
             )}
