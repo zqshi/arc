@@ -13,6 +13,7 @@ interface LLMConfig {
 interface LLMConfigSectionProps {
   config: LLMConfig;
   onChange: (config: LLMConfig) => void;
+  showSaveHint?: boolean;
 }
 
 const PROVIDERS = [
@@ -29,14 +30,26 @@ const MODEL_SUGGESTIONS: Record<string, string[]> = {
   custom: [],
 };
 
-export function LLMConfigSection({ config, onChange }: LLMConfigSectionProps) {
+export function LLMConfigSection({ config, onChange, showSaveHint }: LLMConfigSectionProps) {
   const [showKey, setShowKey] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const provider = config.provider || 'openai';
   const models = MODEL_SUGGESTIONS[provider] || [];
 
-  const update = (patch: Partial<LLMConfig>) => onChange({ ...config, ...patch });
+  const update = (patch: Partial<LLMConfig>) => { onChange({ ...config, ...patch }); setDirty(true); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onChange({ ...config });
+      setDirty(false);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-border bg-bg-card p-4 space-y-4">
@@ -154,6 +167,16 @@ export function LLMConfigSection({ config, onChange }: LLMConfigSectionProps) {
             />
           </div>
         </div>
+      )}
+
+      {showSaveHint && dirty && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="mt-3 w-full rounded-md bg-accent px-4 py-2 text-xs font-medium text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+        >
+          {saving ? '保存中...' : '保存配置'}
+        </button>
       )}
     </div>
   );

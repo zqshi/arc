@@ -13,6 +13,9 @@ export function createSystemMethods(request: RequestFn, base: string) {
     getSettings: (): Promise<SystemSettings> =>
       request('/api/settings'),
 
+    updateSettings: (data: Record<string, string>): Promise<{ status: string; llm_provider: string; updated_fields: string[] }> =>
+      request('/api/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+
     browseDirectory: (path: string = '~'): Promise<{ current: string; parent: string | null; dirs: string[] }> =>
       request(`/api/filesystem/browse?path=${encodeURIComponent(path)}`),
 
