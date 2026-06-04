@@ -107,25 +107,7 @@ export default function SettingsPage() {
             </div>
           </section>
 
-          {/* Usage & Plan */}
-          {usage && (
-            <section className="rounded-lg border border-border bg-bg-card p-4">
-              <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-                <CreditCard size={13} /> 用量与套餐
-              </h2>
-              <div className="mb-3 rounded-md bg-accent/10 px-3 py-2">
-                <span className="text-xs text-text-secondary">
-                  当前套餐:{' '}
-                  <span className="font-semibold text-accent uppercase">{usage.plan}</span>
-                </span>
-              </div>
-              <div className="space-y-2">
-                <UsageBar label="项目" used={usage.projects_used} limit={usage.projects_limit} />
-                <UsageBar label="成员" used={usage.members_used} limit={usage.members_limit} />
-                <UsageBar label="今日 AI 调用" used={usage.ai_calls_today} limit={usage.ai_calls_limit} />
-              </div>
-            </section>
-          )}
+          {/* Usage & Plan — hidden for now (single-user mode) */}
 
           {/* LLM Configuration — Editable */}
           <section className="rounded-lg border border-border bg-bg-card p-4">
