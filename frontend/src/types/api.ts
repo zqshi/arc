@@ -35,10 +35,15 @@ export interface UISpecContent {
 }
 
 export interface PrototypeContent {
-  overview?: string;
-  pages?: Array<{ name?: string; description?: string; html?: string; responsive_notes?: string }>;
-  components?: Array<{ name?: string; html?: string; props?: string }>;
-  navigation?: string;
+  // 工程模式
+  project_dir?: string;
+  tech_stack?: string;
+  routes?: Array<{ path: string; name: string; component: string }>;
+  preview_url?: string;
+  build_status?: 'success' | 'failed' | 'building';
+  build_command?: string;
+  artifact_path?: string;
+  shared_state?: string[];
 }
 
 export interface TechArchitectureContent {

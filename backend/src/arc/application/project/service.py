@@ -119,7 +119,11 @@ class VersionService:
     async def _snapshot_prototype(
         self, project_id: uuid.UUID, version_id: uuid.UUID, version: "Version"
     ) -> None:
-        """版本发布时生成不可变的原型快照。"""
+        """版本发布时记录原型快照。
+
+        工程模式下每次部署都有独立 deploy_id，URL 天然不可变，
+        只需确认当前 prototype_preview_url 已设置即可。
+        """
         import logging
 
         logger = logging.getLogger(__name__)
@@ -127,10 +131,10 @@ class VersionService:
             from arc.application.artifact.prototype_bundle import PrototypeBundleService
 
             svc = PrototypeBundleService(self.db)
-            url = await svc.publish_bundle(project_id, version_id, snapshot=True)
-            if url:
-                version.set_prototype_preview_url(url)
-                logger.info("Prototype snapshot for version %s: %s", version_id, url)
+            bundle = await svc.build_bundle(project_id, version_id=version_id)
+            if bundle.preview_url and not version.prototype_preview_url:
+                version.set_prototype_preview_url(bundle.preview_url)
+                logger.info("Prototype snapshot for version %s: %s", version_id, bundle.preview_url)
         except Exception as exc:
             logger.warning("Failed to snapshot prototype for version %s: %s", version_id, exc)
 

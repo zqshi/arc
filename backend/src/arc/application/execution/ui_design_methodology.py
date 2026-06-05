@@ -38,11 +38,15 @@ DESIGN_THINKING_PROMPT = """\
 - 定义页面层级和导航结构
 - 确定信息优先级 — 用户最先看到什么、最常操作什么
 
-### Step 3: 线框设计 (Wireframes)
-逐页面产出:
-- 每个 wireframe 必须标注对应的 user_story ID
-- 标注核心交互: 状态转换、加载态、空状态、异常态
-- 组件拆分: 可复用组件清单 + 各状态定义
+### Step 3: 原型工程 (Prototype Engineering)
+逐页面设计后，使用工具创建完整的前端工程:
+- 使用 write_file 创建 Vite + React + Tailwind 项目
+- 每个线框页面对应一个路由页面组件
+- 使用 HashRouter 实现页面间真实导航
+- 共享 Layout（Header/Sidebar）组件，页面切换只替换内容区
+- 使用 Zustand store 管理 Mock 数据和全局状态
+- 创建完成后执行 npm install && npm run build
+- **不要生成 HTML 片段，要生成可构建的工程代码**
 
 ### Step 4: 可用性自检 (Usability Heuristics)
 对照 Nielsen 10 启发式原则自检:
@@ -71,14 +75,16 @@ DESIGN_THINKING_PROMPT = """\
 # ---------------------------------------------------------------------------
 
 UI_DESIGN_CHECKLIST = [
-    "每个 user_scenario 是否有对应的线框页面",
-    "每个线框是否标注了对应的 user_story ID",
+    "每个 user_scenario 是否有对应的路由页面",
+    "是否使用 HashRouter 实现客户端路由",
+    "是否有共享 Layout 组件（Header/Sidebar 不重复渲染）",
     "是否定义了空状态、加载态、异常态",
     "核心操作路径是否在 3 步以内完成",
-    "是否有组件复用清单",
+    "是否有 Zustand store 管理全局状态和 Mock 数据",
+    "页面间是否有真实数据流（列表→详情、表单→提交→反馈）",
     "是否通过 Nielsen 10 启发式自检",
-    "移动端是否有适配方案",
-    "是否定义了交互动效规则（何时用动效、何时不用）",
+    "移动端是否有响应式适配",
+    "npm run build 是否成功通过",
 ]
 
 
@@ -89,7 +95,7 @@ def get_ui_design_prompt(conversation_round: int) -> str:
     elif conversation_round < 4:
         stage = "Step 2: 信息架构 — 用户旅程和页面层级"
     elif conversation_round < 8:
-        stage = "Step 3: 线框设计 — 逐页面产出"
+        stage = "Step 3: 原型工程 — 创建 Vite+React 前端工程"
     else:
         stage = "Step 4: 可用性自检 — Nielsen 启发式 + 检查清单"
     return DESIGN_THINKING_PROMPT.format(current_stage=stage)
