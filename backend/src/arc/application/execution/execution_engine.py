@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from typing import TYPE_CHECKING, AsyncIterator
 
@@ -162,6 +163,8 @@ class ExecutionEngine:
             full_content, conversation.todo_id,
         )
         if extracted:
+            # 先 commit 确保前端 fetchTracker 能读到最新 tracker 状态
+            await self._db.commit()
             artifact_names = [
                 ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value)
                 for a in extracted
@@ -184,13 +187,60 @@ class ExecutionEngine:
         """自驾模式：持续生成直到任务完成或需要用户澄清。
 
         每轮结束后创建 checkpoint (Harness §11)。
+        Wall-clock 超时保护：总时长超 10 分钟强制暂停。
+        断点恢复：检测已有 checkpoint，从上次中断的 round 继续。
         """
         from arc.application.execution.checkpoint import CheckpointManager
 
         max_rounds = 12
+        wall_timeout = 600  # 10 分钟总超时
         checkpoint_mgr = CheckpointManager(self._db)
+        start = time.monotonic()
 
-        for round_num in range(max_rounds):
+        # --- 断点恢复：检测是否有未完成的 checkpoint ---
+        start_round = 0
+        try:
+            resume_round = await checkpoint_mgr.get_resume_round(conversation.id)
+            if resume_round > 0:
+                tracker = await self._tracker_repo.get_by_todo_id(conversation.todo_id)
+                if tracker and not tracker.is_complete:
+                    start_round = resume_round
+                    handoff = await checkpoint_mgr.restore_from_checkpoint(conversation.id)
+                    if handoff:
+                        # 注入恢复上下文作为 system message
+                        recovery_msg = conversation.add_message(
+                            role=MessageRole.SYSTEM,
+                            content=handoff.to_prompt(),
+                            metadata={"checkpoint_recovery": True, "resumed_from_round": resume_round},
+                        )
+                        await self._conv_repo.add_message(conversation.id, recovery_msg)
+                        logger.info(
+                            "autopilot.resumed conversation=%s from_round=%d",
+                            conversation.id, resume_round,
+                        )
+                        yield {
+                            "event": "autopilot_resumed",
+                            "resumed_from_round": resume_round,
+                            "completed_items": handoff.completed,
+                        }
+        except Exception as exc:
+            logger.warning("autopilot.restore_failed: %s", exc)
+
+        for round_num in range(start_round, max_rounds):
+            # Wall-clock 超时检测
+            elapsed = time.monotonic() - start
+            if elapsed > wall_timeout:
+                logger.warning(
+                    "autopilot.wall_timeout conversation=%s elapsed=%.0fs",
+                    conversation.id, elapsed,
+                )
+                yield {
+                    "event": "autopilot_paused",
+                    "reason": "wall_timeout",
+                    "elapsed_seconds": int(elapsed),
+                }
+                return
+
             async for chunk in self.generate_response_stream(conversation, **kwargs):
                 yield chunk
 
@@ -399,80 +449,12 @@ class ExecutionEngine:
         )
 
     async def _extract_experience(self, todo_id: uuid.UUID) -> None:
-        from arc.application.experience.service import ExperienceService
-        from arc.infrastructure.repositories.todo import TodoRepository
+        from arc.application.execution.experience_feedback import extract_and_feedback
 
-        try:
-            todo_repo = TodoRepository(self._db)
-            todo = await todo_repo.get_by_id(todo_id)
-            if not todo:
-                return
-            svc = ExperienceService(self._db)
-            await svc.extract_from_todo(todo)
-
-            # T3: 经验反馈闭环 — 更新被复用的经验
-            await self._update_reused_experiences(todo_id)
-        except Exception as exc:
-            logger.warning(
-                "Experience extraction failed for todo %s: %s", todo_id, exc
-            )
-
-    async def _update_reused_experiences(self, todo_id: uuid.UUID) -> None:
-        """回溯对话中引用的经验，标记为成功复用。
-
-        逻辑：todo 完成 = 注入的经验对完成有贡献 → apply_feedback(helpful=True)
-        """
-        from arc.infrastructure.repositories.conversation import ConversationRepository
-        from arc.infrastructure.repositories.experience import ExperienceRepository
-
-        try:
-            conv_repo = ConversationRepository(self._db)
-            exp_repo = ExperienceRepository(self._db)
-
-            conversations = await conv_repo.list_by_todo_id(todo_id)
-            reused_ids: set[str] = set()
-
-            for conv in conversations:
-                for msg in conv.messages:
-                    if msg.metadata and "referenced_experiences" in msg.metadata:
-                        for ref in msg.metadata["referenced_experiences"]:
-                            if isinstance(ref, dict) and "id" in ref:
-                                reused_ids.add(ref["id"])
-                            elif isinstance(ref, str):
-                                reused_ids.add(ref)
-
-            # 同时检查 prompt_builder 追踪的 ID
-            if self._prompt_builder.injected_experience_ids:
-                for eid in self._prompt_builder.injected_experience_ids:
-                    reused_ids.add(str(eid))
-
-            if not reused_ids:
-                return
-
-            import uuid as _uuid
-            for eid_str in reused_ids:
-                try:
-                    eid = _uuid.UUID(eid_str)
-                    exp = await exp_repo.get_by_id(eid)
-                    if exp:
-                        exp.apply_feedback(helpful=True)
-                        await exp_repo.update(exp)
-                except (ValueError, Exception) as exc:
-                    logger.debug("Skip reuse update for %s: %s", eid_str, exc)
-
-            if reused_ids:
-                logger.info(
-                    "Updated %d reused experiences for todo %s",
-                    len(reused_ids), todo_id,
-                )
-        except Exception as exc:
-            logger.warning(
-                "Reused experience update failed for todo %s: %s", todo_id, exc
-            )
+        await extract_and_feedback(self._db, todo_id, self._prompt_builder)
 
 
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
-
 
