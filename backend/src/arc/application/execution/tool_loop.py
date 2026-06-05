@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 25  # Safety limit: max tool-use round-trips per response
 MAX_TOOL_TOKENS = 200000  # Token budget for tool-use conversations
+TOOL_TIMEOUT_SECONDS = 600  # Safety net — 工具自身有更短的 timeout (run_command 300s)
+TOOL_MAX_RETRIES = 1  # Retry count for transient tool failures
 
 # Tools that only read state — safe to execute concurrently.
 READONLY_TOOLS = frozenset({"read_file", "list_directory", "grep_search"})
@@ -193,7 +195,7 @@ class ToolAwareLoop:
                         )
 
                     results = await asyncio.gather(
-                        *[self._registry.execute(tc) for tc in readonly_calls],
+                        *[self._execute_tool_with_retry(tc) for tc in readonly_calls],
                     )
 
                     for tc, result in zip(readonly_calls, results):
@@ -235,7 +237,7 @@ class ToolAwareLoop:
                         },
                     )
 
-                    result = await self._registry.execute(tc)
+                    result = await self._execute_tool_with_retry(tc)
 
                     # L1 compression: shrink large non-error tool results
                     if self._compression and not result.is_error and len(result.content) > 10000:
@@ -329,6 +331,39 @@ class ToolAwareLoop:
                 "total_tokens": self._total_tokens,
                 "elapsed_ms": elapsed_ms,
             },
+        )
+
+    async def _execute_tool_with_retry(self, tc: ToolCall) -> ToolResult:
+        """Execute a tool call with timeout and retry for transient failures."""
+        last_exc: Exception | None = None
+        for attempt in range(TOOL_MAX_RETRIES + 1):
+            try:
+                return await asyncio.wait_for(
+                    self._registry.execute(tc), timeout=TOOL_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                last_exc = asyncio.TimeoutError(
+                    f"工具 {tc.name} 执行超时 ({TOOL_TIMEOUT_SECONDS}s)"
+                )
+                logger.warning(
+                    "tool_loop.tool_timeout tool=%s attempt=%d/%d",
+                    tc.name, attempt + 1, TOOL_MAX_RETRIES + 1,
+                )
+            except Exception as exc:
+                last_exc = exc
+                logger.warning(
+                    "tool_loop.tool_error tool=%s attempt=%d/%d: %s",
+                    tc.name, attempt + 1, TOOL_MAX_RETRIES + 1, exc,
+                )
+
+            if attempt < TOOL_MAX_RETRIES:
+                await asyncio.sleep(1)
+
+        # All retries exhausted — return error result instead of crashing the loop
+        return ToolResult(
+            tool_use_id=tc.id,
+            content=f"工具 {tc.name} 执行失败 (已重试 {TOOL_MAX_RETRIES} 次): {last_exc}",
+            is_error=True,
         )
 
     async def _call_with_tools(

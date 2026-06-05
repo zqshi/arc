@@ -79,6 +79,12 @@ def _build_stream_generator(svc, conv, use_autopilot: bool):
                 event_type = chunk.get("event")
 
                 if event_type == "tool_call":
+                    # 工具调用时也发 stream_start，让前端立即进入 streaming 状态
+                    if ai_msg_id is None:
+                        msg_id = chunk.get("message_id", "")
+                        if msg_id:
+                            ai_msg_id = msg_id
+                        yield {"type": "stream_start", "message_id": ai_msg_id or ""}
                     event = {
                         "type": "tool_call",
                         "message_id": chunk.get("message_id", ""),
