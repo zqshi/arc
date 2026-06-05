@@ -10,6 +10,7 @@ from arc.domain.project.repository import AbstractProjectRepository, AbstractVer
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
+    ContextPolicy,
     ExecutionMode,
     ProcessConfig,
     ProcessConstraint,
@@ -44,6 +45,7 @@ class ProjectRepository(AbstractProjectRepository):
             conversation_config=project.conversation_config,
             domain_model=project.domain_model or None,
             domain_model_history=project.domain_model_history or [],
+            context_policy=project.context_policy.to_dict() if project.context_policy else None,
         )
         self.db.add(model)
         await self.db.flush()
@@ -127,6 +129,7 @@ class ProjectRepository(AbstractProjectRepository):
         model.conversation_config = project.conversation_config
         model.domain_model = project.domain_model or None
         model.domain_model_history = project.domain_model_history or []
+        model.context_policy = project.context_policy.to_dict() if project.context_policy else None
         model.github_token = project.github_token or None
         model.github_webhook_secret = project.github_webhook_secret or None
         model.github_config = project.github_config or None
@@ -174,6 +177,9 @@ class ProjectRepository(AbstractProjectRepository):
             ),
             domain_model=model.domain_model or {},
             domain_model_history=model.domain_model_history or [],
+            context_policy=ContextPolicy.from_dict(
+                getattr(model, "context_policy", None)
+            ),
             github_token=model.github_token or "",
             github_webhook_secret=model.github_webhook_secret or "",
             github_config=model.github_config or {},

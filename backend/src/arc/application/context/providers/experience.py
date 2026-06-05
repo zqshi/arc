@@ -60,15 +60,19 @@ class ExperienceProvider:
             )
             candidates.extend(project_exps)
 
-        from arc.domain.todo.value_objects import ExperienceScope
-        try:
-            global_exps = await exp_repo.list_by_scope(
-                ExperienceScope.GLOBAL, limit=10,
-            )
-            seen_ids = {e.id for e in candidates}
-            candidates.extend(e for e in global_exps if e.id not in seen_ids)
-        except Exception:
-            pass
+        # 经验隔离：只有策略允许时才加载全局经验
+        isolation = await self._get_experience_isolation(todo)
+
+        if isolation != "project_only":
+            from arc.domain.todo.value_objects import ExperienceScope
+            try:
+                global_exps = await exp_repo.list_by_scope(
+                    ExperienceScope.GLOBAL, limit=10,
+                )
+                seen_ids = {e.id for e in candidates}
+                candidates.extend(e for e in global_exps if e.id not in seen_ids)
+            except Exception:
+                pass
 
         if not candidates:
             return ""
@@ -100,3 +104,16 @@ class ExperienceProvider:
         if parts:
             return "## 相关历史经验（按相关度排序）\n\n" + "\n\n".join(parts)
         return ""
+
+    async def _get_experience_isolation(self, todo) -> str:
+        """获取项目的经验隔离级别。"""
+        if not todo.project_id:
+            return "project_only"
+        try:
+            from arc.infrastructure.repositories.project import ProjectRepository
+            project = await ProjectRepository(self._db).get_by_id(todo.project_id)
+            if project and project.context_policy:
+                return project.context_policy.experience_isolation.value
+        except Exception:
+            pass
+        return "project_only"

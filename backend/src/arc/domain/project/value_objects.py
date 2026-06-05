@@ -207,3 +207,97 @@ class DomainModelSnapshot:
     trigger: ModelChangeTrigger
     trigger_todo_id: str
     created_at: datetime
+
+
+# ── 项目上下文策略 ─────────────────────────────────────────
+
+
+class ExperienceIsolation(StrEnum):
+    """经验隔离级别。"""
+
+    PROJECT_ONLY = "project_only"      # 只注入本项目经验（默认，严格隔离）
+    WITH_GLOBAL = "with_global"        # 本项目 + 全局标记的经验
+    CROSS_PROJECT = "cross_project"    # 允许从其他项目借鉴（未来用）
+
+
+# 所有可用的上下文 Provider source 标识
+ALL_CONTEXT_PROVIDERS: list[str] = [
+    "project",
+    "domain_model",
+    "review_feedback",
+    "experience",
+    "methodology",
+    "code_capability",
+    "deliverable",
+    "sufficiency",
+]
+
+
+@dataclass(frozen=True)
+class ContextPolicy:
+    """项目级上下文策略 — 控制 AI 上下文的组装行为。
+
+    每个项目独立配置，决定：
+    - 启用哪些上下文来源（Provider）
+    - 经验隔离级别
+    - 各来源的 token 预算覆盖
+    - 额外注入的自定义上下文片段
+    """
+
+    # 启用的 Provider 列表（默认全开）
+    enabled_providers: tuple[str, ...] = tuple(ALL_CONTEXT_PROVIDERS)
+
+    # 经验隔离级别
+    experience_isolation: ExperienceIsolation = ExperienceIsolation.PROJECT_ONLY
+
+    # Token 预算覆盖（phase → source → budget）
+    # 例: {"architecture": {"domain_model": 12000}}
+    budget_overrides: dict = None  # type: ignore[assignment]
+
+    # 额外注入的静态上下文片段
+    # 例: [{"content": "本项目使用 gRPC...", "priority": 1}]
+    extra_segments: tuple[dict, ...] = ()
+
+    def __post_init__(self):
+        if self.budget_overrides is None:
+            object.__setattr__(self, "budget_overrides", {})
+
+    def is_provider_enabled(self, source: str) -> bool:
+        return source in self.enabled_providers
+
+    def get_budget_override(self, phase: str, source: str) -> int | None:
+        """获取特定阶段+来源的 budget 覆盖值，None 表示使用默认。"""
+        phase_overrides = self.budget_overrides.get(phase)
+        if not phase_overrides:
+            return None
+        return phase_overrides.get(source)
+
+    def to_dict(self) -> dict:
+        return {
+            "enabled_providers": list(self.enabled_providers),
+            "experience_isolation": self.experience_isolation.value,
+            "budget_overrides": self.budget_overrides or {},
+            "extra_segments": list(self.extra_segments),
+        }
+
+    @staticmethod
+    def from_dict(data: dict | None) -> "ContextPolicy":
+        if not data:
+            return ContextPolicy()
+        try:
+            return ContextPolicy(
+                enabled_providers=tuple(
+                    data.get("enabled_providers", ALL_CONTEXT_PROVIDERS)
+                ),
+                experience_isolation=ExperienceIsolation(
+                    data.get("experience_isolation", "project_only")
+                ),
+                budget_overrides=data.get("budget_overrides", {}),
+                extra_segments=tuple(data.get("extra_segments", [])),
+            )
+        except (ValueError, TypeError):
+            return ContextPolicy()
+
+
+# 默认策略 — 全开、项目隔离
+DEFAULT_CONTEXT_POLICY = ContextPolicy()
