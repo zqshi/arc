@@ -245,7 +245,11 @@ def register_routes():
 
         static_dir = Path(__file__).resolve().parent.parent / "static" / "previews"
         static_dir.mkdir(parents=True, exist_ok=True)
-        app.mount("/static/previews", StaticFiles(directory=str(static_dir)), name="previews")
+        app.mount(
+            "/static/previews",
+            StaticFiles(directory=str(static_dir), follow_symlink=True),
+            name="previews",
+        )
 
 
 register_routes()

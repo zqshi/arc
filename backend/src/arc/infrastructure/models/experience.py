@@ -63,3 +63,24 @@ class ExperienceFeedback(TimestampMixin, Base):
         ForeignKey("todos.id", ondelete="CASCADE"), nullable=False
     )
     helpful: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class ExperienceInjectionLog(TimestampMixin, Base):
+    """记录每次经验注入的上下文，用于效果追踪和 ROI 度量。"""
+
+    __tablename__ = "experience_injection_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    experience_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("experiences.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    todo_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("todos.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False,
+    )
+    similarity_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    todo_completed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    rounds_after_injection: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    user_feedback: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

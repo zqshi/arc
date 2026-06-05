@@ -136,7 +136,7 @@ class ArtifactExtractor:
             logger.debug("Auto-persist prototype failed: %s", exc)
 
     async def _deploy_prototype_project(self, todo, artifact) -> None:
-        """将原型工程的 build 产物部署到 S3。"""
+        """将原型工程的 build 产物部署到 S3，或本地 serve。"""
         from pathlib import Path
 
         from arc.infrastructure.repositories.project import (
@@ -170,7 +170,10 @@ class ArtifactExtractor:
             from arc.config import settings
 
             if not settings.storage_endpoint:
-                logger.debug("Cannot deploy prototype: no storage_endpoint configured")
+                # S3 未配置 → 本地 symlink 到 static/previews，构造本地预览 URL
+                await self._setup_local_preview(
+                    todo, artifact, local_dir, project_dir
+                )
                 return
 
             from arc.application.deployment.service import DeployService
@@ -218,6 +221,46 @@ class ArtifactExtractor:
                 exc,
                 exc_info=True,
             )
+
+    async def _setup_local_preview(
+        self, todo, artifact, local_dir: str, project_dir: str
+    ) -> None:
+        """S3 未配置时，用 symlink 将构建产物暴露到 static/previews 目录。"""
+        from pathlib import Path
+
+        try:
+            # 与 main.py 中 StaticFiles mount 路径一致：src/static/previews
+            static_base = (
+                Path(__file__).resolve().parent.parent.parent.parent
+                / "static"
+                / "previews"
+            )
+            static_base.mkdir(parents=True, exist_ok=True)
+
+            # 用 todo_id 作为目录名，避免冲突
+            link_name = static_base / str(todo.id)
+            target = Path(local_dir)
+
+            # 更新或创建 symlink
+            if link_name.is_symlink() or link_name.exists():
+                link_name.unlink()
+            link_name.symlink_to(target)
+
+            preview_url = f"/static/previews/{todo.id}/index.html"
+
+            # 回写 preview_url 到 artifact content
+            content = artifact.content or {}
+            content["preview_url"] = preview_url
+            artifact.content = content
+            await self.artifact_repo.update(artifact)
+
+            logger.info(
+                "Local prototype preview set up: todo=%s → %s",
+                todo.id,
+                preview_url,
+            )
+        except Exception as exc:
+            logger.warning("Local preview setup failed: %s", exc)
 
     async def _infer_deliverable_scope(
         self, tracker: DeliverableTracker, req_spec: dict,

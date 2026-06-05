@@ -323,7 +323,8 @@ def _create_worker_adapter():
         return create_resilient_adapter()
 
     # Build a worker-specific adapter with the cheap model
-    from arc.application.ai.llm_adapter import AnthropicAdapter, OpenAIAdapter
+    from arc.application.ai.anthropic_adapter import AnthropicAdapter
+    from arc.application.ai.openai_adapter import OpenAIAdapter
 
     provider = worker_provider.lower()
     if provider == "anthropic":

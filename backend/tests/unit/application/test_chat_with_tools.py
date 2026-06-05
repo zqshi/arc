@@ -21,14 +21,14 @@ class TestAdapterProviderType:
     @pytest.mark.asyncio
     async def test_openai_adapter_provider_type(self):
         with patch("openai.AsyncOpenAI"):
-            from arc.application.ai.llm_adapter import OpenAIAdapter
+            from arc.application.ai.openai_adapter import OpenAIAdapter
             adapter = OpenAIAdapter(api_key="test", model="gpt-4o")
             assert adapter.provider_type == "openai"
 
     @pytest.mark.asyncio
     async def test_anthropic_adapter_provider_type(self):
         with patch("anthropic.AsyncAnthropic"):
-            from arc.application.ai.llm_adapter import AnthropicAdapter
+            from arc.application.ai.anthropic_adapter import AnthropicAdapter
             adapter = AnthropicAdapter(api_key="test", model="claude-3")
             assert adapter.provider_type == "anthropic"
 
@@ -55,7 +55,7 @@ class TestOpenAIChatWithTools:
 
             mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
-            from arc.application.ai.llm_adapter import OpenAIAdapter
+            from arc.application.ai.openai_adapter import OpenAIAdapter
             adapter = OpenAIAdapter(api_key="test", model="gpt-4o")
 
             result = await adapter.chat_with_tools(
@@ -89,7 +89,7 @@ class TestAnthropicChatWithTools:
 
             mock_client.messages.create = AsyncMock(return_value=mock_response)
 
-            from arc.application.ai.llm_adapter import AnthropicAdapter
+            from arc.application.ai.anthropic_adapter import AnthropicAdapter
             adapter = AnthropicAdapter(api_key="test", model="claude-3")
 
             result = await adapter.chat_with_tools(
@@ -121,7 +121,7 @@ class TestAnthropicChatWithTools:
             mock_response.usage = MagicMock(input_tokens=10, output_tokens=5)
             mock_client.messages.create = AsyncMock(return_value=mock_response)
 
-            from arc.application.ai.llm_adapter import AnthropicAdapter
+            from arc.application.ai.anthropic_adapter import AnthropicAdapter
             adapter = AnthropicAdapter(api_key="test", model="claude-3")
 
             await adapter.chat_with_tools(

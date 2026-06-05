@@ -70,6 +70,7 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
     respondToApproval,
     workers,
     orchestrationPhase,
+    trackerSnapshot,
   } = useConversationSocket(conversationId);
 
   // --- Data fetching ---
@@ -82,7 +83,9 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
       if (state.is_complete) {
         try { const updated = await api.getTodo(id); setTodo(updated); } catch { /* */ }
       }
-    } catch { /* */ }
+    } catch (err) {
+      console.warn('[fetchTracker] failed:', err);
+    }
   }, [id, setTodo]);
 
   const autoInitRef = useRef(false);
@@ -123,7 +126,22 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
       }
     }
   }, [isStreaming, conversationId, fetchTracker, id, setTodo]);
-  useEffect(() => { if (artifactsVersion > 0) fetchTracker(); }, [artifactsVersion, fetchTracker]);
+  // artifacts_extracted 事件：优先使用 WS 推送的 tracker 快照（零延迟），回退到 API 拉取
+  useEffect(() => {
+    if (artifactsVersion > 0) {
+      const snapshot = trackerSnapshot.current;
+      if (snapshot) {
+        setTracker(snapshot as DeliverableTracker);
+        trackerSnapshot.current = null;
+        // 如果全部完成，刷新 todo 状态
+        if (snapshot.is_complete && id) {
+          api.getTodo(id).then((updated) => setTodo(updated)).catch(() => { /* */ });
+        }
+      } else {
+        fetchTracker();
+      }
+    }
+  }, [artifactsVersion, fetchTracker, trackerSnapshot, id, setTodo]);
   useEffect(() => {
     if (!isStreaming || !conversationId) return;
     const interval = setInterval(fetchTracker, 8000);

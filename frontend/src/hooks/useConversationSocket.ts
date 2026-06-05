@@ -34,6 +34,12 @@ interface WsArtifactsExtractedEvent {
   type: 'artifacts_extracted';
   artifacts: string[];
   artifact_names: string[];
+  tracker?: {
+    required: string[];
+    deliverables: Record<string, string>;
+    completion_pct: number;
+    is_complete: boolean;
+  };
 }
 
 interface WsToolCallEvent {
@@ -136,6 +142,13 @@ export function useConversationSocket(conversationId: string | null) {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
+  // artifacts_extracted 事件携带的 tracker 快照（避免额外 API 往返）
+  const trackerSnapshotRef = useRef<{
+    required: string[];
+    deliverables: Record<string, string>;
+    completion_pct: number;
+    is_complete: boolean;
+  } | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const mountedRef = useRef(true);
 
@@ -318,6 +331,10 @@ export function useConversationSocket(conversationId: string | null) {
 
           case 'artifacts_extracted':
             setArtifactsVersion((v) => v + 1);
+            // 如果后端携带了 tracker 快照，直接通知上层更新（避免额外 API 往返）
+            if (data.tracker) {
+              trackerSnapshotRef.current = data.tracker;
+            }
             break;
 
           case 'tool_call':
@@ -454,5 +471,5 @@ export function useConversationSocket(conversationId: string | null) {
     return () => clearTimeout(retryTimer.current);
   }, []);
 
-  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion, toolCalls, pendingApproval, respondToApproval, workers, orchestrationPhase };
+  return { messages, setMessages, isConnected, isStreaming, error, sendMessage, retry, retryDisabled, artifactsVersion, toolCalls, pendingApproval, respondToApproval, workers, orchestrationPhase, trackerSnapshot: trackerSnapshotRef };
 }

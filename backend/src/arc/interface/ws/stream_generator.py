@@ -149,6 +149,7 @@ def _build_stream_generator(svc, conv, use_autopilot: bool):
                         "type": "artifacts_extracted",
                         "artifacts": chunk.get("artifacts", []),
                         "artifact_names": chunk.get("artifact_names", []),
+                        "tracker": chunk.get("tracker"),
                     }
                     if project_id and todo_id:
                         await project_task_stream.emit(

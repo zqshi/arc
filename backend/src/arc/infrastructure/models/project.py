@@ -57,3 +57,4 @@ class VersionModel(TimestampMixin, Base):
     order: Mapped[int] = mapped_column(Integer, default=0)
     changelog: Mapped[str | None] = mapped_column(Text, nullable=True)
     prototype_preview_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    deploy_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

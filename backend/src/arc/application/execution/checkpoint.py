@@ -118,12 +118,16 @@ class CheckpointManager:
         )
         return checkpoint_id
 
-    async def restore_checkpoint(
-        self,
-        conversation_id: uuid.UUID,
-        checkpoint_id: str,
-    ) -> dict | None:
-        """恢复指定检查点的状态。"""
+    async def restore_from_checkpoint(
+        self, conversation_id: uuid.UUID,
+    ) -> HandoffPackage | None:
+        """从最近的 checkpoint 恢复会话状态。
+
+        扫描 conversation messages，找到最近一条 checkpoint message，
+        将其 state 重建为 HandoffPackage。如果没有 checkpoint，返回 None。
+
+        用于: Autopilot 跨 session/崩溃恢复。
+        """
         from arc.infrastructure.repositories.conversation import ConversationRepository
 
         repo = ConversationRepository(self._db)
@@ -131,49 +135,67 @@ class CheckpointManager:
         if not conv:
             return None
 
+        # 倒序查找最近的 checkpoint message
+        latest_checkpoint: dict | None = None
         for msg in reversed(conv.messages):
-            if (
-                msg.metadata
-                and msg.metadata.get("checkpoint")
-                and msg.metadata.get("checkpoint_id") == checkpoint_id
-            ):
-                return msg.metadata.get("checkpoint_state", {})
+            if msg.metadata and msg.metadata.get("checkpoint"):
+                latest_checkpoint = msg.metadata
+                break
 
-        logger.warning(
-            "Checkpoint %s not found in conversation %s",
-            checkpoint_id, conversation_id,
+        if not latest_checkpoint:
+            return None
+
+        state = latest_checkpoint.get("checkpoint_state", {})
+        label = latest_checkpoint.get("checkpoint_label", "")
+
+        # 从 state 重建 HandoffPackage
+        # state 结构: {"round": int, "completed": [...], "completion_pct": float}
+        completed = state.get("completed", [])
+        round_num = state.get("round", 0)
+
+        # 从 conversation messages 提取更多上下文
+        all_messages = conv.messages
+        goal = ""
+        for m in all_messages:
+            if m.role.value == "user" and not (m.metadata and m.metadata.get("auto_advance")):
+                goal = m.content[:200]
+                break
+
+        handoff = HandoffPackage(
+            goal=goal or f"Autopilot 恢复 (round {round_num})",
+            completed=completed,
+            pending=[f"从 round {round_num + 1} 继续"],
+            key_decisions=[],
+            failed_attempts=_extract_patterns(all_messages, _FAILURE_PATTERNS)[:5],
+            modified_files=_extract_file_paths(all_messages)[:20],
+            created_at=latest_checkpoint.get("checkpoint_created_at", ""),
         )
-        return None
 
-    async def create_handoff_package(
-        self,
-        conversation_id: uuid.UUID,
-        goal: str,
-    ) -> HandoffPackage:
-        """从对话历史中提取结构化的 HandoffPackage。"""
+        logger.info(
+            "Checkpoint restored: %s (round=%d, completed=%d items) for conversation %s",
+            label, round_num, len(completed), conversation_id,
+        )
+        return handoff
+
+    async def get_resume_round(self, conversation_id: uuid.UUID) -> int:
+        """获取最近 checkpoint 的 round 号，用于 autopilot 断点续跑。
+
+        Returns:
+            最近 checkpoint 的 round number (0 = 无 checkpoint)。
+        """
         from arc.infrastructure.repositories.conversation import ConversationRepository
 
         repo = ConversationRepository(self._db)
         conv = await repo.get_by_id(conversation_id)
         if not conv:
-            return HandoffPackage(goal=goal)
+            return 0
 
-        messages = conv.messages
-        completed = _extract_patterns(messages, _COMPLETED_PATTERNS)
-        pending = _extract_patterns(messages, _PENDING_PATTERNS)
-        decisions = _extract_patterns(messages, _DECISION_PATTERNS)
-        failures = _extract_patterns(messages, _FAILURE_PATTERNS)
-        files = _extract_file_paths(messages)
+        for msg in reversed(conv.messages):
+            if msg.metadata and msg.metadata.get("checkpoint"):
+                state = msg.metadata.get("checkpoint_state", {})
+                return state.get("round", 0)
 
-        return HandoffPackage(
-            goal=goal,
-            completed=completed[:20],
-            pending=pending[:10],
-            key_decisions=decisions[:10],
-            failed_attempts=failures[:10],
-            modified_files=files[:20],
-            created_at=datetime.now(timezone.utc).isoformat(),
-        )
+        return 0
 
 
 # ------------------------------------------------------------------

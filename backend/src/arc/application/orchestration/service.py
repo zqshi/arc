@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MAX_WORKER_OUTPUT = 2000  # Max chars per worker result for synthesis
+WORKER_TIMEOUT_SECONDS = 60  # Per-worker execution timeout
 
 
 class OrchestrationService:
@@ -80,7 +81,13 @@ class OrchestrationService:
         worker_results: list[tuple[Subtask, str]] = []
         for layer in plan.execution_layers():
             layer_results = await asyncio.gather(
-                *[self._run_worker(st, registry, plan_id) for st in layer],
+                *[
+                    asyncio.wait_for(
+                        self._run_worker(st, registry, plan_id),
+                        timeout=WORKER_TIMEOUT_SECONDS,
+                    )
+                    for st in layer
+                ],
                 return_exceptions=True,
             )
 
@@ -117,13 +124,28 @@ class OrchestrationService:
             yield event
 
         plan.mark_complete()
+
+        # --- C4: 编排可观测性 — 输出结构化的执行摘要 ---
+        plan_summary = {
+            "plan_id": plan_id,
+            "total_tokens": plan.total_tokens,
+            "worker_count": len(plan.subtasks),
+            "workers": [
+                {
+                    "id": str(st.id)[:8],
+                    "description": st.description[:100],
+                    "status": st.status.value,
+                    "tokens_used": st.tokens_used,
+                    "elapsed_ms": st.elapsed_ms,
+                }
+                for st in plan.subtasks
+            ],
+            "layers": len(plan.execution_layers()),
+            "completed_at": plan.completed_at.isoformat() if plan.completed_at else None,
+        }
         yield ToolLoopEvent(
             type="orchestration_complete",
-            metadata={
-                "plan_id": plan_id,
-                "total_tokens": plan.total_tokens,
-                "worker_count": len(plan.subtasks),
-            },
+            metadata=plan_summary,
         )
 
     # ------------------------------------------------------------------

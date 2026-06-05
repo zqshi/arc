@@ -135,12 +135,6 @@ class AuthService:
         expires_at = datetime.fromtimestamp(exp, tz=UTC)
         await self._revoke_jti(jti, UUID(user_id), expires_at)
 
-    async def revoke_all_tokens(self, user_id: UUID) -> None:
-        """Revoke all active refresh tokens for a user (e.g. on password change)."""
-        # Since we can't enumerate stateless tokens, we rely on individual revocation.
-        # Future: store all issued jtis and revoke them all here.
-        pass
-
     async def get_user(self, user_id: UUID) -> User | None:
         return await self.user_repo.get_by_id(user_id)
 

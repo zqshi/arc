@@ -106,9 +106,6 @@ class AgentSessionManager:
     async def get_session(self, session_id: uuid.UUID) -> AgentSession | None:
         return await self.session_repo.get_by_id(session_id)
 
-    async def get_session_for_phase(self, phase_id: uuid.UUID) -> AgentSession | None:
-        return await self.session_repo.get_by_phase_id(phase_id)
-
     async def _execute_and_poll(self, session_id: uuid.UUID, context) -> None:
         """Background task: start agent, poll events, write back to conversation."""
         from arc.infrastructure.database import async_session_factory
