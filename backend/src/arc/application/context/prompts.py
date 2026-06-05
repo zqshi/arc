@@ -159,16 +159,16 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   "motion": "动效原则"
 }""",
     "prototype": """{
-  "pages": [
-    {"name": "页面名", "description": "页面说明",
-     "html": "完整可渲染HTML+Tailwind代码",
-     "responsive_notes": "响应式说明"}
+  "project_dir": "prototype",
+  "tech_stack": "vite-react-tailwind",
+  "routes": [
+    {"path": "/", "name": "首页", "component": "src/pages/Home.tsx"},
+    {"path": "/login", "name": "登录", "component": "src/pages/Login.tsx"}
   ],
-  "component_library": [
-    {"name": "组件名", "html": "组件HTML代码",
-     "props": "可配置项"}
-  ],
-  "navigation": "页面间导航结构说明"
+  "shared_state": ["user", "theme"],
+  "build_status": "success",
+  "build_command": "npm run build",
+  "artifact_path": "dist"
 }""",
     "tech_architecture": """{
   "architecture_overview": "整体架构描述",
@@ -373,6 +373,73 @@ def build_ddd_tdd_section(domain_model: dict) -> str:
 # ---------------------------------------------------------------------------
 # 参考模式库 — 作为上下文提供，Agent 自行判断适用性
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# 原型工程化指导 — 告诉 AI 生成真实前端工程而非 HTML 片段
+# ---------------------------------------------------------------------------
+
+PROTOTYPE_ENGINEERING_PROMPT = """\
+## 原型工程要求
+
+当需要产出原型时，你需要使用 write_file 工具在项目目录下创建一个**完整的前端工程**（不是 HTML 片段）。
+
+### 目录结构
+
+```
+prototype/
+├── package.json          # vite + react + react-router-dom + tailwindcss + zustand
+├── vite.config.ts        # base: './' (相对路径，S3兼容)
+├── tailwind.config.js
+├── postcss.config.js
+├── index.html            # 入口 HTML
+├── src/
+│   ├── main.tsx          # createRoot + HashRouter 挂载
+│   ├── App.tsx           # 路由表 + 全局 Layout
+│   ├── store.ts          # Zustand 状态 (用户、主题、Mock数据)
+│   ├── pages/            # 每个路由一个页面组件
+│   │   ├── Home.tsx
+│   │   ├── Login.tsx
+│   │   └── ...
+│   ├── components/       # 共享组件 (Header, Sidebar, Modal, Toast)
+│   │   ├── Layout.tsx
+│   │   └── ...
+│   └── styles/
+│       └── index.css     # @tailwind base/components/utilities
+```
+
+### 关键约束
+
+1. **HashRouter** — 使用 `createHashRouter`，S3 静态托管无需服务端路由
+2. **共享 Layout** — Header/Sidebar/Footer 在 Layout 组件中，页面切换只替换内容区
+3. **真实数据流** — 用 Zustand store 存 Mock 数据，列表→详情、表单→提交→反馈 全部可交互
+4. **交互真实** — 按钮有 loading/disabled 状态、表单有即时校验、Toast 通知、Modal 确认
+5. **状态持久** — 登录后导航栏变化、列表操作后数据更新，跨页面状态一致
+6. **构建命令** — 完成所有文件后执行: `cd prototype && npm install && npm run build`
+7. **Vite base** — vite.config.ts 中设置 `base: './'`（部署到 S3 子路径时路径正确）
+
+### 产出格式
+
+文件创建并构建成功后，输出 [DELIVERABLE:prototype] 包含工程清单 JSON（不是 HTML）:
+```json
+{
+  "project_dir": "prototype",
+  "tech_stack": "vite-react-tailwind",
+  "routes": [{"path": "/", "name": "首页", "component": "src/pages/Home.tsx"}, ...],
+  "shared_state": ["user", "currentProject", ...],
+  "build_status": "success",
+  "build_command": "npm run build",
+  "artifact_path": "dist"
+}
+```
+
+### 设计原则
+
+- 像做真实产品一样做原型：用户拿到这个 URL 应该能体验到完整的产品交互
+- 视觉用 Tailwind 实现，深色主题为主，风格现代简洁
+- 移动端响应式（至少不崩溃）
+- 组件粒度合理：不要把一个页面写 500 行，拆子组件
+"""
+
 
 _REFERENCE_PATTERNS = """\
 以下模式供参考，根据项目实际情况选用最合适的：

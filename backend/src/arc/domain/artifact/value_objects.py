@@ -57,7 +57,7 @@ DELIVERABLE_REQUIRED_FIELDS: dict[str, list[str]] = {
     "requirement_spec": ["background", "user_stories", "acceptance_criteria", "boundaries"],
     "interaction_design": ["user_flows", "page_map"],
     "ui_spec": ["design_tokens", "component_specs"],
-    "prototype": ["pages"],
+    "prototype": ["project_dir", "routes", "build_status"],
     "tech_architecture": ["data_model", "api_design", "tech_decisions"],
     "dev_report": ["test_design", "implementation", "validation"],
     "test_report": ["criteria_verification"],

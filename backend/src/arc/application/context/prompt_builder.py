@@ -150,6 +150,11 @@ class PromptBuilder:
             conversation, todo, completed
         )
 
+        # 原型工程化指导 — 当 prototype 在待产出清单中时注入
+        if "prototype" in required and "prototype" not in completed:
+            from arc.application.context.prompts import PROTOTYPE_ENGINEERING_PROMPT
+            methodology_section += "\n\n" + PROTOTYPE_ENGINEERING_PROMPT
+
         # 充分性提示 — 需求阶段尚未产出时注入
         sufficiency_hint = ""
         if "requirement_spec" not in completed and todo:

@@ -137,16 +137,7 @@ export default function DeliverableDrawer({ onClose, content, width, onWidthChan
 }
 
 function ArtifactContent({ artifact }: { artifact: Artifact }) {
-  const handlePrototypeModify = async (info: { selector: string; html: string }, instruction: string) => {
-    // 发送修改指令到对话（通过 quick message API）
-    const context = `[原型元素修改] 选中元素: ${info.selector}\n当前HTML: ${info.html.slice(0, 300)}\n\n修改意图: ${instruction}`;
-    try {
-      const { api } = await import('../api/client');
-      await api.sendQuickMessage(artifact.todo_id, context);
-    } catch { /* 静默失败，用户可在对话窗口看到 */ }
-  };
-
-  return <ArtifactRenderer artifactType={artifact.artifact_type} content={artifact.content ?? {}} onPrototypeModify={handlePrototypeModify} />;
+  return <ArtifactRenderer artifactType={artifact.artifact_type} content={artifact.content ?? {}} />;
 }
 
 function RoadmapContent({ session }: { session: PlanningSession }) {

@@ -74,13 +74,20 @@ class ArtifactExtractor:
         if tracker and extracted:
             await self.tracker_repo.update(tracker)
 
-        # 对话模式产出物也执行 gate 校验 — 不阻断但记录质量信号
+        # 对话模式产出物执行 gate 校验 — 记录质量信号，仅记录不阻断
+        # (门禁阻断功能暂不启用 — 当前 gate 规则过严导致误拦，
+        #  后续需细化各 artifact 类型的 gate 规则后再启用)
         for art in extracted:
             await self._validate_extracted_artifact(art, todo_id)
 
         for art in extracted:
             if art.artifact_type == ArtifactType.TECH_ARCHITECTURE:
                 await self._try_extract_domain_model(todo_id, art.content)
+
+        # experience_card 产出后，自动同步到 experiences 表
+        for art in extracted:
+            if art.artifact_type == ArtifactType.EXPERIENCE_CARD:
+                await self._try_sync_experience(todo_id, art.content)
 
         # requirement_spec 产出后，智能推断适用的交付物范围
         for art in extracted:
@@ -95,37 +102,122 @@ class ArtifactExtractor:
         return extracted
 
     async def _auto_persist_prototype(self, todo_id) -> None:
-        """原型产出后自动发布到 S3（版本级 latest）并 fallback 写入本地目录。"""
+        """原型产出后自动部署。
+
+        工程模式：检测 prototype artifact 是否为 SPA 工程 → 触发 DeployService 上传 dist/
+        """
         try:
             from arc.infrastructure.repositories.todo import TodoRepository
-            todo = await TodoRepository(self._db).get_by_id(todo_id)
+
+            todo = await TodoRepository(self.db).get_by_id(todo_id)
             if not todo or not todo.project_id:
                 return
-            from arc.application.artifact.prototype_bundle import PrototypeBundleService
-            svc = PrototypeBundleService(self._db)
 
-            # 优先：发布到 S3（如果有 version_id 且 storage 已配置）
-            if todo.version_id:
-                from arc.config import settings
-                if settings.storage_endpoint:
-                    url = await svc.publish_bundle(
-                        todo.project_id, todo.version_id, current_todo_id=todo_id
-                    )
-                    if url:
-                        # 更新版本的 preview_url
-                        from arc.infrastructure.repositories.project import VersionRepository
-                        version_repo = VersionRepository(self._db)
-                        version = await version_repo.get_by_id(todo.version_id)
-                        if version:
-                            version.set_prototype_preview_url(url)
-                            await version_repo.update(version)
-                        logger.debug("Auto-published prototype to S3: %s", url)
-                        return
+            # 获取最新的 prototype artifact
+            artifacts = await self.artifact_repo.list_by_todo_id(todo_id)
+            proto_art = next(
+                (a for a in artifacts if a.artifact_type == ArtifactType.PROTOTYPE),
+                None,
+            )
+            if not proto_art:
+                return
 
-            # Fallback：写入本地目录
-            await svc.persist_to_project(todo.project_id, todo_id)
+            content = proto_art.content or {}
+
+            if content.get("project_dir") and content.get("build_status") == "success":
+                # 工程模式 → 部署 build 产物到 S3
+                await self._deploy_prototype_project(todo, proto_art)
+            else:
+                logger.debug(
+                    "Prototype artifact for todo %s is not in engineering mode, skipping deploy",
+                    todo_id,
+                )
         except Exception as exc:
             logger.debug("Auto-persist prototype failed: %s", exc)
+
+    async def _deploy_prototype_project(self, todo, artifact) -> None:
+        """将原型工程的 build 产物部署到 S3。"""
+        from pathlib import Path
+
+        from arc.infrastructure.repositories.project import (
+            ProjectRepository,
+            VersionRepository,
+        )
+
+        try:
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if not project or not project.local_path:
+                logger.debug("Cannot deploy prototype: project has no local_path")
+                return
+
+            content = artifact.content or {}
+            project_dir = content.get("project_dir", "prototype")
+            artifact_path = content.get("artifact_path", "dist")
+            local_dir = str(
+                Path(project.local_path).expanduser().resolve()
+                / project_dir
+                / artifact_path
+            )
+
+            if not Path(local_dir).is_dir():
+                logger.warning("Prototype build output not found: %s", local_dir)
+                return
+
+            if not todo.version_id:
+                logger.debug("Cannot deploy prototype: todo has no version_id")
+                return
+
+            from arc.config import settings
+
+            if not settings.storage_endpoint:
+                logger.debug("Cannot deploy prototype: no storage_endpoint configured")
+                return
+
+            from arc.application.deployment.service import DeployService
+            from arc.domain.deployment.value_objects import DeployConfig
+
+            deploy_svc = DeployService(self.db)
+            deployment = await deploy_svc.deploy_static_site(
+                project_id=todo.project_id,
+                version_id=todo.version_id,
+                local_dir=local_dir,
+                todo_id=todo.id,
+                config=DeployConfig(
+                    build_command=content.get("build_command", "npm run build"),
+                    artifact_path=artifact_path,
+                ),
+            )
+
+            if deployment.deploy_url:
+                # 回写 preview_url 到 artifact content
+                content["preview_url"] = deployment.deploy_url
+                artifact.content = content
+                await self.artifact_repo.update(artifact)
+
+                # 更新版本的 prototype_preview_url
+                version_repo = VersionRepository(self.db)
+                version = await version_repo.get_by_id(todo.version_id)
+                if version:
+                    version.set_prototype_preview_url(deployment.deploy_url)
+                    await version_repo.update(version)
+
+                logger.info(
+                    "Deployed prototype project: todo=%s → %s",
+                    todo.id,
+                    deployment.deploy_url,
+                )
+            else:
+                logger.warning(
+                    "Prototype deploy failed: %s",
+                    deployment.error_message,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Prototype project deploy failed for todo %s: %s",
+                todo.id,
+                exc,
+                exc_info=True,
+            )
 
     async def _infer_deliverable_scope(
         self, tracker: DeliverableTracker, req_spec: dict,
@@ -226,15 +318,123 @@ class ArtifactExtractor:
                 "Domain model extraction failed for todo %s", todo_id, exc_info=True
             )
 
+    async def _try_sync_experience(
+        self, todo_id: uuid.UUID, content: dict
+    ) -> None:
+        """experience_card 产出后，自动创建 Experience 实体同步到 experiences 表。"""
+        from arc.domain.experience.entity import Experience
+        from arc.domain.todo.value_objects import (
+            ExperienceCategory,
+            ExperienceScope,
+            ExperienceSource,
+            ExperienceStatus,
+            Tag,
+        )
+        from arc.infrastructure.repositories.experience import ExperienceRepository
+        from arc.infrastructure.repositories.todo import TodoRepository
+
+        try:
+            todo_repo = TodoRepository(self.db)
+            todo = await todo_repo.get_by_id(todo_id)
+            if not todo:
+                return
+
+            # 去重：如果已经从这个 todo 同步过经验，跳过
+            exp_repo = ExperienceRepository(self.db)
+            from sqlalchemy import select
+            from arc.infrastructure.models.experience import Experience as ExpModel
+            existing = await self.db.execute(
+                select(ExpModel.id).where(ExpModel.todo_id == todo_id).limit(1)
+            )
+            if existing.scalar_one_or_none():
+                logger.debug(
+                    "Experience already exists for todo %s, skip sync", todo_id
+                )
+                return
+
+            problem = content.get("problem", "")
+            solution = content.get("solution", "")
+            if not problem or not solution:
+                logger.info(
+                    "experience_card for todo %s missing problem/solution, skip sync",
+                    todo_id,
+                )
+                return
+
+            # 解析 decisions
+            raw_decisions = content.get("decisions", [])
+            decisions: list[str | dict] = []
+            if isinstance(raw_decisions, list):
+                for d in raw_decisions:
+                    if isinstance(d, dict):
+                        decisions.append(d)
+                    elif isinstance(d, str):
+                        decisions.append(d)
+
+            # 解析 pitfalls
+            raw_pitfalls = content.get("pitfalls", [])
+            pitfalls: list[str | dict] = []
+            if isinstance(raw_pitfalls, list):
+                for p in raw_pitfalls:
+                    if isinstance(p, dict):
+                        pitfalls.append(p)
+                    elif isinstance(p, str):
+                        pitfalls.append(p)
+
+            # 解析 tags
+            raw_tags = content.get("tags", [])
+            tags = [Tag(label=t, color="#888888") for t in raw_tags if isinstance(t, str)]
+
+            # 解析 category
+            raw_category = content.get("category", "technical")
+            try:
+                category = ExperienceCategory(raw_category)
+            except ValueError:
+                category = ExperienceCategory.TECHNICAL
+
+            experience = Experience(
+                todo_id=todo.id,
+                project_id=todo.project_id,
+                version_id=todo.version_id,
+                scope=ExperienceScope.PROJECT,
+                status=ExperienceStatus.DRAFT,
+                category=category,
+                source=ExperienceSource.TODO_COMPLETION,
+                title=content.get("title", todo.title),
+                problem=problem,
+                solution=solution,
+                decisions=decisions,
+                pitfalls=pitfalls,
+                applicable_scenarios=content.get("applicable_scenarios", ""),
+                tags=tags,
+                confidence=0.7,
+                metadata={
+                    "synced_from": "experience_card_artifact",
+                    "reuse_checklist": content.get("reuse_checklist", []),
+                },
+            )
+
+            exp_repo = ExperienceRepository(self.db)
+            created = await exp_repo.create(experience)
+            logger.info(
+                "Synced experience_card to Experience %s for todo %s",
+                created.id,
+                todo_id,
+            )
+        except Exception:
+            logger.warning(
+                "Experience sync from artifact failed for todo %s",
+                todo_id,
+                exc_info=True,
+            )
+
     async def _validate_extracted_artifact(
         self, artifact: Artifact, todo_id: uuid.UUID
-    ) -> None:
-        """对话模式产出物 gate 校验 — 不阻断，记录质量信号到 artifact metadata。
+    ) -> bool:
+        """对话模式产出物 gate 校验。
 
-        质量信号用途:
-        - 前端侧边栏展示产出物质量状态（绿/黄/红）
-        - tracker 中标记需要修正的产出物
-        - 为后续"建议用户确认"提供依据
+        返回 True 表示通过, False 表示不通过。
+        质量信号记录到 artifact metadata, 不通过时调用方负责回退 tracker 状态。
         """
         from arc.application.pipeline.gate import check_required_fields
         from arc.domain.artifact.value_objects import PHASE_ARTIFACT_MAP
@@ -248,7 +448,7 @@ class ArtifactExtractor:
                 break
 
         if not phase_type:
-            return
+            return True
 
         try:
             # 快速结构检查（不调 LLM，控制成本）
@@ -259,8 +459,9 @@ class ArtifactExtractor:
             methodology_gaps = _check_methodology(phase_type, artifact.content)
             gaps.extend(methodology_gaps)
 
+            gate_passed = len(gaps) == 0
             quality_signal = {
-                "gate_passed": len(gaps) == 0,
+                "gate_passed": gate_passed,
                 "structural_gaps": gaps[:5],  # 最多记录5条
                 "checked_at": __import__("datetime").datetime.now(
                     __import__("datetime").timezone.utc
@@ -277,8 +478,10 @@ class ArtifactExtractor:
                     "Conversation artifact %s has %d quality gaps: %s",
                     artifact.artifact_type.value, len(gaps), gaps[:3],
                 )
+            return gate_passed
         except Exception as exc:
             logger.debug("Artifact validation skipped for %s: %s", artifact.id, exc)
+            return True  # 校验异常不阻断
 
     async def _try_review_after_extract(self, todo_id: uuid.UUID) -> None:
         """领域模型提取后自动触发评审，产出 ReviewFeedback。"""

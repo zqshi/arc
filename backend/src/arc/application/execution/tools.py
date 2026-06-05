@@ -208,7 +208,7 @@ async def _grep_search(params: dict, *, base_path: Path) -> str:
 
 async def _run_command(params: dict, *, base_path: Path) -> str:
     command = params["command"]
-    timeout = min(params.get("timeout", 30), 120)
+    timeout = min(params.get("timeout", 30), 300)
 
     if _DANGEROUS_PATTERNS.search(command):
         return f"错误: 危险命令被拦截 — {command}"
@@ -320,12 +320,12 @@ class ToolRegistry:
 
         self.register(ToolDefinition(
             name="run_command",
-            description="在项目根目录下执行 shell 命令。用于 git、npm、pytest、ls 等操作。超时最大120秒。",
+            description="在项目根目录下执行 shell 命令。用于 git、npm、pytest、ls 等操作。超时最大300秒。",
             input_schema={
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "要执行的 shell 命令"},
-                    "timeout": {"type": "integer", "description": "超时秒数，默认30，最大120", "default": 30},
+                    "timeout": {"type": "integer", "description": "超时秒数，默认30，最大300", "default": 30},
                 },
                 "required": ["command"],
             },
@@ -422,42 +422,6 @@ class ToolRegistry:
                 content=f"工具执行失败: {e}",
                 is_error=True,
             )
-
-    async def execute_with_retry(
-        self, call: ToolCall, *, max_retries: int = 2,
-    ) -> ToolResult:
-        """Execute with retry on transient errors.
-
-        Transient errors (timeout, connection) are retried with exponential
-        backoff. Non-transient errors (permission, unknown tool) return
-        immediately.
-        """
-        import asyncio
-
-        result = await self.execute(call)
-        for attempt in range(max_retries):
-            if not result.is_error:
-                return result
-            if not self._is_transient_error(result.content):
-                return result
-            delay = 1.5 ** attempt
-            logger.info(
-                "Retrying tool %s (attempt %d/%d, delay %.1fs)",
-                call.name, attempt + 2, max_retries + 1, delay,
-            )
-            await asyncio.sleep(delay)
-            result = await self.execute(call)
-        return result
-
-    @staticmethod
-    def _is_transient_error(error_msg: str) -> bool:
-        """Detect transient errors that may succeed on retry."""
-        transient_patterns = [
-            "timeout", "connection", "temporary", "EAGAIN",
-            "ECONNRESET", "timed out", "超时",
-        ]
-        lower = error_msg.lower()
-        return any(p.lower() in lower for p in transient_patterns)
 
     def to_anthropic_format(self) -> list[dict]:
         """Convert tools to Anthropic API format."""
