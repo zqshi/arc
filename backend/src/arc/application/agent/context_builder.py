@@ -132,11 +132,18 @@ class TaskContextBuilder:
 
         experiences = await self._fetch_related_experiences(todo)
 
+        # 注入评审反馈 — Agent 也需要知道领域模型的已知缺陷
+        agent_section = project_ctx.to_agent_section()
+        if todo.project_id:
+            review_section = await self._build_review_feedback(todo.project_id)
+            if review_section:
+                agent_section = agent_section + "\n\n" + review_section
+
         return TaskContext(
             todo_id=str(todo_id),
             todo_title=todo.title,
             todo_description=todo.description or "",
-            project_context=project_ctx.to_agent_section(),
+            project_context=agent_section,
             requirement_spec=artifact_map.get(ArtifactType.REQUIREMENT_SPEC, {}),
             ui_design=artifact_map.get(ArtifactType.UI_DESIGN, {}),
             tech_architecture=artifact_map.get(ArtifactType.TECH_ARCHITECTURE, {}),
@@ -168,3 +175,42 @@ class TaskContextBuilder:
         except Exception as exc:
             logger.warning("Failed to fetch related experiences: %s", exc)
             return []
+
+    async def _build_review_feedback(self, project_id: uuid.UUID) -> str:
+        """构建评审反馈摘要，注入 Agent 上下文。"""
+        try:
+            from arc.domain.review.value_objects import ReviewFeedbackStatus
+            from arc.infrastructure.repositories.review import ReviewFeedbackRepository
+
+            repo = ReviewFeedbackRepository(self.db)
+            pending = await repo.list_by_project(
+                project_id, status=ReviewFeedbackStatus.PENDING, limit=10,
+            )
+            accepted = await repo.list_by_project(
+                project_id, status=ReviewFeedbackStatus.ACCEPTED, limit=5,
+            )
+            actionable = pending + accepted
+            if not actionable:
+                return ""
+
+            severity_order = {"error": 0, "warning": 1, "info": 2}
+            actionable.sort(
+                key=lambda f: severity_order.get(f.issue.severity.value, 9)
+            )
+
+            lines = ["## 领域模型已知问题（评审发现，开发时需关注）", ""]
+            for fb in actionable[:10]:
+                severity_icon = {
+                    "error": "🔴", "warning": "🟡", "info": "ℹ️",
+                }.get(fb.issue.severity.value, "·")
+                lines.append(
+                    f"- {severity_icon} **{fb.issue.title}** [{fb.issue.category.value}]"
+                )
+                lines.append(f"  {fb.issue.detail}")
+                if fb.issue.suggestion:
+                    lines.append(f"  → 建议: {fb.issue.suggestion}")
+
+            return "\n".join(lines)
+        except Exception:
+            logger.debug("Failed to build review feedback for agent context", exc_info=True)
+            return ""

@@ -316,7 +316,14 @@ def build_ddd_tdd_section(domain_model: dict) -> str:
     if len(aggregates) < 2 and not subdomains:
         return ""
 
-    lines = [f"## 项目领域模型（{len(aggregates)} 聚合, {len(subdomains)} 子域, {len(contexts)} 上下文）"]
+    # 模型元信息 — 版本和来源
+    version = domain_model.get("version", "unknown")
+    source = domain_model.get("source", "artifact_extraction")
+    updated_at = domain_model.get("updated_at", "")
+
+    lines = [f"## 项目领域模型（{len(aggregates)} 聚合, {len(subdomains)} 子域, {len(contexts)} 上下文 | v{version}, 来源: {source}）"]
+    if updated_at:
+        lines.append(f"*最后更新: {updated_at}*\n")
 
     if subdomains:
         lines.append("\n### 子域")
