@@ -85,6 +85,11 @@ class ContextAssembler:
     async def assemble(self, request: ContextRequest) -> str:
         """收集所有 Provider 的片段，按优先级和 budget 组装。
 
+        尊重项目的 ContextPolicy：
+        - 只调用 enabled_providers 中的 Provider
+        - 使用 budget_overrides 覆盖默认预算
+        - 注入 extra_segments 自定义片段
+
         Returns:
             组装好的 system prompt 字符串。
         """
@@ -92,29 +97,49 @@ class ContextAssembler:
             AUTOPILOT_SECTION,
             CONVERSATION_MODE_SYSTEM_PROMPT,
         )
+        from arc.domain.project.value_objects import ContextPolicy as ContextPolicyVO
 
-        # 1. 收集所有 segments
+        # 获取项目策略
+        policy = await self._get_policy(request)
+
+        # 1. 收集所有 segments（按策略过滤 Provider）
         all_segments: list[ContextSegment] = []
         for provider in self._providers:
+            source = getattr(provider, "source", "")
+            if not policy.is_provider_enabled(source):
+                continue
             try:
                 segments = await provider.provide(request)
                 all_segments.extend(segments)
             except Exception:
                 logger.warning(
                     "Provider %s failed, skipping",
-                    getattr(provider, "source", type(provider).__name__),
+                    source or type(provider).__name__,
                     exc_info=True,
                 )
+
+        # 注入 policy 的 extra_segments
+        for extra in policy.extra_segments:
+            if extra.get("content"):
+                all_segments.append(ContextSegment(
+                    source="custom",
+                    priority=extra.get("priority", 1),
+                    content=extra["content"],
+                ))
 
         # 2. 按 priority 排序（0 最高，3 最低）
         all_segments.sort(key=lambda s: s.priority)
 
-        # 3. 按 budget 裁剪
+        # 3. 按 budget 裁剪（尊重 policy overrides）
         assembled_parts: dict[str, str] = {}
         total_tokens = 0
 
         for seg in all_segments:
-            source_budget = get_source_budget(request.phase, seg.source)
+            # 优先使用 policy 的 budget override，fallback 到默认
+            override = policy.get_budget_override(request.phase, seg.source)
+            source_budget = override if override is not None else get_source_budget(
+                request.phase, seg.source
+            )
 
             # P0 不受 budget 限制
             if seg.priority == 0:
@@ -123,13 +148,6 @@ class ContextAssembler:
                 total_tokens += seg.token_estimate
                 continue
 
-            # 检查来源 budget
-            existing_tokens = sum(
-                s.token_estimate for s in all_segments
-                if s.source == seg.source and id(s) in {
-                    id(s2) for key, s2 in []
-                }
-            )
             if seg.token_estimate > source_budget:
                 # 截断到 budget
                 from arc.application.context.controller import _truncate_to_tokens
@@ -200,3 +218,25 @@ class ContextAssembler:
         if not project or not project.conversation_config:
             return "supervised"
         return project.conversation_config.get("agent_autonomy", "supervised")
+
+    async def _get_policy(self, request: ContextRequest):
+        """获取项目的 ContextPolicy，无项目时返回默认策略。"""
+        from arc.domain.project.value_objects import (
+            DEFAULT_CONTEXT_POLICY,
+            ContextPolicy,
+        )
+
+        if not request.todo or not request.todo.project_id:
+            return DEFAULT_CONTEXT_POLICY
+
+        try:
+            from arc.infrastructure.repositories.project import ProjectRepository
+            project = await ProjectRepository(self._db).get_by_id(
+                request.todo.project_id
+            )
+            if project and project.context_policy:
+                return project.context_policy
+        except Exception:
+            pass
+
+        return DEFAULT_CONTEXT_POLICY

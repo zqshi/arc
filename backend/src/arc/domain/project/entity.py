@@ -9,6 +9,7 @@ from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
     VALID_VERSION_TRANSITIONS,
+    ContextPolicy,
     ExecutionMode,
     ModelChangeTrigger,
     ProcessConfig,
@@ -41,6 +42,7 @@ class Project:
     conversation_config: dict = field(default_factory=lambda: dict(DEFAULT_CONVERSATION_CONFIG))
     domain_model: dict = field(default_factory=dict)
     domain_model_history: list[dict] = field(default_factory=list)
+    context_policy: ContextPolicy = field(default_factory=ContextPolicy)
     github_token: str = ""
     github_webhook_secret: str = ""
     github_config: dict = field(default_factory=dict)
@@ -100,6 +102,11 @@ class Project:
         self.github_token = ""
         self.github_webhook_secret = ""
         self.github_config = {}
+        self.updated_at = datetime.now(UTC)
+
+    def update_context_policy(self, policy: ContextPolicy) -> None:
+        """更新项目的上下文策略。"""
+        self.context_policy = policy
         self.updated_at = datetime.now(UTC)
 
     # -- Domain model lifecycle -------------------------------------------
