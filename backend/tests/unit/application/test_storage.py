@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from arc.infrastructure.storage import StorageAdapter, MAX_UPLOAD_SIZE
+from arc.infrastructure.storage import StorageAdapter, DEFAULT_MAX_UPLOAD_SIZE as MAX_UPLOAD_SIZE
 
 
 @pytest.fixture

@@ -28,6 +28,14 @@ export interface InteractivePrototypeHandle {
 const TAILWIND_CDN = 'https://cdn.tailwindcss.com';
 
 function buildSrcDoc(html: string): string {
+  // 如果已经是完整 HTML 文档（包含 <!DOCTYPE 或 <html），直接使用
+  const trimmed = html.trim();
+  if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) {
+    // 注入 inspector 脚本到已有 body
+    const inspectedHtml = injectInspector(html);
+    return inspectedHtml;
+  }
+  // 片段模式：包裹为完整文档
   const inspectedHtml = injectInspector(html);
   return `<!DOCTYPE html>
 <html>

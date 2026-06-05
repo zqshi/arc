@@ -20,6 +20,10 @@ from arc.infrastructure.repositories.experience import ExperienceRepository
 
 logger = logging.getLogger(__name__)
 
+# --- 检索质量门控参数 ---
+SIMILARITY_THRESHOLD = 0.65  # 低于此相似度的经验不注入（减少噪音）
+MAX_SAME_CATEGORY = 2  # 同一 category 最多注入条数（多样性控制）
+
 
 EXTRACTION_PROMPT = """\
 从以下任务的完整信息和对话中，提取可复用的经验。
@@ -85,7 +89,23 @@ class ExperienceService:
         self.conv_repo = ConversationRepository(db)
 
     async def extract_from_todo(self, todo: Todo) -> Experience | None:
-        """Extract structured experience from a completed todo's conversations."""
+        """Extract structured experience from a completed todo's conversations.
+
+        如果已经从 experience_card artifact 同步过经验，跳过 LLM 提取以避免重复。
+        """
+        # 去重：experience_card artifact 已同步过则跳过
+        from sqlalchemy import select
+        from arc.infrastructure.models.experience import Experience as ExpModel
+        existing = await self.db.execute(
+            select(ExpModel.id).where(ExpModel.todo_id == todo.id).limit(1)
+        )
+        if existing.scalar_one_or_none():
+            logger.info(
+                "extract_from_todo: experience already exists for todo %s (synced from artifact), skip LLM extraction",
+                todo.id,
+            )
+            return None
+
         conversations = await self.conv_repo.list_by_todo_id(todo.id)
 
         conversation_log = ""
@@ -185,7 +205,13 @@ class ExperienceService:
         project_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
     ) -> list[Experience]:
-        """Search for related experiences using embedding similarity."""
+        """Search for related experiences using embedding similarity.
+
+        质量门控:
+        1. 过宽检索（2x limit）→ 相似度阈值过滤 → 多样性控制 → 截取
+        2. 低于 SIMILARITY_THRESHOLD 的结果直接丢弃
+        3. 同一 category 最多返回 MAX_SAME_CATEGORY 条
+        """
         from arc.application.ai.resilience import create_resilient_adapter
 
         try:
@@ -202,9 +228,9 @@ class ExperienceService:
             await adapter.close()
 
         try:
-            return await self.exp_repo.search_by_embedding(
+            scored_results = await self.exp_repo.search_by_embedding(
                 embedding,
-                limit=limit,
+                limit=limit * 2,  # 过宽检索，留出过滤空间
                 project_id=project_id,
                 user_id=user_id,
             )
@@ -212,15 +238,31 @@ class ExperienceService:
             logger.warning("search_similar: vector search failed: %s", exc)
             return []
 
-    async def search_related(
-        self, query_embedding: list[float], limit: int = 5
-    ) -> list[Experience]:
-        """Search for related experiences using pre-computed vector."""
-        try:
-            return await self.exp_repo.search_by_embedding(query_embedding, limit=limit)
-        except Exception as exc:
-            logger.warning("search_related: vector search failed: %s", exc)
-            return []
+        # 1. 相似度阈值过滤
+        above_threshold = [
+            (exp, score) for exp, score in scored_results
+            if score >= SIMILARITY_THRESHOLD
+        ]
+
+        # 2. 多样性控制：按 category 分组，每组最多 MAX_SAME_CATEGORY
+        category_counts: dict[str, int] = {}
+        diverse_results: list[Experience] = []
+        for exp, _score in above_threshold:
+            cat_key = exp.category.value if hasattr(exp.category, "value") else str(exp.category)
+            count = category_counts.get(cat_key, 0)
+            if count < MAX_SAME_CATEGORY:
+                diverse_results.append(exp)
+                category_counts[cat_key] = count + 1
+            if len(diverse_results) >= limit:
+                break
+
+        if scored_results and not diverse_results:
+            logger.info(
+                "search_similar: all %d results below threshold %.2f, returning empty",
+                len(scored_results), SIMILARITY_THRESHOLD,
+            )
+
+        return diverse_results
 
     async def decay_batch(self) -> int:
         entities = await self.exp_repo.list_for_decay()

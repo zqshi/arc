@@ -13,7 +13,6 @@ from arc.domain.organization.value_objects import PLAN_LIMITS, OrgPlan
 from arc.infrastructure.models.billing import UsageDailyModel
 from arc.infrastructure.models.organization import OrganizationModel
 from arc.infrastructure.models.project import ProjectModel
-from arc.infrastructure.models.todo import Todo as TodoModel
 
 
 @dataclass
@@ -52,22 +51,6 @@ class QuotaService:
         if current >= limit:
             raise ForbiddenError(
                 f"已达 {plan.value} 套餐项目上限({limit}个)，请升级套餐"
-            )
-
-    async def check_todo_limit(self, org_id: uuid.UUID, project_id: uuid.UUID) -> None:
-        if settings.debug:
-            return
-        plan = await self.get_org_plan(org_id)
-        limit = PLAN_LIMITS[plan]["max_todos_per_project"]
-        result = await self.db.execute(
-            select(func.count())
-            .select_from(TodoModel)
-            .where(TodoModel.project_id == project_id)
-        )
-        current = result.scalar_one()
-        if current >= limit:
-            raise ForbiddenError(
-                f"已达 {plan.value} 套餐单项目需求上限({limit}个)，请升级套餐"
             )
 
     async def check_ai_call_limit(self, org_id: uuid.UUID) -> None:

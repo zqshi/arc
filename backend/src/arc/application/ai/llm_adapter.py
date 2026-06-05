@@ -228,21 +228,10 @@ def create_llm_adapter_from_config(llm_config: dict) -> LLMAdapter:
     return create_llm_adapter()
 
 
-# ---------------------------------------------------------------------------
-# Re-exports for backward compatibility
-# ---------------------------------------------------------------------------
-# Existing code does ``from arc.application.ai.llm_adapter import OpenAIAdapter``
-# so we re-export here to avoid breaking any import paths.
-
-from arc.application.ai.anthropic_adapter import AnthropicAdapter  # noqa: E402, F401
-from arc.application.ai.openai_adapter import OpenAIAdapter  # noqa: E402, F401
-
 __all__ = [
     "LLMAdapter",
     "LLMMessage",
     "LLMResponse",
     "StreamResult",
-    "OpenAIAdapter",
-    "AnthropicAdapter",
     "create_llm_adapter",
 ]

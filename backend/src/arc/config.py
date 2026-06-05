@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     storage_bucket: str = "arc-previews"
     storage_public_url: str = ""
 
+    # Deployment
+    deploy_path_prefix: str = "deployments"
+    deploy_cdn_domain: str = ""
+    deploy_max_file_size: int = 50 * 1024 * 1024  # 50 MB
+
     model_config = {"env_prefix": "ARC_", "env_file": ".env"}
 
 

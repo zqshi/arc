@@ -6,10 +6,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from arc.domain.conversation.entity import Conversation
 from arc.domain.todo.entity import Todo
-from arc.domain.todo.value_objects import ConversationPurpose, MessageRole, Tag
-from arc.infrastructure.repositories.conversation import ConversationRepository
+from arc.domain.todo.value_objects import Tag
 from arc.infrastructure.repositories.todo import TodoRepository
 
 logger = logging.getLogger(__name__)
@@ -35,7 +33,6 @@ class TodoService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.todo_repo = TodoRepository(db)
-        self.conv_repo = ConversationRepository(db)
 
     async def create_todo(self, todo: Todo) -> Todo:
         return await self.todo_repo.create(todo)
@@ -95,25 +92,3 @@ class TodoService:
                     )
                 )
         return tags
-
-    async def start_analysis(self, todo_id: uuid.UUID) -> tuple[Todo, Conversation]:
-        """Start AI analysis and create a clarification conversation."""
-        todo = await self.todo_repo.get_by_id(todo_id)
-        if not todo:
-            raise ValueError(f"Todo {todo_id} not found")
-
-        todo.start_analysis()
-        await self.todo_repo.update(todo)
-
-        conversation = Conversation(
-            todo_id=todo.id,
-            purpose=ConversationPurpose.CLARIFICATION,
-        )
-        conversation.add_message(
-            role=MessageRole.SYSTEM,
-            content=f"开始对任务「{todo.title}」进行需求澄清。",
-        )
-        await self.conv_repo.create(conversation)
-        logger.info("Started analysis for todo %s", todo_id)
-
-        return todo, conversation

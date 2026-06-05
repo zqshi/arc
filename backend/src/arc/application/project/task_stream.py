@@ -49,14 +49,5 @@ class ProjectTaskStream:
                 if not subs:
                     self._subscribers.pop(project_id, None)
 
-    async def close_project(self, project_id: str) -> None:
-        async with self._lock:
-            subs = self._subscribers.pop(project_id, [])
-            for q in subs:
-                try:
-                    q.put_nowait(_SENTINEL)
-                except asyncio.QueueFull:
-                    pass
-
 
 project_task_stream = ProjectTaskStream()

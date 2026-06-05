@@ -68,23 +68,11 @@ class PromptRegistry:
         pv = self._versions.get(key)
         return pv.version if pv else "unknown"
 
-    def get_system_prompt(self, phase_type: PhaseType) -> str | None:
-        key = (phase_type, "system")
-        pv = self._versions.get(key)
-        return pv.content if pv else None
-
     def get_extraction_prompt(self, phase_type: PhaseType) -> str | None:
         key = (phase_type, "extraction")
         pv = self._versions.get(key)
         return pv.content if pv else None
 
-    def get_metadata(self, phase_type: PhaseType, prompt_type: str) -> dict:
-        """Return metadata dict suitable for storage in artifact/gate records."""
-        return {
-            "prompt_version": self.get_version(phase_type, prompt_type),
-            "phase_type": phase_type.value,
-            "prompt_type": prompt_type,
-        }
 
 
 prompt_registry = PromptRegistry()

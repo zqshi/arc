@@ -269,6 +269,7 @@ class VersionRepository(AbstractVersionRepository):
         model.order = version.order
         model.changelog = version.changelog or None
         model.prototype_preview_url = version.prototype_preview_url or None
+        model.deploy_url = version.deploy_url or None
         await self.db.flush()
 
     async def get_latest_planning(self, project_id: uuid.UUID) -> Version | None:
@@ -337,6 +338,7 @@ class VersionRepository(AbstractVersionRepository):
             order=model.order or 0,
             changelog=model.changelog or "",
             prototype_preview_url=model.prototype_preview_url or "",
+            deploy_url=model.deploy_url or "",
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

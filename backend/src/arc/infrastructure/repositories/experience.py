@@ -79,9 +79,16 @@ class ExperienceRepository(IExperienceRepository):
         limit: int = 10,
         project_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
-    ) -> list[ExpEntity]:
+    ) -> list[tuple[ExpEntity, float]]:
+        """Search by embedding similarity.
+
+        Returns:
+            List of (experience, similarity_score) tuples, ordered by
+            descending similarity. Score is 1 - cosine_distance (range 0..1).
+        """
+        distance_col = ExpModel.embedding.cosine_distance(embedding).label("distance")
         stmt = (
-            select(ExpModel)
+            select(ExpModel, distance_col)
             .where(ExpModel.embedding.isnot(None))
             .where(ExpModel.status == "confirmed")
         )
@@ -99,9 +106,10 @@ class ExperienceRepository(IExperienceRepository):
             )
         if project_id:
             stmt = stmt.where(ExpModel.project_id == project_id)
-        stmt = stmt.order_by(ExpModel.embedding.cosine_distance(embedding)).limit(limit)
+        stmt = stmt.order_by(distance_col).limit(limit)
         result = await self.db.execute(stmt)
-        return [self._to_entity(r) for r in result.scalars().all()]
+        rows = result.all()
+        return [(self._to_entity(row[0]), round(1.0 - (row[1] or 0.0), 4)) for row in rows]
 
     async def list_recently_reused(self, limit: int = 10) -> list[ExpEntity]:
         result = await self.db.execute(

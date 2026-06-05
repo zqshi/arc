@@ -205,6 +205,7 @@ class Version:
     order: int = 0
     changelog: str = ""
     prototype_preview_url: str = ""
+    deploy_url: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 

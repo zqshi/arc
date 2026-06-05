@@ -180,7 +180,11 @@ async def list_artifacts(todo_id: str, db: DbSession, user: CurrentUser):
 
     repo = ArtifactRepository(db)
     artifacts = await repo.list_by_todo_id(UUID(todo_id))
-    return [_artifact_response(a) for a in artifacts]
+    responses = [_artifact_response(a) for a in artifacts]
+
+    # 对 prototype 类型解析文件引用为实际 HTML
+    await _resolve_prototype_refs(db, todo_id, responses)
+    return responses
 
 
 @router.get("/{todo_id}/artifacts/{artifact_id}", response_model=ArtifactResponse)
@@ -194,7 +198,11 @@ async def get_artifact(todo_id: str, artifact_id: str, db: DbSession, user: Curr
     artifact = await repo.get_by_id(UUID(artifact_id))
     if not artifact or str(artifact.todo_id) != todo_id:
         raise HTTPException(status_code=404, detail="Artifact not found")
-    return _artifact_response(artifact)
+    resp = _artifact_response(artifact)
+
+    # 对 prototype 类型解析文件引用
+    await _resolve_prototype_refs(db, todo_id, [resp])
+    return resp
 
 
 @router.put("/{todo_id}/artifacts/{artifact_id}", response_model=ArtifactResponse)
@@ -295,3 +303,54 @@ def _artifact_response(artifact) -> ArtifactResponse:
         created_at=artifact.created_at,
         updated_at=artifact.updated_at,
     )
+
+
+async def _resolve_prototype_refs(
+    db, todo_id: str, responses: list[ArtifactResponse]
+) -> None:
+    """对 prototype 类型的 artifact response 解析文件引用为实际 HTML 内容。
+
+    修改 responses in-place。
+    """
+    from pathlib import Path
+    from arc.infrastructure.repositories.project import ProjectRepository
+    from arc.infrastructure.repositories.todo import TodoRepository
+
+    # 找出 prototype 类型的 responses
+    proto_responses = [r for r in responses if r.artifact_type == "prototype"]
+    if not proto_responses:
+        return
+
+    # 获取项目 local_path
+    todo = await TodoRepository(db).get_by_id(UUID(todo_id))
+    if not todo or not todo.project_id:
+        return
+    project = await ProjectRepository(db).get_by_id(todo.project_id)
+    if not project or not project.local_path:
+        return
+
+    local_path = Path(project.local_path).expanduser().resolve()
+    if not local_path.is_dir():
+        return
+
+    # 导入解析函数
+    from arc.application.artifact.prototype_bundle import PrototypeBundleService
+
+    for resp in proto_responses:
+        content = resp.content
+        if not isinstance(content, dict):
+            continue
+        pages = content.get("pages", [])
+        if not isinstance(pages, list):
+            continue
+
+        for page in pages:
+            if not isinstance(page, dict):
+                continue
+            html = page.get("html", "")
+            if not html or not isinstance(html, str):
+                continue
+
+            resolved = PrototypeBundleService._resolve_html_reference(html, str(local_path))
+            if resolved != html:
+                page["html"] = resolved

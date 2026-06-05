@@ -7,13 +7,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from arc.application.ai.anthropic_adapter import AnthropicAdapter
 from arc.application.ai.llm_adapter import (
-    AnthropicAdapter,
     LLMMessage,
     LLMResponse,
-    OpenAIAdapter,
     create_llm_adapter,
 )
+from arc.application.ai.openai_adapter import OpenAIAdapter
 
 
 class TestLLMMessage:

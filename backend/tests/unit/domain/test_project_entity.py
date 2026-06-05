@@ -138,3 +138,39 @@ class TestVersionTransitions:
         v.set_changelog("initial release")
         assert v.changelog == "initial release"
         assert v.updated_at >= before
+
+
+class TestVersionSetPrototypePreviewUrl:
+    def _make(self) -> Version:
+        return Version(project_id=uuid.uuid4(), name="v1.0")
+
+    def test_set_url_success(self) -> None:
+        v = self._make()
+        before = v.updated_at
+        v.set_prototype_preview_url("https://s3.example.com/previews/index.html")
+        assert v.prototype_preview_url == "https://s3.example.com/previews/index.html"
+        assert v.updated_at >= before
+
+    def test_set_url_empty_string(self) -> None:
+        v = self._make()
+        v.set_prototype_preview_url("https://example.com/old")
+        v.set_prototype_preview_url("")
+        assert v.prototype_preview_url == ""
+
+    def test_set_url_overwrites_previous(self) -> None:
+        v = self._make()
+        v.set_prototype_preview_url("https://old.com/preview")
+        v.set_prototype_preview_url("https://new.com/preview")
+        assert v.prototype_preview_url == "https://new.com/preview"
+
+    def test_default_url_is_empty(self) -> None:
+        v = self._make()
+        assert v.prototype_preview_url == ""
+
+    def test_updated_at_changes(self) -> None:
+        import time
+        v = self._make()
+        first_update = v.updated_at
+        time.sleep(0.01)
+        v.set_prototype_preview_url("https://example.com/preview")
+        assert v.updated_at >= first_update

@@ -169,13 +169,24 @@ class ExecutionEngine:
                 ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value)
                 for a in extracted
             ]
+            # 读取最新 tracker 快照，随事件一起推送给前端（避免额外 API 往返）
+            tracker = await self._tracker_repo.get_by_todo_id(conversation.todo_id)
+            tracker_snapshot = None
+            if tracker:
+                from arc.domain.planning.value_objects import DeliverableStatus
+                tracker_snapshot = {
+                    "required": tracker.required,
+                    "deliverables": {k: v.value for k, v in tracker.deliverables.items()},
+                    "completion_pct": tracker.completion_pct,
+                    "is_complete": tracker.is_complete,
+                }
             yield {
                 "message_id": message_id,
                 "event": "artifacts_extracted",
                 "artifacts": [str(a.id) for a in extracted],
                 "artifact_names": artifact_names,
+                "tracker": tracker_snapshot,
             }
-            tracker = await self._tracker_repo.get_by_todo_id(conversation.todo_id)
             if tracker and tracker.is_complete:
                 await self._extract_experience(conversation.todo_id)
 

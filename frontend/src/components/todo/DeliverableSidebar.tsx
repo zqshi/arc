@@ -97,7 +97,9 @@ export function DeliverableSidebar({
                         const artifacts = await api.listArtifacts(todoId);
                         const match = artifacts.find((a) => a.artifact_type === type);
                         if (match) onItemClick(match);
-                      } catch { /* ignore */ }
+                      } catch (err) {
+                        console.warn('[DeliverableSidebar] 加载交付物失败:', err);
+                      }
                     }}
                     className={`flex flex-1 items-center gap-2.5 rounded-md p-2 text-left transition-all ${
                       isDone ? 'bg-status-done/5 hover:bg-status-done/10 cursor-pointer'

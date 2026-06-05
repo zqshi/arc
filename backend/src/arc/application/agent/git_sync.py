@@ -250,17 +250,6 @@ class GitSync:
 
         return diagnosis
 
-    async def create_feature_branch(self, branch_name: str) -> bool:
-        """创建并切换到新分支。"""
-        code, _, stderr = await _run_git(
-            ["checkout", "-b", branch_name], self._path
-        )
-        if code != 0:
-            # 分支已存在，尝试切换
-            code2, _, _ = await _run_git(["checkout", branch_name], self._path)
-            return code2 == 0
-        return True
-
     async def get_default_branch(self) -> str:
         """获取远程默认分支名。"""
         _, out, _ = await _run_git(

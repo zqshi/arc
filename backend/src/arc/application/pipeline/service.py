@@ -204,6 +204,10 @@ class PipelineService:
             if phase_type == PhaseType.ARCHITECTURE:
                 await self._merge_domain_model(todo_id, artifact.content)
 
+            # 部署阶段确认后 → 触发真实部署
+            if phase_type == PhaseType.DEPLOYMENT:
+                await self._trigger_deployment(todo_id, artifact.content)
+
             nxt = next_phase(phase_type)
             if nxt:
                 next_p = await self.phase_repo.get_by_todo_and_type(todo_id, nxt)
@@ -447,4 +451,53 @@ class PipelineService:
             # 合并失败不阻断主流程
             logger.warning(
                 "Domain model merge failed for todo %s: %s", todo_id, exc
+            )
+
+    async def _trigger_deployment(self, todo_id: uuid.UUID, deploy_content: dict) -> None:
+        """部署阶段确认后，触发真实静态站点部署。
+
+        从 artifact content 中读取部署路径（Agent 执行 build 后产出），
+        调用 DeployService 上传到 S3 并回写 URL。
+        """
+        from arc.application.deployment.service import DeployService
+
+        try:
+            todo = await self.todo_repo.get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return
+
+            from arc.infrastructure.repositories.project import ProjectRepository
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if not project or not project.local_path:
+                logger.info(
+                    "_trigger_deployment: skipped (no local_path) todo=%s", todo_id
+                )
+                return
+
+            # 从 artifact content 或项目配置获取构建产物路径
+            artifact_path = deploy_content.get("artifact_path", "dist")
+            from pathlib import Path
+            dist_dir = Path(project.local_path) / artifact_path
+
+            if not dist_dir.is_dir():
+                logger.info(
+                    "_trigger_deployment: dist not found at %s, skipping", dist_dir
+                )
+                return
+
+            deploy_svc = DeployService(self.db)
+            deployment = await deploy_svc.deploy_static_site(
+                project_id=todo.project_id,
+                version_id=todo.version_id,
+                local_dir=str(dist_dir),
+                todo_id=todo_id,
+            )
+            logger.info(
+                "_trigger_deployment: completed status=%s url=%s",
+                deployment.status.value, deployment.deploy_url,
+            )
+        except Exception as exc:
+            # 部署失败不阻断 pipeline 推进
+            logger.warning(
+                "_trigger_deployment failed for todo %s: %s", todo_id, exc
             )
