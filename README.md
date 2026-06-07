@@ -308,6 +308,12 @@ arc/
 | v1.2 | 交付增强 — AgentLoop + 领域建模 + 原型预览 + S3 存储 | done |
 | v2.0 | 商业化 — 多租户 + 计费 + GitHub 集成 + 云部署 | done |
 | v2.1 | DDD 工程化 — 三阶段自主建模 + 事件风暴 + LLM 质量评审 + schema 对齐 | done |
+| v2.2-2.9 | 质量与智能升级 — ContextEngine + DriftDetection + Checkpoints + GitSync | done |
+| v3.0-3.8 | 领域模型升级 — 升级基础设施 + 影响分析 + 升级执行 + 前端贯通 | done |
+| v5.1-5.2 | 上下文与优先级 — Prompt注入 + AI Changelog + 优先级可视化 | done |
+| v5.3 | 原型预览架构升级 — 版本维度 + S3 持久化 + 空状态保护 | done |
+| v5.4 | 部署层真实化 — 存储重构 + Deployment 领域建模 + S3 静态部署 | done |
+| v5.5-5.6 | BaaS 升级 — Supabase 运行时 + 领域模型模板 | planned |
 
 ## 许可
 
