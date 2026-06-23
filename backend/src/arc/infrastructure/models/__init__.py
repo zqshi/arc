@@ -10,6 +10,7 @@ from .organization import OrganizationMemberModel, OrganizationModel
 from .pipeline import PipelinePhaseModel
 from .planning import DeliverableTrackerModel, DocumentModel, PlanningSessionModel
 from .project import ProjectModel, VersionModel
+from .template import DomainTemplateModel
 from .todo import Todo
 from .user import ProjectMemberModel, UserModel
 
