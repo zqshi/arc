@@ -8,12 +8,14 @@ from arc.application.context.providers.methodology import MethodologyProvider
 from arc.application.context.providers.project import ProjectInfoProvider
 from arc.application.context.providers.review_feedback import ReviewFeedbackProvider
 from arc.application.context.providers.sufficiency import SufficiencyHintProvider
+from arc.application.context.providers.template import TemplateProvider
 
 __all__ = [
     "ProjectInfoProvider",
     "DomainModelProvider",
     "ReviewFeedbackProvider",
     "ExperienceProvider",
+    "TemplateProvider",
     "MethodologyProvider",
     "CodeCapabilityProvider",
     "DeliverableProvider",
