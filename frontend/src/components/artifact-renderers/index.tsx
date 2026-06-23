@@ -10,6 +10,8 @@ import DevReport from './DevReport';
 import TestReport from './TestReport';
 import DeployReport from './DeployReport';
 import ExperienceCard from './ExperienceCard';
+import AppCode from './AppCode';
+import ServiceSpec from './ServiceSpec';
 import type { ArtifactType, ArtifactContent } from '../../types/api';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,6 +33,8 @@ const RENDERERS: Record<string, React.ComponentType<{ content: AnyContent }>> = 
   deploy_report: DeployReport,
   experience_card: ExperienceCard,
   ui_design: UIDesign,
+  app_code: AppCode,
+  service_spec: ServiceSpec,
 };
 
 export default function ArtifactRenderer({ artifactType, content }: Props) {
