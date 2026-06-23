@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-06-23
+
+### Added — BaaS 运行时层 (Supabase) + MCP server
+
+**BaaS 领域建模 (T1-T8):**
+- `domain/baas/`: ColumnDef/TableDef/RlsPolicy/StateTransition/ActionDef/BaasSchema 值对象
+  - BaasSchema 强制 `arc_` 前缀 (Supabase schema 隔离约定)
+- BaasInstance 实体: provisioning/active/suspended/deleted 状态机
+  - apply_model 仅 active 态, model_version 单调递增 (防增量 DDL 回退丢数据)
+- BaasStatus/BaasRepository Protocol/ProvisionError/SchemaApplyError/RlsValidationError
+
+**BaaS 基础设施 (T3-T6):**
+- `supabase_client.py`: asyncpg 直连 + schema 名白名单校验 (防注入) + SET search_path 隔离
+  - DSN 解析: 显式 supabase_db_url > 复用 Arc database_url (dev 同库隔离)
+- `sql_generator.py`: BaasSchema→DDL 纯函数 (标识符白名单, 全 IF NOT EXISTS)
+- `rls_generator.py`: RlsPolicy→CREATE POLICY (DROP+CREATE 幂等)
+- `schema_provisioner.py`: CREATE SCHEMA + _meta_* 元模型表 (借鉴 XSpace)
+
+**BaaS 编排 (T7-T8):**
+- `BaasService`: provision (幂等) + apply_model (逐表 DDL+RLS) + introspect
+  - apply 后自动跑 RLS 校验 (T17)
+- `DomainModelApplier`: DomainModelSnapshot→BaasSchema 转换
+  - 聚合→表, 字段→列, id→UUID 主键, 无 id 自动补, 默认 RLS
+
+**接入编排 (T10-T12):**
+- Agent BaaS tools: supabase_provision / execute_sql / get_domain_model
+- ARCHITECTURE 阶段 hook: 领域模型提取后自动 provision BaaS (失败不阻断)
+- DEVELOPMENT 阶段: APP_CODE.backend_type=supabase 时注入 VITE_SUPABASE_* 到前端 .env
+- migration z9_baas_instances: baas_instances 表
+
+**安全与测试 (T16-T17):**
+- `rls_validator.py`: 5 项 RLS 安全检查 (借鉴 XSpace), 不阻断返回 warnings
+- 集成测试: provision→apply→introspect 真实 PG 全链路 (4 项)
+- models/__init__.py 补注册 DeploymentModel (v5.4.0 历史欠账)
+
+**MCP server (T18-T19, v5.5.0 deferred):**
+- POST /api/mcp: JSON-RPC 2.0 (initialize/tools/list/tools/call)
+- tools: arc_list_artifacts / arc_get_artifact / arc_update_artifact
+- 复用 Arc JWT 认证, update 走 filter_editable_fields 白名单
+
+### 决策
+
+- T9 不做 DomainModelSnapshot 扩展 (T8 已证明可从 aggregates/fields 推导, 加 tables 会双事实来源)
+- MCP 用原生 endpoint 非 Higress to-MCP (配置语法无法在线核实, 凭记忆写不负责任)
+
 ## [5.5.0] - 2026-06-23
 
 ### Added — DEVELOPMENT 产物补全 + 编辑能力暴露
