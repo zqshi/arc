@@ -232,6 +232,7 @@ ALL_CONTEXT_PROVIDERS: list[str] = [
     "domain_model",
     "review_feedback",
     "experience",
+    "template",
     "methodology",
     "code_capability",
     "deliverable",

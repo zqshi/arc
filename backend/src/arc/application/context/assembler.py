@@ -65,6 +65,7 @@ class ContextAssembler:
             ProjectInfoProvider,
             ReviewFeedbackProvider,
             SufficiencyHintProvider,
+            TemplateProvider,
         )
 
         return [
@@ -73,6 +74,7 @@ class ContextAssembler:
             DomainModelProvider(db),        # P1: 领域模型
             ReviewFeedbackProvider(db),     # P1: 评审反馈
             ExperienceProvider(db),         # P1: 经验召回
+            TemplateProvider(db),           # P1: 历史模板推荐 (v5.7.0, ARCHITECTURE 阶段)
             CodeCapabilityProvider(db),     # P1: 代码能力
             MethodologyProvider(db),        # P2: 方法论
             SufficiencyHintProvider(),      # P2: 充分性提示
