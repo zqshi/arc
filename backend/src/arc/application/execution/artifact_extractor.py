@@ -197,9 +197,73 @@ class ArtifactExtractor:
             # 提取成功后自动触发评审闭环
             if updated:
                 await self._try_review_after_extract(todo_id)
+                # v5.6.0: 提取成功后自动 provision BaaS (领域模型可执行化)
+                await self._try_provision_baas_after_extract(todo_id)
         except Exception:
             logger.warning(
                 "Domain model extraction failed for todo %s", todo_id, exc_info=True
+            )
+
+    async def _try_provision_baas_after_extract(self, todo_id: uuid.UUID) -> None:
+        """v5.6.0: 领域模型提取后自动 provision BaaS schema + apply 模型。
+
+        把项目 domain_model 转 BaasSchema 落地到 Supabase, 让生成的应用有真实后端。
+        失败仅 warning 不阻断 (与 review hook 一致)。
+        """
+        from arc.application.baas.domain_model_applier import DomainModelApplier
+        from arc.application.baas.service import BaasService
+        from arc.infrastructure.repositories.project import ProjectRepository
+        from arc.infrastructure.repositories.todo import TodoRepository
+
+        try:
+            todo_repo = TodoRepository(self.db)
+            todo = await todo_repo.get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return
+
+            project_repo = ProjectRepository(self.db)
+            project = await project_repo.get_by_id(todo.project_id)
+            if not project or not project.domain_model:
+                return
+
+            dm = project.domain_model
+            aggregates = dm.get("aggregates", []) if isinstance(dm, dict) else []
+            if not aggregates:
+                logger.info(
+                    "BaaS provision skipped: todo %s 模型无聚合", todo_id
+                )
+                return
+
+            # 构造当前 snapshot (复用 DomainModelApplier 的转换逻辑)
+            from arc.domain.project.value_objects import (
+                DomainModelSnapshot,
+                ModelChangeTrigger,
+            )
+
+            snapshot = DomainModelSnapshot(
+                version=dm.get("version", 1),
+                content=dm,
+                trigger=ModelChangeTrigger.MANUAL,
+                trigger_todo_id=str(todo_id),
+                created_at=__import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc
+                ),
+            )
+
+            baas_service = BaasService(self.db)
+            applier = DomainModelApplier(baas_service)
+            await applier.apply_snapshot(
+                project_id=project.id,
+                snapshot=snapshot,
+                supabase_url="",  # dev 默认 (同库隔离)
+            )
+            logger.info(
+                "BaaS provision triggered for project %s (model v%s)",
+                project.id, snapshot.version,
+            )
+        except Exception:
+            logger.warning(
+                "BaaS provision after extract failed for todo %s", todo_id, exc_info=True
             )
 
     async def _try_sync_experience(
