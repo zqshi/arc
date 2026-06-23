@@ -219,6 +219,7 @@ def register_routes():
     from arc.interface.routes.pipeline import router as pipeline_router
     from arc.interface.routes.project import router as project_router
     from arc.interface.routes.settings import router as settings_router
+    from arc.interface.routes.template import router as template_router
     from arc.interface.routes.todo import router as todo_router
     from arc.interface.routes.webhook import router as webhook_router
     from arc.interface.ws.chat import router as ws_router
@@ -236,6 +237,7 @@ def register_routes():
     app.include_router(filesystem_router, prefix="/api/filesystem", tags=["filesystem"])
     app.include_router(webhook_router, prefix="/api/webhooks", tags=["webhooks"])
     app.include_router(mcp_router, prefix="/api/mcp", tags=["mcp"])
+    app.include_router(template_router, prefix="/api/templates", tags=["templates"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
     from arc.config import settings
