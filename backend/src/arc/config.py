@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     deploy_cdn_domain: str = ""
     deploy_max_file_size: int = 50 * 1024 * 1024  # 50 MB
 
+    # BaaS (v5.6.0) — Supabase PG 连接
+    # 留空则复用 Arc 的 database_url (dev: 生成的应用 schema 与 Arc 元数据同库,
+    # 靠 arc_{project_id} 前缀隔离); 生产填真实 Supabase Postgres DSN
+    supabase_db_url: str = ""
+    supabase_schema_prefix: str = "arc_"  # schema 隔离前缀, 需与 BaasSchema 约定一致
+
     model_config = {"env_prefix": "ARC_", "env_file": ".env"}
 
 
