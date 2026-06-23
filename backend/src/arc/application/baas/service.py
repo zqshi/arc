@@ -19,6 +19,7 @@ from arc.domain.baas.entity import BaasInstance
 from arc.domain.baas.errors import SchemaApplyError
 from arc.domain.baas.value_objects import BaasSchema, BaasStatus
 from arc.domain.errors import DomainError
+from arc.application.baas.rls_validator import validate_rls
 from arc.infrastructure.baas.rls_generator import generate_policy_sql
 from arc.infrastructure.baas.schema_provisioner import SchemaProvisioner
 from arc.infrastructure.baas.sql_generator import generate_table_sql
@@ -108,10 +109,18 @@ class BaasService:
                 f"apply model v{model_version} 到 schema {schema.schema_name} 失败: {e}"
             ) from e
 
+        # v5.6.0 T17: apply 后自动 RLS 安全校验 (不阻断, 仅记录 warnings)
+        rls_warnings = validate_rls(schema)
+        if rls_warnings:
+            for w in rls_warnings:
+                logger.warning(
+                    "RLS 校验 [%s] 表=%s: %s", w.severity, w.table, w.message
+                )
+
         logger.info(
-            "apply_model: schema=%s version=%d tables=%d policies=%d",
+            "apply_model: schema=%s version=%d tables=%d policies=%d rls_warnings=%d",
             schema.schema_name, model_version,
-            len(schema.tables), len(schema.policies),
+            len(schema.tables), len(schema.policies), len(rls_warnings),
         )
         return await self._baas_repo.update(instance)
 
