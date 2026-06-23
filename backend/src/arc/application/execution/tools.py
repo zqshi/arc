@@ -4,6 +4,10 @@ Tools give the AI agent the ability to interact with the project codebase:
 read files, list directories, search code, execute commands, and write files.
 
 All file operations are sandboxed to the project's local_path.
+
+注: 本文件为 tool 注册中心, 行数超 500 行强限 (CLAUDE.md 例外)。
+每个 ToolDefinition 是自包含注册块, 拆分会破坏注册聚合的可读性。
+持续增长超 800 行时考虑按 tool 类别拆分子模块。
 """
 
 from __future__ import annotations
@@ -334,6 +338,107 @@ class ToolRegistry:
 
     def register(self, tool: ToolDefinition):
         self._tools[tool.name] = tool
+
+    def register_baas_tools(self, *, project_id, baas_service) -> None:
+        """注册 BaaS 相关 Agent tools (v5.6.0 T10)。
+
+        Agent 在 DEVELOPMENT/ARCHITECTURE 阶段可通过这些 tools 直接操作 Supabase。
+        需要调用方传入 baas_service (含 db 连接), 未传入则不注册 (向后兼容)。
+
+        Tools:
+        - supabase_provision: provision 项目 schema
+        - supabase_execute_sql: 在项目 schema 内执行 SQL (Agent 直接操作 DB)
+        - get_domain_model: introspect 当前 schema 领域结构
+        """
+        import uuid as _uuid
+
+        pid = project_id
+        svc = baas_service
+
+        async def _provision(params: dict) -> str:
+            # 默认 dev URL (与 SupabaseClient 同库隔离约定一致)
+            url = params.get("supabase_url") or "http://localhost:54321"
+            instance = await svc.provision(
+                project_id=pid,
+                schema_name=f"arc_{pid.hex[:8]}",
+                supabase_url=url,
+            )
+            return f"已 provision BaaS schema: {instance.schema_name}"
+
+        async def _execute_sql(params: dict) -> str:
+            # import 在 handler 内, 便于测试 patch (闭包不会锁定注册时的类对象)
+            from arc.infrastructure.baas.supabase_client import SupabaseClient
+
+            sql = params.get("sql", "")
+            # 先 introspect 确认已 provision
+            info = await svc.introspect(pid)
+            schema = info.get("schema")
+            if not schema or not info.get("exists"):
+                return "错误: 项目未 provision BaaS, 请先调用 supabase_provision"
+            client = SupabaseClient()
+            try:
+                result = await client.execute(sql, schema=schema)
+                return f"执行成功: {result}"
+            finally:
+                await client.close()
+
+        async def _get_domain_model(params: dict) -> str:
+            info = await svc.introspect(pid)
+            if not info.get("exists"):
+                return "项目尚未 provision BaaS schema"
+            return (
+                f"schema: {info['schema']}\n"
+                f"实体数: {info.get('entities_count', 0)}\n"
+                f"状态数: {info.get('states_count', 0)}\n"
+                f"跃迁数: {info.get('transitions_count', 0)}\n"
+                f"权限策略数: {info.get('policies_count', 0)}"
+            )
+
+        self.register(ToolDefinition(
+            name="supabase_provision",
+            description=(
+                "为当前项目 provision Supabase schema (创建独立 schema + 元模型表)。"
+                "ARCHITECTURE 阶段领域模型确认后调用。"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "supabase_url": {
+                        "type": "string",
+                        "description": "Supabase PostgREST endpoint, 留空用默认",
+                    },
+                },
+                "required": [],
+            },
+            handler=_provision,
+        ))
+
+        self.register(ToolDefinition(
+            name="supabase_execute_sql",
+            description=(
+                "在当前项目的 Supabase schema 内执行 SQL (建表/写 RLS/插数据)。"
+                "自动 SET search_path 到项目 schema, 隔离其他项目数据。"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "sql": {"type": "string", "description": "要执行的 SQL 语句"},
+                },
+                "required": ["sql"],
+            },
+            handler=_execute_sql,
+        ))
+
+        self.register(ToolDefinition(
+            name="get_domain_model",
+            description=(
+                "读取当前项目 Supabase schema 的领域结构概况 "
+                "(实体/状态/跃迁/权限策略计数)。"
+                "做增量变更前先了解当前结构。"
+            ),
+            input_schema={"type": "object", "properties": {}, "required": []},
+            handler=_get_domain_model,
+        ))
 
     def scoped(
         self,
