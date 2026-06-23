@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [5.7.0] - 2026-06-23
+
+### Added — 领域模型模板沉淀（经验引擎核心壁垒）
+
+**模板领域建模 (T1-T2):**
+- `domain/template/`: DomainTemplate 实体 + TemplateCategory/Status/Scope 值对象
+  - 状态机 draft → confirmed → published → deprecated
+  - record_usage (success/failure 调 confidence) + success_rate
+  - compute_decayed_confidence (半衰期 180 天, 同 Experience) + is_stale
+  - schema_template/entity_patterns/state_machine_patterns/permission_patterns
+
+**模板提取 (T4):**
+- `extraction_service.py`: 从 BaasSchema 泛化提取
+  - extract_structure (纯逻辑): 表名→占位符, 保留列类型/主键/外键
+  - detect_entity/state_machine/permission_patterns 模式识别
+  - infer_category 关键词推断分类
+  - LLM 生成标题/描述 (失败 fallback 结构化标题)
+
+**模板匹配 (T5):**
+- `matching_service.py`: 需求 → embedding → 向量搜索 → 推荐
+  - 2x 过宽检索 + 相似度阈值过滤 (同 Experience 质量门控)
+
+**模板套用 (T6):**
+- `apply_service.py`: 模板 + 需求 → LLM 适配 → BaasSchema → apply + 记录使用
+  - apply 成功/失败都 record_usage (success_rate 统计)
+
+**自动闭环 (T7-T8):**
+- release hook: 版本发布后自动从领域模型提取模板草稿
+- TemplateProvider: ARCHITECTURE 阶段注入匹配模板推荐 (ContextProvider)
+- Project 实体补 user_id (创建者, 模板提取 source_user_id 追溯)
+
+**API + 前端 (T9, T13):**
+- `interface/routes/template.py`: CRUD + 状态转换 + 语义搜索 + apply
+- migration z10_domain_templates (pgvector embedding 列)
+- 前端 TemplateCard + TemplateList (生命周期操作 + apply 确认弹窗)
+
+### 决策
+
+- 模板 vs 经验平行存在 (强绑定骨架 vs 弱绑定参考), ARCHITECTURE 同时注入
+- 结构泛化纯逻辑, LLM 仅标题/分类 (失败 graceful fallback)
+- 衰减机制同 Experience (半衰期 180 天)
+
 ## [5.6.0] - 2026-06-23
 
 ### Added — BaaS 运行时层 (Supabase) + MCP server
