@@ -15,6 +15,10 @@ class ArtifactType(StrEnum):
     TEST_REPORT = "test_report"
     DEPLOY_REPORT = "deploy_report"
     EXPERIENCE_CARD = "experience_card"
+    # v5.5.0 — DEVELOPMENT 阶段的机器可解析代码工程元数据
+    APP_CODE = "app_code"
+    # v5.5.0 — ARCHITECTURE 阶段的服务契约（BaaS 接入锚点）
+    SERVICE_SPEC = "service_spec"
     # Legacy — kept for backward compat with existing DB records
     UI_DESIGN = "ui_design"
 
@@ -26,8 +30,8 @@ PHASE_ARTIFACT_MAP: dict[PhaseType, list[ArtifactType]] = {
         ArtifactType.UI_SPEC,
         ArtifactType.PROTOTYPE,
     ],
-    PhaseType.ARCHITECTURE: [ArtifactType.TECH_ARCHITECTURE],
-    PhaseType.DEVELOPMENT: [ArtifactType.DEV_REPORT],
+    PhaseType.ARCHITECTURE: [ArtifactType.TECH_ARCHITECTURE, ArtifactType.SERVICE_SPEC],
+    PhaseType.DEVELOPMENT: [ArtifactType.DEV_REPORT, ArtifactType.APP_CODE],
     PhaseType.TESTING: [ArtifactType.TEST_REPORT],
     PhaseType.DEPLOYMENT: [ArtifactType.DEPLOY_REPORT],
     PhaseType.EXTRACTION: [ArtifactType.EXPERIENCE_CARD],
@@ -48,6 +52,8 @@ ARTIFACT_LABELS: dict[ArtifactType, str] = {
     ArtifactType.TEST_REPORT: "测试报告",
     ArtifactType.DEPLOY_REPORT: "部署报告",
     ArtifactType.EXPERIENCE_CARD: "经验卡片",
+    ArtifactType.APP_CODE: "应用代码",
+    ArtifactType.SERVICE_SPEC: "服务契约",
     # Legacy
     ArtifactType.UI_DESIGN: "UI设计(旧)",
 }
@@ -63,4 +69,8 @@ DELIVERABLE_REQUIRED_FIELDS: dict[str, list[str]] = {
     "test_report": ["criteria_verification"],
     "deploy_report": ["deploy_log", "health_check_result"],
     "experience_card": ["problem", "solution", "decisions"],
+    # v5.5.0 — APP_CODE: 机器可解析的代码工程元数据 (Agent 写入, UI 只读)
+    "app_code": ["project_dir", "tech_stack", "build_command", "run_command", "entry_points"],
+    # v5.5.0 — SERVICE_SPEC: 服务契约 (v5.6.0 BaaS 接入锚点)
+    "service_spec": ["data_model_ref", "data_persistence", "endpoints", "auth_strategy"],
 }

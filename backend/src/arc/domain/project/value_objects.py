@@ -91,13 +91,19 @@ DEFAULT_PIPELINE_CONFIG: dict = {
 #
 # 三种模式的差异是交互方式（门禁/确认/展示），不是交付标准。
 # 交付物全量一致，确保任何模式下项目都能形成闭环、高质量沉淀经验、构建模型。
+#
+# v5.5.0 起新增 app_code / service_spec:
+# - app_code: DEVELOPMENT 阶段的机器可解析代码工程元数据 (Agent 写入, UI 只读)
+# - service_spec: ARCHITECTURE 阶段的服务契约 (v5.6.0 BaaS 接入锚点)
 REQUIRED_DELIVERABLES: list[str] = [
     "requirement_spec",
     "interaction_design",
     "ui_spec",
     "prototype",
     "tech_architecture",
+    "service_spec",
     "dev_report",
+    "app_code",
     "test_report",
     "deploy_report",
     "experience_card",

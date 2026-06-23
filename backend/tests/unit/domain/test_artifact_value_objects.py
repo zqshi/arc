@@ -2,7 +2,9 @@
 
 from arc.domain.artifact.value_objects import (
     ARTIFACT_LABELS,
+    DELIVERABLE_REQUIRED_FIELDS,
     PHASE_ARTIFACT_MAP,
+    PHASE_PRIMARY_ARTIFACT,
     ArtifactType,
 )
 from arc.domain.pipeline.value_objects import PhaseType
@@ -20,6 +22,8 @@ class TestArtifactType:
         assert ArtifactType.DEPLOY_REPORT == "deploy_report"
         assert ArtifactType.EXPERIENCE_CARD == "experience_card"
         assert ArtifactType.UI_DESIGN == "ui_design"
+        assert ArtifactType.APP_CODE == "app_code"
+        assert ArtifactType.SERVICE_SPEC == "service_spec"
 
     def test_enum_completeness(self):
         expected = {
@@ -33,6 +37,8 @@ class TestArtifactType:
             "deploy_report",
             "experience_card",
             "ui_design",
+            "app_code",
+            "service_spec",
         }
         assert {a.value for a in ArtifactType} == expected
 
@@ -75,10 +81,22 @@ class TestPhaseArtifactMap:
         targets = mapped if isinstance(mapped, list) else [mapped]
         assert ArtifactType.TECH_ARCHITECTURE in targets
 
+    def test_architecture_also_maps_to_service_spec(self):
+        """v5.5.0: ARCHITECTURE 同时产出 SERVICE_SPEC 作为 BaaS 接入锚点。"""
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.ARCHITECTURE]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.SERVICE_SPEC in targets
+
     def test_development_maps_to_dev_report(self):
         mapped = PHASE_ARTIFACT_MAP[PhaseType.DEVELOPMENT]
         targets = mapped if isinstance(mapped, list) else [mapped]
         assert ArtifactType.DEV_REPORT in targets
+
+    def test_development_also_maps_to_app_code(self):
+        """v5.5.0: DEVELOPMENT 同时产出 APP_CODE 作为机器可解析的代码工程元数据。"""
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.DEVELOPMENT]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.APP_CODE in targets
 
     def test_testing_maps_to_test_report(self):
         mapped = PHASE_ARTIFACT_MAP[PhaseType.TESTING]
@@ -126,3 +144,41 @@ class TestArtifactLabels:
         assert ARTIFACT_LABELS[ArtifactType.DEPLOY_REPORT] == "部署报告"
         assert ARTIFACT_LABELS[ArtifactType.EXPERIENCE_CARD] == "经验卡片"
         assert ARTIFACT_LABELS[ArtifactType.UI_DESIGN] == "UI设计(旧)"
+        assert ARTIFACT_LABELS[ArtifactType.APP_CODE] == "应用代码"
+        assert ARTIFACT_LABELS[ArtifactType.SERVICE_SPEC] == "服务契约"
+
+
+class TestPhasePrimaryArtifact:
+    """v5.5.0: APP_CODE/SERVICE_SPEC 是次要 artifact，不应抢占 primary 位。"""
+
+    def test_development_primary_is_dev_report(self):
+        assert PHASE_PRIMARY_ARTIFACT[PhaseType.DEVELOPMENT] == ArtifactType.DEV_REPORT
+
+    def test_architecture_primary_is_tech_architecture(self):
+        assert PHASE_PRIMARY_ARTIFACT[PhaseType.ARCHITECTURE] == ArtifactType.TECH_ARCHITECTURE
+
+
+class TestDeliverableRequiredFields:
+    """v5.5.0: 新增 APP_CODE / SERVICE_SPEC 必填字段定义。"""
+
+    def test_all_artifact_types_have_required_fields(self):
+        """每个非 legacy artifact_type 都应在 DELIVERABLE_REQUIRED_FIELDS 中有定义。"""
+        non_legacy_types = {
+            a.value for a in ArtifactType if a != ArtifactType.UI_DESIGN
+        }
+        assert non_legacy_types.issubset(set(DELIVERABLE_REQUIRED_FIELDS.keys()))
+
+    def test_app_code_required_fields(self):
+        required = DELIVERABLE_REQUIRED_FIELDS["app_code"]
+        assert "project_dir" in required
+        assert "tech_stack" in required
+        assert "build_command" in required
+        assert "run_command" in required
+        assert "entry_points" in required
+
+    def test_service_spec_required_fields(self):
+        required = DELIVERABLE_REQUIRED_FIELDS["service_spec"]
+        assert "data_model_ref" in required
+        assert "data_persistence" in required
+        assert "endpoints" in required
+        assert "auth_strategy" in required

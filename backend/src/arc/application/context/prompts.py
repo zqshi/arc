@@ -4,6 +4,9 @@
 - prompt 只给目标 + 能力声明 + 上下文
 - Agent 自主决定推进路径、产出时机、分析深度
 - 质量通过输出接口契约 + 后置验证保障，不通过前置规则约束
+
+注: 本文件为纯 prompt 文件 (CLAUDE.md 例外), 行数可超 500 行强限。
+每个 ARTIFACT_SCHEMAS 条目天然扩张，拆分会破坏 prompt 整体可读性。
 """
 
 from __future__ import annotations
@@ -296,6 +299,27 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   "applicable_scenarios": "适用场景",
   "reuse_checklist": ["复用前需要检查的条件"],
   "tags": ["标签"]
+}""",
+    "app_code": """{
+  "project_dir": "代码工程根目录相对路径, 如 'generated/my-app'",
+  "tech_stack": ["react", "typescript", "vite"],
+  "framework": "react|vue|svelte|vanilla",
+  "build_command": "npm run build",
+  "run_command": "npm run dev",
+  "entry_points": ["src/main.tsx"],
+  "has_backend": false,
+  "backend_type": "none|embedded|external|supabase"
+}""",
+    "service_spec": """{
+  "data_model_ref": "引用的领域模型版本, 如 'v3'",
+  "data_persistence": "none|embedded|external|supabase",
+  "endpoints": [
+    {"method": "GET|POST|PUT|DELETE", "path": "/api/...",
+     "description": "端点用途", "auth_required": true}
+  ],
+  "auth_strategy": "none|jwt|supabase_auth|external",
+  "external_api_base": "data_persistence=external 时填写, 否则 null",
+  "notes": "自由备注"
 }""",
 }
 
