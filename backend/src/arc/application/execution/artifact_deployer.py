@@ -50,6 +50,7 @@ class PrototypeDeployer:
             content = proto_art.content or {}
 
             if content.get("project_dir") and content.get("build_status") == "success":
+                await self._maybe_inject_supabase_env(todo, proto_art)
                 await self._deploy_project(todo, proto_art)
             else:
                 logger.debug(
@@ -58,6 +59,58 @@ class PrototypeDeployer:
                 )
         except Exception as exc:
             logger.debug("Auto-persist prototype failed: %s", exc)
+
+    async def _maybe_inject_supabase_env(self, todo, artifact) -> None:
+        """v5.6.0: 前端工程部署前注入 Supabase 连接信息到 .env。
+
+        条件: APP_CODE.backend_type == "supabase" 且项目已 provision BaaS。
+        写入 VITE_SUPABASE_URL/ANON_KEY/SCHEMA, 让生成的前端能连到自己的 schema。
+        失败仅 warning 不阻断部署。
+        """
+        try:
+            from arc.infrastructure.repositories.project import ProjectRepository
+
+            content = artifact.content or {}
+            if content.get("backend_type") != "supabase":
+                return
+
+            project = await ProjectRepository(self._db).get_by_id(todo.project_id)
+            if not project or not project.local_path:
+                return
+
+            from arc.infrastructure.repositories.baas import BaasRepository
+
+            baas_repo = BaasRepository(self._db)
+            instance = await baas_repo.get_by_project(todo.project_id)
+            if not instance:
+                return
+
+            project_dir = content.get("project_dir", "prototype")
+            app_dir = (
+                Path(project.local_path).expanduser().resolve() / project_dir
+            )
+            if not app_dir.is_dir():
+                logger.debug("Skip Supabase env injection: app dir not found %s", app_dir)
+                return
+
+            from arc.config import settings
+
+            env_content = (
+                f"# 由 Arc v5.6.0 自动生成 — 对应项目 Supabase schema\n"
+                f"VITE_SUPABASE_URL={settings.supabase_api_url}\n"
+                f"VITE_SUPABASE_ANON_KEY={settings.supabase_anon_key}\n"
+                f"VITE_SUPABASE_SCHEMA={instance.schema_name}\n"
+            )
+            env_file = app_dir / ".env"
+            env_file.write_text(env_content, encoding="utf-8")
+            logger.info(
+                "Injected Supabase env for todo %s → schema %s",
+                todo.id, instance.schema_name,
+            )
+        except Exception:
+            logger.warning(
+                "Supabase env injection failed for todo %s", todo.id, exc_info=True
+            )
 
     async def _deploy_project(self, todo, artifact) -> None:
         """将原型工程的 build 产物部署到 S3，或本地 serve。"""
