@@ -49,6 +49,8 @@ class ProjectRepository(AbstractProjectRepository):
         )
         self.db.add(model)
         await self.db.flush()
+        # 回填 user_id 到实体 (供后续提取等流程使用)
+        project.user_id = user_id
         return project
 
     async def get_by_id(
@@ -149,6 +151,7 @@ class ProjectRepository(AbstractProjectRepository):
     def _to_entity(model: ProjectModel) -> Project:
         return Project(
             id=model.id,
+            user_id=model.user_id,
             organization_id=model.organization_id,
             name=model.name,
             description=model.description or "",

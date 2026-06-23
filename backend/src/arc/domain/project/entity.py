@@ -23,6 +23,7 @@ from arc.domain.project.value_objects import (
 class Project:
     name: str
     id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None  # 创建者 (v5.7.0: 模板提取 source_user_id)
     organization_id: uuid.UUID | None = None
     description: str = ""
     tech_stack: str = ""

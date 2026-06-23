@@ -111,6 +111,9 @@ class VersionService:
         # 自动生成原型快照（snapshot）
         await self._snapshot_prototype(project_id, version_id, version)
 
+        # v5.7.0: 版本发布后自动从领域模型提取可复用模板草稿
+        await self._extract_template_after_release(project_id, version_id)
+
         await self.version_repo.update(version)
 
         carry_over_version = await self._carry_over_todos(version)
@@ -137,6 +140,77 @@ class VersionService:
                 logger.info("Prototype snapshot for version %s: %s", version_id, bundle.preview_url)
         except Exception as exc:
             logger.warning("Failed to snapshot prototype for version %s: %s", version_id, exc)
+
+    async def _extract_template_after_release(
+        self, project_id: uuid.UUID, version_id: uuid.UUID
+    ) -> None:
+        """v5.7.0: 版本发布后从项目领域模型提取可复用模板草稿 (draft)。
+
+        流程: project.domain_model → BaasSchema (applier 转换) →
+        TemplateExtractionService.extract_template → 保存 draft 模板。
+        失败仅 warning 不阻断 release (模板提取是增值, 非发布必需)。
+        """
+        try:
+            from arc.infrastructure.repositories.project import ProjectRepository
+
+            project = await ProjectRepository(self.db).get_by_id(project_id)
+            if not project or not project.domain_model:
+                return
+
+            dm = project.domain_model
+            aggregates = dm.get("aggregates", []) if isinstance(dm, dict) else []
+            if not aggregates:
+                logger.info(
+                    "Template extraction skipped: project %s 无聚合", project_id
+                )
+                return
+
+            # domain_model → BaasSchema (复用 v5.6.0 applier 的纯转换)
+            from arc.domain.project.value_objects import (
+                DomainModelSnapshot,
+                ModelChangeTrigger,
+            )
+            from datetime import UTC, datetime
+
+            snapshot = DomainModelSnapshot(
+                version=dm.get("version", 1),
+                content=dm,
+                trigger=ModelChangeTrigger.MANUAL,
+                trigger_todo_id="",
+                created_at=datetime.now(UTC),
+            )
+            from arc.application.baas.domain_model_applier import (
+                DomainModelApplier,
+            )
+
+            baas_schema = DomainModelApplier.convert_to_baas_schema(
+                snapshot, project_id=project_id
+            )
+
+            # 提取模板 (LLM 生成标题/描述)
+            from arc.application.template.extraction_service import (
+                TemplateExtractionService,
+            )
+            from arc.infrastructure.repositories.template import TemplateRepository
+
+            source_user_id = project.user_id or uuid.UUID(int=0)
+            extraction = TemplateExtractionService()
+            template = await extraction.extract_template(
+                schema=baas_schema,
+                source_user_id=source_user_id,
+                source_project_id=project_id,
+                source_version_id=version_id,
+            )
+            await TemplateRepository(self.db).create(template)
+            logger.info(
+                "Template extracted after release: project=%s → template %s (draft)",
+                project_id, template.id,
+            )
+        except Exception:
+            logger.warning(
+                "Template extraction failed for project %s version %s",
+                project_id, version_id, exc_info=True,
+            )
 
     async def _generate_changelog(
         self, version: Version, done_todos: list
