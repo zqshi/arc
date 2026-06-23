@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [5.5.0] - 2026-06-23
+
+### Added — DEVELOPMENT 产物补全 + 编辑能力暴露
+
+**Artifact 显式建模 (T1-T6):**
+- `ArtifactType.APP_CODE` — DEVELOPMENT 阶段的机器可解析代码工程元数据
+  - `project_dir / tech_stack / framework / build_command / run_command / entry_points`
+- `ArtifactType.SERVICE_SPEC` — ARCHITECTURE 阶段的服务契约（v5.6.0 BaaS 接入锚点）
+  - `data_persistence` 四值：none/embedded/external/supabase（supabase 当前为声明态）
+- PHASE_ARTIFACT_MAP：DEVELOPMENT 加 APP_CODE、ARCHITECTURE 加 SERVICE_SPEC（均次要位，primary 不变）
+- DELIVERABLE_REQUIRED_FIELDS / ARTIFACT_LABELS / ARTIFACT_SCHEMAS 同步扩展
+- REQUIRED_DELIVERABLES 加入 app_code / service_spec
+
+**字段可编辑性策略 (T4):**
+- `domain/artifact/policy.py` — EDITABLE_FIELDS 白名单
+- 文档类 artifact：整体可编辑；工程产物（APP_CODE/PROTOTYPE）：全只读；SERVICE_SPEC：仅 notes 可改
+- `update_content` 加字段校验 + partial 合并模式，不可编辑字段抛 ValueError
+
+**前端编辑能力 (T7):**
+- `ArtifactEditor` — JSON 查看/编辑，调 updateArtifact API
+- `editable-types.ts` — 镜像后端白名单，工程产物不显示编辑按钮
+- `DeliverableDrawer` 集成编辑入口
+
+**部署回滚入口 (T8):**
+- 后端 `GET /deployments`、`GET .../deployment/latest`、`POST .../deployments/{id}/rollback`
+- 前端 `RollbackButton` — 确认弹窗 + 已回滚禁用态
+- `AppCode` / `ServiceSpec` 渲染器（ServiceSpec 对 supabase 声明态显式警告）
+
+### Deferred
+
+- MCP server 骨架（T9/T12）→ v5.6.0 T18/T19
+
 ## [5.4.0] - 2026-06-23
 
 ### Added — 部署层真实化 + 上下文架构升级
