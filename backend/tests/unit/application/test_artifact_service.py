@@ -41,6 +41,79 @@ class TestArtifactServiceUpdateContent:
         result = await svc.update_content(uuid.uuid4(), {})
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_update_rejects_non_editable_fields(self):
+        """v5.5.0: APP_CODE 是 Agent 写入产物，用户不应能改 project_dir。"""
+        from arc.application.artifact.service import ArtifactService
+
+        art = Artifact(
+            todo_id=uuid.uuid4(),
+            artifact_type=ArtifactType.APP_CODE,
+            content={"project_dir": "generated/app", "tech_stack": ["react"]},
+        )
+
+        svc = ArtifactService.__new__(ArtifactService)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.get_by_id = AsyncMock(return_value=art)
+        svc.artifact_repo.update = AsyncMock(side_effect=lambda a: a)
+
+        with pytest.raises(ValueError, match="不可编辑字段"):
+            await svc.update_content(
+                art.id, {"project_dir": "hacked/path", "tech_stack": ["vue"]}
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_partial_merges_only_editable(self):
+        """v5.5.0: partial 模式下 SERVICE_SPEC 只合并 notes，拒绝其他字段。"""
+        from arc.application.artifact.service import ArtifactService
+
+        art = Artifact(
+            todo_id=uuid.uuid4(),
+            artifact_type=ArtifactType.SERVICE_SPEC,
+            content={
+                "data_persistence": "none",
+                "notes": "old note",
+                "endpoints": [],
+            },
+        )
+
+        svc = ArtifactService.__new__(ArtifactService)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.get_by_id = AsyncMock(return_value=art)
+        svc.artifact_repo.update = AsyncMock(side_effect=lambda a: a)
+
+        with pytest.raises(ValueError, match="不可编辑字段"):
+            await svc.update_content(
+                art.id, {"notes": "new note", "data_persistence": "supabase"},
+                partial=True,
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_partial_allows_editable_only(self):
+        """v5.5.0: partial 模式下 SERVICE_SPEC.notes 可改，其他字段保留。"""
+        from arc.application.artifact.service import ArtifactService
+
+        art = Artifact(
+            todo_id=uuid.uuid4(),
+            artifact_type=ArtifactType.SERVICE_SPEC,
+            content={
+                "data_persistence": "none",
+                "notes": "old note",
+                "endpoints": [{"method": "GET", "path": "/api/users"}],
+            },
+        )
+
+        svc = ArtifactService.__new__(ArtifactService)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.get_by_id = AsyncMock(return_value=art)
+        svc.artifact_repo.update = AsyncMock(side_effect=lambda a: a)
+
+        result = await svc.update_content(art.id, {"notes": "updated"}, partial=True)
+        assert result.content["notes"] == "updated"
+        # 其他字段保留
+        assert result.content["data_persistence"] == "none"
+        assert result.content["endpoints"] == [{"method": "GET", "path": "/api/users"}]
+
 
 class TestArtifactServiceConfirm:
     @pytest.mark.asyncio

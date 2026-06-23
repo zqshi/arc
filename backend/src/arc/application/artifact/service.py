@@ -9,6 +9,7 @@ from arc.application.ai.json_extract import extract_json
 from arc.application.pipeline.prompt_registry import prompt_registry
 from arc.application.pipeline.prompts import PHASE_EXTRACTION_PROMPTS
 from arc.domain.artifact.entity import Artifact
+from arc.domain.artifact.policy import filter_editable_fields
 from arc.domain.artifact.value_objects import PHASE_PRIMARY_ARTIFACT, ArtifactType
 from arc.domain.pipeline.value_objects import PhaseType
 from arc.infrastructure.repositories.artifact import ArtifactRepository
@@ -94,12 +95,37 @@ class ArtifactService:
             )
             return await self.artifact_repo.create(artifact)
 
-    async def update_content(self, artifact_id: uuid.UUID, new_content: dict) -> Artifact | None:
-        """User edits artifact content."""
+    async def update_content(
+        self,
+        artifact_id: uuid.UUID,
+        new_content: dict,
+        *,
+        partial: bool = False,
+    ) -> Artifact | None:
+        """User edits artifact content.
+
+        v5.5.0 起增加字段可编辑性校验 (domain/artifact/policy.py):
+        - 文档类 artifact: 任意字段可改 (向后兼容旧行为)
+        - 工程产物 (APP_CODE/PROTOTYPE): 全只读，调用方应直接拒绝
+        - 结构化 artifact (SERVICE_SPEC): 仅 notes 等白名单字段可改
+
+        Args:
+            new_content: 用户提交的内容
+            partial: True 时合并到原 content (只覆盖提供字段)；False 时整体替换
+        """
         artifact = await self.artifact_repo.get_by_id(artifact_id)
         if not artifact:
             return None
-        artifact.update_content(new_content)
+
+        _, rejected = filter_editable_fields(artifact.artifact_type, new_content.keys())
+        if rejected:
+            raise ValueError(
+                f"不可编辑字段: {', '.join(sorted(rejected))} "
+                f"(artifact_type={artifact.artifact_type.value})"
+            )
+
+        merged = {**artifact.content, **new_content} if partial else new_content
+        artifact.update_content(merged)
         return await self.artifact_repo.update(artifact)
 
     async def confirm(self, artifact_id: uuid.UUID) -> Artifact | None:
