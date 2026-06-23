@@ -179,3 +179,95 @@ async def restore_project(
     await db.commit()
     from arc.interface.routes.project._helpers import _project_resp
     return _project_resp(project)
+
+
+# ── Deployment (v5.5.0: 暴露 rollback 入口) ────────────────
+
+
+def _deployment_resp(deployment) -> dict:
+    """Deployment 实体 → 响应 dict。"""
+    return {
+        "id": str(deployment.id),
+        "project_id": str(deployment.project_id),
+        "version_id": str(deployment.version_id),
+        "todo_id": str(deployment.todo_id) if deployment.todo_id else None,
+        "status": deployment.status.value if hasattr(deployment.status, "value") else str(deployment.status),
+        "deploy_type": deployment.deploy_type.value if hasattr(deployment.deploy_type, "value") else str(deployment.deploy_type),
+        "deploy_url": deployment.deploy_url,
+        "storage_prefix": deployment.storage_prefix,
+        "files_uploaded": deployment.files_uploaded,
+        "error_message": deployment.error_message,
+        "created_at": deployment.created_at.isoformat() if deployment.created_at else None,
+        "deployed_at": deployment.deployed_at.isoformat() if deployment.deployed_at else None,
+    }
+
+
+@router.get("/{project_id}/deployments")
+async def list_deployments(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+    skip: int = 0,
+    limit: int = 20,
+):
+    """列出项目部署历史（分页）。"""
+    from arc.application.deployment.service import DeployService
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    svc = DeployService(db)
+    deployments = await svc.list_deployments(
+        project_id, offset=skip, limit=min(limit, 100)
+    )
+    return {"items": [_deployment_resp(d) for d in deployments], "skip": skip, "limit": limit}
+
+
+@router.get("/{project_id}/versions/{version_id}/deployment/latest")
+async def get_latest_deployment(
+    project_id: uuid.UUID,
+    version_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """获取版本最新一次部署记录（供前端 rollback 入口判断状态）。"""
+    from arc.application.deployment.service import DeployService
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    svc = DeployService(db)
+    deployment = await svc.get_latest_deployment(version_id)
+    if not deployment:
+        raise HTTPException(404, "No deployment found for this version")
+    return _deployment_resp(deployment)
+
+
+@router.post("/{project_id}/deployments/{deployment_id}/rollback")
+async def rollback_deployment(
+    project_id: uuid.UUID,
+    deployment_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """回滚指定部署（标记状态为 rolled_back，不删除文件）。
+
+    v5.5.0: 暴露此前只在 service 层存在的 rollback_deployment，前端 RollbackButton 调用。
+    """
+    from arc.application.deployment.service import DeployService
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    svc = DeployService(db)
+    try:
+        deployment = await svc.rollback_deployment(deployment_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return _deployment_resp(deployment)

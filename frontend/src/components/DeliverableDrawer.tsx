@@ -1,7 +1,10 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { X, FileText, Code, TestTube, Rocket, BookOpen, Layout, Package, Palette, Monitor, GitBranch } from 'lucide-react';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { X, FileText, Code, TestTube, Rocket, BookOpen, Layout, Package, Palette, Monitor, GitBranch, Pencil } from 'lucide-react';
 import MarkdownContent from './MarkdownContent';
 import ArtifactRenderer from './artifact-renderers';
+import ArtifactEditor from './artifact/ArtifactEditor';
+import { isArtifactEditable } from './artifact/editable-types';
+import RollbackButton from './deployment/RollbackButton';
 import type { Artifact, PlanningSession } from '../types/api';
 
 type DrawerContent =
@@ -13,6 +16,13 @@ interface DeliverableDrawerProps {
   content: DrawerContent | null;
   width: number;
   onWidthChange: (w: number) => void;
+  /** v5.5.0: 传入 todoId 才会显示 artifact 编辑按钮 */
+  todoId?: string;
+  /** v5.5.0: 编辑成功后通知上层刷新 */
+  onArtifactUpdated?: (updated: Artifact) => void;
+  /** v5.5.0: 部署回滚所需 (deploy_report 类型时显示 RollbackButton) */
+  projectId?: string;
+  versionId?: string;
 }
 
 const MIN_WIDTH = 320;
@@ -42,12 +52,25 @@ const ARTIFACT_TYPE_LABELS: Record<string, string> = {
   deploy_report: '部署报告',
   experience_card: '经验卡片',
   ui_design: 'UI设计(旧)',
+  app_code: '应用代码',
+  service_spec: '服务契约',
 };
 
-export default function DeliverableDrawer({ onClose, content, width, onWidthChange }: DeliverableDrawerProps) {
+export default function DeliverableDrawer({
+  onClose,
+  content,
+  width,
+  onWidthChange,
+  todoId,
+  onArtifactUpdated,
+  projectId,
+  versionId,
+}: DeliverableDrawerProps) {
   const dragging = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
+  // v5.5.0: artifact 编辑模式 (仅 artifact 内容可切换)
+  const [editMode, setEditMode] = useState(false);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -115,22 +138,58 @@ export default function DeliverableDrawer({ onClose, content, width, onWidthChan
               </>
             )}
           </h2>
-          <button
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* v5.5.0: artifact 编辑入口 (仅可编辑类型 + 提供 todoId 时显示) */}
+            {content.type === 'artifact'
+              && todoId
+              && isArtifactEditable(content.data.artifact_type)
+              && !editMode && (
+                <button
+                  onClick={() => setEditMode(true)}
+                  className="flex h-7 items-center gap-1 rounded-md px-2 text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent"
+                  aria-label="编辑产出物"
+                  title="编辑产出物"
+                >
+                  <Pencil size={13} />
+                  <span className="text-[11px]">编辑</span>
+                </button>
+              )}
+            {/* v5.5.0: 部署回滚入口 (deploy_report 类型 + 有 projectId/versionId 时显示) */}
+            {content.type === 'artifact'
+              && content.data.artifact_type === 'deploy_report'
+              && projectId
+              && versionId && (
+                <RollbackButton projectId={projectId} versionId={versionId} />
+              )}
+            <button
+              onClick={onClose}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {content.type === 'artifact' ? (
-            <ArtifactContent artifact={content.data} />
-          ) : (
-            <RoadmapContent session={content.data} />
-          )}
-        </div>
+        {content.type === 'artifact' && editMode && todoId ? (
+          <ArtifactEditor
+            artifact={content.data}
+            todoId={todoId}
+            onSave={(updated) => {
+              setEditMode(false);
+              onArtifactUpdated?.(updated);
+            }}
+            onCancel={() => setEditMode(false)}
+          />
+        ) : (
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {content.type === 'artifact' ? (
+              <ArtifactContent artifact={content.data} />
+            ) : (
+              <RoadmapContent session={content.data} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

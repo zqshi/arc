@@ -253,6 +253,10 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
           content={{ type: 'artifact', data: drawerArtifact }}
           width={drawerWidth}
           onWidthChange={setDrawerWidth}
+          todoId={id ?? undefined}
+          onArtifactUpdated={(updated) => setDrawerArtifact(updated)}
+          projectId={todo.project_id ?? undefined}
+          versionId={todo.version_id ?? undefined}
         />
       )}
 

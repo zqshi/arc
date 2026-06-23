@@ -202,6 +202,24 @@ export interface Version {
 
 export type VersionType = 'major' | 'minor' | 'patch';
 
+// v5.5.0: 部署记录 (对应后端 Deployment 实体)
+export type DeploymentStatus = 'pending' | 'building' | 'uploading' | 'deployed' | 'failed' | 'rolled_back';
+
+export interface Deployment {
+  id: string;
+  project_id: string;
+  version_id: string;
+  todo_id: string | null;
+  status: DeploymentStatus;
+  deploy_type: string;
+  deploy_url: string | null;
+  storage_prefix: string | null;
+  files_uploaded: number;
+  error_message: string | null;
+  created_at: string;
+  deployed_at: string | null;
+}
+
 export interface CreateVersionRequest {
   name?: string;
   goal?: string;

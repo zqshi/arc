@@ -11,6 +11,7 @@ import type {
   ReviewFeedback,
   ImpactReport,
   UpgradeResult,
+  Deployment,
 } from '../../types/api';
 import type { RequestFn } from './base';
 
@@ -119,6 +120,16 @@ export function createProjectMethods(request: RequestFn) {
         method: 'POST',
         body: JSON.stringify({ to_version: toVersion }),
       }),
+
+    // v5.5.0: 部署回滚入口
+    listDeployments: (projectId: string, skip = 0, limit = 20): Promise<{ items: Deployment[]; skip: number; limit: number }> =>
+      request(`/api/projects/${projectId}/deployments?skip=${skip}&limit=${limit}`),
+
+    getLatestDeployment: (projectId: string, versionId: string): Promise<Deployment> =>
+      request(`/api/projects/${projectId}/versions/${versionId}/deployment/latest`),
+
+    rollbackDeployment: (projectId: string, deploymentId: string): Promise<Deployment> =>
+      request(`/api/projects/${projectId}/deployments/${deploymentId}/rollback`, { method: 'POST' }),
 
     analyzeModelImpact: (projectId: string, aggregates: string[], scope: string): Promise<ImpactReport> =>
       request(`/api/projects/${projectId}/domain-model/impact-analysis`, {
