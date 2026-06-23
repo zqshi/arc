@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     # 靠 arc_{project_id} 前缀隔离); 生产填真实 Supabase Postgres DSN
     supabase_db_url: str = ""
     supabase_schema_prefix: str = "arc_"  # schema 隔离前缀, 需与 BaasSchema 约定一致
+    # 注入前端工程的 Supabase 连接信息 (v5.6.0 T12)
+    # dev 默认指向本地 PostgREST; 生产填真实 Supabase anon key
+    supabase_anon_key: str = "dev-anon-key"
+    supabase_api_url: str = "http://localhost:54321"  # PostgREST endpoint 给前端用
 
     model_config = {"env_prefix": "ARC_", "env_file": ".env"}
 
