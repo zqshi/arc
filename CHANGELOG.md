@@ -6,7 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added — 原型预览架构升级 (v5.3.0)
+## [5.4.0] - 2026-06-23
+
+### Added — 部署层真实化 + 上下文架构升级
+
+**部署能力 (T1-T9):**
+- `domain/deployment` 聚合：Deployment 实体 + 状态机 (pending/building/uploading/deployed/failed/rolled_back)
+- `DeployType` 值对象预留 `container`/`serverless`/`baas_app` 未来扩展位
+- `infrastructure/deployer/static_site.py` — S3 静态部署后端（对标 XSpace BOSDeployer）
+- `application/deployment/service.py` — `DeployService` 编排 build → upload → URL 回写
+- `StorageAdapter` 重构：`upload_dir()` 目录全量上传、去硬限、50MB 单文件 + 分片
+- DEPLOYMENT 阶段 hook 接入 `DeployService`，Agent 触发 → URL 回写 Version/Project
+- 预览 vs 部署存储解耦：`previews/` vs `deployments/`，前者可覆盖后者不可变
+
+**上下文架构升级 (T10-T11):**
+- `ContextProvider` Protocol — 统一上下文来源接口（项目/经验/对话历史/ReviewFeedback）
+- `ContextAssembler` — 按 token 预算和优先级组装 system prompt
+- `PromptBuilder.build_system_prompt()` 委托给 ContextAssembler
+- `ReviewFeedback` 作为独立 `ContextSegment` 注入下次对话
+
+### Changed
+
+- `application/pipeline/service.py` 引入 `ProjectContextProvider` 取代硬编码上下文拼接
+- `application/context/` 新增模块，下含 `protocol.py` / `assembler.py` / `provider.py` / `providers/`
+- `config.py` 新增 `deploy_path_prefix` / `deploy_cdn_domain` / `deploy_max_file_size`
+- `.env.example` 对齐 `ARC_DEPLOY_*` 配置项
+
+## [5.3.0]
+
+### Added — 原型预览架构升级
 
 - Version 增加 `prototype_preview_url` 字段，支持 S3 持久化预览
 - 新增 `GET /api/projects/{id}/prototype-status` 接口，前端据此控制按钮状态
