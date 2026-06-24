@@ -138,6 +138,17 @@ class PrototypeDeployer:
                 logger.warning("Prototype build output not found: %s", local_dir)
                 return
 
+            # 统一构建门禁 (与 pipeline hooks.trigger_deployment 同口径，防空 build)
+            from arc.application.execution.build_gate import check_build_ready
+
+            build_result = check_build_ready(
+                build_status=content.get("build_status", "success"),
+                dist_dir=Path(local_dir),
+            )
+            if not build_result.ok:
+                logger.warning("Prototype build gate failed: %s", build_result.reason)
+                return
+
             if not todo.version_id:
                 logger.debug("Cannot deploy prototype: todo has no version_id")
                 return

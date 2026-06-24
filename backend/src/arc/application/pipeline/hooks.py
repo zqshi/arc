@@ -97,35 +97,36 @@ async def merge_domain_model(db, todo_id: uuid.UUID, arch_content: dict) -> None
 async def trigger_deployment(db, todo_repo, todo_id: uuid.UUID, deploy_content: dict) -> None:
     """部署阶段确认后触发真实静态站点部署。
 
-    从 artifact content 读部署路径 (Agent build 后产出),
-    调 DeployService 上传 S3 + 回写 URL。失败不阻断 pipeline。
+    从 deploy_report.build_evidence / app_code / prototype artifact 读 build_status，
+    经 check_build_ready 硬门禁校验后调 DeployService 上传 S3 + 回写 URL。
+
+    build 未就绪 → 抛 BuildGateError (由 confirm_phase 捕获转 PhaseGateError，回滚)，
+    杜绝"pipeline 报成功但 deploy_url 为空"的虚假部署。
+    部署执行失败 → graceful (warning，基础设施容错，不阻断 pipeline)。
     """
     from pathlib import Path
 
     from arc.application.deployment.service import DeployService
+    from arc.application.execution.build_gate import check_build_ready
     from arc.infrastructure.repositories.project import ProjectRepository
 
+    todo = await todo_repo.get_by_id(todo_id)
+    if not todo or not todo.project_id:
+        return  # 无项目关联，确实无事可做 (非失败)
+
+    project = await ProjectRepository(db).get_by_id(todo.project_id)
+    if not project or not project.local_path:
+        logger.info("trigger_deployment: skipped (no local_path) todo=%s", todo_id)
+        return  # 无工作区，确实无事可做
+
+    build_status = await _resolve_build_status(db, todo_id, deploy_content)
+    artifact_path = deploy_content.get("artifact_path", "dist")
+    dist_dir = Path(project.local_path).expanduser() / artifact_path
+
+    # 硬门禁: build 未就绪 → 抛 BuildGateError (confirm_phase 的 begin_nested 回滚)
+    check_build_ready(build_status=build_status, dist_dir=dist_dir).ensure_ok()
+
     try:
-        todo = await todo_repo.get_by_id(todo_id)
-        if not todo or not todo.project_id:
-            return
-
-        project = await ProjectRepository(db).get_by_id(todo.project_id)
-        if not project or not project.local_path:
-            logger.info(
-                "trigger_deployment: skipped (no local_path) todo=%s", todo_id
-            )
-            return
-
-        artifact_path = deploy_content.get("artifact_path", "dist")
-        dist_dir = Path(project.local_path) / artifact_path
-
-        if not dist_dir.is_dir():
-            logger.info(
-                "trigger_deployment: dist not found at %s, skipping", dist_dir
-            )
-            return
-
         deploy_svc = DeployService(db)
         deployment = await deploy_svc.deploy_static_site(
             project_id=todo.project_id,
@@ -138,6 +139,25 @@ async def trigger_deployment(db, todo_repo, todo_id: uuid.UUID, deploy_content: 
             deployment.status.value, deployment.deploy_url,
         )
     except Exception as exc:
-        logger.warning(
-            "trigger_deployment failed for todo %s: %s", todo_id, exc
-        )
+        # 部署执行失败 (基础设施问题) 保持 graceful，不阻断 pipeline 主流程
+        logger.warning("trigger_deployment failed for todo %s: %s", todo_id, exc)
+
+
+async def _resolve_build_status(db, todo_id: uuid.UUID, deploy_content: dict) -> str | None:
+    """解析 build_status: deploy_report.build_evidence 优先，fallback app_code/prototype artifact。"""
+    evidence = deploy_content.get("build_evidence")
+    if isinstance(evidence, dict) and evidence.get("build_status"):
+        return evidence["build_status"]
+
+    from arc.domain.artifact.value_objects import ArtifactType
+    from arc.infrastructure.repositories.artifact import ArtifactRepository
+
+    try:
+        arts = await ArtifactRepository(db).list_by_todo_id(todo_id)
+        for atype in (ArtifactType.APP_CODE, ArtifactType.PROTOTYPE):
+            a = next((x for x in arts if x.artifact_type == atype), None)
+            if a and isinstance(a.content, dict) and a.content.get("build_status"):
+                return a.content["build_status"]
+    except Exception:
+        pass
+    return deploy_content.get("build_status")

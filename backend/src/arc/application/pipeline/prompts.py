@@ -340,7 +340,7 @@ PHASE_REQUIRED_FIELDS: dict[PhaseType, list[str]] = {
     PhaseType.ARCHITECTURE: ["architecture_overview", "data_model", "api_design", "tech_decisions"],
     PhaseType.DEVELOPMENT: ["execution_log", "code_changes", "test_results"],
     PhaseType.TESTING: ["criteria_verification", "issues_found", "coverage_summary"],
-    PhaseType.DEPLOYMENT: ["deploy_log", "health_check_result"],
+    PhaseType.DEPLOYMENT: ["deploy_log", "health_check_result", "build_evidence"],
     PhaseType.EXTRACTION: ["problem", "solution", "decisions"],
 }
 

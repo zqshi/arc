@@ -207,11 +207,23 @@ class PipelineService:
             if phase_type == PhaseType.ARCHITECTURE:
                 await pipeline_hooks.merge_domain_model(self.db, todo_id, artifact.content)
 
-            # 部署阶段确认后 → 触发真实部署
+            # 部署阶段确认后 → 触发真实部署 (build 未就绪转 PhaseGateError 回滚)
             if phase_type == PhaseType.DEPLOYMENT:
-                await pipeline_hooks.trigger_deployment(
-                    self.db, self.todo_repo, todo_id, artifact.content
-                )
+                from arc.application.execution.build_gate import BuildGateError
+
+                try:
+                    await pipeline_hooks.trigger_deployment(
+                        self.db, self.todo_repo, todo_id, artifact.content
+                    )
+                except BuildGateError as exc:
+                    raise PhaseGateError(
+                        GateResult(
+                            passed=False,
+                            score=0,
+                            gaps=[f"部署前置构建未就绪: {exc}"],
+                            suggestion="请先完成构建并确认产物 (build_status=success) 后再确认部署阶段。",
+                        )
+                    )
 
             nxt = next_phase(phase_type)
             if nxt:
