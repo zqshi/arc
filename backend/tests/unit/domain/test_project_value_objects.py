@@ -10,6 +10,7 @@ from arc.domain.project.value_objects import (
     ExecutionMode,
     GateStrictness,
     ProjectStatus,
+    ProjectType,
     VersionStatus,
 )
 
@@ -191,3 +192,27 @@ class TestDefaultConversationConfig:
         git = DEFAULT_CONVERSATION_CONFIG["git_sync"]
         assert git["auto_commit"] is False
         assert git["auto_push"] is False
+
+
+class TestProjectType:
+    """v5.9.0: 项目交付/部署形态枚举。"""
+
+    def test_enum_values_complete(self):
+        # v5.9.0 仅 static_site 实质值; binary_app 等在 v6.0.0+ 激活时再加
+        assert {pt.value for pt in ProjectType} == {"static_site"}
+
+    def test_enum_count(self):
+        assert len(ProjectType) == 1
+
+    def test_str_equality(self):
+        assert ProjectType.STATIC_SITE == "static_site"
+
+    def test_identity_equality(self):
+        assert ProjectType.STATIC_SITE == ProjectType.STATIC_SITE
+
+    def test_from_value(self):
+        assert ProjectType("static_site") == ProjectType.STATIC_SITE
+
+    def test_invalid_value_raises(self):
+        with pytest.raises(ValueError):
+            ProjectType("binary_app")  # v6.0.0 才激活

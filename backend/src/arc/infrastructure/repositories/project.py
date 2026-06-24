@@ -15,6 +15,7 @@ from arc.domain.project.value_objects import (
     ProcessConfig,
     ProcessConstraint,
     ProjectStatus,
+    ProjectType,
     VersionStatus,
 )
 from arc.infrastructure.models.project import ProjectModel, VersionModel
@@ -34,6 +35,7 @@ class ProjectRepository(AbstractProjectRepository):
             name=project.name,
             description=project.description,
             tech_stack=project.tech_stack,
+            project_type=project.project_type.value,
             repo_url=project.repo_url,
             local_path=project.local_path,
             conventions=project.conventions,
@@ -115,6 +117,7 @@ class ProjectRepository(AbstractProjectRepository):
         model.name = project.name
         model.description = project.description
         model.tech_stack = project.tech_stack
+        model.project_type = project.project_type.value
         model.repo_url = project.repo_url
         model.local_path = project.local_path
         model.conventions = project.conventions
@@ -171,6 +174,9 @@ class ProjectRepository(AbstractProjectRepository):
             process_constraint=ProcessConstraint(model.process_constraint)
             if getattr(model, "process_constraint", None)
             else ProcessConstraint.FREE,
+            project_type=ProjectType(model.project_type)
+            if getattr(model, "project_type", None)
+            else ProjectType.STATIC_SITE,
             process_config=ProcessConfig.from_dict(model.process_config)
             if getattr(model, "process_config", None)
             else ProcessConfig(),
