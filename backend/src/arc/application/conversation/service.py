@@ -10,8 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.application.context.provider import ProjectContextProvider
 from arc.application.pipeline.prompts import (
     PHASE_SYSTEM_PROMPTS,
-    SOCRATIC_LAYERS,
-    build_clarification_prompt,
 )
 from arc.domain.artifact.value_objects import ArtifactType
 from arc.domain.conversation.entity import Conversation, Message
@@ -243,18 +241,25 @@ class ConversationService:
         return ""
 
     def _build_clarification_prompt(self, conversation: Conversation, todo, confirmed: dict) -> str:
-        """Build Socratic clarification prompt with layer awareness."""
-        user_msgs = [m for m in conversation.messages if m.role == MessageRole.USER]
-        current_layer = min(len(user_msgs) // 2 + 1, len(SOCRATIC_LAYERS))
+        """意图驱动澄清: 按需求类型路由到最佳策略 (第一性原理/价值评估/苏格拉底/信息收集)。
 
-        collected_parts = []
-        if todo:
-            collected_parts.append(f"任务标题: {todo.title}")
-            if todo.description:
-                collected_parts.append(f"初始描述: {todo.description}")
-        collected_info = "\n".join(collected_parts) if collected_parts else ""
+        替代原先固定6层苏格拉底——激活 clarification_strategy 三策略路由，
+        根据需求关键词 (新业务/优化/...) + 对话轮次动态选择澄清方法论。
+        """
+        from arc.application.execution.clarification_strategy import (
+            build_clarification_prompt as build_strategy_prompt,
+            route_strategy,
+        )
 
-        prompt = build_clarification_prompt(current_layer, collected_info)
+        user_rounds = sum(
+            1 for m in conversation.messages
+            if hasattr(m.role, "value") and m.role.value == "user"
+        )
+        title = todo.title if todo else ""
+        description = todo.description if todo else ""
+
+        strategy = route_strategy(title, description, user_rounds)
+        prompt = build_strategy_prompt(strategy, user_rounds)
 
         if todo:
             prompt += f"\n\n## 任务信息\n标题: {todo.title}"

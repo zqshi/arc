@@ -66,6 +66,25 @@ class TestBuildClarificationPrompt:
         result = svc._build_clarification_prompt(conv, todo, confirmed)
         assert isinstance(result, str)
 
+    def test_routes_by_requirement_type(self):
+        """验证三策略路由激活: '优化'关键词 → 苏格拉底策略 (而非固定6层)。"""
+        from unittest.mock import MagicMock
+        from arc.application.conversation.service import ConversationService
+
+        svc = ConversationService.__new__(ConversationService)
+        conv = Conversation(todo_id=uuid.uuid4(), purpose=ConversationPurpose.CLARIFICATION)
+        # 2 轮用户对话使 round>=2，激活关键词路由 (round<2 会先走 SUFFICIENCY_FIRST)
+        conv.add_message(role=MessageRole.USER, content="第一轮")
+        conv.add_message(role=MessageRole.USER, content="第二轮")
+
+        todo = MagicMock()
+        todo.title = "性能优化"
+        todo.description = "需要优化现有登录流程"
+
+        result = svc._build_clarification_prompt(conv, todo, {})
+        # "优化"关键词 → SOCRATIC 策略，prompt 含苏格拉底追问方法论
+        assert "苏格拉底" in result or "追问" in result
+
 
 class TestBuildFormatArgs:
     def test_basic(self):
