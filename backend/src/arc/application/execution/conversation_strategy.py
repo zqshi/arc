@@ -166,26 +166,36 @@ class ConversationExecutionService:
         from arc.domain.planning.value_objects import DeliverableStatus
 
         artifacts = await self.artifact_repo.list_by_todo_id(todo_id)
-        produced_types = {a.artifact_type.value for a in artifacts}
-        reconciled = False
-        for atype in produced_types:
-            status = tracker.deliverables.get(atype)
-            if status and status not in (
-                DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED,
-            ):
-                tracker.deliverables[atype] = DeliverableStatus.PRODUCED
-                reconciled = True
-        if reconciled:
-            await self.tracker_repo.update(tracker)
-            await self.db.commit()
+        qualified_types = self._qualified_types_from(artifacts)
 
-        # 交付物全部完成 → 自动将 todo 状态推进到 done
-        if tracker.is_complete and todo and todo.status.value == "active":
+        # 仅对未完成项目做质量 reconcile (避免历史 done 项目被降级)
+        if todo and todo.status.value != "done":
+            reconciled = False
+            for atype in qualified_types:
+                status = tracker.deliverables.get(atype)
+                if status and status not in (
+                    DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED,
+                ):
+                    tracker.deliverables[atype] = DeliverableStatus.PRODUCED
+                    reconciled = True
+            # 反向 reconcile: PRODUCED 但未过门禁 → 降级 IN_PROGRESS (修复虚假达标)
+            for atype, status in list(tracker.deliverables.items()):
+                if status == DeliverableStatus.PRODUCED and atype not in qualified_types:
+                    tracker.deliverables[atype] = DeliverableStatus.IN_PROGRESS
+                    reconciled = True
+            if reconciled:
+                await self.tracker_repo.update(tracker)
+                await self.db.commit()
+
+        quality_complete = tracker.is_quality_complete(qualified_types)
+
+        # 交付物全部质量达标 → 自动将 todo 状态推进到 done
+        if quality_complete and todo and todo.status.value == "active":
             try:
                 todo.complete()
                 await self.todo_repo.update(todo)
                 await self.db.commit()
-                logger.info("Auto-completed todo %s: all deliverables done", todo_id)
+                logger.info("Auto-completed todo %s: all deliverables quality-qualified", todo_id)
             except Exception:
                 logger.debug("Todo %s auto-complete skipped (status transition invalid)", todo_id)
 
@@ -193,8 +203,19 @@ class ConversationExecutionService:
             "required": tracker.required,
             "deliverables": {k: v.value for k, v in tracker.deliverables.items()},
             "completion_pct": tracker.completion_pct,
-            "is_complete": tracker.is_complete,
+            "is_complete": quality_complete,
         }
+
+    @staticmethod
+    def _qualified_types_from(artifacts) -> set[str]:
+        """从 artifact 列表提取已过质量门禁的类型 (content._quality.passed=True)。"""
+        result: set[str] = set()
+        for a in artifacts:
+            if isinstance(a.content, dict):
+                q = a.content.get("_quality")
+                if isinstance(q, dict) and q.get("passed") is True:
+                    result.add(a.artifact_type.value)
+        return result
 
     async def _ensure_todo_active(self, todo_id: uuid.UUID) -> None:
         """补偿性状态推进：如果 todo 仍为 PENDING，推进到 ACTIVE。

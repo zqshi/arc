@@ -237,6 +237,10 @@ class ExecutionEngine:
         except Exception as exc:
             logger.warning("autopilot.restore_failed: %s", exc)
 
+        max_gate_retries = 2
+        last_stuck: str | None = None
+        stuck_rounds = 0
+
         for round_num in range(start_round, max_rounds):
             # Wall-clock 超时检测
             elapsed = time.monotonic() - start
@@ -256,20 +260,15 @@ class ExecutionEngine:
                 yield chunk
 
             tracker = await self._tracker_repo.get_by_todo_id(conversation.todo_id)
+            qualified = await self._collect_qualified_types(conversation.todo_id)
 
-            # Checkpoint: 每轮结束创建状态快照
+            # Checkpoint: 每轮结束创建状态快照 (基于质量达标，非虚假 produced)
             try:
-                completed_items = []
-                if tracker:
-                    completed_items = [
-                        k for k, v in tracker.deliverables.items()
-                        if v.value in ("produced", "confirmed")
-                    ]
                 await checkpoint_mgr.create_checkpoint(
                     conversation.id,
                     state={
                         "round": round_num + 1,
-                        "completed": completed_items,
+                        "completed": sorted(qualified),
                         "completion_pct": tracker.completion_pct if tracker else 0,
                     },
                     label=f"autopilot-round-{round_num + 1}",
@@ -277,9 +276,10 @@ class ExecutionEngine:
             except Exception as exc:
                 logger.warning("Checkpoint creation failed: %s", exc)
 
-            if tracker and tracker.is_complete:
+            # 质量达标完成 (非虚假完成——杜绝从劣质产出提炼经验)
+            if tracker and tracker.is_quality_complete(qualified):
                 await self._extract_experience(conversation.todo_id)
-                yield {"event": "autopilot_complete", "reason": "all_deliverables_done"}
+                yield {"event": "autopilot_complete", "reason": "all_deliverables_quality_qualified"}
                 return
 
             last_msg = conversation.messages[-1] if conversation.messages else None
@@ -287,10 +287,36 @@ class ExecutionEngine:
                 yield {"event": "autopilot_paused", "reason": "needs_user_input"}
                 return
 
+            # 门禁卡点检查: 有未通过质量门禁的产出物 → 反馈 gaps 让 LLM 修复 (而非盲目推进)
+            stuck = await self._find_gate_stuck(conversation.todo_id)
+            if stuck:
+                if stuck["type"] == last_stuck:
+                    stuck_rounds += 1
+                else:
+                    last_stuck = stuck["type"]
+                    stuck_rounds = 1
+                if stuck_rounds > max_gate_retries:
+                    yield {
+                        "event": "autopilot_paused",
+                        "reason": "gate_stuck",
+                        "artifact": stuck["type"],
+                        "gaps": stuck["gaps"][:3],
+                    }
+                    return
+                advance_content = (
+                    f"交付物「{stuck['label']}」未通过质量门禁："
+                    f"{'; '.join(stuck['gaps'][:3])}。"
+                    f"请据此完善后重新产出 [DELIVERABLE:{stuck['type']}]。"
+                )
+            else:
+                last_stuck = None
+                stuck_rounds = 0
+                advance_content = "继续推进下一个阶段。"
+
             advance_msg = conversation.add_message(
                 role=MessageRole.USER,
-                content="继续推进下一个阶段。",
-                metadata={"auto_advance": True, "round": round_num + 1},
+                content=advance_content,
+                metadata={"auto_advance": True, "round": round_num + 1, "gate_retry": bool(stuck)},
             )
             await self._conv_repo.add_message(conversation.id, advance_msg)
 
@@ -463,6 +489,47 @@ class ExecutionEngine:
         from arc.application.execution.experience_feedback import extract_and_feedback
 
         await extract_and_feedback(self._db, todo_id, self._prompt_builder)
+
+    async def _collect_qualified_types(self, todo_id: uuid.UUID) -> set[str]:
+        """收集 todo 下已过质量门禁的交付物类型 (content._quality.passed=True)。"""
+        from arc.infrastructure.repositories.artifact import ArtifactRepository
+
+        try:
+            arts = await ArtifactRepository(self._db).list_by_todo_id(todo_id)
+        except Exception:
+            return set()
+        result: set[str] = set()
+        for a in arts:
+            if isinstance(a.content, dict):
+                q = a.content.get("_quality")
+                if isinstance(q, dict) and q.get("passed") is True:
+                    result.add(a.artifact_type.value)
+        return result
+
+    async def _find_gate_stuck(self, todo_id: uuid.UUID) -> dict | None:
+        """找最该修复的未通过门禁产出物 (score 最低者优先)。"""
+        from arc.domain.artifact.value_objects import ARTIFACT_LABELS
+        from arc.infrastructure.repositories.artifact import ArtifactRepository
+
+        try:
+            arts = await ArtifactRepository(self._db).list_by_todo_id(todo_id)
+        except Exception:
+            return None
+        stuck: list[tuple] = []
+        for a in arts:
+            if isinstance(a.content, dict):
+                q = a.content.get("_quality")
+                if isinstance(q, dict) and q.get("passed") is False:
+                    stuck.append((a, q))
+        if not stuck:
+            return None
+        stuck.sort(key=lambda x: x[1].get("score", 5))
+        a, q = stuck[0]
+        return {
+            "type": a.artifact_type.value,
+            "label": ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value),
+            "gaps": list(q.get("gaps", [])),
+        }
 
 
 # ------------------------------------------------------------------
