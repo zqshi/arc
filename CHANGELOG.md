@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [5.8.0] - 2026-06-24
+
+### Changed — 技术债务清理（文件超限拆分 + 模板 embed 自动化）
+
+**文件拆分 (T1-T3):**
+- `tool_loop.py` 511→413 行：拆出 `tool_loop_metrics.py`（ToolLoopMetrics/Event + 常量）+ `tool_loop_adapters.py`（LLM provider 适配函数）
+- `pipeline/service.py` 503→380 行：拆出 `pipeline/hooks.py`（6 个阶段确认 hook 提为模块函数）
+- `prompts.py` 504→274 行：拆出 `artifact_schemas.py`（ARTIFACT_SCHEMAS dict 独立）
+- 主文件 re-export 保持 import 兼容，纯重构行为不变
+
+**模板 embed 自动化 (T4):**
+- `extraction_service.extract_template` 末尾调 `_generate_embedding`（标题+描述+模式作 embed 文本）
+- 修复 v5.7.0 遗留：模板匹配不再依赖手动设 embedding
+- 失败返回 None（不阻断，匹配时该模板不参与向量搜索）
+
+### 质量检测
+
+- 全源文件回归 500 行强限内（仅剩 seeds 纯数据/api.ts 类型/tools.py 已加例外）
+- 全量 1382 测试通过，行为不变
+
 ## [5.7.0] - 2026-06-23
 
 ### Added — 领域模型模板沉淀（经验引擎核心壁垒）
