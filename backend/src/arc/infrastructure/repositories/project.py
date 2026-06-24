@@ -138,6 +138,9 @@ class ProjectRepository(AbstractProjectRepository):
         model.github_token = project.github_token or None
         model.github_webhook_secret = project.github_webhook_secret or None
         model.github_config = project.github_config or None
+        model.enc_apple_creds = project.enc_apple_creds or None
+        model.enc_win_creds = project.enc_win_creds or None
+        model.enc_android_creds = project.enc_android_creds or None
         model.deleted_at = project.deleted_at
         await self.db.flush()
 
@@ -192,6 +195,9 @@ class ProjectRepository(AbstractProjectRepository):
             github_token=model.github_token or "",
             github_webhook_secret=model.github_webhook_secret or "",
             github_config=model.github_config or {},
+            enc_apple_creds=model.enc_apple_creds or "",
+            enc_win_creds=model.enc_win_creds or "",
+            enc_android_creds=model.enc_android_creds or "",
             deleted_at=model.deleted_at,
             created_at=model.created_at,
             updated_at=model.updated_at,

@@ -41,6 +41,8 @@ class DeployService:
         project_type: ProjectType,
         todo_id: uuid.UUID | None = None,
         config: DeployConfig | None = None,
+        project=None,
+        build_target=None,
     ) -> Deployment:
         """按项目类型路由部署。
 
@@ -51,11 +53,14 @@ class DeployService:
             project_type: 项目交付形态，决定部署器选型
             todo_id: 触发部署的需求 ID（可选）
             config: 部署配置（可选，未传则按 project_type 取默认）
+            project: Project 实体（可选，用于签名凭证加载 v6.1.0）
+            build_target: 构建目标（可选，决定签名器选型 v6.1.0）
 
         Returns:
             部署实体（状态为 deployed 或 failed）
 
         补偿事务：任何阶段异常都确保状态标记为 failed，不留脏状态。
+        签名 (v6.1.0): build 后 upload 前签名, graceful skip (凭证未配/签名器未实现不阻断)。
         """
         cfg = config or DeployConfig.for_type(project_type)
         deploy_type = self._deploy_type_for(project_type)
@@ -76,6 +81,10 @@ class DeployService:
             # 开始构建（实际构建由 Agent 完成，这里标记状态）
             deployment.start_build()
             await self._deploy_repo.update(deployment)
+
+            # 签名 (v6.1.0): build 后 upload 前。graceful skip — 不阻断部署。
+            if project is not None and build_target is not None:
+                await self._sign_artifact(deployment, project, build_target, local_dir)
 
             # 开始上传
             deployment.start_upload()
@@ -120,6 +129,41 @@ class DeployService:
             project_id, version_id, deployment.status.value, deployment.deploy_url,
         )
         return deployment
+
+    async def _sign_artifact(self, deployment, project, build_target, local_dir: str) -> None:
+        """签名构建产物 (v6.1.0) — build 后 upload 前, graceful skip 不阻断。
+
+        build_target → SignerType 映射选签名器; 签名器未实现 (T2-T4) 或凭证未配 → skip。
+        签名失败记 deployment.error 但不抛异常 (产物以未签名状态继续上传)。
+        """
+        from arc.domain.deployment.signer import SignerType
+        from arc.domain.sandbox.value_objects import BuildTarget
+        from arc.infrastructure.signer import get_signer, load_credentials_for_project
+
+        # build_target → SignerType 映射 (web 无需签名)
+        signer_type = {
+            BuildTarget.TAURI_LINUX: SignerType.APPLE,  # tauri linux 暂映射 Apple (后续按产物类型细化)
+        }.get(build_target)
+        if signer_type is None:
+            return  # 无需签名 (如 web)
+
+        signer = get_signer(signer_type)
+        if signer is None:
+            logger.info("DeployService: 签名器 %s 未实现, 跳过签名", signer_type.value)
+            return  # T2-T4 未实现 → graceful skip
+
+        creds = load_credentials_for_project(project, signer_type)
+        try:
+            result = await signer.sign(local_dir, creds)
+            if result.skipped:
+                logger.info("DeployService: 签名跳过 (%s): %s", signer_type.value, result.error)
+            elif not result.signed:
+                logger.warning("DeployService: 签名失败 (%s): %s", signer_type.value, result.error)
+                # 记 error 但不阻断 (产物未签名仍可上传, 分发层 v6.2 决定是否接受)
+                deployment.error_message = f"签名失败({signer_type.value}): {result.error}"
+        except Exception as e:
+            logger.warning("DeployService: 签名异常 (%s): %s", signer_type.value, e)
+            deployment.error_message = f"签名异常({signer_type.value}): {e}"
 
     async def deploy_static_site(
         self,

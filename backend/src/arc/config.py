@@ -81,13 +81,10 @@ class Settings(BaseSettings):
     deploy_cdn_domain: str = ""
     deploy_max_file_size: int = 50 * 1024 * 1024  # 50 MB
 
-    # Signing (v6.1.0) — 三平台签名凭证, 全 optional (空=graceful skip, 不阻断构建)
-    # 未配 → 产物以未签名状态落制品目录; 配了 → 走签名流程
-    apple_dev_id: str = ""  # Developer ID Application 证书 identity
-    apple_team_id: str = ""  # Apple Team ID (notarize 需要)
-    win_ev_cert_path: str = ""  # Windows EV 证书 .pfx 路径
-    win_ev_password: str = ""  # EV 证书密码
-    play_key_json: str = ""  # Google Play service account JSON
+    # Signing (v6.1.0) — 凭证项目维度加密存储 (见 infrastructure/crypto.py)
+    # 此为 Fernet 密钥, 加密各项目的签名凭证。空=dev 降级明文 (生产必配)
+    # 生成: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    signing_secret_key: str = ""
 
     # BaaS (v5.6.0) — Supabase PG 连接
     # 留空则复用 Arc 的 database_url (dev: 生成的应用 schema 与 Arc 元数据同库,

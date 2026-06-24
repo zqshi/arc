@@ -40,6 +40,10 @@ class ProjectModel(TimestampMixin, Base):
     github_token: Mapped[str | None] = mapped_column(String(500), nullable=True)
     github_webhook_secret: Mapped[str | None] = mapped_column(String(200), nullable=True)
     github_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # 签名凭证 (v6.1.0) — 按平台加密存储 (Fernet base64 token)
+    enc_apple_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enc_win_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enc_android_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

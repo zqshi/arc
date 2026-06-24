@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import copy
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from arc.domain.deployment.signer import SignerType
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
@@ -49,6 +51,11 @@ class Project:
     github_token: str = ""
     github_webhook_secret: str = ""
     github_config: dict = field(default_factory=dict)
+    # 签名凭证 (v6.1.0) — 按平台分字段加密存储 (base64 Fernet token, 空=未配)
+    # 加解密通过 set/get_signing_creds 回调注入, domain 不依赖 infrastructure/crypto
+    enc_apple_creds: str = ""
+    enc_win_creds: str = ""
+    enc_android_creds: str = ""
     deleted_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -106,6 +113,48 @@ class Project:
         self.github_webhook_secret = ""
         self.github_config = {}
         self.updated_at = datetime.now(UTC)
+
+    # -- Signing credentials (v6.1.0) ------------------------------------
+
+    def set_signing_creds(
+        self,
+        platform: SignerType,
+        creds: dict,
+        encrypt_fn,
+    ) -> None:
+        """加密存储某平台签名凭证。
+
+        加解密函数注入 (application 层传 infrastructure/crypto 的 encrypt),
+        避免 domain→infrastructure 违规。空 dict → 不存 (保持字段空)。
+        """
+        if not creds:
+            return
+        field_name = self._enc_field_for(platform)
+        setattr(self, field_name, encrypt_fn(json.dumps(creds)))
+        self.updated_at = datetime.now(UTC)
+
+    def get_signing_creds(self, platform: SignerType, decrypt_fn) -> dict | None:
+        """解密读取某平台凭证, 未配 (字段空) 返回 None。"""
+        field_name = self._enc_field_for(platform)
+        token = getattr(self, field_name) or ""
+        if not token:
+            return None
+        plaintext = decrypt_fn(token)
+        if not plaintext:
+            return None
+        try:
+            return json.loads(plaintext)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+    @staticmethod
+    def _enc_field_for(platform: SignerType) -> str:
+        """平台 → 加密字段名映射。"""
+        return {
+            SignerType.APPLE: "enc_apple_creds",
+            SignerType.WINDOWS: "enc_win_creds",
+            SignerType.ANDROID: "enc_android_creds",
+        }[platform]
 
     def update_context_policy(self, policy: ContextPolicy) -> None:
         """更新项目的上下文策略。"""
