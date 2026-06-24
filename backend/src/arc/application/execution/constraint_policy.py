@@ -1,18 +1,15 @@
-"""过程约束策略分发器 — 根据 ProcessConstraint 决定交互方式和方法论深度。
+"""过程约束策略分发器 — 根据 ProcessConstraint 决定方法论 prompt 深度。
 
-核心原则：三种模式的交付物全量一致（9项），差异只在交互方式。
-确保任何模式下项目都能形成闭环、高质量沉淀经验、构建完整领域模型。
+T8 清理 (v6.0): ConstraintPolicy 原有 11 字段中 10 个零引用——门禁职责
+(阈值/交叉检查/依赖阻断/确认/充分性) 已由 gate_threshold.GateProfile 接管。
+本模块精简为仅保留 methodology_depth, 驱动 get_methodology_prompt_for_constraint。
 
 | 维度 | strict | moderate | free |
 |------|--------|----------|------|
-| 方法论深度 | 完整流程 (全部子步骤) | 精简流程 (核心步骤) | 最轻量 (仅充分性检测) |
-| 门禁严格度 | violations 阻断 + warnings 也阻断 | violations 阻断 + warnings 放行 | 仅记录不阻断 |
-| 交叉验证 | 全量 (story↔API, AC↔test, ...) | 核心对 (AC↔test) | 核心对 (AC↔test) |
-| 澄清深度 | 完整三策略递进 | 单策略直达 | 充分性通过即可产出 |
-| DDD 引导 | 三步强制递进 (每步独立 gate) | 概览 + 自由产出 | 无引导 |
-| TDD 约束 | 强制 RED→GREEN→REFACTOR | 建议测试优先 | 无约束 |
-| 产出物确认 | 必须显式确认 | 自动提取 + 建议确认 | 自动提取即生效 |
-| 侧边栏 | 全量有序锁定 | 全量无序展示 | 极简进度环 + 预览入口 |
+| 方法论深度 | 完整流程 (全部子步骤) | 精简流程 (核心步骤) | 最轻量 (质量底线) |
+| 门禁严格度 | (见 gate_threshold.GateProfile, score≥7) | (score≥6) | (score≥5) |
+
+方法论语料仍按 phase 分发 (clarification/ui_design/architecture/development/testing)。
 """
 
 from __future__ import annotations
@@ -24,69 +21,20 @@ from arc.domain.project.value_objects import ProcessConstraint
 
 @dataclass(frozen=True)
 class ConstraintPolicy:
-    """某个 constraint 级别下的行为策略"""
+    """某个 constraint 级别下的方法论深度策略。
 
-    # 方法论注入
+    T8 后仅保留 methodology_depth — get_methodology_prompt_for_constraint 的唯一消费字段。
+    门禁/交叉检查/确认等行为参数见 gate_threshold.GateProfile。
+    """
+
     methodology_depth: str  # "full" | "core" | "minimal"
-    clarification_max_rounds: int  # 追问最大轮次
-    ddd_sub_phases: int  # DDD 子阶段数 (3=完整, 1=概览, 0=无)
-    tdd_enforced: bool  # 是否强制 TDD 循环
-
-    # 门禁
-    gate_block_on_warnings: bool  # warnings 是否也阻断
-    cross_check_enabled: bool  # 交叉一致性检查
-    cross_check_scope: str  # "full" | "core" | "none"
-
-    # 产出物管理
-    auto_extract: bool
-    require_confirm: bool
-    show_phase_ui: bool
-
-    # 充分性检测
-    sufficiency_strict: bool  # True=三项全 clear 才通过; False=有方向即可
 
 
-# 三级策略定义
+# 三级策略定义 (门禁参数已移至 gate_threshold.PROFILES)
 CONSTRAINT_POLICIES: dict[ProcessConstraint, ConstraintPolicy] = {
-    ProcessConstraint.STRICT: ConstraintPolicy(
-        methodology_depth="full",
-        clarification_max_rounds=12,  # 允许深度追问
-        ddd_sub_phases=3,  # 完整三步
-        tdd_enforced=True,
-        gate_block_on_warnings=True,
-        cross_check_enabled=True,
-        cross_check_scope="full",
-        auto_extract=False,
-        require_confirm=True,
-        show_phase_ui=True,
-        sufficiency_strict=True,
-    ),
-    ProcessConstraint.MODERATE: ConstraintPolicy(
-        methodology_depth="core",
-        clarification_max_rounds=6,  # 中等深度
-        ddd_sub_phases=1,  # 只给概览，不强制三步
-        tdd_enforced=False,
-        gate_block_on_warnings=False,
-        cross_check_enabled=True,
-        cross_check_scope="core",  # 只做 AC↔test
-        auto_extract=True,
-        require_confirm=False,
-        show_phase_ui=True,
-        sufficiency_strict=False,  # 有方向即可
-    ),
-    ProcessConstraint.FREE: ConstraintPolicy(
-        methodology_depth="minimal",
-        clarification_max_rounds=3,  # 快速通过
-        ddd_sub_phases=0,  # 不引导步骤
-        tdd_enforced=False,
-        gate_block_on_warnings=False,
-        cross_check_enabled=True,  # 仍执行交叉检查
-        cross_check_scope="core",  # 核心对 (AC↔test)
-        auto_extract=True,
-        require_confirm=False,
-        show_phase_ui=False,
-        sufficiency_strict=False,
-    ),
+    ProcessConstraint.STRICT: ConstraintPolicy(methodology_depth="full"),
+    ProcessConstraint.MODERATE: ConstraintPolicy(methodology_depth="core"),
+    ProcessConstraint.FREE: ConstraintPolicy(methodology_depth="minimal"),
 }
 
 
