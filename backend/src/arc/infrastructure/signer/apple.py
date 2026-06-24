@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from arc.domain.deployment.signer import SignResult, SigningCredentials, Signer, SignerType
+from arc.domain.deployment.signer import Signer, SignerType, SigningCredentials, SignResult
 from arc.infrastructure.signer._cmd import run_cmd
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,9 @@ class AppleSigner(Signer):
 
     async def sign(self, artifact_path: str, credentials: SigningCredentials) -> SignResult:
         if not credentials.has_apple():
-            return SignResult.skip("Apple 凭证未配全 (需 apple_dev_id + apple_team_id + apple_app_password)")
+            return SignResult.skip(
+                "Apple 凭证未配全 (需 apple_dev_id + apple_team_id + apple_app_password)"
+            )
 
         # 1. codesign 签名
         codesign_argv = [
@@ -51,7 +53,10 @@ class AppleSigner(Signer):
         nt_result = await asyncio.to_thread(run_cmd, notary_argv, 1800, "notarytool")
         if not nt_result.ok:
             # 签名已成功但公证失败 — 记 fail 但产物已签名
-            logger.warning("notarytool failed (artifact signed but not notarized): %s", nt_result.stderr)
+            logger.warning(
+                "notarytool failed (artifact signed but not notarized): %s",
+                nt_result.stderr,
+            )
             return SignResult.fail(f"notarytool failed: {nt_result.stderr}")
 
         return SignResult(
