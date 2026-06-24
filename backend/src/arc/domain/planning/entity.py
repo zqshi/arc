@@ -115,6 +115,12 @@ class DeliverableTracker:
 
     @property
     def is_complete(self) -> bool:
+        """状态机层完成判定: 所有交付物状态 ∈ {PRODUCED, CONFIRMED}。
+
+        注意: 此判定不校验质量——PRODUCED 仅代表"已产出"。
+        质量完成判定用 is_quality_complete()，它额外要求类型在 qualified_types 中
+        (qualified_types 来自 artifact.content._quality.passed=True)。
+        """
         return (
             all(
                 s in (DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED)
@@ -123,3 +129,22 @@ class DeliverableTracker:
             if self.deliverables
             else False
         )
+
+    def is_quality_complete(self, qualified_types: set[str]) -> bool:
+        """质量完成判定: 所有交付物状态达标 且 类型 ∈ qualified_types (门禁通过)。
+
+        双重校验防止 tracker.deliverables[PRODUCED] 与 artifact._quality 不一致
+        (如旧数据迁移或绕过门禁的写入)。修复"产出即完成"的虚假状态。
+
+        Args:
+            qualified_types: 已通过质量门禁的交付物类型集合
+                             (来自 artifact.content._quality.passed=True)
+        """
+        if not self.deliverables:
+            return False
+        for dtype, status in self.deliverables.items():
+            if status not in (DeliverableStatus.PRODUCED, DeliverableStatus.CONFIRMED):
+                return False
+            if dtype not in qualified_types:
+                return False
+        return True
