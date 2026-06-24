@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-24 (v5.9.0/v5.10 归档, v6.0 #7 sufficiency 完成)
+> 最后更新: 2026-06-24 (v6.0 归档 — 波次1 tauri linux 闭环; 波次2/3 镜像遗留)
 
 ---
 
@@ -10,7 +10,7 @@
 - [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
 - [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md) · [v2.9.0](v2.9.0-snapshot.md) · [v3.0.0](v3.0.0-snapshot.md) · [v3.1.0](v3.1.0-snapshot.md) · [v3.2.0](v3.2.0-snapshot.md) · [v3.3.0](v3.3.0-snapshot.md) · [v3.4.0](v3.4.0-snapshot.md) · [v3.5.0](v3.5.0-snapshot.md) · [v3.6.0](v3.6.0-snapshot.md) · [v3.7.0](v3.7.0-snapshot.md) · [v3.8.0](v3.8.0-snapshot.md) · [v3.9.0](v3.9.0-snapshot.md) · [v3.10.0](v3.10.0-snapshot.md)
-- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md)
+- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md) · [v6.0.0](v6.0.0-snapshot.md)
 
 ---
 
@@ -54,6 +54,9 @@
 | 扫描状态纯内存不持久化 | P1 | v2.3.0 用户反馈 | v2.4.0 T1 |
 | 项目硬删除无恢复能力 | P1 | v2.3.0 用户反馈 | v2.4.0 T2 |
 | `test_health` 全量连跑时序污染 | P2 | v5.10.0 质检发现 | 🔴 待修复: `tests/integration/test_api.py::test_health` 断言 `status=="ok"`, 但 `/health` 端点用全局 `async_session_factory` 不走 `db_session` fixture, unit 全量跑完后连接池异常终止 → 返回 `degraded`; 单独跑 integration 或单独跑 test_health 均通过。非业务 bug, 是测试基础设施隔离缺陷 |
+| v6.0 波次2 — web 工具链镜像 | P2 | v6.0 遗留 | 激活 BuildTarget.WEB + arc/web-builder 镜像 + DeployConfig.for_type WEB 分支; 验证容器内 npm run build 产 dist |
+| v6.0 波次3 — android capacitor 镜像 | P2 | v6.0 遗留 | 激活 BuildTarget.CAPACITOR_APK + arc/android-builder (JDK17+SDK+NDK, 2-3GB, licenses/NDK 复杂); 验证容器内产 apk |
+| tauri-builder smoke 手动验证 | P3 | v6.0 遗留 | CI 默认 skip; `make tauri-builder`(~10min) 后 `pytest -m slow` 跑; 完整 cargo tauri build 端到端留作手动 |
 
 ---
 
@@ -87,20 +90,21 @@
 
 ---
 
-## v6.0.0 — 容器化构建 runtime + 原生客户端构建（进行中，见 [v6.0.0-current.md](v6.0.0-current.md)）
+## v6.0.0 — 容器化构建 runtime + 原生客户端构建（✅ 已完成 2026-06-24，见 [v6.0.0-snapshot.md](v6.0.0-snapshot.md)）
 
 > BINARY_APP 类型落地地基。激活 v5.9.0 框架的第二个项目类型。
 > 附加: prompt-upgrade-plan #7 sufficiency 接线 + ConstraintPolicy 死配置清理。
 
-- ~~实现 `DockerSandboxRuntime`~~ ✅ **T1 done (groundwork, commit 292cc8d)** — 真实容器执行 + RW 挂载产物持久化 + 超时/网络/内存限制 + 路径逃逸防护 (7 项真实 docker 测试通过)
-- ✅ **T4 done BINARY_APP 框架激活** — 六处注册点全激活(ProjectType/DeployType/DeployConfig.for_type/DeployService路由/get_deployer/PROTOTYPE_BUILD_GUIDES)，零框架改动复用 v5.9.0 扩展点
-- ✅ **T5 done BinaryArtifactDeployer** — 二进制制品落 artifacts/ 目录不分发，不要求 index.html，复用 storage
-- ✅ **T7 done #7 sufficiency 接线** — 产出前门禁方案(非A+B)，接 ArtifactService.confirm，降级放行
-- ⏳ T2 构建工具链容器镜像（node/rust/tauri/capacitor）—— 决策阻塞: 复用官方镜像 vs 自建
-- ⏳ T3 `run_command` 容器内执行 + 跨平台编译编排
-- ⏳ T6 验证: 容器内构建出**容器可构建目标**(linux二进制/web/android apk)；mac/win 原生二进制(.dmg/.exe)推后(原生runner/CI matrix)
-- ⏳ T8 ConstraintPolicy 死配置清理（gate_threshold 接管后的零引用字段审计）
-- 注: #13 route_strategy 空参数清理属 v6.2（非 v6.0）
+- ✅ **T1 done** DockerSandboxRuntime (groundwork, commit 292cc8d) — 真实容器执行 + RW 挂载产物持久化 + 超时/网络/内存限制 + 路径逃逸防护 (7 项真实 docker 测试通过)
+- ✅ **T2 done(波次1)** 构建工具链容器镜像 — 自建 arc/tauri-builder:linux (rust+node+webkit2gtk+tauri-cli v2); 决策: 三目标按波次拆分, 架构层一次做对(BuildTarget 维度), 波次2/3 只填注册表
+- ✅ **T3 done** run_command 容器内执行 + 镜像推导编排 (policy_resolver + build_images, runtime 零改)
+- ✅ **T4 done** BINARY_APP 框架激活 — 六处注册点 + 前端 UI 选择器放开 (CreateProjectModal binary_app 卡片)
+- ✅ **T5 done** BinaryArtifactDeployer — 二进制制品落 artifacts/ 不分发, 不要求 index.html
+- ✅ **T6 done(波次1)** 容器内构建验证 — arc/tauri-builder:linux smoke 通过 (cargo 1.96/node v20.20.2/tauri-cli 2.11.3)
+- ✅ **T7 done** #7 sufficiency 接线 — 产出前门禁方案(非A+B), 接 ArtifactService.confirm, 降级放行
+- ✅ **T8 done** ConstraintPolicy 死配置清理 — 删 10/11 零引用字段(GateProfile 接管门禁), 仅留 methodology_depth
+- ✅ **T9 done** 质量检测 — 6.1-6.5/6.7 必修全过, 6.6 测试覆盖全绿
+- **遗留**: 波次2 web 镜像 / 波次3 android capacitor 镜像 (架构已就位, 独立推进); 注: #13 route_strategy 空参数清理属 v6.2
 
 ---
 

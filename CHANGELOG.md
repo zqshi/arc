@@ -6,27 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [6.0.0-Unreleased] — 容器化构建 runtime + 原生客户端构建 + sufficiency 接线
+## [6.0.0] - 2026-06-24 — 容器化构建 runtime + BINARY_APP 构建链路 + sufficiency 接线
 
-### Added — BINARY_APP 项目类型激活 + sufficiency 产出门禁
+### Added — BINARY_APP 项目类型激活 + 容器化构建链路 + sufficiency 产出门禁
 
 激活 v5.9.0 项目类型框架的第二个类型 `BINARY_APP`（原生客户端），向"不同项目类型落地"终局迈出第二步：
 
 - **#7 sufficiency 接线** (T7): 把躺尸的 `INPUT_SUFFICIENCY_PROMPT` 三维评估(target_users/core_problem/feature_direction)接到 requirement_spec 产出前门禁（用户确认产出前门禁方案，非原推荐 A+B）。职责分离：轮次管引导，LLM 管质量判断。降级放行（LLM 失败 → sufficient=True）。`execution/sufficiency_gate.py`(新) 接入 `ArtifactService.confirm`，pipeline 模式漏检由 evaluate_gate 兜底
-- **BINARY_APP 框架激活** (T4): 六处注册点全部激活（v5.9.0 扩展点零框架改动复用）——ProjectType / DeployType.BINARY_ARTIFACT / DeployConfig.for_type(cargo tauri build) / DeployService 路由 / get_deployer / PROTOTYPE_BUILD_GUIDES。schema Literal + 前端类型同步
+- **BINARY_APP 框架激活** (T4): 六处注册点全部激活（v5.9.0 扩展点零框架改动复用）——ProjectType / DeployType.BINARY_ARTIFACT / DeployConfig.for_type(cargo tauri build) / DeployService 路由 / get_deployer / PROTOTYPE_BUILD_GUIDES。schema Literal + 前端类型同步 + **前端 UI 选择器放开**（CreateProjectModal binary_app 卡片选择器，标注"构建需 Docker"）
 - **BinaryArtifactDeployer** (T5): 二进制制品落制品目录（不分发，分发在 v6.2）。与 StaticSiteDeployer 差异：不要求 index.html（仅校验目录非空），url 指向制品根。复用 storage 抽象
+- **容器化构建链路** (T2/T3/T6 波次1): 三目标(linux/web/apk)按波次拆分, 架构层一次做对。波次1 完成 tauri linux 端到端闭环:
+  - `BuildTarget` 维度(domain): TAURI_LINUX 激活, WEB/CAPACITOR_APK 预留(波次2/3 零架构返工)
+  - `build_images.py` 镜像注册表 + `policy_resolver` 策略解析: BINARY_APP 默认注入 mode=docker + 镜像推导(runtime 零改动, 既有 12 项真实 docker 测试不受影响)
+  - 自建 `arc/tauri-builder:linux` 镜像(rust+node+webkit2gtk+tauri-cli v2, 2.26GB) + Makefile
+  - T6 smoke 验证通过(镜像内 cargo 1.96/node v20.20.2/tauri-cli 2.11.3)
+
+### Changed — ConstraintPolicy 死配置清理 (T8)
+
+- `ConstraintPolicy` 11 字段中 10 个零引用(`get_policy` 生产零调用, 门禁职责已由 `gate_threshold.GateProfile` 接管)。保守清理: 仅保留 `methodology_depth` 唯一消费字段, `CONSTRAINT_POLICIES` 轻量化。constraint_policy.py 271→218 行。补 10 测试(原零覆盖, 含防回归断言)
+
+### Fixed — artifact_deployer 路由 bug (断点D)
+
+- `PrototypeDeployer._deploy_project` 原硬编码 `project_type=STATIC_SITE`, 致 BINARY_APP 原型被当静态站点部署。改为按项目真实 project_type 路由(抽 `resolve_deploy_config` 纯函数), BINARY_APP 走 BinaryArtifactDeployer
 
 ### 决策
 
-- **跨平台范围**: 容器化 linux 沙箱无法构建 macOS .dmg / Windows .exe（需原生 OS）。v6.0 聚焦容器可构建目标（linux 二进制 / web / android .apk），mac/win 原生二进制推后（原生 runner 或 CI matrix）
-- **前端 UI 选择器暂不暴露**: T6 构建链路未就绪，类型层已同步但表单暂不放开 binary_app，避免"能选但构建不出"
+- **三目标按波次拆分**: current.md 原验证标准要求 linux/web/apk 三目标,但内在矛盾。决策: 三目标都进 v6.0 范围但拆 3 波次,架构层一次做对,波次2/3 只填注册表+激活枚举值。迭代的是镜像内容与验证,不是架构欠债
+- **镜像推导在 application 层**: policy_resolver 解析策略填入 SandboxPolicy.docker_image,SandboxPolicy 不耦合 project_type(保持"已解析最终配置"职责)
+- **前端 UI 放开**: T6 波次1 构建链路就绪后,解除 v5.9.0 "能选但构建不出" 的 UI 限制
+- **跨平台范围**: 容器化 linux 沙箱无法构建 macOS .dmg / Windows .exe（需原生 OS）。mac/win 原生二进制推后（原生 runner 或 CI matrix）
 
-### 待办 (T2/T3/T6/T8)
+### 质量检测
 
-- T2 构建工具链容器镜像（复用官方 vs 自建，决策阻塞 T3-T6）
-- T3 run_command 容器内执行 + 跨平台编译编排
-- T6 容器内构建验证（聚焦可构建目标）
-- T8 ConstraintPolicy 死配置清理
+- 单元 1506 passed / smoke 真实验证通过 / 前端 47 passed + tsc 0 error + vite build 绿
+- 6.1-6.5/6.7 必修全过, 6.6 测试覆盖全绿
+- 波次2(web)/波次3(android) 镜像遗留, 架构已就位独立推进
 
 ## [5.10.0] - 2026-06-24
 
