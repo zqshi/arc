@@ -27,7 +27,7 @@
 | domain_model 无版本历史/无回滚能力 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
 | Validator 评审结果无闭环流程 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
 | Pipeline/Conversation 双架构冗余 | P0 | RFC-001 审计 | v4.0.0 |
-| INPUT_SUFFICIENCY_PROMPT 死代码 | P0 | RFC-001 审计 | ✅ RFC-002 (sufficiency_gate.py) |
+| INPUT_SUFFICIENCY_PROMPT 死代码 (sufficiency_gate.py 在 v4.1.0/ef66656 已删回归) | P0 | RFC-001 审计 / v5.10 复核 | 🔴 待修复: `pipeline/prompts.py:84` 仅定义零调用，对话模式实际跑 `providers/sufficiency.py` 轮次计数 |
 | Pipeline 无 tool-use 能力 (能力倒挂) | P0 | RFC-001 审计 | ✅ RFC-001 Phase 1 (ConversationService 接入 ToolAwareLoop) |
 | AC ↔ 测试无交叉一致性验证 | P1 | RFC-001 审计 | ✅ RFC-002 (gate.py _check_cross_consistency) |
 | 全阶段无方法论引导 | P0 | RFC-002 审计 | ✅ RFC-002 (7/7 阶段覆盖) |
@@ -120,8 +120,9 @@
 ## v6.3.0 — 项目治理规范传递（交付物初始化声明规范）
 
 > 把 Arc 自己的迭代治理体系作为"基因"传给交付出的每个项目, 闭环"上下文不断裂"承诺。
-> ⚠️ 前置: prompt-upgrade-plan 路线图完成 — Arc 自身规范意图驱动化稳定后才能抽象成模板分发,
-> 否则会把过渡期的规则执行式反模式锁死给所有新项目。启动时间由前置完成时间决定。
+> ✅ 前置: prompt-upgrade-plan 路线图已落地 (见 [docs/prompt-upgrade-plan.md](../prompt-upgrade-plan.md))。
+> v5.10 已完成 6 处 (自由模式门禁/部署/澄清双轨), 剩余 8 处按 v6.0-v6.2 推进。
+> v6.3.0 可在 v6.0 完成核心意图驱动化后启动, 不再把过渡期反模式锁死给新项目。
 
 核心拆解:
 - **可复用的机制(治理骨架, 与项目类型无关)**: `docs/versions/` 版本迭代协议 + `current.md` 上下文加载 + 任务依赖表 + 质量门禁协议 + 上下文不断裂思路
