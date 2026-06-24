@@ -18,6 +18,7 @@ dependencies = [
     "anthropic>=0.39.0",
     "sentence-transformers>=3.0.0",
     "python-jose[cryptography]>=3.3.0",
+    "cryptography>=43.0.0",  # v6.1: 签名凭证加密 (jose 带入但显式声明, 避免 transitive 依赖)
     "boto3>=1.35.0",
 ]
 
