@@ -44,6 +44,7 @@ def load_credentials_for_project(project, platform: SignerType) -> SigningCreden
         return SigningCredentials(
             apple_dev_id=creds_dict.get("apple_dev_id", ""),
             apple_team_id=creds_dict.get("apple_team_id", ""),
+            apple_app_password=creds_dict.get("apple_app_password", ""),
         )
     if platform == SignerType.WINDOWS:
         return SigningCredentials(
@@ -58,8 +59,12 @@ def load_credentials_for_project(project, platform: SignerType) -> SigningCreden
 
 
 # SignerType → Signer 实例注册表
-# T2-T4 实现后填充: APPLE → AppleSigner / WINDOWS → WindowsSigner / ANDROID → AndroidSigner
-SIGNERS: dict[SignerType, Signer] = {}
+# T2 done: APPLE → AppleSigner; T3/T4 待实现
+from arc.infrastructure.signer.apple import AppleSigner
+
+SIGNERS: dict[SignerType, Signer] = {
+    SignerType.APPLE: AppleSigner(),
+}
 
 
 def get_signer(signer_type: SignerType) -> Signer | None:

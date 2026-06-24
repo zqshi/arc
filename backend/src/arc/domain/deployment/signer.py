@@ -37,6 +37,7 @@ class SigningCredentials:
     # Apple Developer
     apple_dev_id: str = ""  # Developer ID Application 证书 identity
     apple_team_id: str = ""  # Apple Team ID (notarize 需要)
+    apple_app_password: str = ""  # App-specific password (notarytool 提交需要)
 
     # Windows EV 证书
     win_ev_cert_path: str = ""  # .pfx 证书文件路径
@@ -52,7 +53,8 @@ class SigningCredentials:
         )
 
     def has_apple(self) -> bool:
-        return bool(self.apple_dev_id and self.apple_team_id)
+        """Apple 签名+公证完整凭证 (identity + team + app password)。"""
+        return bool(self.apple_dev_id and self.apple_team_id and self.apple_app_password)
 
     def has_windows(self) -> bool:
         return bool(self.win_ev_cert_path and self.win_ev_password)
