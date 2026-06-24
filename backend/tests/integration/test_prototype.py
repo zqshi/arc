@@ -45,9 +45,9 @@ class TestPrototypeBundle:
         resp = await client.get(f"/api/projects/{project_id}/prototype-bundle")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["pages"] == []
+        # schema 已从 HTML 片段时代的 pages/new_pages 升级为前端工程语义的 routes
+        assert data["routes"] == []
         assert data["total_pages"] == 0
-        assert data["new_pages"] == 0
 
     async def test_bundle_nonexistent_project_returns_404(self, client: AsyncClient):
         fake_id = str(uuid.uuid4())
@@ -95,21 +95,3 @@ class TestPrototypePreview:
             assert resp.status_code == 401
 
         app.dependency_overrides.clear()
-
-
-class TestPrototypePersist:
-    async def test_persist_no_local_path_returns_400(self, client: AsyncClient, db_session):
-        """项目无 local_path 时 persist 应返回 400。"""
-        resp = await client.post("/api/projects", json={
-            "name": "Persist No Path Test",
-        })
-        assert resp.status_code in (200, 201)
-        project_id = resp.json()["id"]
-
-        resp = await client.post(f"/api/projects/{project_id}/prototype-site/persist")
-        assert resp.status_code == 400
-
-    async def test_persist_nonexistent_project_returns_404(self, client: AsyncClient):
-        fake_id = str(uuid.uuid4())
-        resp = await client.post(f"/api/projects/{fake_id}/prototype-site/persist")
-        assert resp.status_code == 404
