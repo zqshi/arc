@@ -90,7 +90,8 @@
 
 > BINARY_APP 类型落地地基。激活 v5.9.0 框架的第二个项目类型。
 
-- 实现 `DockerSandboxRuntime`（当前 `raise NotImplementedError`）+ 构建工具链容器镜像（node/rust/tauri/capacitor）
+- ~~实现 `DockerSandboxRuntime`（当前 `raise NotImplementedError`）~~ ✅ **groundwork 已实现 (待 v6.0.0 激活时归入 T1)** — 真实容器执行 + RW 挂载产物持久化 + 超时/网络/内存限制 + 路径逃逸防护 (7 项真实 docker 测试通过)
+- 构建工具链容器镜像（node/rust/tauri/capacitor）—— 待定: 复用官方镜像 vs 自建
 - `run_command` 容器内执行 + 跨平台编译编排
 - `ProjectType.BINARY_APP` 构建链路（cargo tauri build / npx cap build 产出二进制）
 - `BinaryArtifactDeployer`（产物落制品目录，不签名不分发）

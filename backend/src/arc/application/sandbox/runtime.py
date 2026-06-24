@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import subprocess
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -160,30 +161,114 @@ class ApprovalGateSandboxRuntime(SandboxRuntime):
 
 
 # ---------------------------------------------------------------------------
-# Docker Sandbox — container isolation (Phase 1b, stub for now)
+# Docker Sandbox — container isolation (v6.0.0 groundwork)
 # ---------------------------------------------------------------------------
 
 
 class DockerSandboxRuntime(SandboxRuntime):
-    """Executes commands inside a disposable Docker container.
+    """在一次性 Docker 容器内执行命令。
 
-    Project directory is mounted read-only; writes go to a tmpfs overlay.
-    Not yet implemented — raises NotImplementedError.
+    隔离模型 (v6.0.0):
+    - 项目目录以**读写**方式挂载到容器 /workspace。构建产物 (如 dist) 必须持久化
+      到宿主项目目录, 供 DeployService 读取——这与早期 stub 注释"只读+tmpfs"不同:
+      tmpfs 会让产物随容器销毁丢失, 破坏部署链路。RW 挂载是正确取舍。
+    - 容器仅能访问挂载的项目目录, 无其他宿主访问; 受 memory/network/timeout 限制。
+    - write_file 直接写入宿主项目目录 (用户工作区, 经沙箱边界校验禁止逃逸),
+      与容器通过挂载共享。run_command 的隔离是 Docker 模式的核心价值 (任意 shell)。
+
+    配置来自 SandboxPolicy: docker_image / memory_limit_mb / network_enabled / timeout_seconds。
+    每次调用 `docker run --rm` 自清理, 无持久容器资源。
     """
 
     def __init__(self, policy: SandboxPolicy, project_path: str):
         self._policy = policy
-        self._project_path = project_path
+        self._project_path = str(Path(project_path).expanduser().resolve())
 
     async def run_command(self, params: dict) -> str:
-        raise NotImplementedError(
-            "Docker sandbox 尚未实现。请将 sandbox.mode 设为 'approval_gate' 或 'none'。"
-        )
+        command = params["command"]
+        requested_timeout = int(params.get("timeout", 30))
+        # 同时受调用方请求与策略上限约束
+        timeout = min(requested_timeout, self._policy.timeout_seconds)
+        argv = self._build_docker_argv(command)
+        return await asyncio.to_thread(self._exec, argv, timeout)
 
     async def write_file(self, params: dict) -> str:
-        raise NotImplementedError(
-            "Docker sandbox 尚未实现。请将 sandbox.mode 设为 'approval_gate' 或 'none'。"
-        )
+        rel_path = params["path"]
+        content = params["content"]
+
+        try:
+            target = self._resolve_path(rel_path)
+        except ValueError as e:
+            return f"错误: {e}"
+
+        def _write():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with open(target, "w", encoding="utf-8") as f:
+                f.write(content)
+            return f"已写入(沙箱): {rel_path} ({len(content)} 字符)"
+
+        return await asyncio.to_thread(_write)
+
+    def _build_docker_argv(self, command: str) -> list[str]:
+        """构造 docker run 命令 (argv list, 避免 shell 注入)。
+
+        command 作为 sh -c 的单一参数传入, 不参与 docker 调用的 shell 拼接。
+        """
+        p = self._policy
+        argv: list[str] = [
+            "docker", "run", "--rm",
+            "-v", f"{self._project_path}:/workspace",
+            "-w", "/workspace",
+            "--memory", f"{p.memory_limit_mb}m",
+        ]
+        if not p.network_enabled:
+            argv += ["--network", "none"]
+        argv.append(p.docker_image)
+        argv += ["sh", "-c", command]
+        return argv
+
+    def _resolve_path(self, rel_path: str) -> Path:
+        """解析路径并校验沙箱边界 — 禁止逃逸出项目目录。"""
+        base = Path(self._project_path)
+        candidate = Path(rel_path)
+        target = (base / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
+        try:
+            target.relative_to(base)
+        except ValueError:
+            raise ValueError(f"路径逃逸出项目目录: {rel_path}")
+        return target
+
+    def _exec(self, argv: list[str], timeout: int) -> str:
+        try:
+            result = subprocess.run(
+                argv,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return f"命令超时 ({timeout}秒, docker)"
+        except FileNotFoundError:
+            return "错误: docker 未安装或不在 PATH 中"
+
+        output_parts: list[str] = []
+        if result.stdout:
+            stdout = result.stdout[:10000]
+            if len(result.stdout) > 10000:
+                stdout += "\n... stdout 已截断 (超过 10000 字符)"
+            output_parts.append(stdout)
+        if result.stderr:
+            stderr = result.stderr[:5000]
+            if len(result.stderr) > 5000:
+                stderr += "\n... stderr 已截断"
+            output_parts.append(f"[stderr]\n{stderr}")
+        if result.returncode != 0:
+            output_parts.append(f"[exit code: {result.returncode}]")
+        return "\n".join(output_parts) if output_parts else "(无输出)"
+
+    async def close(self) -> None:
+        # 每次调用 docker run --rm 自清理, 无持久资源需释放
+        pass
 
 
 # ---------------------------------------------------------------------------
