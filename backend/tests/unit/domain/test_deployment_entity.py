@@ -170,6 +170,36 @@ class TestDeployConfig:
         assert cfg.cdn_domain == "cdn.example.com"
 
 
+class TestDeployConfigForType:
+    """for_type 按 (project_type, build_target) 参数化 — v6.0 波次1。"""
+
+    def test_binary_app_default_target_is_tauri_linux(self) -> None:
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+
+        cfg = DeployConfig.for_type(ProjectType.BINARY_APP)
+        assert cfg.build_command == "cargo tauri build"
+        assert cfg.artifact_path == "src-tauri/target/release/bundle"
+
+    def test_binary_app_explicit_tauri_linux(self) -> None:
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+        from arc.domain.sandbox.value_objects import BuildTarget
+
+        cfg = DeployConfig.for_type(ProjectType.BINARY_APP, BuildTarget.TAURI_LINUX)
+        assert cfg.build_command == "cargo tauri build"
+
+    def test_static_site_ignores_target(self) -> None:
+        """STATIC_SITE 不受 build_target 影响 (正交维度)。"""
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+        from arc.domain.sandbox.value_objects import BuildTarget
+
+        cfg = DeployConfig.for_type(ProjectType.STATIC_SITE, BuildTarget.TAURI_LINUX)
+        assert cfg.build_command == "npm run build"
+        assert cfg.artifact_path == "dist"
+
+
 class TestDeploymentStatusEnum:
     def test_all_values(self) -> None:
         expected = {"pending", "building", "uploading", "deployed", "failed", "rolled_back"}

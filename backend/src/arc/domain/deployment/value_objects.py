@@ -43,21 +43,32 @@ class DeployConfig:
     cdn_domain: str | None = None
 
     @staticmethod
-    def for_type(project_type: "ProjectType") -> "DeployConfig":
-        """按项目类型返回默认部署配置。
+    def for_type(
+        project_type: "ProjectType",
+        build_target: "BuildTarget | None" = None,
+    ) -> "DeployConfig":
+        """按 (项目类型, 构建目标) 返回默认部署配置。
 
-        新增类型时在此补充默认 build_command/artifact_path。
+        build_target 默认 TAURI_LINUX (BINARY_APP 容器可构建主线)。
+        ProjectType 与 BuildTarget 正交: 类型决定"构建什么形态",
+        target 决定"容器内构建到哪个目标"。波次2/3 激活新 target 时在此加分支。
         """
         from arc.domain.project.value_objects import ProjectType
+        from arc.domain.sandbox.value_objects import BuildTarget as _BT
+
+        target = build_target if build_target is not None else _BT.TAURI_LINUX
 
         if project_type == ProjectType.STATIC_SITE:
             return DeployConfig(build_command="npm run build", artifact_path="dist")
         if project_type == ProjectType.BINARY_APP:
-            # 原生客户端构建命令取决于框架(Tauri/Capacitor), 默认 Tauri。
-            # 跨平台编译在容器内编排(见 sandbox runtime), 产物落 src-tauri/target/release/bundle。
-            return DeployConfig(
-                build_command="cargo tauri build",
-                artifact_path="src-tauri/target/release/bundle",
-            )
+            # 原生客户端构建: 跨平台编译在容器内编排(见 sandbox runtime + build_images)。
+            if target == _BT.TAURI_LINUX:
+                # tauri linux bundle (deb/AppImage), 产物落 src-tauri/target/release/bundle
+                return DeployConfig(
+                    build_command="cargo tauri build",
+                    artifact_path="src-tauri/target/release/bundle",
+                )
+            # 波次2: target == WEB → npm run build (复用 static_site dist)
+            # 波次3: target == CAPACITOR_APK → npx cap build android → android/app/build/outputs
         # 未识别类型走默认
         return DeployConfig()

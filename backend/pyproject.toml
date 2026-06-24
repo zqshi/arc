@@ -40,6 +40,9 @@ packages = ["src/arc"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "slow: 慢测试 (真实 docker build/镜像验证), CI 默认 skip (-m 'not slow')",
+]
 
 [tool.ruff]
 line-length = 100

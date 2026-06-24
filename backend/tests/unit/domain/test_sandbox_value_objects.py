@@ -1,6 +1,10 @@
 """Tests for domain/sandbox value objects."""
 
-from arc.domain.sandbox.value_objects import SandboxMode, SandboxPolicy
+from arc.domain.sandbox.value_objects import (
+    BuildTarget,
+    SandboxMode,
+    SandboxPolicy,
+)
 
 
 class TestSandboxPolicy:
@@ -49,3 +53,33 @@ class TestSandboxPolicy:
             assert False, "Should raise"
         except Exception:
             pass  # frozen=True prevents mutation
+
+
+class TestBuildTarget:
+    def test_tauri_linux_value(self):
+        assert BuildTarget.TAURI_LINUX == "tauri_linux"
+
+
+class TestSandboxPolicyBuildTarget:
+    """build_target 记录构建目标语义; 镜像解析在 application 层, 不在此。"""
+
+    def test_default_build_target(self):
+        p = SandboxPolicy()
+        assert p.build_target == BuildTarget.TAURI_LINUX
+
+    def test_from_dict_parses_target(self):
+        p = SandboxPolicy.from_dict({
+            "mode": "docker",
+            "target": "tauri_linux",
+        })
+        assert p.mode == SandboxMode.DOCKER
+        assert p.build_target == BuildTarget.TAURI_LINUX
+
+    def test_from_dict_invalid_target_falls_back(self):
+        """未知 target 值降级为默认 TAURI_LINUX (不阻断, 遵循降级原则)。"""
+        p = SandboxPolicy.from_dict({"mode": "docker", "target": "nonexistent"})
+        assert p.build_target == BuildTarget.TAURI_LINUX
+
+    def test_from_dict_without_target_uses_default(self):
+        p = SandboxPolicy.from_dict({"mode": "docker"})
+        assert p.build_target == BuildTarget.TAURI_LINUX
