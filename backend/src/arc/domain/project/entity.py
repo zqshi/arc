@@ -15,6 +15,7 @@ from arc.domain.project.value_objects import (
     ProcessConfig,
     ProcessConstraint,
     ProjectStatus,
+    ProjectType,
     VersionStatus,
 )
 
@@ -38,6 +39,7 @@ class Project:
     status: ProjectStatus = ProjectStatus.ACTIVE
     execution_mode: ExecutionMode = ExecutionMode.PIPELINE  # deprecated
     process_constraint: ProcessConstraint = ProcessConstraint.FREE
+    project_type: ProjectType = ProjectType.STATIC_SITE
     process_config: ProcessConfig = field(default_factory=ProcessConfig)
     pipeline_config: dict = field(default_factory=lambda: dict(DEFAULT_PIPELINE_CONFIG))
     conversation_config: dict = field(default_factory=lambda: dict(DEFAULT_CONVERSATION_CONFIG))
