@@ -59,12 +59,19 @@ class TestLoadDistributionCredsForProject:
 
 
 class TestGetDistributor:
-    def test_unregistered_type_returns_none(self):
-        """T2-T4 未实现时, get_distributor 返回 None (调用方 graceful skip)。"""
-        assert get_distributor(DistributorType.APP_STORE) is None
+    def test_appstore_registered(self):
+        """T2 done: AppStoreDistributor 已注册。"""
+        from arc.infrastructure.distributor.appstore import AppStoreDistributor
+
+        d = get_distributor(DistributorType.APP_STORE)
+        assert d is not None
+        assert isinstance(d, AppStoreDistributor)
+
+    def test_play_tauri_not_implemented(self):
+        """T3/T4 未实现 → None (调用方 graceful skip)。"""
         assert get_distributor(DistributorType.PLAY_STORE) is None
         assert get_distributor(DistributorType.TAURI_UPDATER) is None
 
-    def test_distributors_registry_starts_empty(self):
-        """T1 阶段注册表为空, T2-T4 实现后填充。"""
-        assert DISTRIBUTORS == {}
+    def test_distributors_registry_has_appstore(self):
+        """T2 后注册表含 APP_STORE; T3/T4 实现后补 PLAY/TAURI。"""
+        assert DistributorType.APP_STORE in DISTRIBUTORS

@@ -19,6 +19,7 @@ from arc.domain.deployment.distributor import (
     Distributor,
     DistributorType,
 )
+from arc.infrastructure.distributor.appstore import AppStoreDistributor
 
 __all__ = [
     "DistributeResult",
@@ -61,9 +62,10 @@ def load_distribution_creds_for_project(
 
 
 # DistributorType → Distributor 实例注册表
-# T2-T4 实现后填充: APP_STORE → AppStoreDistributor / PLAY_STORE → PlayStoreDistributor /
-# TAURI_UPDATER → TauriUpdaterDistributor
-DISTRIBUTORS: dict[DistributorType, Distributor] = {}
+# T2 done: APP_STORE → AppStoreDistributor; T3/T4 待实现
+DISTRIBUTORS: dict[DistributorType, Distributor] = {
+    DistributorType.APP_STORE: AppStoreDistributor(),
+}
 
 
 def get_distributor(distributor_type: DistributorType) -> Distributor | None:
