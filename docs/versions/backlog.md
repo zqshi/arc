@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-24 (v6.0 归档 — 波次1 tauri linux 闭环; 波次2/3 镜像遗留)
+> 最后更新: 2026-06-24 (v6.1 归档 — 签名/公证层完成, 真实产物签名验证遗留待 v6.0 波次2/3)
 
 ---
 
@@ -10,7 +10,7 @@
 - [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
 - [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md) · [v2.9.0](v2.9.0-snapshot.md) · [v3.0.0](v3.0.0-snapshot.md) · [v3.1.0](v3.1.0-snapshot.md) · [v3.2.0](v3.2.0-snapshot.md) · [v3.3.0](v3.3.0-snapshot.md) · [v3.4.0](v3.4.0-snapshot.md) · [v3.5.0](v3.5.0-snapshot.md) · [v3.6.0](v3.6.0-snapshot.md) · [v3.7.0](v3.7.0-snapshot.md) · [v3.8.0](v3.8.0-snapshot.md) · [v3.9.0](v3.9.0-snapshot.md) · [v3.10.0](v3.10.0-snapshot.md)
-- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md) · [v6.0.0](v6.0.0-snapshot.md)
+- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md) · [v6.0.0](v6.0.0-snapshot.md) · [v6.1.0](v6.1.0-snapshot.md)
 
 ---
 
@@ -57,6 +57,8 @@
 | v6.0 波次2 — web 工具链镜像 | P2 | v6.0 遗留 | 激活 BuildTarget.WEB + arc/web-builder 镜像 + DeployConfig.for_type WEB 分支; 验证容器内 npm run build 产 dist |
 | v6.0 波次3 — android capacitor 镜像 | P2 | v6.0 遗留 | 激活 BuildTarget.CAPACITOR_APK + arc/android-builder (JDK17+SDK+NDK, 2-3GB, licenses/NDK 复杂); 验证容器内产 apk |
 | tauri-builder smoke 手动验证 | P3 | v6.0 遗留 | CI 默认 skip; `make tauri-builder`(~10min) 后 `pytest -m slow` 跑; 完整 cargo tauri build 端到端留作手动 |
+| v6.1 真实产物签名验证 | P2 | v6.1 遗留 | 待 v6.0 波次2/3 (mac/win/apk 构建链路) 就绪后, 真实 .app/.exe/.apk 经签名器验证; 当前 mock subprocess 覆盖逻辑层 |
+| v6.1 notarytool --apple-id 用 team_id 兼用 | P3 | v6.1 遗留 | 真实 notarytool 需 Apple ID (邮箱) 非 team_id, 真实验证时修正 |
 
 ---
 
@@ -108,12 +110,18 @@
 
 ---
 
-## v6.1.0 — 签名/公证层（凭证可配置，非阻塞）
+## v6.1.0 — 签名/公证层（✅ 已完成 2026-06-24，见 [v6.1.0-snapshot.md](v6.1.0-snapshot.md)）
 
-- 签名器抽象 + Apple codesign+notarize / Windows signtool / Android apksigner
-- 凭证 Settings 配置项（必须同步 `.env.example`）：`APPLE_DEV_ID` / `APPLE_TEAM_ID` / `WIN_EV_CERT_PATH` / `WIN_EV_PASSWORD` / `PLAY_KEY_JSON`
-- **未配 → graceful skip**（warning，不阻断构建）；配了 → 走签名流程
-- 验证: 配凭证后包签名+notarize 通过
+> 凭证项目维度加密存储, 非阻塞 (未配 graceful skip)。
+
+- ✅ **T1 done** Signer 抽象 + 凭证项目维度加密存储 (Fernet, domain 回调注入加解密, migration z12)
+- ✅ **T2 done** Apple codesign+notarize 签名器
+- ✅ **T3 done** Windows signtool 签名器
+- ✅ **T4 done** Android apksigner 签名器 (app signing keystore, 非 Play 上传密钥)
+- ✅ **T5 done** graceful skip 路由 (按产物平台 .app/.exe/.apk 检测, 非 build_target)
+- ✅ **T6 done** mock 验证签名链路激活
+- ✅ **T7 done** 质量检测 (cryptography 显式声明修 transitive)
+- **遗留**: 真实产物签名验证待 v6.0 波次2/3 (mac/win/apk 构建链路)
 
 ---
 
