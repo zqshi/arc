@@ -39,14 +39,10 @@ DESIGN_THINKING_PROMPT = """\
 - 确定信息优先级 — 用户最先看到什么、最常操作什么
 
 ### Step 3: 原型工程 (Prototype Engineering)
-逐页面设计后，使用工具创建完整的前端工程:
-- 使用 write_file 创建 Vite + React + Tailwind 项目
-- 每个线框页面对应一个路由页面组件
-- 使用 HashRouter 实现页面间真实导航
-- 共享 Layout（Header/Sidebar）组件，页面切换只替换内容区
-- 使用 Zustand store 管理 Mock 数据和全局状态
-- 创建完成后执行 npm install && npm run build
-- **不要生成 HTML 片段，要生成可构建的工程代码**
+逐页面设计后，使用工具创建一个**可构建的完整前端工程**（不是 HTML 片段）。
+具体技术栈、目录结构与构建约束遵循本项目的「原型工程指导」(按 project_type 提供，
+由 methodology provider 注入, 见 PROTOTYPE_BUILD_GUIDES)。此步只关注工程化方法论，
+不重复技术栈细节——避免与按类型注入的指导产生矛盾。
 
 ### Step 4: 可用性自检 (Usability Heuristics)
 对照 Nielsen 10 启发式原则自检:
@@ -95,7 +91,7 @@ def get_ui_design_prompt(conversation_round: int) -> str:
     elif conversation_round < 4:
         stage = "Step 2: 信息架构 — 用户旅程和页面层级"
     elif conversation_round < 8:
-        stage = "Step 3: 原型工程 — 创建 Vite+React 前端工程"
+        stage = "Step 3: 原型工程 — 创建可构建前端工程"
     else:
         stage = "Step 4: 可用性自检 — Nielsen 启发式 + 检查清单"
     return DESIGN_THINKING_PROMPT.format(current_stage=stage)
