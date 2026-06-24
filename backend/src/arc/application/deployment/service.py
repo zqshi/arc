@@ -148,6 +148,8 @@ class DeployService:
         """项目类型 → 部署类型映射。新增类型时在此扩展。"""
         if project_type == ProjectType.STATIC_SITE:
             return DeployType.STATIC_SITE
+        if project_type == ProjectType.BINARY_APP:
+            return DeployType.BINARY_ARTIFACT
         raise ValueError(f"暂不支持的项目类型: {project_type}")
 
     async def get_latest_deployment(self, version_id: uuid.UUID) -> Deployment | None:

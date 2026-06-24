@@ -63,9 +63,9 @@ class ProjectType(StrEnum):
     禁止在 service/prompt 里加 if project_type 分支。
     """
 
-    STATIC_SITE = "static_site"  # 静态站点(官网/SPA) — v5.9.0 唯一实质值
+    STATIC_SITE = "static_site"  # 静态站点(官网/SPA) — v5.9.0 落地
+    BINARY_APP = "binary_app"  # 原生客户端(Tauri/Capacitor) — v6.0.0 激活, 聚焦容器可构建目标(linux/web/android apk)
     # 预留（后续版本激活时再加，避免触发死代码检测）:
-    # BINARY_APP = "binary_app"          # 原生客户端 → v6.0.0
     # BACKEND_SERVICE = "backend_service"  # 后端服务
     # CONTAINER = "container"            # 容器镜像
     # LIBRARY = "library"                 # 库/SDK

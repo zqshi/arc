@@ -20,6 +20,7 @@ class DeploymentStatus(StrEnum):
 
 class DeployType(StrEnum):
     STATIC_SITE = "static_site"
+    BINARY_ARTIFACT = "binary_artifact"  # 二进制制品(Tauri/Capacitor 产物) — v6.0.0
 
 
 # 状态转换合法性表
@@ -51,5 +52,12 @@ class DeployConfig:
 
         if project_type == ProjectType.STATIC_SITE:
             return DeployConfig(build_command="npm run build", artifact_path="dist")
-        # 非静态站点类型在 v6.0.0+ 激活时补充
+        if project_type == ProjectType.BINARY_APP:
+            # 原生客户端构建命令取决于框架(Tauri/Capacitor), 默认 Tauri。
+            # 跨平台编译在容器内编排(见 sandbox runtime), 产物落 src-tauri/target/release/bundle。
+            return DeployConfig(
+                build_command="cargo tauri build",
+                artifact_path="src-tauri/target/release/bundle",
+            )
+        # 未识别类型走默认
         return DeployConfig()

@@ -31,10 +31,19 @@ class TestProjectType:
         assert resp.status_code == 200
         assert resp.json()["project_type"] == "static_site"
 
-    async def test_create_rejects_unsupported_type(self, client: AsyncClient):
-        """v5.9.0 仅 static_site; binary_app 未激活, schema Literal 约束 → 422。"""
+    async def test_create_accepts_binary_app(self, client: AsyncClient):
+        """v6.0.0 binary_app 已激活, schema Literal 允许 → 201。"""
         resp = await client.post(
             "/api/projects",
-            json={"name": "PT Bad", "project_type": "binary_app"},
+            json={"name": "PT Binary", "project_type": "binary_app"},
+        )
+        assert resp.status_code in (200, 201)
+        assert resp.json()["project_type"] == "binary_app"
+
+    async def test_create_rejects_unsupported_type(self, client: AsyncClient):
+        """未激活类型(library) schema Literal 约束 → 422。"""
+        resp = await client.post(
+            "/api/projects",
+            json={"name": "PT Bad", "project_type": "library"},
         )
         assert resp.status_code == 422

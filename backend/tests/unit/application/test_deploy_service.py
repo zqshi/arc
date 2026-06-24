@@ -143,11 +143,21 @@ class TestDeployTypeRouting:
             == DeployType.STATIC_SITE
         )
 
+    def test_deploy_type_for_binary_app(self) -> None:
+        from arc.application.deployment.service import DeployService
+        from arc.domain.deployment.value_objects import DeployType
+        from arc.domain.project.value_objects import ProjectType
+
+        assert (
+            DeployService._deploy_type_for(ProjectType.BINARY_APP)
+            == DeployType.BINARY_ARTIFACT
+        )
+
     def test_deploy_type_for_unsupported_raises(self) -> None:
         from arc.application.deployment.service import DeployService
 
         with pytest.raises(ValueError, match="暂不支持的项目类型"):
-            DeployService._deploy_type_for("binary_app")  # type: ignore[arg-type]
+            DeployService._deploy_type_for("library")  # type: ignore[arg-type]
 
     def test_get_deployer_returns_static_site_deployer(self) -> None:
         from arc.domain.deployment.value_objects import DeployType
@@ -158,11 +168,22 @@ class TestDeployTypeRouting:
         assert isinstance(deployer, StaticSiteDeployer)
         assert isinstance(deployer, Deployer)
 
+    def test_get_deployer_returns_binary_artifact_deployer(self) -> None:
+        from arc.domain.deployment.value_objects import DeployType
+        from arc.infrastructure.deployer import Deployer, get_deployer
+        from arc.infrastructure.deployer.binary_artifact import (
+            BinaryArtifactDeployer,
+        )
+
+        deployer = get_deployer(DeployType.BINARY_ARTIFACT)
+        assert isinstance(deployer, BinaryArtifactDeployer)
+        assert isinstance(deployer, Deployer)
+
     def test_get_deployer_unsupported_raises(self) -> None:
         from arc.infrastructure.deployer import get_deployer
 
         with pytest.raises(ValueError, match="暂不支持的部署类型"):
-            get_deployer("binary_app")  # type: ignore[arg-type]
+            get_deployer("library")  # type: ignore[arg-type]
 
     def test_deploy_config_for_static_site(self) -> None:
         from arc.domain.deployment.value_objects import DeployConfig
@@ -172,6 +193,14 @@ class TestDeployTypeRouting:
         assert cfg.build_command == "npm run build"
         assert cfg.artifact_path == "dist"
 
+    def test_deploy_config_for_binary_app(self) -> None:
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+
+        cfg = DeployConfig.for_type(ProjectType.BINARY_APP)
+        assert cfg.build_command == "cargo tauri build"
+        assert cfg.artifact_path == "src-tauri/target/release/bundle"
+
     def test_get_prototype_guide_for_static_site(self) -> None:
         from arc.application.context.prompts import get_prototype_guide
         from arc.domain.project.value_objects import ProjectType
@@ -180,8 +209,16 @@ class TestDeployTypeRouting:
         assert guide  # 非空
         assert "前端工程" in guide  # 原型工程化指导关键文案
 
+    def test_get_prototype_guide_for_binary_app(self) -> None:
+        from arc.application.context.prompts import get_prototype_guide
+        from arc.domain.project.value_objects import ProjectType
+
+        guide = get_prototype_guide(ProjectType.BINARY_APP)
+        assert guide  # 非空
+        assert "原生客户端" in guide or "tauri" in guide.lower()
+
     def test_get_prototype_guide_unregistered_returns_empty(self) -> None:
         from arc.application.context.prompts import get_prototype_guide
 
-        # 未注册类型 (v6.0.0 才加 binary_app) 返回空串, 不抛异常
-        assert get_prototype_guide("binary_app") == ""  # type: ignore[arg-type]
+        # 未注册类型返回空串, 不抛异常
+        assert get_prototype_guide("library") == ""  # type: ignore[arg-type]

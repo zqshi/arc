@@ -14,7 +14,7 @@ class ProjectCreate(BaseModel):
     conventions: str = ""
     execution_mode: str = "pipeline"  # deprecated, kept for compat
     process_constraint: str = "free"
-    project_type: Literal["static_site"] = "static_site"
+    project_type: Literal["static_site", "binary_app"] = "static_site"
     # 工作区策略
     workspace_type: Literal["local", "github", "temporary"] = "temporary"
     github_token: str = ""  # workspace_type=github 时可选传入

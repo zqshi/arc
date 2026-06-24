@@ -195,14 +195,13 @@ class TestDefaultConversationConfig:
 
 
 class TestProjectType:
-    """v5.9.0: 项目交付/部署形态枚举。"""
+    """项目交付/部署形态枚举。v5.9.0 static_site, v6.0.0 激活 binary_app。"""
 
     def test_enum_values_complete(self):
-        # v5.9.0 仅 static_site 实质值; binary_app 等在 v6.0.0+ 激活时再加
-        assert {pt.value for pt in ProjectType} == {"static_site"}
+        assert {pt.value for pt in ProjectType} == {"static_site", "binary_app"}
 
     def test_enum_count(self):
-        assert len(ProjectType) == 1
+        assert len(ProjectType) == 2
 
     def test_str_equality(self):
         assert ProjectType.STATIC_SITE == "static_site"
@@ -212,7 +211,8 @@ class TestProjectType:
 
     def test_from_value(self):
         assert ProjectType("static_site") == ProjectType.STATIC_SITE
+        assert ProjectType("binary_app") == ProjectType.BINARY_APP
 
     def test_invalid_value_raises(self):
         with pytest.raises(ValueError):
-            ProjectType("binary_app")  # v6.0.0 才激活
+            ProjectType("library")  # 未激活类型

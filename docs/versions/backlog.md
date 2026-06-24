@@ -87,19 +87,20 @@
 
 ---
 
-## v6.0.0 — 容器化构建 runtime + 原生客户端构建（已启动，见 [v6.0.0-current.md](v6.0.0-current.md)）
+## v6.0.0 — 容器化构建 runtime + 原生客户端构建（进行中，见 [v6.0.0-current.md](v6.0.0-current.md)）
 
 > BINARY_APP 类型落地地基。激活 v5.9.0 框架的第二个项目类型。
-> 附加: prompt-upgrade-plan #7 sufficiency 接线 + #13 ConstraintPolicy 死配置清理。
+> 附加: prompt-upgrade-plan #7 sufficiency 接线 + ConstraintPolicy 死配置清理。
 
 - ~~实现 `DockerSandboxRuntime`~~ ✅ **T1 done (groundwork, commit 292cc8d)** — 真实容器执行 + RW 挂载产物持久化 + 超时/网络/内存限制 + 路径逃逸防护 (7 项真实 docker 测试通过)
-- 构建工具链容器镜像（node/rust/tauri/capacitor）—— 待定: 复用官方镜像 vs 自建
-- `run_command` 容器内执行 + 跨平台编译编排
-- `ProjectType.BINARY_APP` 构建链路（cargo tauri build / npx cap build 产出二进制）
-- `BinaryArtifactDeployer`（产物落制品目录，不签名不分发）
-- 验证: 原生客户端项目本地构建出 .dmg/.exe/.apk
-- #7 sufficiency 接线（轮次预筛 + 达阈值调 LLM 三维评估带缓存，需评审方案）
-- #13 ConstraintPolicy route_strategy 空参数清理（constraint_policy.py:202）
+- ✅ **T4 done BINARY_APP 框架激活** — 六处注册点全激活(ProjectType/DeployType/DeployConfig.for_type/DeployService路由/get_deployer/PROTOTYPE_BUILD_GUIDES)，零框架改动复用 v5.9.0 扩展点
+- ✅ **T5 done BinaryArtifactDeployer** — 二进制制品落 artifacts/ 目录不分发，不要求 index.html，复用 storage
+- ✅ **T7 done #7 sufficiency 接线** — 产出前门禁方案(非A+B)，接 ArtifactService.confirm，降级放行
+- ⏳ T2 构建工具链容器镜像（node/rust/tauri/capacitor）—— 决策阻塞: 复用官方镜像 vs 自建
+- ⏳ T3 `run_command` 容器内执行 + 跨平台编译编排
+- ⏳ T6 验证: 容器内构建出**容器可构建目标**(linux二进制/web/android apk)；mac/win 原生二进制(.dmg/.exe)推后(原生runner/CI matrix)
+- ⏳ T8 ConstraintPolicy 死配置清理（gate_threshold 接管后的零引用字段审计）
+- 注: #13 route_strategy 空参数清理属 v6.2（非 v6.0）
 
 ---
 

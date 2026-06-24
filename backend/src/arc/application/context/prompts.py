@@ -244,6 +244,49 @@ prototype/
 """
 
 
+BINARY_APP_BUILD_GUIDE = """\
+## 原生客户端构建要求 (project_type=binary_app)
+
+你的目标是产出可在容器沙箱内构建为原生客户端的工程，产物落 src-tauri/target/release/bundle。
+默认框架 Tauri (Rust + WebView)，跨平台 web 资源复用前端工程。
+
+### 你需要达成的状态
+
+一个可被 `cargo tauri build` 成功构建的 Tauri 工程，产出**容器可构建目标**：
+- linux 二进制 (.AppImage / deb)
+- web 资源 (复用 static_site 的 dist)
+- android .apk (Capacitor 或 tauri-android)
+
+> 不在范围: macOS .dmg / Windows .exe 需原生 OS，容器化沙箱无法构建，推后到原生 runner/CI matrix。
+
+### 工程结构
+
+```
+prototype/
+├── package.json          # 前端 web 资源构建 (vite + react + tailwind)
+├── src/                  # 前端源码 (与 static_site 同)
+└── src-tauri/
+    ├── Cargo.toml        # tauri 依赖
+    ├── tauri.conf.json   # 应用元数据 + bundle targets (聚焦 deb/AppImage/apk)
+    ├── src/main.rs       # tauri 入口
+    └── icons/            # 应用图标
+```
+
+### 关键约束
+
+- tauri.conf.json 的 bundle.targets 只配容器可构建目标 (deb/AppImage/apk)，不配 dmg/msi
+- 前端 web 资源 build_command 与 static_site 一致 (npm run build → dist)，tauri 引用此 dist
+- 构建/签名/分发分离：本阶段只保证构建产物落 bundle 目录；签名在 v6.1 (凭证可配)、分发在 v6.2
+- Android 构建若用 Capacitor，需配 capacitor.config.ts + android/ 平台目录
+
+### 设计原则
+
+- 复用前端工程：web 资源与 static_site 共用 src/，避免重复实现
+- 构建可复现：Cargo.lock 锁定依赖版本，镜像内构建无外部网络依赖 (构建工具链镜像见 sandbox runtime)
+- 产物可识别：bundle 目录按 target 组织，部署器按目录上传不分发
+"""
+
+
 # ---------------------------------------------------------------------------
 # 原型构建指导注册表 — 按 project_type 注入对应脚手架/构建指导
 # 新增项目类型时在此注册: key = ProjectType.value, value = 指导文本
@@ -251,6 +294,7 @@ prototype/
 # ---------------------------------------------------------------------------
 PROTOTYPE_BUILD_GUIDES: dict[str, str] = {
     "static_site": PROTOTYPE_ENGINEERING_PROMPT,
+    "binary_app": BINARY_APP_BUILD_GUIDE,
 }
 
 
