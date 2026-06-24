@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.application.pipeline.prompts import (
     PHASE_GREETINGS,
 )
+from arc.application.pipeline import hooks as pipeline_hooks
 from arc.domain.agent.entity import AgentSession
 from arc.domain.agent.value_objects import AgentType
 from arc.domain.artifact.entity import Artifact
@@ -181,7 +182,9 @@ class PipelineService:
         conventions = project_ctx.conventions if project_ctx.has_project else ""
 
         # 收集前置已确认产出物 — 用于交叉一致性检查
-        prior_artifacts = await self._collect_prior_artifacts(todo_id, phase_type)
+        prior_artifacts = await pipeline_hooks.collect_prior_artifacts(
+            self.artifact_repo, todo_id, phase_type
+        )
 
         gate_result = await evaluate_gate(
             phase_type, artifact.content, conventions,
@@ -191,7 +194,7 @@ class PipelineService:
             raise PhaseGateError(gate_result)
 
         async with self.db.begin_nested():
-            await self._feedback_experience_confidence(gate_result.score)
+            await pipeline_hooks.feedback_experience_confidence(self.db, gate_result.score)
 
             if not artifact.is_confirmed:
                 artifact.confirm()
@@ -202,11 +205,13 @@ class PipelineService:
 
             # 架构阶段确认后 → 自动合并领域模型
             if phase_type == PhaseType.ARCHITECTURE:
-                await self._merge_domain_model(todo_id, artifact.content)
+                await pipeline_hooks.merge_domain_model(self.db, todo_id, artifact.content)
 
             # 部署阶段确认后 → 触发真实部署
             if phase_type == PhaseType.DEPLOYMENT:
-                await self._trigger_deployment(todo_id, artifact.content)
+                await pipeline_hooks.trigger_deployment(
+                    self.db, self.todo_repo, todo_id, artifact.content
+                )
 
             nxt = next_phase(phase_type)
             if nxt:
@@ -222,10 +227,10 @@ class PipelineService:
             else:
                 todo = await self.todo_repo.get_by_id(todo_id)
                 if todo:
-                    await self._extract_experience(todo)
+                    await pipeline_hooks.extract_experience(self.db, todo)
                     todo.complete()
                     await self.todo_repo.update(todo)
-                    await self._notify_github(todo)
+                    await pipeline_hooks.notify_github(self.db, todo)
 
         return phase
 
@@ -373,131 +378,3 @@ class PipelineService:
             ],
         }
 
-    async def _extract_experience(self, todo) -> None:
-        from arc.application.experience.service import ExperienceService
-
-        try:
-            svc = ExperienceService(self.db)
-            await svc.extract_from_todo(todo)
-        except Exception as exc:
-            logger.warning("Experience extraction failed for todo %s: %s", todo.id, exc)
-
-    async def _notify_github(self, todo) -> None:
-        if not todo.github_issue_number or not todo.project_id:
-            return
-        try:
-            from arc.application.integration.github_service import GitHubService
-            from arc.infrastructure.repositories.project import ProjectRepository
-
-            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-            if project and project.github_token:
-                await GitHubService(self.db).notify_issue_complete(todo, project)
-        except Exception as exc:
-            logger.warning("GitHub notify failed for todo %s: %s", todo.id, exc)
-
-    async def _feedback_experience_confidence(self, gate_score: int) -> None:
-        """Update confidence of recently-reused experiences based on gate score."""
-        from arc.infrastructure.repositories.experience import ExperienceRepository
-
-        exp_repo = ExperienceRepository(self.db)
-        try:
-            reused = await exp_repo.list_recently_reused(limit=5)
-            if not reused:
-                return
-            normalized = gate_score / 10.0
-            for exp in reused:
-                old = exp.confidence
-                exp.update_confidence(round(old * 0.7 + normalized * 0.3, 3))
-                await exp_repo.update(exp)
-        except Exception as exc:
-            logger.warning("Experience confidence feedback failed: %s", exc)
-
-    async def _collect_prior_artifacts(
-        self, todo_id: uuid.UUID, current_phase: PhaseType
-    ) -> dict[str, dict]:
-        """收集当前阶段之前已确认的产出物 — 用于交叉一致性检查。"""
-        from arc.domain.artifact.value_objects import PHASE_ARTIFACT_MAP
-
-        confirmed = await self.artifact_repo.list_confirmed_by_todo(todo_id)
-        result: dict[str, dict] = {}
-        for art in confirmed:
-            # 只收集当前阶段之前的产出物
-            art_phase = None
-            for phase, atypes in PHASE_ARTIFACT_MAP.items():
-                if art.artifact_type in atypes:
-                    art_phase = phase
-                    break
-            if art_phase and PHASE_ORDER.get(art_phase, 99) < PHASE_ORDER.get(current_phase, 0):
-                result[art.artifact_type.value] = art.content
-        return result
-
-    async def _merge_domain_model(self, todo_id: uuid.UUID, arch_content: dict) -> None:
-        """架构产出物确认后，自动合并到项目级领域模型。
-
-        实现领域模型的持续演进 — 每次需求迭代产出的架构设计
-        都会累积到项目的 domain_model 中，形成持续迭代的领域知识。
-        """
-        from arc.application.execution.domain_model_extractor import DomainModelExtractor
-
-        try:
-            extractor = DomainModelExtractor(self.db)
-            updated = await extractor.extract_and_merge(todo_id, arch_content)
-            if updated:
-                logger.info(
-                    "Domain model auto-merged from architecture confirmation (todo %s)",
-                    todo_id,
-                )
-        except Exception as exc:
-            # 合并失败不阻断主流程
-            logger.warning(
-                "Domain model merge failed for todo %s: %s", todo_id, exc
-            )
-
-    async def _trigger_deployment(self, todo_id: uuid.UUID, deploy_content: dict) -> None:
-        """部署阶段确认后，触发真实静态站点部署。
-
-        从 artifact content 中读取部署路径（Agent 执行 build 后产出），
-        调用 DeployService 上传到 S3 并回写 URL。
-        """
-        from arc.application.deployment.service import DeployService
-
-        try:
-            todo = await self.todo_repo.get_by_id(todo_id)
-            if not todo or not todo.project_id:
-                return
-
-            from arc.infrastructure.repositories.project import ProjectRepository
-            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-            if not project or not project.local_path:
-                logger.info(
-                    "_trigger_deployment: skipped (no local_path) todo=%s", todo_id
-                )
-                return
-
-            # 从 artifact content 或项目配置获取构建产物路径
-            artifact_path = deploy_content.get("artifact_path", "dist")
-            from pathlib import Path
-            dist_dir = Path(project.local_path) / artifact_path
-
-            if not dist_dir.is_dir():
-                logger.info(
-                    "_trigger_deployment: dist not found at %s, skipping", dist_dir
-                )
-                return
-
-            deploy_svc = DeployService(self.db)
-            deployment = await deploy_svc.deploy_static_site(
-                project_id=todo.project_id,
-                version_id=todo.version_id,
-                local_dir=str(dist_dir),
-                todo_id=todo_id,
-            )
-            logger.info(
-                "_trigger_deployment: completed status=%s url=%s",
-                deployment.status.value, deployment.deploy_url,
-            )
-        except Exception as exc:
-            # 部署失败不阻断 pipeline 推进
-            logger.warning(
-                "_trigger_deployment failed for todo %s: %s", todo_id, exc
-            )
