@@ -67,11 +67,19 @@ class TestGetDistributor:
         assert d is not None
         assert isinstance(d, AppStoreDistributor)
 
-    def test_play_tauri_not_implemented(self):
-        """T3/T4 未实现 → None (调用方 graceful skip)。"""
+    def test_play_not_implemented(self):
+        """T3 未实现 → None (调用方 graceful skip)。"""
         assert get_distributor(DistributorType.PLAY_STORE) is None
-        assert get_distributor(DistributorType.TAURI_UPDATER) is None
 
-    def test_distributors_registry_has_appstore(self):
-        """T2 后注册表含 APP_STORE; T3/T4 实现后补 PLAY/TAURI。"""
+    def test_tauri_registered(self):
+        """T4 done: TauriUpdaterDistributor 已注册。"""
+        from arc.infrastructure.distributor.tauri_updater import TauriUpdaterDistributor
+
+        d = get_distributor(DistributorType.TAURI_UPDATER)
+        assert d is not None
+        assert isinstance(d, TauriUpdaterDistributor)
+
+    def test_distributors_registry_has_appstore_tauri(self):
+        """T2/T4 后注册表含 APP_STORE/TAURI_UPDATER; T3 实现后补 PLAY。"""
         assert DistributorType.APP_STORE in DISTRIBUTORS
+        assert DistributorType.TAURI_UPDATER in DISTRIBUTORS
