@@ -128,13 +128,68 @@ class ArtifactService:
         artifact.update_content(merged)
         return await self.artifact_repo.update(artifact)
 
-    async def confirm(self, artifact_id: uuid.UUID) -> Artifact | None:
-        """Mark artifact as confirmed."""
+    async def confirm(
+        self, artifact_id: uuid.UUID, *, llm_review_fn=None
+    ) -> Artifact | None:
+        """Mark artifact as confirmed.
+
+        requirement_spec 确认前过 sufficiency 门禁 (产出前判断对话信息是否足够,
+        v6.0 #7)。信息不足抛 ValueError (带 follow_up_questions), 由 route 转 400。
+        llm_review_fn 可注入用于测试。
+        """
         artifact = await self.artifact_repo.get_by_id(artifact_id)
         if not artifact:
             return None
+        if artifact.artifact_type == ArtifactType.REQUIREMENT_SPEC:
+            await self._check_sufficiency(artifact, llm_review_fn=llm_review_fn)
         artifact.confirm()
         return await self.artifact_repo.update(artifact)
+
+    async def _check_sufficiency(
+        self, artifact: Artifact, *, llm_review_fn=None
+    ) -> None:
+        """requirement_spec 产出前 sufficiency 门禁 — 判断对话信息是否足够。
+
+        从 todo 取 title/description, 从对话历史拼 summary, 调 evaluate_sufficiency
+        三维评估。sufficient=false 抛 ValueError 阻断确认。门禁异常降级放行 (不阻断)。
+        """
+        from arc.application.execution.sufficiency_gate import evaluate_sufficiency
+        from arc.infrastructure.repositories.todo import TodoRepository
+
+        try:
+            todo = await TodoRepository(self.db).get_by_id(artifact.todo_id)
+            title = getattr(todo, "title", "") if todo else ""
+            description = getattr(todo, "description", "") if todo else ""
+
+            convs = await self.conv_repo.list_by_todo_id(artifact.todo_id)
+            summary_parts: list[str] = []
+            for conv in convs:
+                for msg in conv.messages:
+                    role = getattr(msg.role, "value", str(msg.role))
+                    summary_parts.append(f"{role}: {msg.content}")
+            # 截断防爆 (取最近 2000 字符, 信息密度集中在近期对话)
+            conversation_summary = "\n".join(summary_parts)[-2000:]
+
+            result = await evaluate_sufficiency(
+                title=title,
+                description=description,
+                conversation_summary=conversation_summary,
+                llm_review_fn=llm_review_fn,
+            )
+            if not result.sufficient:
+                questions = result.follow_up_questions or [
+                    "请补充目标用户、核心问题、功能方向"
+                ]
+                raise ValueError(
+                    f"需求信息尚不充分, 暂无法确认需求规格: {'; '.join(questions)}"
+                )
+        except ValueError:
+            raise  # 阻断信号向上透传
+        except Exception as exc:
+            logger.warning(
+                "sufficiency gate skipped for artifact %s: %s", artifact.id, exc
+            )
+            # 门禁异常降级放行, 不阻断确认 (遵循降级原则)
 
     async def get_confirmed_context(self, todo_id: uuid.UUID) -> dict[ArtifactType, dict]:
         """Get all confirmed artifacts for a todo, keyed by type."""

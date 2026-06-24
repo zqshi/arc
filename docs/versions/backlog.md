@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-24 (v5.9.0/v5.10 归档, v6.0.0 启动)
+> 最后更新: 2026-06-24 (v5.9.0/v5.10 归档, v6.0 #7 sufficiency 完成)
 
 ---
 
@@ -27,7 +27,7 @@
 | domain_model 无版本历史/无回滚能力 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
 | Validator 评审结果无闭环流程 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
 | Pipeline/Conversation 双架构冗余 | P0 | RFC-001 审计 | v4.0.0 |
-| INPUT_SUFFICIENCY_PROMPT 死代码 (sufficiency_gate.py 在 v4.1.0/ef66656 已删回归) | P0 | RFC-001 审计 / v5.10 复核 | 🔴 待修复: `pipeline/prompts.py:84` 仅定义零调用，对话模式实际跑 `providers/sufficiency.py` 轮次计数 |
+| INPUT_SUFFICIENCY_PROMPT 死代码 (sufficiency_gate.py 在 v4.1.0/ef66656 已删回归) | P0 | RFC-001 审计 / v5.10 复核 | ✅ v6.0 #7: 接线为 requirement_spec 产出门禁(`execution/sufficiency_gate.py`), 不再零调用 |
 | Pipeline 无 tool-use 能力 (能力倒挂) | P0 | RFC-001 审计 | ✅ RFC-001 Phase 1 (ConversationService 接入 ToolAwareLoop) |
 | AC ↔ 测试无交叉一致性验证 | P1 | RFC-001 审计 | ✅ RFC-002 (gate.py _check_cross_consistency) |
 | 全阶段无方法论引导 | P0 | RFC-002 审计 | ✅ RFC-002 (7/7 阶段覆盖) |
@@ -125,7 +125,7 @@
 
 > 把 Arc 自己的迭代治理体系作为"基因"传给交付出的每个项目, 闭环"上下文不断裂"承诺。
 > ✅ 前置: prompt-upgrade-plan 路线图已落地 (见 [docs/prompt-upgrade-plan.md](../prompt-upgrade-plan.md))。
-> v5.10 已完成 6 处 (自由模式门禁/部署/澄清双轨), 剩余 8 处按 v6.0-v6.2 推进。
+> v5.10 已完成 6 处 (自由模式门禁/部署/澄清双轨), v6.0 完成 #7 (sufficiency 产出门禁), 剩余 7 处按 v6.0-v6.2 推进。
 > v6.3.0 可在 v6.0 完成核心意图驱动化后启动, 不再把过渡期反模式锁死给新项目。
 
 核心拆解:
