@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-24
+> 最后更新: 2026-06-24 (v5.9.0/v5.10 归档, v6.0.0 启动)
 
 ---
 
@@ -10,7 +10,7 @@
 - [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
 - [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md) · [v2.9.0](v2.9.0-snapshot.md) · [v3.0.0](v3.0.0-snapshot.md) · [v3.1.0](v3.1.0-snapshot.md) · [v3.2.0](v3.2.0-snapshot.md) · [v3.3.0](v3.3.0-snapshot.md) · [v3.4.0](v3.4.0-snapshot.md) · [v3.5.0](v3.5.0-snapshot.md) · [v3.6.0](v3.6.0-snapshot.md) · [v3.7.0](v3.7.0-snapshot.md) · [v3.8.0](v3.8.0-snapshot.md) · [v3.9.0](v3.9.0-snapshot.md) · [v3.10.0](v3.10.0-snapshot.md)
-- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md)
+- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md)
 
 ---
 
@@ -53,6 +53,7 @@
 | tool_loop 穿透 adapter 封装 | P2 | v2.3.0 遗留 | v2.4.0 T4+T5 |
 | 扫描状态纯内存不持久化 | P1 | v2.3.0 用户反馈 | v2.4.0 T1 |
 | 项目硬删除无恢复能力 | P1 | v2.3.0 用户反馈 | v2.4.0 T2 |
+| `test_health` 全量连跑时序污染 | P2 | v5.10.0 质检发现 | 🔴 待修复: `tests/integration/test_api.py::test_health` 断言 `status=="ok"`, 但 `/health` 端点用全局 `async_session_factory` 不走 `db_session` fixture, unit 全量跑完后连接池异常终止 → 返回 `degraded`; 单独跑 integration 或单独跑 test_health 均通过。非业务 bug, 是测试基础设施隔离缺陷 |
 
 ---
 
@@ -86,16 +87,19 @@
 
 ---
 
-## v6.0.0 — 容器化构建 runtime + 原生客户端构建
+## v6.0.0 — 容器化构建 runtime + 原生客户端构建（已启动，见 [v6.0.0-current.md](v6.0.0-current.md)）
 
 > BINARY_APP 类型落地地基。激活 v5.9.0 框架的第二个项目类型。
+> 附加: prompt-upgrade-plan #7 sufficiency 接线 + #13 ConstraintPolicy 死配置清理。
 
-- ~~实现 `DockerSandboxRuntime`（当前 `raise NotImplementedError`）~~ ✅ **groundwork 已实现 (待 v6.0.0 激活时归入 T1)** — 真实容器执行 + RW 挂载产物持久化 + 超时/网络/内存限制 + 路径逃逸防护 (7 项真实 docker 测试通过)
+- ~~实现 `DockerSandboxRuntime`~~ ✅ **T1 done (groundwork, commit 292cc8d)** — 真实容器执行 + RW 挂载产物持久化 + 超时/网络/内存限制 + 路径逃逸防护 (7 项真实 docker 测试通过)
 - 构建工具链容器镜像（node/rust/tauri/capacitor）—— 待定: 复用官方镜像 vs 自建
 - `run_command` 容器内执行 + 跨平台编译编排
 - `ProjectType.BINARY_APP` 构建链路（cargo tauri build / npx cap build 产出二进制）
 - `BinaryArtifactDeployer`（产物落制品目录，不签名不分发）
 - 验证: 原生客户端项目本地构建出 .dmg/.exe/.apk
+- #7 sufficiency 接线（轮次预筛 + 达阈值调 LLM 三维评估带缓存，需评审方案）
+- #13 ConstraintPolicy route_strategy 空参数清理（constraint_policy.py:202）
 
 ---
 

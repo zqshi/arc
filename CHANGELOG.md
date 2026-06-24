@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [5.10.0] - 2026-06-24
+
+### Changed — Prompt 升级第一批：自由模式门禁 + 部署 + 澄清双轨
+
+落地 prompt-upgrade-plan 路线图 #1-6，把意图驱动能力真正接线（解除 v6.3.0 前置阻塞）：
+
+- **#1 artifact_extractor 门禁分级**：从"仅记录不阻断"改为按 constraint 分级阻断（复用 gate.py 4 层）
+- **#2 对话模式门禁接线**：`conversation_gate.py` + `gate_threshold.py`，GateProfile 注册表分级（free≥5/moderate≥6/strict≥7）
+- **#3 is_quality_complete 双重校验**：完成判定从"状态标志"升级为"门禁通过双重校验"
+- **#4 部署硬门禁**：`trigger_deployment` 从"三重静默 skip"改为 `check_build_ready` 硬门禁，杜绝虚假部署
+- **#5 澄清策略路由**：从"固定6层苏格拉底"切到 `clarification_strategy` 三策略路由（按需求类型动态选方法论）
+- **#6 autopilot 门禁重试**：从"盲目推进"改为门禁卡点反馈重试 + max_gate_retries=2 截断
+
+### Fixed — 修复 3 个遗留集成红灯（v5.9.0 质检漏检，-x 遮蔽全貌）
+
+- `PHASES_NO_SKIP` 误含 UI_DESIGN 致 `can_skip` 恒 False、skip 功能完全失效（c09f1b5 回归）
+- `prototype-bundle` schema 漂移：测试断言旧 `pages`/`new_pages` 字段，实际已升级为 `routes`（前端工程语义）
+- `prototype-site/persist` 死测试：端点在 57610a1 重构时移除，原型持久化已由 v5.10 部署断点统一承接
+
+### 质量检测
+
+- 单元 1459 passed / 集成 71 passed / 前端 tsc 0 error
+- `execution_engine.py` 538 行（500-800 警告区，记入技术债务）
+- prompt-upgrade-plan 进度 6/14，#7-14 属 v6.0/6.1/6.2
+
+## [5.9.0] - 2026-06-24
+
+### Added — 项目类型框架 + 静态站点型落地
+
+把"项目类型"建成 domain 一等公民 + 部署器多态框架，静态站点型端到端落地验证（"不同项目类型落地"终局第一步）：
+
+- **domain**: `ProjectType` 枚举（STATIC_SITE）作为交付形态一等公民，与 backend_type/framework 正交；Project 加 project_type 字段；`DeployConfig.for_type()` 工厂
+- **部署器多态**: `Deployer` 抽象基类 + `get_deployer` 工厂；`StaticSiteDeployer` 重构为 STATIC_SITE 实例；`deploy_static_site()` 改为薄封装兼容现有调用点
+- **prompt 参数化**: `PROTOTYPE_BUILD_GUIDES: dict[str,str]` 按 project_type 注入，禁止 service/prompt 加 if 分支
+- **接口层 + 前端**: schema/route/service 加 project_type；创建表单加选择器（STATIC_SITE 默认且唯一可选，UI 预留）
+- **ORM + migration**: `projects` 表加 `project_type` 列（z11_project_type，server_default='static_site' 存量回填）
+
+### 质量检测
+
+- 新增类型仅需在 ProjectType + get_deployer + PROTOTYPE_BUILD_GUIDES 三处注册
+- 单元 + 集成测试覆盖全路径
+
 ## [5.8.0] - 2026-06-24
 
 ### Changed — 技术债务清理（文件超限拆分 + 模板 embed 自动化）
