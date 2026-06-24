@@ -35,6 +35,14 @@ export function SectionCard({
   );
 }
 
+export function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <h4 className="mb-2 text-[11px] font-semibold tracking-wide text-text-tertiary uppercase">
+      {children}
+    </h4>
+  );
+}
+
 export function TextBlock({ children }: { children: ReactNode }) {
   return (
     <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-secondary">{children}</p>
