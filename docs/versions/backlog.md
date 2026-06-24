@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-04
+> 最后更新: 2026-06-24
 
 ---
 
@@ -83,6 +83,36 @@
 ## ~~v3.10.0 — Skill 集成 + 质量体系升级 (RFC-002)~~ ✅ 已完成
 
 > [v3.10.0-snapshot.md](v3.10.0-snapshot.md)
+
+---
+
+## v6.0.0 — 容器化构建 runtime + 原生客户端构建
+
+> BINARY_APP 类型落地地基。激活 v5.9.0 框架的第二个项目类型。
+
+- 实现 `DockerSandboxRuntime`（当前 `raise NotImplementedError`）+ 构建工具链容器镜像（node/rust/tauri/capacitor）
+- `run_command` 容器内执行 + 跨平台编译编排
+- `ProjectType.BINARY_APP` 构建链路（cargo tauri build / npx cap build 产出二进制）
+- `BinaryArtifactDeployer`（产物落制品目录，不签名不分发）
+- 验证: 原生客户端项目本地构建出 .dmg/.exe/.apk
+
+---
+
+## v6.1.0 — 签名/公证层（凭证可配置，非阻塞）
+
+- 签名器抽象 + Apple codesign+notarize / Windows signtool / Android apksigner
+- 凭证 Settings 配置项（必须同步 `.env.example`）：`APPLE_DEV_ID` / `APPLE_TEAM_ID` / `WIN_EV_CERT_PATH` / `WIN_EV_PASSWORD` / `PLAY_KEY_JSON`
+- **未配 → graceful skip**（warning，不阻断构建）；配了 → 走签名流程
+- 验证: 配凭证后包签名+notarize 通过
+
+---
+
+## v6.2.0 — 商店分发 + 制品分发层（凭证可配置）
+
+- App Store Connect / Play Console / Tauri updater 上传器
+- 二进制制品分发层（下载页 / 更新元数据）
+- 未配凭证 → skip 商店上传，产物落制品仓可手动下载
+- 验证: 配凭证后能上传商店
 
 ---
 

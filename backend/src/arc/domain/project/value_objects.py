@@ -51,6 +51,26 @@ class WorkspaceType(StrEnum):
     TEMPORARY = "temporary"  # 临时工作区（~/.arc/workspaces/{project_id}/）
 
 
+class ProjectType(StrEnum):
+    """项目交付/部署形态 — 决定构建方式 + 产物形态 + 部署器。
+
+    与 backend_type(后端形态) / app_code.framework(前端框架) 正交:
+    - ProjectType 决定"怎么构建 + 部署到哪"
+    - backend_type 决定"后端用啥" (none/supabase/embedded/external)
+    - framework 决定"脚手架用啥" (react/vue/svelte/vanilla)
+
+    新增类型时必须同步在 get_deployer() + PROTOTYPE_BUILD_GUIDES 三处注册,
+    禁止在 service/prompt 里加 if project_type 分支。
+    """
+
+    STATIC_SITE = "static_site"  # 静态站点(官网/SPA) — v5.9.0 唯一实质值
+    # 预留（后续版本激活时再加，避免触发死代码检测）:
+    # BINARY_APP = "binary_app"          # 原生客户端 → v6.0.0
+    # BACKEND_SERVICE = "backend_service"  # 后端服务
+    # CONTAINER = "container"            # 容器镜像
+    # LIBRARY = "library"                 # 库/SDK
+
+
 class VersionStatus(StrEnum):
     PLANNING = "planning"
     ACTIVE = "active"
