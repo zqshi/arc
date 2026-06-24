@@ -49,8 +49,18 @@ class TestSigningCredentials:
         assert creds.has_apple() is False
 
     def test_android_credentials(self):
-        creds = SigningCredentials(play_key_json='{"key":"v"}')
+        """Android 签名用 app signing keystore (非 Play 上传密钥)。"""
+        creds = SigningCredentials(
+            android_keystore_path="/keys/release.jks",
+            android_keystore_password="ks-pass",
+            android_key_alias="release-key",
+        )
         assert creds.has_android() is True
+
+    def test_android_play_key_not_signing_credential(self):
+        """play_key_json 是分发凭证 (v6.2), 非 apksigner 签名凭证 → has_android False。"""
+        creds = SigningCredentials(play_key_json='{"key":"v"}')
+        assert creds.has_android() is False
 
     def test_frozen(self):
         creds = SigningCredentials(apple_dev_id="x")
