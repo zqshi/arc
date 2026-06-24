@@ -67,7 +67,7 @@ DELIVERABLE_REQUIRED_FIELDS: dict[str, list[str]] = {
     "tech_architecture": ["data_model", "api_design", "tech_decisions"],
     "dev_report": ["test_design", "implementation", "validation"],
     "test_report": ["criteria_verification"],
-    "deploy_report": ["deploy_log", "health_check_result"],
+    "deploy_report": ["deploy_log", "health_check_result", "build_evidence"],
     "experience_card": ["problem", "solution", "decisions"],
     # v5.5.0 — APP_CODE: 机器可解析的代码工程元数据 (Agent 写入, UI 只读)
     "app_code": ["project_dir", "tech_stack", "build_command", "run_command", "entry_points"],
