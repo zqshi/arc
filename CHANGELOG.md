@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-06-24 — 签名/公证层（凭证项目维度加密存储，非阻塞）
+
+### Added — BINARY_APP 构建产物签名/公证
+
+为 v6.0 打通的 BINARY_APP 构建产物加签名/公证层，"不同项目类型落地"终局第三步（构建 → **签名** → 分发）：
+
+- **Signer 抽象 + 凭证项目维度加密存储** (T1): 凭证非全局 config，而是用户为自己项目配的（Arc 是应用构建平台）。Fernet 对称加密（`infrastructure/crypto.py`），按平台分字段（enc_apple/win/android_creds）。domain 通过回调注入加解密（Project.set/get_signing_creds），DDD 零违规。migration z12_signing_creds
+- **三平台签名器** (T2/T3/T4): AppleSigner（codesign + xcrun notarytool --wait）/ WindowsSigner（signtool /f /p /tr /td sha256）/ AndroidSigner（apksigner --ks，app signing keystore 非 Play 上传密钥）。注册到 SIGNERS，复用 sandbox/runtime.py subprocess 风格（提取公共 `_cmd.py`）
+- **graceful skip 路由** (T5): DeployService._sign_artifact 按产物平台（.app/.exe/.apk 后缀）检测选 signer，非 build_target 硬编码。tauri linux 的 deb/AppImage 无标准签名 → 不签。凭证未配 → SignResult.skip 不阻断构建
+- **mock 验证** (T6): 签名链路激活验证（.app→AppleSigner codesign / 凭证未配 skip / linux 产物不签）。真实产物签名待 v6.0 波次2/3
+
+### Changed
+
+- **cryptography 显式声明**: 从 python-jose transitive 改为 pyproject 直接依赖（crypto.py 直接 import，避免 jose 升级风险）
+
+### 决策
+
+- **凭证项目维度加密存储**: 初版 T1 误做全局 config，用户澄清纠正为项目维度 + 加密
+- **签名路由按产物平台**: build_target 硬编码映射 APPLE 语义错误（tauri linux 产物不该 Apple 签名），修正为按产物后缀检测
+- **graceful skip 三态**: 凭证未配 → skip 不阻断；签名失败 → fail 记 error 但产物仍上传
+
 ## [6.0.0] - 2026-06-24 — 容器化构建 runtime + BINARY_APP 构建链路 + sufficiency 接线
 
 ### Added — BINARY_APP 项目类型激活 + 容器化构建链路 + sufficiency 产出门禁
