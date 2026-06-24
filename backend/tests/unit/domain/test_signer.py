@@ -30,11 +30,16 @@ class TestSigningCredentials:
 
     def test_apple_credentials(self):
         creds = SigningCredentials(
-            apple_dev_id="DEV123", apple_team_id="TEAM456"
+            apple_dev_id="DEV123", apple_team_id="TEAM456", apple_app_password="xxxx-xxxx-xxxx-xxxx"
         )
         assert creds.is_empty() is False
         assert creds.has_apple() is True
         assert creds.has_windows() is False
+
+    def test_apple_partial_creds_not_complete(self):
+        """缺 app_password → has_apple False (notarize 无法提交)。"""
+        creds = SigningCredentials(apple_dev_id="DEV123", apple_team_id="TEAM456")
+        assert creds.has_apple() is False
 
     def test_windows_credentials(self):
         creds = SigningCredentials(
