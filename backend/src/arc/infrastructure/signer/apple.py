@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import subprocess
 
 from arc.domain.deployment.signer import SignResult, SigningCredentials, Signer, SignerType
+from arc.infrastructure.signer._cmd import run_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class AppleSigner(Signer):
             "codesign", "--sign", credentials.apple_dev_id,
             "--force", "--deep", "--timestamp", artifact_path,
         ]
-        cs_result = await asyncio.to_thread(self._run, codesign_argv)
+        cs_result = await asyncio.to_thread(run_cmd, codesign_argv, 600, "codesign")
         if not cs_result.ok:
             return SignResult.fail(f"codesign failed: {cs_result.stderr}")
 
@@ -48,7 +48,7 @@ class AppleSigner(Signer):
             "--password", credentials.apple_app_password,
             "--wait",
         ]
-        nt_result = await asyncio.to_thread(self._run, notary_argv)
+        nt_result = await asyncio.to_thread(run_cmd, notary_argv, 1800, "notarytool")
         if not nt_result.ok:
             # 签名已成功但公证失败 — 记 fail 但产物已签名
             logger.warning("notarytool failed (artifact signed but not notarized): %s", nt_result.stderr)
@@ -59,29 +59,3 @@ class AppleSigner(Signer):
             signature_id=nt_result.stdout.strip().splitlines()[0] if nt_result.stdout else "",
             signed_path=artifact_path,
         )
-
-    @staticmethod
-    def _run(argv: list[str]) -> _CmdResult:
-        """同步执行命令, 返回结果 (复用 runtime.py subprocess.run 风格)。"""
-        try:
-            result = subprocess.run(argv, capture_output=True, text=True, timeout=600)
-            return _CmdResult(
-                ok=result.returncode == 0,
-                stdout=result.stdout,
-                stderr=result.stderr.strip(),
-            )
-        except FileNotFoundError:
-            return _CmdResult(ok=False, stdout="", stderr="codesign/notarytool 未安装 (非 macOS?)")
-        except subprocess.TimeoutExpired:
-            return _CmdResult(ok=False, stdout="", stderr="notarytool --wait 超时 (Apple 服务器排队)")
-
-
-class _CmdResult:
-    """命令执行结果 (内部, 避免 dataclass 开销)。"""
-
-    __slots__ = ("ok", "stdout", "stderr")
-
-    def __init__(self, ok: bool, stdout: str, stderr: str):
-        self.ok = ok
-        self.stdout = stdout
-        self.stderr = stderr

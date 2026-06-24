@@ -78,7 +78,7 @@ class TestAppleSignerCodesign:
                 stderr = ""
             return R()
 
-        monkeypatch.setattr("arc.infrastructure.signer.apple.subprocess.run", _fake_run)
+        monkeypatch.setattr("arc.infrastructure.signer._cmd.subprocess.run", _fake_run)
         project = _creds_with_apple(monkeypatch)
         creds = load_credentials_for_project(project, SignerType.APPLE)
 
@@ -107,7 +107,7 @@ class TestAppleSignerCodesign:
                 stderr = "code signing failed: no identity"
             return R()
 
-        monkeypatch.setattr("arc.infrastructure.signer.apple.subprocess.run", _fake_run)
+        monkeypatch.setattr("arc.infrastructure.signer._cmd.subprocess.run", _fake_run)
         project = _creds_with_apple(monkeypatch)
         creds = load_credentials_for_project(project, SignerType.APPLE)
 
@@ -136,7 +136,7 @@ class TestAppleSignerNotarize:
                 stderr = ""
             return R()
 
-        monkeypatch.setattr("arc.infrastructure.signer.apple.subprocess.run", _fake_run)
+        monkeypatch.setattr("arc.infrastructure.signer._cmd.subprocess.run", _fake_run)
         project = _creds_with_apple(monkeypatch)
         creds = load_credentials_for_project(project, SignerType.APPLE)
 

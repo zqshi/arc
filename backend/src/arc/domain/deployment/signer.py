@@ -43,7 +43,12 @@ class SigningCredentials:
     win_ev_cert_path: str = ""  # .pfx 证书文件路径
     win_ev_password: str = ""  # 证书密码
 
-    # Android (Google Play 上传密钥, 非 debug keystore)
+    # Android 签名 (app signing keystore, .jks — apksigner 用)
+    android_keystore_path: str = ""  # release keystore 文件路径
+    android_keystore_password: str = ""  # keystore 密码
+    android_key_alias: str = ""  # 签名 key 别名
+    android_key_password: str = ""  # key 密码 (可与 keystore 密码不同)
+    # Android 分发 (Google Play 上传密钥, v6.2 商店分发用, 非签名)
     play_key_json: str = ""  # Play Console service account JSON
 
     def is_empty(self) -> bool:
@@ -60,7 +65,12 @@ class SigningCredentials:
         return bool(self.win_ev_cert_path and self.win_ev_password)
 
     def has_android(self) -> bool:
-        return bool(self.play_key_json)
+        """Android 签名凭证 (app signing keystore, 非 Play 上传密钥)。"""
+        return bool(
+            self.android_keystore_path
+            and self.android_keystore_password
+            and self.android_key_alias
+        )
 
 
 @dataclass(frozen=True)

@@ -60,11 +60,24 @@ class TestGetSigner:
         assert signer is not None
         assert isinstance(signer, AppleSigner)
 
-    def test_windows_android_not_implemented(self):
-        """T3/T4 未实现 → None (调用方 graceful skip)。"""
-        assert get_signer(SignerType.WINDOWS) is None
-        assert get_signer(SignerType.ANDROID) is None
+    def test_windows_registered(self):
+        """T3 done: WindowsSigner 已注册。"""
+        from arc.infrastructure.signer.windows import WindowsSigner
 
-    def test_signers_registry_has_apple(self):
-        """T2 后注册表含 APPLE; T3/T4 实现后补 WIN/ANDROID。"""
+        signer = get_signer(SignerType.WINDOWS)
+        assert signer is not None
+        assert isinstance(signer, WindowsSigner)
+
+    def test_android_registered(self):
+        """T4 done: AndroidSigner 已注册。"""
+        from arc.infrastructure.signer.android import AndroidSigner
+
+        signer = get_signer(SignerType.ANDROID)
+        assert signer is not None
+        assert isinstance(signer, AndroidSigner)
+
+    def test_all_platforms_registered(self):
+        """T2/T3/T4 done: 三平台签名器全部注册。"""
         assert SignerType.APPLE in SIGNERS
+        assert SignerType.WINDOWS in SIGNERS
+        assert SignerType.ANDROID in SIGNERS
