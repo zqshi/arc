@@ -78,6 +78,23 @@ describe('CreateProjectModal', () => {
       expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
         name: '新项目',
         workspace_type: 'temporary',
+        project_type: 'static_site',
+      }));
+    });
+  });
+
+  it('allows selecting binary_app project type', async () => {
+    // v6.0: binary_app 选择器放开, 默认 static_site, 可切到 binary_app
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    renderModal({ onCreate });
+    fireEvent.change(screen.getByPlaceholderText('例如：Arc 工作台'), { target: { value: '原生应用' } });
+    fireEvent.click(screen.getByText('原生客户端'));
+    fireEvent.click(screen.getByText('下一步'));
+    fireEvent.click(screen.getByText('创建项目'));
+    await vi.waitFor(() => {
+      expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
+        name: '原生应用',
+        project_type: 'binary_app',
       }));
     });
   });

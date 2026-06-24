@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { FolderOpen, GitBranch, Zap, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { FolderOpen, GitBranch, Zap, ChevronRight, ChevronLeft, Loader2, Monitor, Globe } from 'lucide-react';
 import FolderPicker from './FolderPicker';
-import type { WorkspaceType } from '../types/api';
+import type { ProjectType, WorkspaceType } from '../types/api';
 
 type Step = 'info' | 'workspace';
 
@@ -10,7 +10,7 @@ interface Props {
   onCreate: (data: {
     name: string;
     description: string;
-    project_type: 'static_site'; // v5.9.0: 默认静态站点型, v6.0.0+ 扩展选择器
+    project_type: ProjectType;
     workspace_type: WorkspaceType;
     local_path?: string;
     repo_url?: string;
@@ -29,10 +29,23 @@ const WORKSPACE_OPTIONS: Array<{
   { type: 'github', icon: GitBranch, title: '从 GitHub 克隆', desc: '输入仓库地址，自动克隆到本地' },
 ];
 
+// v6.0: 项目类型选择器 (T6 波次1 构建链路就绪后放开 binary_app)
+const PROJECT_TYPE_OPTIONS: Array<{
+  type: ProjectType;
+  icon: typeof Globe;
+  title: string;
+  desc: string;
+  requiresDocker?: boolean;
+}> = [
+  { type: 'static_site', icon: Globe, title: '静态站点', desc: '官网 / SPA / 落地页，构建为可托管静态资源' },
+  { type: 'binary_app', icon: Monitor, title: '原生客户端', desc: 'Tauri 桌面应用，构建为 Linux 二进制', requiresDocker: true },
+];
+
 export default function CreateProjectModal({ onClose, onCreate }: Props) {
   const [step, setStep] = useState<Step>('info');
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  const [projectType, setProjectType] = useState<ProjectType>('static_site');
   const [workspaceType, setWorkspaceType] = useState<WorkspaceType>('temporary');
   const [localPath, setLocalPath] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
@@ -53,7 +66,7 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
       await onCreate({
         name: name.trim(),
         description: desc.trim(),
-        project_type: 'static_site',
+        project_type: projectType,
         workspace_type: workspaceType,
         ...(workspaceType === 'local' && localPath ? { local_path: localPath } : {}),
         ...(workspaceType === 'github' && repoUrl ? { repo_url: repoUrl.trim(), github_token: githubToken.trim() || undefined } : {}),
@@ -116,6 +129,38 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
                   rows={2}
                   className="w-full resize-none rounded-md border border-border bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
                 />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] font-medium text-text-tertiary">项目类型</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PROJECT_TYPE_OPTIONS.map((opt) => {
+                    const Icon = opt.icon;
+                    const active = projectType === opt.type;
+                    return (
+                      <button
+                        key={opt.type}
+                        type="button"
+                        onClick={() => setProjectType(opt.type)}
+                        className={`flex flex-col items-start gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                          active
+                            ? 'border-accent bg-accent/5'
+                            : 'border-border hover:border-border-active hover:bg-bg-elevated/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Icon size={13} className={active ? 'text-accent' : 'text-text-muted'} />
+                          <span className={`text-xs font-medium ${active ? 'text-accent' : 'text-text-primary'}`}>
+                            {opt.title}
+                          </span>
+                        </div>
+                        <span className="text-[10px] leading-tight text-text-muted">{opt.desc}</span>
+                        {opt.requiresDocker && (
+                          <span className="text-[10px] text-status-warning">构建需 Docker</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </>
           ) : (
