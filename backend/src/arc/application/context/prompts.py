@@ -253,10 +253,11 @@ BINARY_APP_BUILD_GUIDE = """\
 ### 你需要达成的状态
 
 一个可被 `cargo tauri build` 成功构建的 Tauri 工程，产出**容器可构建目标**：
-- linux 二进制 (.AppImage / deb)
-- web 资源 (复用 static_site 的 dist)
-- android .apk (Capacitor 或 tauri-android)
+- linux 二进制 (.AppImage / deb)  ← v6.0 波次1 (本阶段聚焦)
+- web 资源 (复用 static_site 的 dist)  ← 波次2 (镜像就绪后激活)
+- android .apk (Capacitor)  ← 波次3 (镜像就绪后激活)
 
+> 当前阶段(波次1)聚焦 linux bundle; web/apk 在后续波次镜像就绪后激活。
 > 不在范围: macOS .dmg / Windows .exe 需原生 OS，容器化沙箱无法构建，推后到原生 runner/CI matrix。
 
 ### 工程结构
@@ -274,10 +275,11 @@ prototype/
 
 ### 关键约束
 
-- tauri.conf.json 的 bundle.targets 只配容器可构建目标 (deb/AppImage/apk)，不配 dmg/msi
+- 构建在 arc/tauri-builder:linux 镜像内执行 (Rust+Node+webkit2gtk+tauri-cli, 见 sandbox/images/), 无需宿主装工具链
+- build_target=tauri_linux 时 tauri.conf.json 的 bundle.targets 配 ["deb","appimage"] (波次1 唯一激活目标), 不配 dmg/msi/apk
 - 前端 web 资源 build_command 与 static_site 一致 (npm run build → dist)，tauri 引用此 dist
 - 构建/签名/分发分离：本阶段只保证构建产物落 bundle 目录；签名在 v6.1 (凭证可配)、分发在 v6.2
-- Android 构建若用 Capacitor，需配 capacitor.config.ts + android/ 平台目录
+- Android 构建若用 Capacitor (波次3)，需配 capacitor.config.ts + android/ 平台目录
 
 ### 设计原则
 

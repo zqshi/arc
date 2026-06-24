@@ -18,18 +18,39 @@ class SandboxMode(StrEnum):
     DOCKER = "docker"  # Execute inside a disposable container
 
 
+class BuildTarget(StrEnum):
+    """容器内构建目标 — 决定构建镜像 + build_command + artifact_path。
+
+    与 ProjectType 正交: ProjectType 决定"构建什么形态", BuildTarget 决定
+    "容器内构建到哪个目标"。镜像推导见 domain/sandbox/build_images.py。
+
+    v6.0 波次1 仅激活 TAURI_LINUX; WEB/CAPACITOR_APK 在波次2/3 激活时
+    取消注释 (避免触发死代码检测)。
+    """
+
+    TAURI_LINUX = "tauri_linux"  # v6.0 波次1: tauri linux bundle (deb/AppImage)
+    # 预留 (波次2/3 激活):
+    # WEB = "web"  # 波次2: web 资源 (npm run build → dist)
+    # CAPACITOR_APK = "capacitor_apk"  # 波次3: android apk (capacitor)
+
+
 @dataclass(frozen=True)
 class SandboxPolicy:
     """Per-project sandbox configuration.
 
     Loaded from ``Project.conversation_config["sandbox"]``.
     When ``mode`` is NONE, all other fields are ignored.
+
+    build_target 记录构建目标语义 (供 BUILD_GUIDE/路由读取); 镜像解析在
+    application 层完成 — 构造 SandboxPolicy 前由 resolve_build_image() 推导
+    出 docker_image 填入, 故本类不耦合 ProjectType。
     """
 
     mode: SandboxMode = SandboxMode.NONE
 
     # Docker-specific
     docker_image: str = "python:3.12-slim"
+    build_target: BuildTarget = BuildTarget.TAURI_LINUX
     timeout_seconds: int = 120
     memory_limit_mb: int = 512
     network_enabled: bool = False
@@ -49,9 +70,17 @@ class SandboxPolicy:
             mode = SandboxMode(mode_raw)
         except ValueError:
             mode = SandboxMode.NONE
+        target_raw = data.get("target")
+        try:
+            build_target = (
+                BuildTarget(target_raw) if target_raw else BuildTarget.TAURI_LINUX
+            )
+        except ValueError:
+            build_target = BuildTarget.TAURI_LINUX
         return cls(
             mode=mode,
             docker_image=data.get("docker_image", cls.docker_image),
+            build_target=build_target,
             timeout_seconds=data.get("timeout_seconds", cls.timeout_seconds),
             memory_limit_mb=data.get("memory_limit_mb", cls.memory_limit_mb),
             network_enabled=data.get("network_enabled", cls.network_enabled),

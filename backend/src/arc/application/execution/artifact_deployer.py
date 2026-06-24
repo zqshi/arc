@@ -20,6 +20,26 @@ from arc.infrastructure.repositories.artifact import ArtifactRepository
 logger = logging.getLogger(__name__)
 
 
+def resolve_deploy_config(project_type, content, artifact_path):
+    """按 project_type 解析部署配置 (断点D 修复)。
+
+    BINARY_APP 用类型默认 (cargo tauri build + bundle), 不信 content 的 build_command
+    (content 可能是前端 web 资源的 npm run build, 非原生构建命令);
+    其他类型沿用 content (兼容 STATIC_SITE 既有行为)。
+
+    DeployService 内部按 project_type 选 deployer: BINARY_APP → BinaryArtifactDeployer。
+    """
+    from arc.domain.deployment.value_objects import DeployConfig
+    from arc.domain.project.value_objects import ProjectType
+
+    if project_type == ProjectType.BINARY_APP:
+        return DeployConfig.for_type(project_type)
+    return DeployConfig(
+        build_command=content.get("build_command", "npm run build"),
+        artifact_path=artifact_path,
+    )
+
+
 class PrototypeDeployer:
     """原型部署器 — 将构建产物部署到 S3 或本地 serve。"""
 
@@ -160,20 +180,21 @@ class PrototypeDeployer:
                 return
 
             from arc.application.deployment.service import DeployService
-            from arc.domain.deployment.value_objects import DeployConfig
-            from arc.domain.project.value_objects import ProjectType
+
+            # 断点D 修复: 按项目真实 project_type 路由 (原硬编码 STATIC_SITE,
+            # 致 BINARY_APP 原型被当静态站点部署)。DeployService 内部按 type 选 deployer:
+            # BINARY_APP → BinaryArtifactDeployer (不要求 index.html)。
+            project_type = project.project_type
+            deploy_config = resolve_deploy_config(project_type, content, artifact_path)
 
             deploy_svc = DeployService(self._db)
             deployment = await deploy_svc.deploy(
                 project_id=todo.project_id,
                 version_id=todo.version_id,
                 local_dir=local_dir,
-                project_type=ProjectType.STATIC_SITE,
+                project_type=project_type,
                 todo_id=todo.id,
-                config=DeployConfig(
-                    build_command=content.get("build_command", "npm run build"),
-                    artifact_path=artifact_path,
-                ),
+                config=deploy_config,
             )
 
             if deployment.deploy_url:

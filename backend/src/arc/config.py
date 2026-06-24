@@ -64,6 +64,10 @@ class Settings(BaseSettings):
 
     # Sandbox
     sandbox_default_mode: str = "none"  # none | approval_gate | docker
+    # 覆盖默认构建镜像映射, key 格式 "{project_type}:{build_target}"
+    # 例: {"binary_app:tauri_linux": "registry.example.com/tauri:v2"}
+    # 留空则用 domain/sandbox/build_images.py 的 DEFAULT_BUILD_IMAGES 注册表
+    sandbox_builder_images: dict[str, str] = {}
 
     # Object Storage (S3-compatible: MinIO / AWS S3 / Aliyun OSS)
     storage_endpoint: str = ""

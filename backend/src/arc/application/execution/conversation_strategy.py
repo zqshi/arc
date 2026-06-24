@@ -371,20 +371,21 @@ class ConversationExecutionService:
         return None
 
     async def _get_sandbox_policy(self, todo_id: uuid.UUID):
+        """构造 sandbox 策略 — 策略解析逻辑见 sandbox.policy_resolver。
+
+        BINARY_APP 默认启用容器化构建 + 镜像推导 (断点A/B) 由
+        resolve_sandbox_policy 处理; 本方法只做 db 查询接线。
+        """
+        from arc.application.sandbox.policy_resolver import resolve_sandbox_policy
         from arc.infrastructure.repositories.project import ProjectRepository
 
         todo = await self.todo_repo.get_by_id(todo_id)
         if not todo or not todo.project_id:
             return None
         project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-        if not project or not project.conversation_config:
+        if not project:
             return None
-        sandbox_cfg = project.conversation_config.get("sandbox")
-        if not sandbox_cfg or sandbox_cfg.get("mode", "none") == "none":
-            return None
-        from arc.domain.sandbox.value_objects import SandboxPolicy
-
-        return SandboxPolicy.from_dict(sandbox_cfg)
+        return resolve_sandbox_policy(project)
 
     async def _is_orchestration_enabled(self, todo_id: uuid.UUID) -> bool:
         from arc.infrastructure.repositories.project import ProjectRepository
