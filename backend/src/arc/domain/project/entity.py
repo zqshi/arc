@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from arc.domain.deployment.distributor import DistributorType
 from arc.domain.deployment.signer import SignerType
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
@@ -56,6 +57,10 @@ class Project:
     enc_apple_creds: str = ""
     enc_win_creds: str = ""
     enc_android_creds: str = ""
+    # 分发凭证 (v6.2.0) — 按渠道分字段加密存储 (与签名凭证独立)
+    enc_appstore_creds: str = ""
+    enc_playstore_creds: str = ""
+    enc_tauri_updater_creds: str = ""
     deleted_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -155,6 +160,44 @@ class Project:
             SignerType.WINDOWS: "enc_win_creds",
             SignerType.ANDROID: "enc_android_creds",
         }[platform]
+
+    # -- Distribution credentials (v6.2.0) -------------------------------
+
+    def set_distribution_creds(
+        self,
+        channel: DistributorType,
+        creds: dict,
+        encrypt_fn,
+    ) -> None:
+        """加密存储某渠道分发凭证 (与签名凭证独立字段)。空 dict → 不存。"""
+        if not creds:
+            return
+        field_name = self._dist_enc_field_for(channel)
+        setattr(self, field_name, encrypt_fn(json.dumps(creds)))
+        self.updated_at = datetime.now(UTC)
+
+    def get_distribution_creds(self, channel: DistributorType, decrypt_fn) -> dict | None:
+        """解密读取某渠道分发凭证, 未配返回 None。"""
+        field_name = self._dist_enc_field_for(channel)
+        token = getattr(self, field_name) or ""
+        if not token:
+            return None
+        plaintext = decrypt_fn(token)
+        if not plaintext:
+            return None
+        try:
+            return json.loads(plaintext)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+    @staticmethod
+    def _dist_enc_field_for(channel: DistributorType) -> str:
+        """渠道 → 分发凭证加密字段名映射。"""
+        return {
+            DistributorType.APP_STORE: "enc_appstore_creds",
+            DistributorType.PLAY_STORE: "enc_playstore_creds",
+            DistributorType.TAURI_UPDATER: "enc_tauri_updater_creds",
+        }[channel]
 
     def update_context_policy(self, policy: ContextPolicy) -> None:
         """更新项目的上下文策略。"""

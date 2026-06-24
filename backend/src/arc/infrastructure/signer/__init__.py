@@ -58,7 +58,6 @@ def load_credentials_for_project(project, platform: SignerType) -> SigningCreden
             android_keystore_password=creds_dict.get("android_keystore_password", ""),
             android_key_alias=creds_dict.get("android_key_alias", ""),
             android_key_password=creds_dict.get("android_key_password", ""),
-            play_key_json=creds_dict.get("play_key_json", ""),
         )
     return SigningCredentials()
 

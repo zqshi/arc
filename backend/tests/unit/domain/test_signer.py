@@ -57,10 +57,12 @@ class TestSigningCredentials:
         )
         assert creds.has_android() is True
 
-    def test_android_play_key_not_signing_credential(self):
-        """play_key_json 是分发凭证 (v6.2), 非 apksigner 签名凭证 → has_android False。"""
-        creds = SigningCredentials(play_key_json='{"key":"v"}')
-        assert creds.has_android() is False
+    def test_play_key_json_not_in_signing_credentials(self):
+        """play_key_json 归位到 DistributionCredentials (v6.2), 不在 SigningCredentials。"""
+        import dataclasses
+
+        field_names = {f.name for f in dataclasses.fields(SigningCredentials)}
+        assert "play_key_json" not in field_names
 
     def test_frozen(self):
         creds = SigningCredentials(apple_dev_id="x")

@@ -44,6 +44,10 @@ class ProjectModel(TimestampMixin, Base):
     enc_apple_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     enc_win_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     enc_android_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 分发凭证 (v6.2.0) — 按渠道加密存储 (与签名凭证独立)
+    enc_appstore_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enc_playstore_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enc_tauri_updater_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
