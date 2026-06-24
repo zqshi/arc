@@ -1,6 +1,6 @@
 # Prompt 升级路线图 — 规则执行式 → 意图驱动
 
-> 状态: v5.10 第一批(#1-6)已归档, v6.0 启动 #7 (见 [v6.0.0-current.md](versions/v6.0.0-current.md))
+> 状态: v5.10(#1-6)已归档, v6.0 #7 sufficiency已完成(产出前门禁), 进度 7/14 (见 [v6.0.0-current.md](versions/v6.0.0-current.md))
 > 关联: backlog.md v6.3.0 前置 / memory [AI Interaction Philosophy]
 
 ## 背景
@@ -16,7 +16,7 @@ Arc 的核心交互哲学是**意图驱动 + Agent 自主推理**: 给 LLM 目�
 
 ---
 
-## 已完成 (v5.10 第一批 + 第二批)
+## 已完成 (v5.10 #1-6 + v6.0 #7)
 
 | # | 位置 | 升级内容 | 意图驱动度 |
 |---|------|---------|-----------|
@@ -26,14 +26,14 @@ Arc 的核心交互哲学是**意图驱动 + Agent 自主推理**: 给 LLM 目�
 | 4 | `pipeline/hooks.py` trigger_deployment | 部署从"三重静默 skip"改为 `check_build_ready` **硬门禁** | 🟢 |
 | 5 | `conversation/service.py:_build_clarification_prompt` | 澄清从"固定6层苏格拉底"切到 **`clarification_strategy` 三策略路由** (按需求类型动态选方法论) | 🟢 |
 | 6 | `execution/execution_engine.py` run_autopilot | auto_advance 从"盲目推进"改为**门禁卡点反馈重试** + max_gate_retries 截断 | 🟡 |
+| 7 | `execution/sufficiency_gate.py`(新) + `artifact/service.py` confirm + `context/providers/sufficiency.py` | sufficiency 接线为 requirement_spec **产出门禁**(产出前判断), 非每轮注入; 职责分离: 轮次管引导, LLM 管质量判断; 降级放行 | 🟢 |
 
 ---
 
-## 待升级清单 (剩余 8 处)
+## 待升级清单 (剩余 7 处)
 
 | # | 位置 | 现状(🔴) | 目标(🟢/🟡) | 优先级 | 版本 |
 |---|------|---------|------------|--------|------|
-| 7 | `context/providers/sufficiency.py` | 轮次计数("轻量版不调 LLM"); `INPUT_SUFFICIENCY_PROMPT` 三维评估躺尸(`pipeline/prompts.py:84`) | 混合: 轮次预筛 + 达阈值调 LLM 三维评估(带缓存) | **P0** | v6.0 (见下方设计) |
 | 8 | `execution/drift_detector.py` | Jaccard 关键词重叠度判漂移 | LLM 判断"当前动作是否服务于原始目标" + 置信度 | P1 | v6.1 |
 | 9 | `execution/error_loop_detector.py` | LCS 字符串相似度判循环 | LLM 判断"是否换工具犯同类错" | P1 | v6.1 |
 | 10 | `execution/tool_loop.py:312` | 死板 3 次重试 + sleep | LLM 诊断错误类型(超时/权限/逻辑) → 决策(重试/换工具/放弃) | P1 | v6.1 |
@@ -44,11 +44,15 @@ Arc 的核心交互哲学是**意图驱动 + Agent 自主推理**: 给 LLM 目�
 
 ---
 
-## #7 sufficiency 接线设计 (P0, 需评审)
+## #7 sufficiency 接线设计 (P0, ✅ 已决策并实现: 产出前门禁)
+
+> **决策结果 (用户确认, 2026-06-24)**: 采用**方案 B 产出前门禁**, 非 plan 原推荐的 A+B。
+> 理由: 每轮注入"引导用户多说"不需要 LLM(轮次计数够用); 三维评估的真正价值是"产出前语义质量判断", 是门禁场景而非每轮注入。引入缓存复杂度高、用户补信息即失效, 收益不明。
+> 实现: `sufficiency_gate.py` 接入 `ArtifactService.confirm()` 的 requirement_spec 确认前门禁; provider 保留 <2 轮粗引导。详见 [v6.0.0-current.md T7](versions/v6.0.0-current.md)。
 
 **核心矛盾**: `INPUT_SUFFICIENCY_PROMPT` 的 LLM 三维评估(target_users/core_problem/feature_direction)远优于轮次计数, 但 `SufficiencyHintProvider.provide()` 是**每轮注入上下文**——简单接线会让每轮对话多一次 LLM 调用, 成本不可接受。
 
-**推荐方案: 轮次预筛 + 节点性 LLM 评估(带缓存)**
+**~~推荐方案: 轮次预筛 + 节点性 LLM 评估(带缓存)~~** (未采纳 — 缓存复杂度高、用户补信息即失效)
 
 ```
 provider.provide():
@@ -64,9 +68,9 @@ provider.provide():
 - **降级**: LLM 不可用 → 回退轮次计数 (现状), 不阻断
 - **成本**: 典型对话从"每轮 0 次"变"每 2-3 轮 1 次", 可接受
 
-**替代方案(更激进)**: sufficiency 只在**产出 requirement_spec 前**作为门禁调一次 (复用 conversation_gate 机制), 不做每轮注入。更省成本, 但失去"渐进引导"。
+**✅ 采纳方案(替代方案 B)**: sufficiency 只在**产出 requirement_spec 前**作为门禁调一次 (复用 conversation_gate 机制), 不做每轮注入。更省成本, 职责分离: 轮次管引导, LLM 管质量判断。
 
-**决策点(待用户确认)**: 渐进注入(方案A) vs 产出前门禁(方案B) vs 两者结合。建议 A+B: 渐进注入引导 + 产出前门禁兜底。
+**~~决策点(待用户确认)~~**: ~~渐进注入(方案A) vs 产出前门禁(方案B) vs 两者结合~~ → **已决策: 方案 B 产出前门禁**。
 
 ---
 
@@ -74,8 +78,8 @@ provider.provide():
 
 | 版本 | 范围 | 依赖 |
 |------|------|------|
-| **v5.10**(本批) | #1-6 自由模式门禁 + 部署 + 澄清双轨 | 无 |
-| **v6.0** | #7 sufficiency 接线 + 项目类型推理 + ConstraintPolicy 死配置清理 | 需评审 sufficiency 方案 |
+| **v5.10** ✅ | #1-6 自由模式门禁 + 部署 + 澄清双轨 | 无 |
+| **v6.0** | #7 sufficiency 接线 ✅done (产出前门禁) + 项目类型推理 + ConstraintPolicy 死配置清理 | - |
 | **v6.1** | #8-10 drift/error_loop/tool_loop 语义化 (执行链路稳定性) | 无 |
 | **v6.2** | #11-14 methodology/prompt_builder 残留规则 (质量精细度) | 无 |
 

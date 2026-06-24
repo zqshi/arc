@@ -223,13 +223,19 @@ async def update_artifact(
 
 @router.post("/{todo_id}/artifacts/{artifact_id}/confirm", response_model=ArtifactResponse)
 async def confirm_artifact(todo_id: str, artifact_id: str, db: DbSession, user: CurrentUser):
-    """Confirm an artifact."""
+    """Confirm an artifact.
+
+    requirement_spec 确认前过 sufficiency 门禁, 信息不足返回 400 (带 follow_up)。
+    """
     await _verify_todo_ownership(db, todo_id, user.id)
 
     from arc.application.artifact.service import ArtifactService
 
     svc = ArtifactService(db)
-    artifact = await svc.confirm(UUID(artifact_id))
+    try:
+        artifact = await svc.confirm(UUID(artifact_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not artifact:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return _artifact_response(artifact)
