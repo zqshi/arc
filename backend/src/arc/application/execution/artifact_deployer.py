@@ -150,12 +150,14 @@ class PrototypeDeployer:
 
             from arc.application.deployment.service import DeployService
             from arc.domain.deployment.value_objects import DeployConfig
+            from arc.domain.project.value_objects import ProjectType
 
             deploy_svc = DeployService(self._db)
-            deployment = await deploy_svc.deploy_static_site(
+            deployment = await deploy_svc.deploy(
                 project_id=todo.project_id,
                 version_id=todo.version_id,
                 local_dir=local_dir,
+                project_type=ProjectType.STATIC_SITE,
                 todo_id=todo.id,
                 config=DeployConfig(
                     build_command=content.get("build_command", "npm run build"),

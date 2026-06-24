@@ -50,6 +50,7 @@ class MethodologyProvider:
         from arc.domain.project.value_objects import ProcessConstraint
 
         constraint = ProcessConstraint.FREE
+        project = None
         if request.todo and request.todo.project_id:
             from arc.infrastructure.repositories.project import ProjectRepository
             project = await ProjectRepository(self._db).get_by_id(
@@ -71,13 +72,18 @@ class MethodologyProvider:
             constraint, phase, user_rounds
         )
 
-        # 原型工程化指导 — 当 prototype 在待产出清单中时追加
-        if "prototype" in (request.completed_artifacts or []):
-            pass  # 已完成，不注入
-        elif request.phase in ("ui_design", "development"):
-            from arc.application.context.prompts import PROTOTYPE_ENGINEERING_PROMPT
-            # 检查是否需要原型
-            # 只在需要时追加（由 Assembler 的上层判断）
-            pass
+        # 原型工程化指导 — 按 project_type 注入 (prototype 未完成且在原型产出阶段)。
+        # v5.5/5.6 此处为 pass 未注入, v5.9.0 接入 get_prototype_guide 让指导真正生效,
+        # 同时建立 "按 project_type 取指导" 的调用链 (避免注册表成为死代码)。
+        completed = request.completed_artifacts or []
+        if (
+            "prototype" not in completed
+            and request.phase in ("ui_design", "development")
+            and project is not None
+        ):
+            from arc.application.context.prompts import get_prototype_guide
+            guide = get_prototype_guide(project.project_type)
+            if guide:
+                methodology = f"{methodology}\n\n{guide}" if methodology else guide
 
         return methodology

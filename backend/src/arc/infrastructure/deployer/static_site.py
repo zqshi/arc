@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 
+from arc.infrastructure.deployer.base import DeployResult, Deployer
 from arc.infrastructure.storage import (
     DEPLOY_MAX_UPLOAD_SIZE,
     get_public_url,
@@ -19,18 +19,7 @@ from arc.infrastructure.storage import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class DeployResult:
-    """部署结果。"""
-
-    success: bool
-    url: str = ""
-    prefix: str = ""
-    file_count: int = 0
-    error: str = ""
-
-
-class StaticSiteDeployer:
+class StaticSiteDeployer(Deployer):
     """将构建产物目录上传到 S3 作为静态站点。
 
     路径规范: deployments/{project_id}/{deploy_id}/

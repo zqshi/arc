@@ -24,6 +24,8 @@ __all__ = [
     "build_deliverable_checklist",
     "build_ddd_tdd_section",
     "PROTOTYPE_ENGINEERING_PROMPT",
+    "PROTOTYPE_BUILD_GUIDES",
+    "get_prototype_guide",
 ]
 
 ARTIFACT_TYPE_MARKERS: dict[str, ArtifactType] = {
@@ -240,6 +242,22 @@ prototype/
 - 移动端响应式（至少不崩溃）
 - 组件粒度合理：不要把一个页面写 500 行，拆子组件
 """
+
+
+# ---------------------------------------------------------------------------
+# 原型构建指导注册表 — 按 project_type 注入对应脚手架/构建指导
+# 新增项目类型时在此注册: key = ProjectType.value, value = 指导文本
+# v5.9.0 仅 static_site 实质; binary_app 等在 v6.0.0+ 激活时补充
+# ---------------------------------------------------------------------------
+PROTOTYPE_BUILD_GUIDES: dict[str, str] = {
+    "static_site": PROTOTYPE_ENGINEERING_PROMPT,
+}
+
+
+def get_prototype_guide(project_type: "ProjectType") -> str:
+    """按项目类型返回原型构建指导。未注册类型返回空串(由调用方决定 fallback)。"""
+    key = project_type.value if hasattr(project_type, "value") else str(project_type)
+    return PROTOTYPE_BUILD_GUIDES.get(key, "")
 
 
 _REFERENCE_PATTERNS = """\
