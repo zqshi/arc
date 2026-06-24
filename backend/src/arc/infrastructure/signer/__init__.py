@@ -1,4 +1,4 @@
-"""签名器后端注册 + 工厂 (v6.1.0 T1)。
+"""签名器后端注册 + 工厂 (v6.1.0)。
 
 与 infrastructure/deployer/get_deployer 同构:
 - domain 定义 Signer 接口 + SignerType
@@ -8,17 +8,18 @@
 凭证来源 (v6.1.0 修正): 项目维度加密存储, 非全局 config。
 load_credentials_for_project(project, platform) 从 project 解密某平台凭证。
 graceful skip: 凭证未配 → sign() 返回 SignResult.skip(), 不抛异常。
-
-T2-T4 实现各平台签名器后, 在 SIGNERS 注册表填入映射。
 """
 from __future__ import annotations
 
 from arc.domain.deployment.signer import (
-    SignResult,
-    SigningCredentials,
     Signer,
     SignerType,
+    SigningCredentials,
+    SignResult,
 )
+from arc.infrastructure.signer.android import AndroidSigner
+from arc.infrastructure.signer.apple import AppleSigner
+from arc.infrastructure.signer.windows import WindowsSigner
 
 __all__ = [
     "SignResult",
@@ -63,11 +64,7 @@ def load_credentials_for_project(project, platform: SignerType) -> SigningCreden
 
 
 # SignerType → Signer 实例注册表
-# T2 done: APPLE → AppleSigner; T3 done: WINDOWS → WindowsSigner; T4 done: ANDROID → AndroidSigner
-from arc.infrastructure.signer.android import AndroidSigner
-from arc.infrastructure.signer.apple import AppleSigner
-from arc.infrastructure.signer.windows import WindowsSigner
-
+# T2/T3/T4 done: APPLE/WINDOWS/ANDROID 三平台签名器齐全
 SIGNERS: dict[SignerType, Signer] = {
     SignerType.APPLE: AppleSigner(),
     SignerType.WINDOWS: WindowsSigner(),
@@ -78,7 +75,7 @@ SIGNERS: dict[SignerType, Signer] = {
 def get_signer(signer_type: SignerType) -> Signer | None:
     """按签名平台返回签名器 (工厂)。
 
-    未注册的 signer_type (T2-T4 未实现时) 返回 None — 调用方据此 graceful skip。
+    未注册的 signer_type 返回 None — 调用方据此 graceful skip。
     新增平台时在 SIGNERS 注册表填入映射。
     """
     return SIGNERS.get(signer_type)

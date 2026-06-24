@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from arc.domain.deployment.signer import SignResult, SigningCredentials, Signer, SignerType
+from arc.domain.deployment.signer import Signer, SignerType, SigningCredentials, SignResult
 from arc.infrastructure.signer._cmd import run_cmd
 
 logger = logging.getLogger(__name__)
@@ -33,12 +33,13 @@ class AndroidSigner(Signer):
                 "Android 签名凭证未配全 (需 keystore_path + keystore_password + key_alias)"
             )
 
+        key_pass = credentials.android_key_password or credentials.android_keystore_password
         argv = [
             "apksigner", "sign",
             "--ks", credentials.android_keystore_path,
             "--ks-pass", f"pass:{credentials.android_keystore_password}",
             "--ks-key-alias", credentials.android_key_alias,
-            "--key-pass", f"pass:{credentials.android_key_password or credentials.android_keystore_password}",
+            "--key-pass", f"pass:{key_pass}",
             artifact_path,
         ]
         result = await asyncio.to_thread(run_cmd, argv, 300, "apksigner")

@@ -83,7 +83,8 @@ class DeployService:
             await self._deploy_repo.update(deployment)
 
             # 签名 (v6.1.0): build 后 upload 前。graceful skip — 不阻断部署。
-            if project is not None and build_target is not None:
+            # 路由按产物平台 (.app/.exe/.apk) 检测, 非按 build_target。
+            if project is not None:
                 await self._sign_artifact(deployment, project, build_target, local_dir)
 
             # 开始上传
@@ -133,37 +134,70 @@ class DeployService:
     async def _sign_artifact(self, deployment, project, build_target, local_dir: str) -> None:
         """签名构建产物 (v6.1.0) — build 后 upload 前, graceful skip 不阻断。
 
-        build_target → SignerType 映射选签名器; 签名器未实现 (T2-T4) 或凭证未配 → skip。
+        按产物平台 (.app/.exe/.apk 后缀) 选签名器, 非按 build_target 硬编码
+        (tauri linux 的 deb/AppImage 无标准签名, 不签)。签名器/凭证未配 → skip。
         签名失败记 deployment.error 但不抛异常 (产物以未签名状态继续上传)。
         """
-        from arc.domain.deployment.signer import SignerType
-        from arc.domain.sandbox.value_objects import BuildTarget
         from arc.infrastructure.signer import get_signer, load_credentials_for_project
 
-        # build_target → SignerType 映射 (web 无需签名)
-        signer_type = {
-            BuildTarget.TAURI_LINUX: SignerType.APPLE,  # tauri linux 暂映射 Apple (后续按产物类型细化)
-        }.get(build_target)
-        if signer_type is None:
-            return  # 无需签名 (如 web)
+        # 产物平台 → SignerType (按后缀检测, 非 build_target)
+        targets = self._detect_sign_targets(local_dir)
+        if not targets:
+            logger.info("DeployService: 无可签名产物 (local_dir=%s), 跳过签名", local_dir)
+            return
 
-        signer = get_signer(signer_type)
-        if signer is None:
-            logger.info("DeployService: 签名器 %s 未实现, 跳过签名", signer_type.value)
-            return  # T2-T4 未实现 → graceful skip
+        for signer_type, artifact_path in targets:
+            signer = get_signer(signer_type)
+            if signer is None:
+                logger.info("DeployService: 签名器 %s 未实现, 跳过", signer_type.value)
+                continue
+            creds = load_credentials_for_project(project, signer_type)
+            try:
+                result = await signer.sign(artifact_path, creds)
+                if result.skipped:
+                    logger.info(
+                        "DeployService: 签名跳过 (%s): %s",
+                        signer_type.value, result.error,
+                    )
+                elif not result.signed:
+                    logger.warning(
+                        "DeployService: 签名失败 (%s): %s",
+                        signer_type.value, result.error,
+                    )
+                    deployment.error_message = f"签名失败({signer_type.value}): {result.error}"
+            except Exception as e:
+                logger.warning("DeployService: 签名异常 (%s): %s", signer_type.value, e)
+                deployment.error_message = f"签名异常({signer_type.value}): {e}"
 
-        creds = load_credentials_for_project(project, signer_type)
-        try:
-            result = await signer.sign(local_dir, creds)
-            if result.skipped:
-                logger.info("DeployService: 签名跳过 (%s): %s", signer_type.value, result.error)
-            elif not result.signed:
-                logger.warning("DeployService: 签名失败 (%s): %s", signer_type.value, result.error)
-                # 记 error 但不阻断 (产物未签名仍可上传, 分发层 v6.2 决定是否接受)
-                deployment.error_message = f"签名失败({signer_type.value}): {result.error}"
-        except Exception as e:
-            logger.warning("DeployService: 签名异常 (%s): %s", signer_type.value, e)
-            deployment.error_message = f"签名异常({signer_type.value}): {e}"
+    @staticmethod
+    def _detect_sign_targets(local_dir: str) -> list:
+        """扫描产物目录, 按平台后缀返回 [(SignerType, artifact_path)]。
+
+        .app (目录) → APPLE; .exe → WINDOWS; .apk → ANDROID。
+        deb/AppImage/无后缀 → 不签 (Linux 产物无标准签名机制)。
+        """
+        from pathlib import Path
+
+        from arc.domain.deployment.signer import SignerType
+
+        base = Path(local_dir)
+        if not base.is_dir():
+            return []
+
+        targets = []
+        # .app 是目录 (macOS bundle)
+        for app_dir in base.rglob("*.app"):
+            if app_dir.is_dir():
+                targets.append((SignerType.APPLE, str(app_dir)))
+        # .exe / .apk 是文件
+        for ext, signer_type in (
+            (".exe", SignerType.WINDOWS),
+            (".apk", SignerType.ANDROID),
+        ):
+            for f in base.rglob(f"*{ext}"):
+                if f.is_file():
+                    targets.append((signer_type, str(f)))
+        return targets
 
     async def deploy_static_site(
         self,

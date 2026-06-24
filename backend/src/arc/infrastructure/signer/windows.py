@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from arc.domain.deployment.signer import SignResult, SigningCredentials, Signer, SignerType
+from arc.domain.deployment.signer import Signer, SignerType, SigningCredentials, SignResult
 from arc.infrastructure.signer._cmd import run_cmd
 
 logger = logging.getLogger(__name__)
