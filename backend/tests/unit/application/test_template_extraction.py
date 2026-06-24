@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -187,6 +187,7 @@ class TestExtractTemplate:
         svc._generate_title_desc = AsyncMock(return_value=(
             "电商订单模板", "含订单/订单项/支付状态机的电商应用骨架"
         ))
+        svc._generate_embedding = AsyncMock(return_value=[0.1] * 1536)
 
         template = await svc.extract_template(
             schema=schema,
@@ -215,6 +216,7 @@ class TestExtractTemplate:
         schema = _make_concrete_schema()
         svc = TemplateExtractionService.__new__(TemplateExtractionService)
         svc._generate_title_desc = AsyncMock(side_effect=Exception("LLM down"))
+        svc._generate_embedding = AsyncMock(return_value=[0.1] * 1536)
 
         template = await svc.extract_template(
             schema=schema,
@@ -223,3 +225,49 @@ class TestExtractTemplate:
 
         # fallback 标题 (含分类)
         assert "电商" in template.title or "ecommerce" in template.title.lower()
+
+    @pytest.mark.asyncio
+    async def test_extract_generates_embedding(self):
+        """v5.8.0: extract_template 生成 embedding (供 search_matching)。"""
+        from arc.application.template.extraction_service import (
+            TemplateExtractionService,
+        )
+
+        schema = _make_concrete_schema()
+        svc = TemplateExtractionService.__new__(TemplateExtractionService)
+        svc._generate_title_desc = AsyncMock(return_value=("电商模板", "desc"))
+        svc._generate_embedding = AsyncMock(return_value=[0.5] * 1536)
+
+        template = await svc.extract_template(
+            schema=schema, source_user_id=uuid.uuid4()
+        )
+
+        assert template.embedding == [0.5] * 1536
+        svc._generate_embedding.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_embedding_failure_returns_none(self):
+        """embedding 生成失败 (adapter 抛错) → None (不阻断)。"""
+        from arc.application.template.extraction_service import (
+            TemplateExtractionService,
+        )
+
+        schema = _make_concrete_schema()
+        svc = TemplateExtractionService.__new__(TemplateExtractionService)
+        svc._generate_title_desc = AsyncMock(return_value=("模板", "desc"))
+
+        with patch(
+            "arc.application.ai.resilience.create_resilient_adapter"
+        ) as MockAdapter:
+            mock_adapter = MagicMock()
+            mock_adapter.embed = AsyncMock(side_effect=Exception("embed down"))
+            mock_adapter.close = AsyncMock()
+            MockAdapter.return_value = mock_adapter
+
+            template = await svc.extract_template(
+                schema=schema, source_user_id=uuid.uuid4()
+            )
+
+        # embedding 失败 → None, 但模板仍创建 (不阻断)
+        assert template.embedding is None
+        assert template.title == "模板"

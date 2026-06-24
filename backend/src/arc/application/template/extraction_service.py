@@ -199,6 +199,11 @@ class TemplateExtractionService:
                 entity_patterns, state_patterns, perm_patterns
             )
 
+        # v5.8.0: 生成 embedding (标题+描述+模式), 供后续语义匹配
+        embedding = await self._generate_embedding(
+            title, description, entity_patterns, state_patterns, perm_patterns
+        )
+
         return DomainTemplate(
             title=title,
             description=description,
@@ -211,7 +216,39 @@ class TemplateExtractionService:
             state_machine_patterns=state_patterns,
             permission_patterns=perm_patterns,
             tags=[category.value],
+            embedding=embedding,
         )
+
+    async def _generate_embedding(
+        self,
+        title: str,
+        description: str,
+        entity_patterns: list[str],
+        state_patterns: list[str],
+        perm_patterns: list[str],
+    ) -> list[float] | None:
+        """LLM 生成模板语义向量 (用于 search_matching 向量搜索)。
+
+        embed 文本 = 标题 + 描述 + 各类模式 (让向量承载完整语义)。
+        失败返回 None (匹配时该模板不参与向量搜索, 不阻断)。
+        """
+        from arc.application.ai.resilience import create_resilient_adapter
+
+        embed_text = " ".join([
+            title, description,
+            *entity_patterns, *state_patterns, *perm_patterns,
+        ]).strip()
+        if not embed_text:
+            return None
+        try:
+            adapter = create_resilient_adapter()
+            try:
+                return await adapter.embed(embed_text)
+            finally:
+                await adapter.close()
+        except Exception:
+            logger.warning("Template embedding generation failed", exc_info=True)
+            return None
 
     @staticmethod
     def _fallback_title(category: TemplateCategory, schema: BaasSchema) -> str:

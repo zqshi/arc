@@ -13,11 +13,9 @@ via asyncio.gather; mutation tools (write_file, run_command) remain serial.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
@@ -26,6 +24,33 @@ from arc.application.execution.tool_helpers import (
     build_output_preview as _build_output_preview,
     build_anthropic_messages_with_tools as _build_anthropic_messages_with_tools,
 )
+from arc.application.execution.tool_loop_metrics import (
+    MAX_TOOL_ROUNDS,
+    MAX_TOOL_TOKENS,
+    READONLY_TOOLS,
+    TOOL_MAX_RETRIES,
+    TOOL_TIMEOUT_SECONDS,
+    ToolLoopEvent,
+    ToolLoopMetrics,
+)
+from arc.application.execution.tool_loop_adapters import (
+    build_openai_messages as _build_openai_messages,
+    extract_usage_tokens as _extract_usage_tokens,
+    parse_anthropic as _parse_anthropic,
+    parse_openai as _parse_openai,
+)
+
+# re-export 保持向后兼容 (execution_engine 等从 tool_loop 导入)
+__all__ = [
+    "ToolAwareLoop",
+    "ToolLoopMetrics",
+    "ToolLoopEvent",
+    "MAX_TOOL_ROUNDS",
+    "MAX_TOOL_TOKENS",
+    "TOOL_TIMEOUT_SECONDS",
+    "TOOL_MAX_RETRIES",
+    "READONLY_TOOLS",
+]
 
 if TYPE_CHECKING:
     from arc.application.context.compression import CompressionManager
@@ -34,55 +59,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS = 25  # Safety limit: max tool-use round-trips per response
-MAX_TOOL_TOKENS = 200000  # Token budget for tool-use conversations
-TOOL_TIMEOUT_SECONDS = 600  # Safety net — 工具自身有更短的 timeout (run_command 300s)
-TOOL_MAX_RETRIES = 1  # Retry count for transient tool failures
-
-# Tools that only read state — safe to execute concurrently.
-READONLY_TOOLS = frozenset({"read_file", "list_directory", "grep_search"})
-
-
-# ---------------------------------------------------------------------------
-# Metrics
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ToolLoopMetrics:
-    """Tracks statistics for a tool-aware generation cycle."""
-
-    loop_id: str = field(default_factory=lambda: str(uuid.uuid4())[:12])
-    tool_rounds: int = 0
-    total_tokens: int = 0
-    elapsed_ms: int = 0
-    final_state: str = ""
-
-
-# ---------------------------------------------------------------------------
-# Events emitted to the frontend via SSE
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ToolLoopEvent:
-    """Events emitted during tool-aware generation."""
-
-    type: str
-    # Types:
-    #   "text_delta"    — streaming text chunk from the LLM
-    #   "tool_call"     — LLM is invoking a tool
-    #   "tool_result"   — tool execution completed
-    #   "thinking"      — LLM is thinking (before tool call)
-    #   "complete"      — generation finished
-    #   "error"         — something went wrong
-    content: str = ""
-    metadata: dict = field(default_factory=dict)
-
-
-# ---------------------------------------------------------------------------
-# Anthropic tool-use message types
-# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Main tool loop
@@ -396,8 +372,7 @@ class ToolAwareLoop:
             max_tokens=self._max_tokens,
         )
 
-        usage = result.get("usage", {})
-        self._total_tokens += usage.get("input", 0) + usage.get("output", 0)
+        self._total_tokens += _extract_usage_tokens(result)
 
         return {
             "type": "anthropic",
@@ -411,45 +386,7 @@ class ToolAwareLoop:
         tool_history: list[dict],
     ) -> dict:
         """Call OpenAI API with tools (function calling)."""
-        # Build messages for OpenAI format
-        formatted = []
-        for m in base_messages:
-            formatted.append({"role": m.role, "content": m.content})
-
-        # Convert tool history from Anthropic format to OpenAI format
-        for msg in tool_history:
-            if msg["role"] == "assistant":
-                # Convert assistant tool_use to OpenAI tool_calls
-                content_text = ""
-                tool_calls_openai = []
-                for block in msg["content"]:
-                    if block["type"] == "text":
-                        content_text += block["text"]
-                    elif block["type"] == "tool_use":
-                        tool_calls_openai.append({
-                            "id": block["id"],
-                            "type": "function",
-                            "function": {
-                                "name": block["name"],
-                                "arguments": json.dumps(block["input"]),
-                            },
-                        })
-                assistant_msg: dict = {"role": "assistant"}
-                if content_text:
-                    assistant_msg["content"] = content_text
-                if tool_calls_openai:
-                    assistant_msg["tool_calls"] = tool_calls_openai
-                formatted.append(assistant_msg)
-
-            elif msg["role"] == "user":
-                # Convert tool_result blocks to OpenAI tool messages
-                for block in msg["content"]:
-                    if block["type"] == "tool_result":
-                        formatted.append({
-                            "role": "tool",
-                            "tool_call_id": block["tool_use_id"],
-                            "content": block["content"],
-                        })
+        formatted = _build_openai_messages(base_messages, tool_history)
 
         result = await self._adapter.chat_with_tools(
             messages=formatted,
@@ -457,8 +394,7 @@ class ToolAwareLoop:
             max_tokens=self._max_tokens,
         )
 
-        usage = result.get("usage", {})
-        self._total_tokens += usage.get("input", 0) + usage.get("output", 0)
+        self._total_tokens += _extract_usage_tokens(result)
 
         response = result["response"]
         choice = response.choices[0]
@@ -471,41 +407,5 @@ class ToolAwareLoop:
     def _parse_response(self, response: dict) -> tuple[str, list[ToolCall]]:
         """Parse LLM response into text content and tool calls."""
         if response["type"] == "anthropic":
-            return self._parse_anthropic(response)
-        else:
-            return self._parse_openai(response)
-
-    def _parse_anthropic(self, response: dict) -> tuple[str, list[ToolCall]]:
-        text_parts: list[str] = []
-        tool_calls: list[ToolCall] = []
-
-        for block in response["content"]:
-            if block.type == "text":
-                text_parts.append(block.text)
-            elif block.type == "tool_use":
-                tool_calls.append(ToolCall(
-                    id=block.id,
-                    name=block.name,
-                    input=block.input,
-                ))
-
-        return "\n".join(text_parts), tool_calls
-
-    def _parse_openai(self, response: dict) -> tuple[str, list[ToolCall]]:
-        message = response["message"]
-        text = message.content or ""
-        tool_calls: list[ToolCall] = []
-
-        if message.tool_calls:
-            for tc in message.tool_calls:
-                try:
-                    input_data = json.loads(tc.function.arguments)
-                except json.JSONDecodeError:
-                    input_data = {"raw": tc.function.arguments}
-                tool_calls.append(ToolCall(
-                    id=tc.id,
-                    name=tc.function.name,
-                    input=input_data,
-                ))
-
-        return text, tool_calls
+            return _parse_anthropic(response)
+        return _parse_openai(response)
