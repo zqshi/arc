@@ -51,7 +51,7 @@ class TestProjectSigningCreds:
 
     def test_set_android_creds(self):
         p = Project(name="t")
-        creds = {"play_key_json": '{"key":"v"}'}
+        creds = {"android_keystore_path": "/keys/release.jks", "android_keystore_password": "pw"}
         p.set_signing_creds(SignerType.ANDROID, creds, _encrypt_stub)
         assert p.enc_android_creds.startswith("ENC(")
         assert p.get_signing_creds(SignerType.ANDROID, _decrypt_stub) == creds

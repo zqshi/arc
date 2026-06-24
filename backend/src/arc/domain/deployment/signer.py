@@ -48,8 +48,7 @@ class SigningCredentials:
     android_keystore_password: str = ""  # keystore 密码
     android_key_alias: str = ""  # 签名 key 别名
     android_key_password: str = ""  # key 密码 (可与 keystore 密码不同)
-    # Android 分发 (Google Play 上传密钥, v6.2 商店分发用, 非签名)
-    play_key_json: str = ""  # Play Console service account JSON
+    # 注: Play 上传密钥 (play_key_json) 是分发凭证, v6.2 归位到 DistributionCredentials
 
     def is_empty(self) -> bool:
         """全平台凭证均未配置。"""

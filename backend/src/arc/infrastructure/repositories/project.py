@@ -141,6 +141,9 @@ class ProjectRepository(AbstractProjectRepository):
         model.enc_apple_creds = project.enc_apple_creds or None
         model.enc_win_creds = project.enc_win_creds or None
         model.enc_android_creds = project.enc_android_creds or None
+        model.enc_appstore_creds = project.enc_appstore_creds or None
+        model.enc_playstore_creds = project.enc_playstore_creds or None
+        model.enc_tauri_updater_creds = project.enc_tauri_updater_creds or None
         model.deleted_at = project.deleted_at
         await self.db.flush()
 
@@ -198,6 +201,9 @@ class ProjectRepository(AbstractProjectRepository):
             enc_apple_creds=model.enc_apple_creds or "",
             enc_win_creds=model.enc_win_creds or "",
             enc_android_creds=model.enc_android_creds or "",
+            enc_appstore_creds=model.enc_appstore_creds or "",
+            enc_playstore_creds=model.enc_playstore_creds or "",
+            enc_tauri_updater_creds=model.enc_tauri_updater_creds or "",
             deleted_at=model.deleted_at,
             created_at=model.created_at,
             updated_at=model.updated_at,
