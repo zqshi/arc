@@ -25,6 +25,7 @@ class ProjectContext:
     version_goal: str = ""
     version_analysis_summary: str = ""
     sibling_requirements: list[dict] = field(default_factory=list)
+    project_type: str = ""
 
     @property
     def has_project(self) -> bool:
@@ -38,6 +39,8 @@ class ProjectContext:
             parts.append(f"- 项目描述: {self.project_description}")
         if self.tech_stack:
             parts.append(f"- 技术栈: {self.tech_stack}")
+        if self.project_type:
+            parts.append(f"- 项目类型: {self.project_type}")
         if self.repo_url:
             parts.append(f"- 代码仓库: {self.repo_url}")
         if self.local_path:
@@ -71,6 +74,8 @@ class ProjectContext:
         parts = [f"## 项目背景\n项目: {self.project_name}"]
         if self.tech_stack:
             parts.append(f"技术栈: {self.tech_stack}")
+        if self.project_type:
+            parts.append(f"项目类型: {self.project_type}")
         if self.version_name:
             parts.append(f"当前版本: {self.version_name}")
             if self.version_goal:
@@ -121,6 +126,7 @@ class ProjectContextProvider:
             repo_url=project.repo_url,
             local_path=project.local_path,
             codebase_summary=project.codebase_summary,
+            project_type=project.project_type.value if project.project_type else "",
         )
 
         if todo.version_id:

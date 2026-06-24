@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.deployment.entity import Deployment
 from arc.domain.deployment.value_objects import DeployConfig, DeploymentStatus, DeployType
-from arc.infrastructure.deployer.static_site import StaticSiteDeployer
+from arc.domain.project.value_objects import ProjectType
+from arc.infrastructure.deployer import get_deployer
 from arc.infrastructure.repositories.deployment import DeploymentRepository
 from arc.infrastructure.repositories.project import ProjectRepository, VersionRepository
 
@@ -31,36 +32,39 @@ class DeployService:
         self._project_repo = ProjectRepository(db)
         self._version_repo = VersionRepository(db)
 
-    async def deploy_static_site(
+    async def deploy(
         self,
         *,
         project_id: uuid.UUID,
         version_id: uuid.UUID,
         local_dir: str,
+        project_type: ProjectType,
         todo_id: uuid.UUID | None = None,
         config: DeployConfig | None = None,
     ) -> Deployment:
-        """执行静态站点部署。
+        """按项目类型路由部署。
 
         Args:
             project_id: 项目 ID
             version_id: 版本 ID
             local_dir: 构建产物目录（完整路径）
+            project_type: 项目交付形态，决定部署器选型
             todo_id: 触发部署的需求 ID（可选）
-            config: 部署配置（可选）
+            config: 部署配置（可选，未传则按 project_type 取默认）
 
         Returns:
             部署实体（状态为 deployed 或 failed）
 
         补偿事务：任何阶段异常都确保状态标记为 failed，不留脏状态。
         """
-        cfg = config or DeployConfig()
+        cfg = config or DeployConfig.for_type(project_type)
+        deploy_type = self._deploy_type_for(project_type)
 
         deployment = Deployment(
             project_id=project_id,
             version_id=version_id,
             todo_id=todo_id,
-            deploy_type=DeployType.STATIC_SITE,
+            deploy_type=deploy_type,
             build_command=cfg.build_command,
             artifact_path=cfg.artifact_path,
         )
@@ -77,10 +81,8 @@ class DeployService:
             deployment.start_upload()
             await self._deploy_repo.update(deployment)
 
-            # 执行上传
-            deployer = StaticSiteDeployer(
-                path_prefix=self._get_deploy_prefix(),
-            )
+            # 执行上传（按部署类型选部署器）
+            deployer = get_deployer(deploy_type, path_prefix=self._get_deploy_prefix())
             result = await deployer.deploy(
                 local_dir=local_dir,
                 project_id=project_id,
@@ -118,6 +120,35 @@ class DeployService:
             project_id, version_id, deployment.status.value, deployment.deploy_url,
         )
         return deployment
+
+    async def deploy_static_site(
+        self,
+        *,
+        project_id: uuid.UUID,
+        version_id: uuid.UUID,
+        local_dir: str,
+        todo_id: uuid.UUID | None = None,
+        config: DeployConfig | None = None,
+    ) -> Deployment:
+        """静态站点部署 — 薄封装，兼容现有调用点。
+
+        新代码请直接用 ``deploy(project_type=ProjectType.STATIC_SITE, ...)``。
+        """
+        return await self.deploy(
+            project_id=project_id,
+            version_id=version_id,
+            local_dir=local_dir,
+            project_type=ProjectType.STATIC_SITE,
+            todo_id=todo_id,
+            config=config,
+        )
+
+    @staticmethod
+    def _deploy_type_for(project_type: ProjectType) -> DeployType:
+        """项目类型 → 部署类型映射。新增类型时在此扩展。"""
+        if project_type == ProjectType.STATIC_SITE:
+            return DeployType.STATIC_SITE
+        raise ValueError(f"暂不支持的项目类型: {project_type}")
 
     async def get_latest_deployment(self, version_id: uuid.UUID) -> Deployment | None:
         """获取版本最新一次部署记录。"""
