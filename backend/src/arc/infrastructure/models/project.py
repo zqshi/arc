@@ -30,6 +30,7 @@ class ProjectModel(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="active")
     execution_mode: Mapped[str] = mapped_column(String(20), default="pipeline")
     process_constraint: Mapped[str] = mapped_column(String(20), default="free", server_default="free")
+    project_type: Mapped[str] = mapped_column(String(30), default="static_site", server_default="static_site")
     process_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     pipeline_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     conversation_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

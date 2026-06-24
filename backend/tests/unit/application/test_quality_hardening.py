@@ -168,7 +168,7 @@ class TestDeployCompensation:
         with patch("arc.application.deployment.service.DeploymentRepository") as MockRepo, \
              patch("arc.application.deployment.service.ProjectRepository"), \
              patch("arc.application.deployment.service.VersionRepository"), \
-             patch("arc.application.deployment.service.StaticSiteDeployer") as MockDeployer:
+             patch("arc.application.deployment.service.get_deployer") as MockDeployer:
 
             from arc.application.deployment.service import DeployService
 
@@ -204,7 +204,7 @@ class TestDeployCompensation:
         with patch("arc.application.deployment.service.DeploymentRepository") as MockRepo, \
              patch("arc.application.deployment.service.ProjectRepository"), \
              patch("arc.application.deployment.service.VersionRepository") as MockVersionRepo, \
-             patch("arc.application.deployment.service.StaticSiteDeployer") as MockDeployer:
+             patch("arc.application.deployment.service.get_deployer") as MockDeployer:
 
             from arc.application.deployment.service import DeployService
 
