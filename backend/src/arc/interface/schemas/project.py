@@ -14,6 +14,7 @@ class ProjectCreate(BaseModel):
     conventions: str = ""
     execution_mode: str = "pipeline"  # deprecated, kept for compat
     process_constraint: str = "free"
+    project_type: Literal["static_site"] = "static_site"
     # 工作区策略
     workspace_type: Literal["local", "github", "temporary"] = "temporary"
     github_token: str = ""  # workspace_type=github 时可选传入
@@ -28,6 +29,7 @@ class ProjectUpdate(BaseModel):
     conventions: str | None = None
     execution_mode: str | None = None  # deprecated
     process_constraint: str | None = None
+    project_type: str | None = None
     process_config: dict | None = None
     pipeline_config: dict | None = None
     conversation_config: dict | None = None
@@ -49,6 +51,7 @@ class ProjectResponse(BaseModel):
     status: str
     execution_mode: str  # deprecated
     process_constraint: str = "free"
+    project_type: str = "static_site"
     process_config: dict | None = None
     pipeline_config: dict | None = None
     conversation_config: dict | None = None

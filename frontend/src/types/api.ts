@@ -138,6 +138,7 @@ export interface Project {
   status: ProjectStatus;
   execution_mode: ExecutionMode; // deprecated
   process_constraint: ProcessConstraint;
+  project_type: ProjectType;
   process_config?: ProcessConfig;
   pipeline_config?: Record<string, unknown>;
   conversation_config?: Record<string, unknown>;
@@ -148,6 +149,7 @@ export interface Project {
 }
 
 export type WorkspaceType = 'local' | 'github' | 'temporary';
+export type ProjectType = 'static_site'; // v5.9.0: 静态站点型; v6.0.0+ 扩展 binary_app 等
 
 export interface CreateProjectRequest {
   name: string;
@@ -157,6 +159,7 @@ export interface CreateProjectRequest {
   local_path?: string;
   conventions?: string;
   execution_mode?: ExecutionMode;
+  project_type?: ProjectType;
   workspace_type?: WorkspaceType;
   github_token?: string;
 }
