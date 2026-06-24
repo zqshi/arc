@@ -345,8 +345,8 @@ PHASE_REQUIRED_FIELDS: dict[PhaseType, list[str]] = {
 }
 
 PHASES_NO_SKIP: set[PhaseType] = {
+    # 仅 ui_design 可跳过(原型/交互设计可由用户手动产出), 其余阶段不可跳
     PhaseType.CLARIFICATION,
-    PhaseType.UI_DESIGN,
     PhaseType.ARCHITECTURE,
     PhaseType.DEVELOPMENT,
     PhaseType.TESTING,
