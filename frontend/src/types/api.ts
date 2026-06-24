@@ -149,7 +149,7 @@ export interface Project {
 }
 
 export type WorkspaceType = 'local' | 'github' | 'temporary';
-export type ProjectType = 'static_site'; // v5.9.0: 静态站点型; v6.0.0+ 扩展 binary_app 等
+export type ProjectType = 'static_site' | 'binary_app'; // v5.9.0 静态站点; v6.0.0 binary_app(原生客户端, 聚焦容器可构建目标)
 
 export interface CreateProjectRequest {
   name: string;

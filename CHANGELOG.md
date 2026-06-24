@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.0.0-Unreleased] — 容器化构建 runtime + 原生客户端构建 + sufficiency 接线
+
+### Added — BINARY_APP 项目类型激活 + sufficiency 产出门禁
+
+激活 v5.9.0 项目类型框架的第二个类型 `BINARY_APP`（原生客户端），向"不同项目类型落地"终局迈出第二步：
+
+- **#7 sufficiency 接线** (T7): 把躺尸的 `INPUT_SUFFICIENCY_PROMPT` 三维评估(target_users/core_problem/feature_direction)接到 requirement_spec 产出前门禁（用户确认产出前门禁方案，非原推荐 A+B）。职责分离：轮次管引导，LLM 管质量判断。降级放行（LLM 失败 → sufficient=True）。`execution/sufficiency_gate.py`(新) 接入 `ArtifactService.confirm`，pipeline 模式漏检由 evaluate_gate 兜底
+- **BINARY_APP 框架激活** (T4): 六处注册点全部激活（v5.9.0 扩展点零框架改动复用）——ProjectType / DeployType.BINARY_ARTIFACT / DeployConfig.for_type(cargo tauri build) / DeployService 路由 / get_deployer / PROTOTYPE_BUILD_GUIDES。schema Literal + 前端类型同步
+- **BinaryArtifactDeployer** (T5): 二进制制品落制品目录（不分发，分发在 v6.2）。与 StaticSiteDeployer 差异：不要求 index.html（仅校验目录非空），url 指向制品根。复用 storage 抽象
+
+### 决策
+
+- **跨平台范围**: 容器化 linux 沙箱无法构建 macOS .dmg / Windows .exe（需原生 OS）。v6.0 聚焦容器可构建目标（linux 二进制 / web / android .apk），mac/win 原生二进制推后（原生 runner 或 CI matrix）
+- **前端 UI 选择器暂不暴露**: T6 构建链路未就绪，类型层已同步但表单暂不放开 binary_app，避免"能选但构建不出"
+
+### 待办 (T2/T3/T6/T8)
+
+- T2 构建工具链容器镜像（复用官方 vs 自建，决策阻塞 T3-T6）
+- T3 run_command 容器内执行 + 跨平台编译编排
+- T6 容器内构建验证（聚焦可构建目标）
+- T8 ConstraintPolicy 死配置清理
+
 ## [5.10.0] - 2026-06-24
 
 ### Changed — Prompt 升级第一批：自由模式门禁 + 部署 + 澄清双轨

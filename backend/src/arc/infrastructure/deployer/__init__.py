@@ -3,9 +3,16 @@ from __future__ import annotations
 
 from arc.domain.deployment.value_objects import DeployType
 from arc.infrastructure.deployer.base import DeployResult, Deployer
+from arc.infrastructure.deployer.binary_artifact import BinaryArtifactDeployer
 from arc.infrastructure.deployer.static_site import StaticSiteDeployer
 
-__all__ = ["DeployResult", "Deployer", "StaticSiteDeployer", "get_deployer"]
+__all__ = [
+    "DeployResult",
+    "Deployer",
+    "StaticSiteDeployer",
+    "BinaryArtifactDeployer",
+    "get_deployer",
+]
 
 
 def get_deployer(
@@ -21,4 +28,8 @@ def get_deployer(
         if path_prefix is not None:
             return StaticSiteDeployer(path_prefix=path_prefix)
         return StaticSiteDeployer()
+    if deploy_type == DeployType.BINARY_ARTIFACT:
+        if path_prefix is not None:
+            return BinaryArtifactDeployer(path_prefix=path_prefix)
+        return BinaryArtifactDeployer()
     raise ValueError(f"暂不支持的部署类型: {deploy_type}")
