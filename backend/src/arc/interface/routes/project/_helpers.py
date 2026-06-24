@@ -24,6 +24,7 @@ def _project_resp(p: Project) -> ProjectResponse:
         status=p.status.value,
         execution_mode=p.execution_mode.value,
         process_constraint=p.process_constraint.value,
+        project_type=p.project_type.value,
         process_config=p.process_config.to_dict() if p.process_config else None,
         pipeline_config=p.pipeline_config,
         conversation_config=p.conversation_config,

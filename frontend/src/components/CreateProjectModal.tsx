@@ -10,6 +10,7 @@ interface Props {
   onCreate: (data: {
     name: string;
     description: string;
+    project_type: 'static_site'; // v5.9.0: 默认静态站点型, v6.0.0+ 扩展选择器
     workspace_type: WorkspaceType;
     local_path?: string;
     repo_url?: string;
@@ -52,6 +53,7 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
       await onCreate({
         name: name.trim(),
         description: desc.trim(),
+        project_type: 'static_site',
         workspace_type: workspaceType,
         ...(workspaceType === 'local' && localPath ? { local_path: localPath } : {}),
         ...(workspaceType === 'github' && repoUrl ? { repo_url: repoUrl.trim(), github_token: githubToken.trim() || undefined } : {}),

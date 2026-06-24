@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.project.entity import Project
-from arc.domain.project.value_objects import ExecutionMode, ProcessConfig, ProcessConstraint
+from arc.domain.project.value_objects import ExecutionMode, ProcessConfig, ProcessConstraint, ProjectType
 from arc.infrastructure.repositories.project import ProjectRepository
 from arc.infrastructure.repositories.project_member import ProjectMemberRepository
 
@@ -37,6 +37,7 @@ class ProjectWorkspaceService:
         conventions: str = "",
         execution_mode: str = "conversation",
         process_constraint: str | None = None,
+        project_type: str | None = None,
         workspace_type: str | None = None,
         local_path: str | None = None,
         github_token: str | None = None,
@@ -69,6 +70,7 @@ class ProjectWorkspaceService:
             conventions=conventions,
             execution_mode=exec_mode,
             process_constraint=constraint,
+            project_type=ProjectType(project_type) if project_type else ProjectType.STATIC_SITE,
             process_config=ProcessConfig.from_execution_mode(exec_mode),
         )
 
