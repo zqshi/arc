@@ -1,6 +1,6 @@
 # Prompt 升级路线图 — 规则执行式 → 意图驱动
 
-> 状态: 进行中 (v5.10 启动)
+> 状态: v5.10 第一批(#1-6)已归档, v6.0 启动 #7 (见 [v6.0.0-current.md](versions/v6.0.0-current.md))
 > 关联: backlog.md v6.3.0 前置 / memory [AI Interaction Philosophy]
 
 ## 背景
