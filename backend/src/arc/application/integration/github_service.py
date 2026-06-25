@@ -124,6 +124,18 @@ class GitHubService:
         project.local_path = str(target)
         await self.project_repo.update(project)
 
+        # v6.3.0 T3 — local_path 就绪后补落治理产物 (charter/CLAUDE.md), 仿 scan 触发非阻塞
+        try:
+            from arc.application.project.governance_writer import (
+                GovernanceArtifactWriter,
+            )
+
+            GovernanceArtifactWriter().write(project)
+        except Exception:
+            logger.warning(
+                "Governance artifacts write failed for project %s", project.id
+            )
+
         # Auto-trigger codebase scan (non-blocking on failure)
         scan_started = False
         try:
