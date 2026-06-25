@@ -93,14 +93,7 @@ class ExperienceService:
 
         如果已经从 experience_card artifact 同步过经验，跳过 LLM 提取以避免重复。
         """
-        # 去重：experience_card artifact 已同步过则跳过
-        from sqlalchemy import select
-
-        from arc.infrastructure.models.experience import Experience as ExpModel
-        existing = await self.db.execute(
-            select(ExpModel.id).where(ExpModel.todo_id == todo.id).limit(1)
-        )
-        if existing.scalar_one_or_none():
+        if await self._already_extracted(todo):
             logger.info(
                 "extract_from_todo: experience already exists for todo %s "
                 "(synced from artifact), skip LLM extraction",
@@ -108,19 +101,58 @@ class ExperienceService:
             )
             return None
 
-        conversations = await self.conv_repo.list_by_todo_id(todo.id)
-
-        conversation_log = ""
-        for conv in conversations:
-            conversation_log += f"\n### {conv.purpose.value} 对话\n"
-            for msg in conv.messages:
-                if msg.role.value != "system":
-                    role_label = "用户" if msg.role.value == "user" else "AI"
-                    conversation_log += f"{role_label}: {msg.content}\n"
-
+        conversation_log = await self._build_conversation_log(todo)
         if not conversation_log.strip():
             logger.info("extract_from_todo: no conversation content for todo %s", todo.id)
             return None
+
+        from arc.application.ai.resilience import create_resilient_adapter
+
+        adapter = create_resilient_adapter()
+        try:
+            data = await self._extract_experience_data(adapter, todo, conversation_log)
+            if data is None:
+                return None
+            experience = await self._build_experience(todo, data, adapter)
+            created = await self.exp_repo.create(experience)
+            logger.info(
+                "extract_from_todo: created experience %s for todo %s", created.id, todo.id
+            )
+            return created
+        except Exception as exc:
+            logger.error("extract_from_todo: unexpected error: %s", exc)
+            return None
+        finally:
+            await adapter.close()
+
+    async def _already_extracted(self, todo: Todo) -> bool:
+        """去重: experience_card artifact 已同步过则跳过 LLM 提取。"""
+        from sqlalchemy import select
+
+        from arc.infrastructure.models.experience import Experience as ExpModel
+
+        existing = await self.db.execute(
+            select(ExpModel.id).where(ExpModel.todo_id == todo.id).limit(1)
+        )
+        return existing.scalar_one_or_none() is not None
+
+    async def _build_conversation_log(self, todo: Todo) -> str:
+        """聚合 todo 对话为 LLM 输入文本 (跳过 system 消息)。"""
+        conversations = await self.conv_repo.list_by_todo_id(todo.id)
+        log = ""
+        for conv in conversations:
+            log += f"\n### {conv.purpose.value} 对话\n"
+            for msg in conv.messages:
+                if msg.role.value != "system":
+                    role_label = "用户" if msg.role.value == "user" else "AI"
+                    log += f"{role_label}: {msg.content}\n"
+        return log
+
+    async def _extract_experience_data(
+        self, adapter, todo: Todo, conversation_log: str,
+    ) -> dict | None:
+        """调用 LLM 提取经验 JSON, 解析失败返回 None。"""
+        from arc.application.ai.llm_adapter import LLMMessage
 
         prompt = EXTRACTION_PROMPT.format(
             title=todo.title,
@@ -130,75 +162,62 @@ class ExperienceService:
             tech_plan=getattr(todo, "tech_plan", ""),
             conversation_log=conversation_log,
         )
-
-        from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.ai.resilience import create_resilient_adapter
-
-        adapter = create_resilient_adapter()
-        try:
-            response = await adapter.chat(
-                [LLMMessage(role="user", content=prompt)],
-                temperature=0.3,
-            )
-
-            data = extract_json(response.content)
-            if not isinstance(data, dict):
-                logger.error("extract_from_todo: JSON parse failed for todo %s", todo.id)
-                return None
-
-            tags_raw = data.get("tags", [])
-            context_tags = data.get("context_tags", {})
-            if isinstance(context_tags, dict):
-                for t in context_tags.get("tech_stack", []):
-                    if t and t not in tags_raw:
-                        tags_raw.append(t)
-                domain = context_tags.get("domain")
-                if domain and domain not in tags_raw:
-                    tags_raw.append(domain)
-            tags = [
-                Tag(label=t, color=TAG_COLORS.get(t, "#888888"))
-                for t in tags_raw
-            ]
-
-            embedding_text = (
-                f"{data.get('title', '')} {data.get('problem', '')} "
-                f"{data.get('solution', '')} "
-                f"{data.get('applicable_scenarios', '')}"
-            )
-            embedding = await adapter.embed(embedding_text)
-
-            try:
-                category = ExperienceCategory(data.get("category", "technical"))
-            except ValueError:
-                category = ExperienceCategory.TECHNICAL
-
-            experience = Experience(
-                todo_id=todo.id,
-                project_id=todo.project_id,
-                version_id=todo.version_id,
-                scope=ExperienceScope.PROJECT,
-                status=ExperienceStatus.DRAFT,
-                category=category,
-                source=ExperienceSource.TODO_COMPLETION,
-                title=data.get("title", todo.title),
-                problem=data.get("problem", ""),
-                solution=data.get("solution", ""),
-                decisions=data.get("decisions", []),
-                pitfalls=data.get("pitfalls", []),
-                applicable_scenarios=data.get("applicable_scenarios", ""),
-                tags=tags,
-                embedding=embedding,
-                confidence=0.7,
-            )
-
-            created = await self.exp_repo.create(experience)
-            logger.info("extract_from_todo: created experience %s for todo %s", created.id, todo.id)
-            return created
-        except Exception as exc:
-            logger.error("extract_from_todo: unexpected error: %s", exc)
+        response = await adapter.chat(
+            [LLMMessage(role="user", content=prompt)],
+            temperature=0.3,
+        )
+        data = extract_json(response.content)
+        if not isinstance(data, dict):
+            logger.error("extract_from_todo: JSON parse failed for todo %s", todo.id)
             return None
-        finally:
-            await adapter.close()
+        return data
+
+    async def _build_experience(self, todo: Todo, data: dict, adapter) -> Experience:
+        """从 LLM 解析数据构造 Experience 实体 (含 context_tags 合并 + embedding)。"""
+        tags_raw = data.get("tags", [])
+        context_tags = data.get("context_tags", {})
+        if isinstance(context_tags, dict):
+            for t in context_tags.get("tech_stack", []):
+                if t and t not in tags_raw:
+                    tags_raw.append(t)
+            domain = context_tags.get("domain")
+            if domain and domain not in tags_raw:
+                tags_raw.append(domain)
+        tags = [
+            Tag(label=t, color=TAG_COLORS.get(t, "#888888"))
+            for t in tags_raw
+        ]
+
+        embedding_text = (
+            f"{data.get('title', '')} {data.get('problem', '')} "
+            f"{data.get('solution', '')} "
+            f"{data.get('applicable_scenarios', '')}"
+        )
+        embedding = await adapter.embed(embedding_text)
+
+        try:
+            category = ExperienceCategory(data.get("category", "technical"))
+        except ValueError:
+            category = ExperienceCategory.TECHNICAL
+
+        return Experience(
+            todo_id=todo.id,
+            project_id=todo.project_id,
+            version_id=todo.version_id,
+            scope=ExperienceScope.PROJECT,
+            status=ExperienceStatus.DRAFT,
+            category=category,
+            source=ExperienceSource.TODO_COMPLETION,
+            title=data.get("title", todo.title),
+            problem=data.get("problem", ""),
+            solution=data.get("solution", ""),
+            decisions=data.get("decisions", []),
+            pitfalls=data.get("pitfalls", []),
+            applicable_scenarios=data.get("applicable_scenarios", ""),
+            tags=tags,
+            embedding=embedding,
+            confidence=0.7,
+        )
 
     async def search_similar(
         self,
@@ -365,6 +384,83 @@ class ExperienceService:
             "distill_to_personal: created personal exp %s from %s", created.id, experience_id
         )
         return created
+
+    async def create(
+        self,
+        *,
+        title: str,
+        scope: str | None,
+        problem: str,
+        solution: str,
+        decisions: list,
+        pitfalls: list,
+        applicable_scenarios: str,
+        tags: list[Tag],
+        user_id: uuid.UUID,
+    ) -> Experience:
+        """创建经验并生成 embedding (失败则降级为无 embedding)。"""
+        exp = Experience(
+            title=title,
+            scope=ExperienceScope(scope)
+            if scope in ("personal", "project")
+            else ExperienceScope.PROJECT,
+            problem=problem,
+            solution=solution,
+            decisions=decisions,
+            pitfalls=pitfalls,
+            applicable_scenarios=applicable_scenarios,
+            tags=tags,
+        )
+        exp.embedding = await self._generate_embedding(exp)
+        return await self.exp_repo.create(exp, user_id=user_id)
+
+    async def update(
+        self, experience_id: uuid.UUID, updates: dict, *, user_id: uuid.UUID
+    ) -> Experience:
+        """更新经验字段 (枚举转换 + tags 重建) 并重新生成 embedding。"""
+        exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
+        if not exp:
+            raise ValueError("Experience not found")
+        self._apply_updates(exp, updates)
+        exp.embedding = await self._generate_embedding(exp)
+        return await self.exp_repo.update(exp)
+
+    async def _generate_embedding(self, exp: Experience) -> list[float] | None:
+        """生成经验文本的 embedding, 失败降级返回 None (不影响主流程)。"""
+        text = f"{exp.title} {exp.problem} {exp.solution} {exp.applicable_scenarios}"
+        try:
+            from arc.application.ai.resilience import create_resilient_adapter
+
+            adapter = create_resilient_adapter()
+            try:
+                return await adapter.embed(text)
+            finally:
+                await adapter.close()
+        except Exception:
+            logger.warning("Failed to generate embedding for experience %s", exp.id)
+            return None
+
+    @staticmethod
+    def _apply_updates(exp: Experience, updates: dict) -> None:
+        """将 update 字段映射到实体 (枚举转换 + tags 重建)。"""
+        for key, val in updates.items():
+            if key == "scope" and val:
+                exp.scope = ExperienceScope(val)
+            elif key == "category" and val:
+                exp.category = ExperienceCategory(val)
+            elif key == "source" and val:
+                exp.source = ExperienceSource(val)
+            elif key == "tags" and val is not None:
+                # model_dump 后 tags 为 list[dict], 兼容 dict 与 schema 对象
+                exp.tags = [
+                    Tag(
+                        label=t["label"] if isinstance(t, dict) else t.label,
+                        color=t["color"] if isinstance(t, dict) else t.color,
+                    )
+                    for t in val
+                ]
+            else:
+                setattr(exp, key, val)
 
     async def confirm(self, experience_id: uuid.UUID, user_id: uuid.UUID) -> Experience:
         exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)

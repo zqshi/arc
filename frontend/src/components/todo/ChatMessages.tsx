@@ -234,7 +234,7 @@ function MessageBubble({ msg, todoId }: { msg: Message; todoId: string }) {
               <>
                 <MarkdownContent content={cleanContent} />
                 <HtmlApplyButton content={cleanContent} onApply={(html) => {
-                  // Broadcast apply event — InteractivePrototype listens via window message
+                  // 广播 HTML — prototype 交互渲染功能未接线, 此广播暂无接收方 (待产品决策是否恢复)
                   window.postMessage({ type: 'arc_apply_prototype_html', html }, '*');
                 }} />
               </>

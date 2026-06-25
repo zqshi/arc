@@ -6,11 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.user.entity import User as UserEntity
+from arc.domain.user.repository import AbstractUserRepository
 from arc.domain.user.value_objects import UserRole
 from arc.infrastructure.models.user import UserModel
 
 
-class UserRepository:
+class UserRepository(AbstractUserRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 

@@ -157,7 +157,7 @@ class PipelineService:
         Raises PhaseGateError if the artifact doesn't meet quality gates.
         Uses a savepoint so all DB changes roll back atomically on failure.
         """
-        from arc.application.pipeline.gate import PhaseGateError, evaluate_gate
+        from arc.application.pipeline.gate import GateResult, PhaseGateError
 
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase:
@@ -165,8 +165,6 @@ class PipelineService:
 
         artifact = await self.artifact_repo.get_by_phase_id(phase.id)
         if not artifact:
-            from arc.application.pipeline.gate import GateResult
-
             raise PhaseGateError(
                 GateResult(
                     passed=False,
@@ -176,7 +174,21 @@ class PipelineService:
                 )
             )
 
+        gate_result = await self._evaluate_phase_gate(phase_type, artifact, todo_id)
+        if not gate_result.passed:
+            raise PhaseGateError(gate_result)
+
+        async with self.db.begin_nested():
+            await self._confirm_and_advance(todo_id, phase_type, phase, artifact, gate_result)
+
+        return phase
+
+    async def _evaluate_phase_gate(
+        self, phase_type: PhaseType, artifact: Artifact, todo_id: uuid.UUID
+    ):
+        """收集项目规范 + 前置产出物, 评估阶段质量 gate。"""
         from arc.application.context.provider import ProjectContextProvider
+        from arc.application.pipeline.gate import evaluate_gate
 
         project_ctx = await ProjectContextProvider(self.db).get_context(todo_id)
         conventions = project_ctx.conventions if project_ctx.has_project else ""
@@ -185,69 +197,82 @@ class PipelineService:
         prior_artifacts = await pipeline_hooks.collect_prior_artifacts(
             self.artifact_repo, todo_id, phase_type
         )
-
-        gate_result = await evaluate_gate(
+        return await evaluate_gate(
             phase_type, artifact.content, conventions,
             prior_artifacts=prior_artifacts,
         )
-        if not gate_result.passed:
-            raise PhaseGateError(gate_result)
 
-        async with self.db.begin_nested():
-            await pipeline_hooks.feedback_experience_confidence(self.db, gate_result.score)
+    async def _confirm_and_advance(
+        self, todo_id, phase_type, phase, artifact, gate_result
+    ) -> PipelinePhase:
+        """事务内: 确认产出物+阶段 → 触发阶段副作用 → 推进下一阶段或完成。"""
+        await pipeline_hooks.feedback_experience_confidence(self.db, gate_result.score)
 
-            if not artifact.is_confirmed:
-                artifact.confirm()
-                await self.artifact_repo.update(artifact)
+        if not artifact.is_confirmed:
+            artifact.confirm()
+            await self.artifact_repo.update(artifact)
 
-            phase.confirm()
-            await self.phase_repo.update(phase)
+        phase.confirm()
+        await self.phase_repo.update(phase)
 
-            # 架构阶段确认后 → 自动合并领域模型
-            if phase_type == PhaseType.ARCHITECTURE:
-                await pipeline_hooks.merge_domain_model(self.db, todo_id, artifact.content)
+        await self._trigger_phase_side_effects(todo_id, phase_type, artifact)
 
-            # 部署阶段确认后 → 触发真实部署 (build 未就绪转 PhaseGateError 回滚)
-            if phase_type == PhaseType.DEPLOYMENT:
-                from arc.application.execution.build_gate import BuildGateError
-
-                try:
-                    await pipeline_hooks.trigger_deployment(
-                        self.db, self.todo_repo, todo_id, artifact.content
-                    )
-                except BuildGateError as exc:
-                    raise PhaseGateError(
-                        GateResult(
-                            passed=False,
-                            score=0,
-                            gaps=[f"部署前置构建未就绪: {exc}"],
-                            suggestion=(
-                                "请先完成构建并确认产物 (build_status=success) "
-                                "后再确认部署阶段。"
-                            ),
-                        )
-                    )
-
-            nxt = next_phase(phase_type)
-            if nxt:
-                next_p = await self.phase_repo.get_by_todo_and_type(todo_id, nxt)
-                if next_p and next_p.status == PhaseStatus.PENDING:
-                    next_p.activate()
-                    await self.phase_repo.update(next_p)
-
-                todo = await self.todo_repo.get_by_id(todo_id)
-                if todo and nxt:
-                    todo.update_phase(nxt)
-                    await self.todo_repo.update(todo)
-            else:
-                todo = await self.todo_repo.get_by_id(todo_id)
-                if todo:
-                    await pipeline_hooks.extract_experience(self.db, todo)
-                    todo.complete()
-                    await self.todo_repo.update(todo)
-                    await pipeline_hooks.notify_github(self.db, todo)
-
+        nxt = next_phase(phase_type)
+        if nxt:
+            await self._advance_to_next(todo_id, nxt)
+        else:
+            await self._complete_pipeline(todo_id)
         return phase
+
+    async def _trigger_phase_side_effects(
+        self, todo_id: uuid.UUID, phase_type: PhaseType, artifact: Artifact
+    ) -> None:
+        """阶段确认后的特殊副作用: 架构合并领域模型 / 部署触发真实部署。"""
+        if phase_type == PhaseType.ARCHITECTURE:
+            # 架构阶段确认后 → 自动合并领域模型
+            await pipeline_hooks.merge_domain_model(self.db, todo_id, artifact.content)
+        elif phase_type == PhaseType.DEPLOYMENT:
+            # 部署阶段确认后 → 触发真实部署 (build 未就绪转 PhaseGateError 回滚)
+            from arc.application.execution.build_gate import BuildGateError
+            from arc.application.pipeline.gate import GateResult, PhaseGateError
+
+            try:
+                await pipeline_hooks.trigger_deployment(
+                    self.db, self.todo_repo, todo_id, artifact.content
+                )
+            except BuildGateError as exc:
+                raise PhaseGateError(
+                    GateResult(
+                        passed=False,
+                        score=0,
+                        gaps=[f"部署前置构建未就绪: {exc}"],
+                        suggestion=(
+                            "请先完成构建并确认产物 (build_status=success) "
+                            "后再确认部署阶段。"
+                        ),
+                    )
+                )
+
+    async def _advance_to_next(self, todo_id: uuid.UUID, nxt: PhaseType) -> None:
+        """激活下一阶段 + 更新 todo 当前阶段。"""
+        next_p = await self.phase_repo.get_by_todo_and_type(todo_id, nxt)
+        if next_p and next_p.status == PhaseStatus.PENDING:
+            next_p.activate()
+            await self.phase_repo.update(next_p)
+
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if todo and nxt:
+            todo.update_phase(nxt)
+            await self.todo_repo.update(todo)
+
+    async def _complete_pipeline(self, todo_id: uuid.UUID) -> None:
+        """末尾阶段: 提取经验 + 完成 todo + 通知 GitHub。"""
+        todo = await self.todo_repo.get_by_id(todo_id)
+        if todo:
+            await pipeline_hooks.extract_experience(self.db, todo)
+            todo.complete()
+            await self.todo_repo.update(todo)
+            await pipeline_hooks.notify_github(self.db, todo)
 
     async def skip_phase(self, todo_id: uuid.UUID, phase_type: PhaseType) -> PipelinePhase | None:
         """Skip a phase and activate the next one.

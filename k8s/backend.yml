@@ -18,7 +18,7 @@ spec:
     spec:
       initContainers:
         - name: migrate
-          image: arc-backend:placeholder
+          image: arc-backend:latest
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
@@ -27,7 +27,7 @@ spec:
                 name: arc-secrets
       containers:
         - name: backend
-          image: arc-backend:placeholder
+          image: arc-backend:latest
           command: ["uvicorn", "arc.main:app", "--host", "0.0.0.0", "--port", "8000"]
           ports:
             - containerPort: 8000
