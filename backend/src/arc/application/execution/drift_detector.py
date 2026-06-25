@@ -254,17 +254,3 @@ def _string_similarity(a: str, b: str) -> float:
     # 公共子串比率
     common = sum(1 for c in shorter if c in longer)
     return common / len(longer)
-
-
-async def _default_llm_review(prompt: str) -> dict:
-    """默认 LLM 评审实现 (复用 conversation_gate/sufficiency_gate 的 resilient adapter 模式)。"""
-    from arc.application.ai.json_extract import extract_json
-    from arc.application.ai.llm_adapter import LLMMessage
-    from arc.application.ai.resilience import create_resilient_adapter
-
-    adapter = create_resilient_adapter()
-    try:
-        response = await adapter.chat([LLMMessage(role="user", content=prompt)])
-    finally:
-        await adapter.close()
-    return extract_json(response.content)

@@ -336,11 +336,9 @@ class ExecutionEngine:
     ) -> AsyncIterator[dict]:
         from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.context.compression import CompressionManager
-        from arc.application.execution.drift_detector import (
-            DriftDetector,
-            _default_llm_review,
-        )
+        from arc.application.execution.drift_detector import DriftDetector
         from arc.application.execution.error_loop_detector import ErrorLoopDetector
+        from arc.application.execution.llm_review import default_llm_review
         from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
         from arc.application.execution.tools import ToolRegistry
 
@@ -355,11 +353,11 @@ class ExecutionEngine:
                 break
 
         drift_detector = (
-            DriftDetector(user_goal, llm_review_fn=_default_llm_review)
+            DriftDetector(user_goal, llm_review_fn=default_llm_review)
             if user_goal
             else None
         )
-        error_detector = ErrorLoopDetector()
+        error_detector = ErrorLoopDetector(llm_review_fn=default_llm_review)
 
         # Sandbox integration — conditional import (no circular dep; deferred
         # purely to avoid loading sandbox modules when sandbox is disabled)
