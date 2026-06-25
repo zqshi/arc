@@ -89,12 +89,17 @@ async def create_pull_request(todo_id: str, db: DbSession, user: CurrentUser, bo
         raise HTTPException(status_code=400, detail="GitHub 仓库信息不完整")
 
     git = GitSync(project.local_path)
-    _, branch_out, _ = await _run_git_helper(["rev-parse", "--abbrev-ref", "HEAD"], project.local_path)
+    _, branch_out, _ = await _run_git_helper(
+        ["rev-parse", "--abbrev-ref", "HEAD"], project.local_path,
+    )
     head_branch = body.get("branch") or branch_out.strip()
     base_branch = body.get("base") or await git.get_default_branch()
 
     if head_branch == base_branch:
-        raise HTTPException(status_code=400, detail=f"当前分支 {head_branch} 与目标分支相同，请先创建功能分支")
+        raise HTTPException(
+            status_code=400,
+            detail=f"当前分支 {head_branch} 与目标分支相同，请先创建功能分支",
+        )
 
     pr_title = body.get("title") or f"feat: {todo.title}"
     pr_body = body.get("body", "")
@@ -157,7 +162,10 @@ async def _generate_pr_description(db, todo, project, git) -> str:
 
         async with adapter_pool.acquire() as adapter:
             response = await adapter.chat([
-                LLMMessage(role="system", content="你是一个专业的 PR reviewer。输出简洁的 PR description。"),
+                LLMMessage(
+                    role="system",
+                    content="你是一个专业的 PR reviewer。输出简洁的 PR description。",
+                ),
                 LLMMessage(role="user", content=prompt),
             ])
             return response.content

@@ -28,7 +28,8 @@ p{{font-size:13px;color:#888;line-height:1.6}}
 <div class="card">
   <div class="icon">🎨</div>
   <h1>暂无原型页面</h1>
-  <p>项目「{project_name}」还没有生成原型。<br>请先完成需求的设计阶段，AI 会自动创建前端工程并部署。</p>
+  <p>项目「{project_name}」还没有生成原型。<br>请先完成需求的设计阶段，\
+AI 会自动创建前端工程并部署。</p>
 </div>
 </body></html>"""
 

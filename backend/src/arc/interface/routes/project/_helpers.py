@@ -36,7 +36,10 @@ def _project_resp(p: Project) -> ProjectResponse:
     )
 
 
-def _version_resp(v: Version, todo_stats: dict[str, int] | None = None, has_analysis: bool = False, analysis_stale: bool = False) -> VersionResponse:
+def _version_resp(
+    v: Version, todo_stats: dict[str, int] | None = None,
+    has_analysis: bool = False, analysis_stale: bool = False,
+) -> VersionResponse:
     stats = None
     if todo_stats is not None:
         stats = {

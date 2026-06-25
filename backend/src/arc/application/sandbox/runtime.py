@@ -231,7 +231,11 @@ class DockerSandboxRuntime(SandboxRuntime):
         """解析路径并校验沙箱边界 — 禁止逃逸出项目目录。"""
         base = Path(self._project_path)
         candidate = Path(rel_path)
-        target = (base / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
+        target = (
+            (base / candidate).resolve()
+            if not candidate.is_absolute()
+            else candidate.resolve()
+        )
         try:
             target.relative_to(base)
         except ValueError:

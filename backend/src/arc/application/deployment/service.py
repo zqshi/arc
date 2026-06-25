@@ -86,7 +86,9 @@ class DeployService:
             # 路由按产物平台 (.app/.exe/.apk) 检测, 非按 build_target。
             sign_results: list = []
             if project is not None:
-                sign_results = await self._sign_artifact(deployment, project, build_target, local_dir)
+                sign_results = await self._sign_artifact(
+                    deployment, project, build_target, local_dir,
+                )
 
             # 开始上传
             deployment.start_upload()

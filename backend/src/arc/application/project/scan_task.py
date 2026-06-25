@@ -366,7 +366,10 @@ class ScanTaskManager:
                 existing.setdefault("relations", []).append(rel)
                 existing_rels.add(key)
 
-        existing_agg_rels = {(r.get("from"), r.get("to")) for r in existing.get("aggregate_relations", [])}
+        existing_agg_rels = {
+            (r.get("from"), r.get("to"))
+            for r in existing.get("aggregate_relations", [])
+        }
         for rel in new.get("aggregate_relations", []):
             key = (rel.get("from"), rel.get("to"))
             if key not in existing_agg_rels:

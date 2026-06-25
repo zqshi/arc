@@ -220,8 +220,14 @@ class ToolAwareLoop:
 
                     for tc, result in zip(readonly_calls, results):
                         # L1 compression: shrink large non-error tool results
-                        if self._compression and not result.is_error and len(result.content) > 10000:
-                            compressed = await self._compression.compress_tool_result(result.content)
+                        if (
+                            self._compression
+                            and not result.is_error
+                            and len(result.content) > 10000
+                        ):
+                            compressed = (
+                                await self._compression.compress_tool_result(result.content)
+                            )
                             result = ToolResult(
                                 tool_use_id=result.tool_use_id,
                                 content=compressed,
