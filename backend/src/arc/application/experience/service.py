@@ -366,6 +366,83 @@ class ExperienceService:
         )
         return created
 
+    async def create(
+        self,
+        *,
+        title: str,
+        scope: str | None,
+        problem: str,
+        solution: str,
+        decisions: list,
+        pitfalls: list,
+        applicable_scenarios: str,
+        tags: list[Tag],
+        user_id: uuid.UUID,
+    ) -> Experience:
+        """创建经验并生成 embedding (失败则降级为无 embedding)。"""
+        exp = Experience(
+            title=title,
+            scope=ExperienceScope(scope)
+            if scope in ("personal", "project")
+            else ExperienceScope.PROJECT,
+            problem=problem,
+            solution=solution,
+            decisions=decisions,
+            pitfalls=pitfalls,
+            applicable_scenarios=applicable_scenarios,
+            tags=tags,
+        )
+        exp.embedding = await self._generate_embedding(exp)
+        return await self.exp_repo.create(exp, user_id=user_id)
+
+    async def update(
+        self, experience_id: uuid.UUID, updates: dict, *, user_id: uuid.UUID
+    ) -> Experience:
+        """更新经验字段 (枚举转换 + tags 重建) 并重新生成 embedding。"""
+        exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
+        if not exp:
+            raise ValueError("Experience not found")
+        self._apply_updates(exp, updates)
+        exp.embedding = await self._generate_embedding(exp)
+        return await self.exp_repo.update(exp)
+
+    async def _generate_embedding(self, exp: Experience) -> list[float] | None:
+        """生成经验文本的 embedding, 失败降级返回 None (不影响主流程)。"""
+        text = f"{exp.title} {exp.problem} {exp.solution} {exp.applicable_scenarios}"
+        try:
+            from arc.application.ai.resilience import create_resilient_adapter
+
+            adapter = create_resilient_adapter()
+            try:
+                return await adapter.embed(text)
+            finally:
+                await adapter.close()
+        except Exception:
+            logger.warning("Failed to generate embedding for experience %s", exp.id)
+            return None
+
+    @staticmethod
+    def _apply_updates(exp: Experience, updates: dict) -> None:
+        """将 update 字段映射到实体 (枚举转换 + tags 重建)。"""
+        for key, val in updates.items():
+            if key == "scope" and val:
+                exp.scope = ExperienceScope(val)
+            elif key == "category" and val:
+                exp.category = ExperienceCategory(val)
+            elif key == "source" and val:
+                exp.source = ExperienceSource(val)
+            elif key == "tags" and val is not None:
+                # model_dump 后 tags 为 list[dict], 兼容 dict 与 schema 对象
+                exp.tags = [
+                    Tag(
+                        label=t["label"] if isinstance(t, dict) else t.label,
+                        color=t["color"] if isinstance(t, dict) else t.color,
+                    )
+                    for t in val
+                ]
+            else:
+                setattr(exp, key, val)
+
     async def confirm(self, experience_id: uuid.UUID, user_id: uuid.UUID) -> Experience:
         exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
         if not exp:
