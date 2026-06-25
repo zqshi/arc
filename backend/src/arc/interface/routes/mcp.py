@@ -109,69 +109,83 @@ def _text_content(text: str, is_error: bool = False) -> dict:
 
 # ── Tool handler ──────────────────────────────────────────
 
+async def _tool_list_artifacts(arguments: dict, db: DbSession) -> dict:
+    repo = ArtifactRepository(db)
+    artifacts = await repo.list_by_todo_id(uuid.UUID(arguments["todo_id"]))
+    return _text_content(
+        json.dumps(
+            [
+                {
+                    "id": str(a.id),
+                    "artifact_type": a.artifact_type.value,
+                    "version": a.version,
+                    "is_confirmed": a.is_confirmed,
+                }
+                for a in artifacts
+            ],
+            ensure_ascii=False,
+        )
+    )
+
+
+async def _tool_get_artifact(arguments: dict, db: DbSession) -> dict:
+    repo = ArtifactRepository(db)
+    artifact = await repo.get_by_id(uuid.UUID(arguments["artifact_id"]))
+    if not artifact or str(artifact.todo_id) != arguments["todo_id"]:
+        return _text_content("Artifact not found", is_error=True)
+    return _text_content(
+        json.dumps(
+            {
+                "id": str(artifact.id),
+                "artifact_type": artifact.artifact_type.value,
+                "content": artifact.content,
+                "version": artifact.version,
+            },
+            ensure_ascii=False,
+            default=str,
+        )
+    )
+
+
+async def _tool_update_artifact(arguments: dict, db: DbSession) -> dict:
+    svc = ArtifactService(db)
+    artifact_id = uuid.UUID(arguments["artifact_id"])
+    content = arguments.get("content", {})
+
+    # 先校验可编辑字段, 不可编辑字段直接报错 (与 UI 一致)
+    artifact = await ArtifactRepository(db).get_by_id(artifact_id)
+    if not artifact:
+        return _text_content("Artifact not found", is_error=True)
+    _, rejected = filter_editable_fields(artifact.artifact_type, content.keys())
+    if rejected:
+        return _text_content(
+            f"不可编辑字段: {', '.join(sorted(rejected))}",
+            is_error=True,
+        )
+
+    updated = await svc.update_content(artifact_id, content, partial=True)
+    if not updated:
+        return _text_content("Artifact not found", is_error=True)
+    return _text_content(
+        json.dumps({"id": str(updated.id), "version": updated.version})
+    )
+
+
+# tool name → handler 分发表 (避免长串 if 分发)
+_TOOL_HANDLERS = {
+    "arc_list_artifacts": _tool_list_artifacts,
+    "arc_get_artifact": _tool_get_artifact,
+    "arc_update_artifact": _tool_update_artifact,
+}
+
+
 async def _call_tool(
     name: str, arguments: dict, db: DbSession, user: CurrentUser
 ) -> dict:
-    if name == "arc_list_artifacts":
-        repo = ArtifactRepository(db)
-        artifacts = await repo.list_by_todo_id(uuid.UUID(arguments["todo_id"]))
-        return _text_content(
-            json.dumps(
-                [
-                    {
-                        "id": str(a.id),
-                        "artifact_type": a.artifact_type.value,
-                        "version": a.version,
-                        "is_confirmed": a.is_confirmed,
-                    }
-                    for a in artifacts
-                ],
-                ensure_ascii=False,
-            )
-        )
-
-    if name == "arc_get_artifact":
-        repo = ArtifactRepository(db)
-        artifact = await repo.get_by_id(uuid.UUID(arguments["artifact_id"]))
-        if not artifact or str(artifact.todo_id) != arguments["todo_id"]:
-            return _text_content("Artifact not found", is_error=True)
-        return _text_content(
-            json.dumps(
-                {
-                    "id": str(artifact.id),
-                    "artifact_type": artifact.artifact_type.value,
-                    "content": artifact.content,
-                    "version": artifact.version,
-                },
-                ensure_ascii=False,
-                default=str,
-            )
-        )
-
-    if name == "arc_update_artifact":
-        svc = ArtifactService(db)
-        artifact_id = uuid.UUID(arguments["artifact_id"])
-        content = arguments.get("content", {})
-
-        # 先校验可编辑字段, 不可编辑字段直接报错 (与 UI 一致)
-        artifact = await ArtifactRepository(db).get_by_id(artifact_id)
-        if not artifact:
-            return _text_content("Artifact not found", is_error=True)
-        _, rejected = filter_editable_fields(artifact.artifact_type, content.keys())
-        if rejected:
-            return _text_content(
-                f"不可编辑字段: {', '.join(sorted(rejected))}",
-                is_error=True,
-            )
-
-        updated = await svc.update_content(artifact_id, content, partial=True)
-        if not updated:
-            return _text_content("Artifact not found", is_error=True)
-        return _text_content(
-            json.dumps({"id": str(updated.id), "version": updated.version})
-        )
-
-    return _text_content(f"未知 tool: {name}", is_error=True)
+    handler = _TOOL_HANDLERS.get(name)
+    if handler is None:
+        return _text_content(f"未知 tool: {name}", is_error=True)
+    return await handler(arguments, db)
 
 
 # ── JSON-RPC 入口 ─────────────────────────────────────────

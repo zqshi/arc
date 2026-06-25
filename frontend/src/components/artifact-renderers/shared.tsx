@@ -113,6 +113,25 @@ export function NumberedList({ items }: { items: string[] }) {
   );
 }
 
+export function LabeledField({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string | undefined | null;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] text-text-muted">{label}</div>
+      <div className={`text-text-primary ${mono ? 'font-mono' : ''}`}>
+        {value ?? '(未填写)'}
+      </div>
+    </div>
+  );
+}
+
 export function EmptyState({ message }: { message: string }) {
   return (
     <div className="flex h-24 items-center justify-center text-xs text-text-muted">{message}</div>

@@ -101,36 +101,21 @@ async def get_experience(experience_id: str, db: DbSession, user: CurrentUser):
 
 @router.post("", response_model=ExperienceResponse, status_code=201)
 async def create_experience(req: CreateExperienceRequest, db: DbSession, user: CurrentUser):
-    from arc.domain.experience.entity import Experience
-    from arc.domain.todo.value_objects import ExperienceScope, Tag
+    from arc.application.experience.service import ExperienceService
+    from arc.domain.todo.value_objects import Tag
 
-    exp = Experience(
+    svc = ExperienceService(db)
+    created = await svc.create(
         title=req.title,
-        scope=ExperienceScope(req.scope)
-        if req.scope in ("personal", "project")
-        else ExperienceScope.PROJECT,
+        scope=req.scope,
         problem=req.problem,
         solution=req.solution,
         decisions=req.decisions,
         pitfalls=req.pitfalls,
         applicable_scenarios=req.applicable_scenarios,
         tags=[Tag(label=t.label, color=t.color) for t in req.tags],
+        user_id=user.id,
     )
-
-    embedding_text = f"{exp.title} {exp.problem} {exp.solution} {exp.applicable_scenarios}"
-    try:
-        from arc.application.ai.resilience import create_resilient_adapter
-
-        adapter = create_resilient_adapter()
-        try:
-            exp.embedding = await adapter.embed(embedding_text)
-        finally:
-            await adapter.close()
-    except Exception:
-        logger.warning("Failed to generate embedding for new experience, saving without it")
-
-    repo = ExperienceRepository(db)
-    created = await repo.create(exp, user_id=user.id)
     return _to_response(created)
 
 
@@ -138,44 +123,15 @@ async def create_experience(req: CreateExperienceRequest, db: DbSession, user: C
 async def update_experience(
     experience_id: str, req: UpdateExperienceRequest, db: DbSession, user: CurrentUser
 ):
-    from arc.domain.todo.value_objects import (
-        ExperienceCategory,
-        ExperienceScope,
-        ExperienceSource,
-        Tag,
-    )
+    from arc.application.experience.service import ExperienceService
 
-    repo = ExperienceRepository(db)
-    exp = await repo.get_by_id(UUID(experience_id), user_id=user.id)
-    if not exp:
-        raise HTTPException(status_code=404, detail="Experience not found")
-
-    updates = req.model_dump(exclude_unset=True)
-    for key, val in updates.items():
-        if key == "scope" and val:
-            exp.scope = ExperienceScope(val)
-        elif key == "category" and val:
-            exp.category = ExperienceCategory(val)
-        elif key == "source" and val:
-            exp.source = ExperienceSource(val)
-        elif key == "tags" and val is not None:
-            exp.tags = [Tag(label=t.label, color=t.color) for t in val]
-        else:
-            setattr(exp, key, val)
-
-    embedding_text = f"{exp.title} {exp.problem} {exp.solution} {exp.applicable_scenarios}"
+    svc = ExperienceService(db)
     try:
-        from arc.application.ai.resilience import create_resilient_adapter
-
-        adapter = create_resilient_adapter()
-        try:
-            exp.embedding = await adapter.embed(embedding_text)
-        finally:
-            await adapter.close()
-    except Exception:
-        logger.warning("Failed to regenerate embedding for experience %s", experience_id)
-
-    updated = await repo.update(exp)
+        updated = await svc.update(
+            UUID(experience_id), req.model_dump(exclude_unset=True), user_id=user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     return _to_response(updated)
 
 

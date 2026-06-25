@@ -6,11 +6,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.organization.entity import Organization, OrganizationMember
+from arc.domain.organization.repository import (
+    AbstractOrganizationMemberRepository,
+    AbstractOrganizationRepository,
+)
 from arc.domain.organization.value_objects import OrgPlan, OrgRole
 from arc.infrastructure.models.organization import OrganizationMemberModel, OrganizationModel
 
 
-class OrganizationRepository:
+class OrganizationRepository(AbstractOrganizationRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -66,7 +70,7 @@ class OrganizationRepository:
         )
 
 
-class OrganizationMemberRepository:
+class OrganizationMemberRepository(AbstractOrganizationMemberRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 

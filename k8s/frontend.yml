@@ -47,7 +47,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: arc-frontend:placeholder
+          image: arc-frontend:latest
           ports:
             - containerPort: 80
               protocol: TCP
