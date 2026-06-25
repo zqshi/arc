@@ -1,18 +1,21 @@
+import { lazy, Suspense } from 'react';
 import { CodeBlock } from './shared';
 import { asString } from './utils';
-import RequirementSpec from './RequirementSpec';
-import InteractionDesign from './InteractionDesign';
-import UISpec from './UISpec';
-import Prototype from './Prototype';
-import UIDesign from './UIDesign';
-import TechArchitecture from './TechArchitecture';
-import DevReport from './DevReport';
-import TestReport from './TestReport';
-import DeployReport from './DeployReport';
-import ExperienceCard from './ExperienceCard';
-import AppCode from './AppCode';
-import ServiceSpec from './ServiceSpec';
 import type { ArtifactType, ArtifactContent } from '../../types/api';
+
+// 首屏不渲染产出物, 所有 renderer 懒加载, 按需切分 chunk。
+const RequirementSpec = lazy(() => import('./RequirementSpec'));
+const InteractionDesign = lazy(() => import('./InteractionDesign'));
+const UISpec = lazy(() => import('./UISpec'));
+const Prototype = lazy(() => import('./Prototype'));
+const UIDesign = lazy(() => import('./UIDesign'));
+const TechArchitecture = lazy(() => import('./TechArchitecture'));
+const DevReport = lazy(() => import('./DevReport'));
+const TestReport = lazy(() => import('./TestReport'));
+const DeployReport = lazy(() => import('./DeployReport'));
+const ExperienceCard = lazy(() => import('./ExperienceCard'));
+const AppCode = lazy(() => import('./AppCode'));
+const ServiceSpec = lazy(() => import('./ServiceSpec'));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyContent = any;
@@ -37,6 +40,10 @@ const RENDERERS: Record<string, React.ComponentType<{ content: AnyContent }>> = 
   service_spec: ServiceSpec,
 };
 
+function RendererFallback() {
+  return <div className="h-32 animate-pulse rounded bg-bg-card" />;
+}
+
 export default function ArtifactRenderer({ artifactType, content }: Props) {
   const Renderer = RENDERERS[artifactType];
 
@@ -49,5 +56,9 @@ export default function ArtifactRenderer({ artifactType, content }: Props) {
     );
   }
 
-  return <Renderer content={content} />;
+  return (
+    <Suspense fallback={<RendererFallback />}>
+      <Renderer content={content} />
+    </Suspense>
+  );
 }
