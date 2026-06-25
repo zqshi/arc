@@ -8,8 +8,6 @@
 凭证来源: 项目维度加密存储 (复用 v6.1 crypto 基础设施, 独立 enc_*store_creds 字段)。
 load_distribution_creds_for_project(project, channel) 从 project 解密某渠道凭证。
 graceful skip: 凭证未配 → upload() 返回 DistributeResult.skip(), 不抛异常。
-
-T2-T4 实现各渠道分发器后, 在 DISTRIBUTORS 注册表填入映射。
 """
 from __future__ import annotations
 
@@ -20,6 +18,7 @@ from arc.domain.deployment.distributor import (
     DistributorType,
 )
 from arc.infrastructure.distributor.appstore import AppStoreDistributor
+from arc.infrastructure.distributor.playstore import PlayStoreDistributor
 from arc.infrastructure.distributor.tauri_updater import TauriUpdaterDistributor
 
 __all__ = [
@@ -53,6 +52,7 @@ def load_distribution_creds_for_project(
     if channel == DistributorType.PLAY_STORE:
         return DistributionCredentials(
             play_key_json=creds_dict.get("play_key_json", ""),
+            play_package_name=creds_dict.get("play_package_name", ""),
         )
     if channel == DistributorType.TAURI_UPDATER:
         return DistributionCredentials(
@@ -63,9 +63,10 @@ def load_distribution_creds_for_project(
 
 
 # DistributorType → Distributor 实例注册表
-# T2 done: APP_STORE; T4 done: TAURI_UPDATER; T3 待实现 (PLAY_STORE)
+# APP_STORE (T2) / PLAY_STORE (T3) / TAURI_UPDATER (T4) 三渠道齐全
 DISTRIBUTORS: dict[DistributorType, Distributor] = {
     DistributorType.APP_STORE: AppStoreDistributor(),
+    DistributorType.PLAY_STORE: PlayStoreDistributor(),
     DistributorType.TAURI_UPDATER: TauriUpdaterDistributor(),
 }
 
@@ -73,7 +74,7 @@ DISTRIBUTORS: dict[DistributorType, Distributor] = {
 def get_distributor(distributor_type: DistributorType) -> Distributor | None:
     """按分发渠道返回分发器 (工厂)。
 
-    未注册的渠道 (T2-T4 未实现时) 返回 None — 调用方据此 graceful skip。
+    未注册的渠道返回 None — 调用方据此 graceful skip。
     新增渠道时在 DISTRIBUTORS 注册表填入映射。
     """
     return DISTRIBUTORS.get(distributor_type)

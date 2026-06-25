@@ -38,9 +38,17 @@ class TestDistributionCredentials:
         assert creds.has_play_store() is False
 
     def test_play_store_credentials(self):
-        """Play Console service account JSON (从 v6.1 SigningCredentials 归位)。"""
-        creds = DistributionCredentials(play_key_json='{"type":"service_account"}')
+        """Play Console: service account JSON + 应用包名 (edit API 必需)。"""
+        creds = DistributionCredentials(
+            play_key_json='{"type":"service_account"}',
+            play_package_name="com.example.app",
+        )
         assert creds.has_play_store() is True
+
+    def test_play_store_partial_creds_not_complete(self):
+        """缺 play_package_name → 不算配全 (graceful skip)。"""
+        creds = DistributionCredentials(play_key_json='{"type":"service_account"}')
+        assert creds.has_play_store() is False
 
     def test_tauri_updater_credentials(self):
         creds = DistributionCredentials(

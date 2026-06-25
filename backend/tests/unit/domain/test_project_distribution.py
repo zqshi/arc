@@ -28,7 +28,7 @@ class TestProjectDistributionCreds:
 
     def test_set_play_store_creds(self):
         p = Project(name="t")
-        creds = {"play_key_json": '{"type":"service_account"}'}
+        creds = {"play_key_json": '{"type":"service_account"}', "play_package_name": "com.example.app"}
         p.set_distribution_creds(DistributorType.PLAY_STORE, creds, _encrypt_stub)
         assert p.enc_playstore_creds.startswith("ENC(")
         assert p.get_distribution_creds(DistributorType.PLAY_STORE, _decrypt_stub) == creds

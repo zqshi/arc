@@ -29,6 +29,7 @@ class DeploymentRepository:
             storage_prefix=deployment.storage_prefix,
             files_uploaded=deployment.files_uploaded,
             error_message=deployment.error_message,
+            distribution_manifest=deployment.distribution_manifest or None,
             deployed_at=deployment.deployed_at,
         )
         self.db.add(model)
@@ -82,6 +83,7 @@ class DeploymentRepository:
         model.storage_prefix = deployment.storage_prefix
         model.files_uploaded = deployment.files_uploaded
         model.error_message = deployment.error_message
+        model.distribution_manifest = deployment.distribution_manifest or None
         model.deployed_at = deployment.deployed_at
 
         await self.db.flush()
@@ -103,6 +105,7 @@ class DeploymentRepository:
             storage_prefix=model.storage_prefix,
             files_uploaded=model.files_uploaded,
             error_message=model.error_message,
+            distribution_manifest=model.distribution_manifest or "",
             created_at=model.created_at,
             deployed_at=model.deployed_at,
         )

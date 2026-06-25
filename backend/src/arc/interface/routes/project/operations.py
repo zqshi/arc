@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime
 
@@ -184,8 +185,19 @@ async def restore_project(
 # ── Deployment (v5.5.0: 暴露 rollback 入口) ────────────────
 
 
+def _parse_manifest(raw: str | None) -> dict:
+    """解析 distribution_manifest JSON (非法/空 → 空 dict)。"""
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
 def _deployment_resp(deployment) -> dict:
-    """Deployment 实体 → 响应 dict。"""
+    """Deployment 实体 → 响应 dict (含分发清单 T5)。"""
+    manifest = _parse_manifest(deployment.distribution_manifest)
     return {
         "id": str(deployment.id),
         "project_id": str(deployment.project_id),
@@ -197,6 +209,8 @@ def _deployment_resp(deployment) -> dict:
         "storage_prefix": deployment.storage_prefix,
         "files_uploaded": deployment.files_uploaded,
         "error_message": deployment.error_message,
+        "distribution_manifest": manifest,
+        "download_page_url": manifest.get("download_page_url", ""),
         "created_at": deployment.created_at.isoformat() if deployment.created_at else None,
         "deployed_at": deployment.deployed_at.isoformat() if deployment.deployed_at else None,
     }
@@ -270,4 +284,25 @@ async def rollback_deployment(
         deployment = await svc.rollback_deployment(deployment_id)
     except ValueError as e:
         raise HTTPException(404, str(e))
+    return _deployment_resp(deployment)
+
+
+@router.get("/{project_id}/deployments/{deployment_id}/manifest")
+async def get_distribution_manifest(
+    project_id: uuid.UUID,
+    deployment_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """获取部署的分发清单 (v6.2.0 T5: 产物+签名+渠道结果, Arc 前端发布页用)。"""
+    from arc.infrastructure.repositories.deployment import DeploymentRepository
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    deployment = await DeploymentRepository(db).get_by_id(deployment_id)
+    if not deployment:
+        raise HTTPException(404, "Deployment not found")
     return _deployment_resp(deployment)

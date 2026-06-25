@@ -84,8 +84,9 @@ class DeployService:
 
             # 签名 (v6.1.0): build 后 upload 前。graceful skip — 不阻断部署。
             # 路由按产物平台 (.app/.exe/.apk) 检测, 非按 build_target。
+            sign_results: list = []
             if project is not None:
-                await self._sign_artifact(deployment, project, build_target, local_dir)
+                sign_results = await self._sign_artifact(deployment, project, build_target, local_dir)
 
             # 开始上传
             deployment.start_upload()
@@ -107,6 +108,12 @@ class DeployService:
                 )
                 # 回写 Version deploy_url
                 await self._update_version_deploy_url(version_id, result.url)
+                # 制品分发层 (v6.2.0 T5): BINARY_APP 产物 distributor 上传 + 下载页/元数据。
+                # graceful 不阻断 (产物已在制品仓可手动下载)。
+                if project is not None and deploy_type == DeployType.BINARY_ARTIFACT:
+                    await self._distribute(
+                        deployment, project, version_id, local_dir, sign_results, result.prefix
+                    )
             else:
                 deployment.fail(result.error)
         except Exception as exc:
@@ -131,12 +138,15 @@ class DeployService:
         )
         return deployment
 
-    async def _sign_artifact(self, deployment, project, build_target, local_dir: str) -> None:
+    async def _sign_artifact(self, deployment, project, build_target, local_dir: str) -> list:
         """签名构建产物 (v6.1.0) — build 后 upload 前, graceful skip 不阻断。
 
         按产物平台 (.app/.exe/.apk 后缀) 选签名器, 非按 build_target 硬编码
         (tauri linux 的 deb/AppImage 无标准签名, 不签)。签名器/凭证未配 → skip。
         签名失败记 deployment.error 但不抛异常 (产物以未签名状态继续上传)。
+
+        返回 sign_results [(SignerType, artifact_path, SignResult)] 供分发层 (T5)
+        匹配产物签名状态 + 传 distributor.upload 的 signed 参数。
         """
         from arc.infrastructure.signer import get_signer, load_credentials_for_project
 
@@ -144,8 +154,9 @@ class DeployService:
         targets = self._detect_sign_targets(local_dir)
         if not targets:
             logger.info("DeployService: 无可签名产物 (local_dir=%s), 跳过签名", local_dir)
-            return
+            return []
 
+        sign_results: list = []
         for signer_type, artifact_path in targets:
             signer = get_signer(signer_type)
             if signer is None:
@@ -154,6 +165,7 @@ class DeployService:
             creds = load_credentials_for_project(project, signer_type)
             try:
                 result = await signer.sign(artifact_path, creds)
+                sign_results.append((signer_type, artifact_path, result))
                 if result.skipped:
                     logger.info(
                         "DeployService: 签名跳过 (%s): %s",
@@ -168,6 +180,7 @@ class DeployService:
             except Exception as e:
                 logger.warning("DeployService: 签名异常 (%s): %s", signer_type.value, e)
                 deployment.error_message = f"签名异常({signer_type.value}): {e}"
+        return sign_results
 
     @staticmethod
     def _detect_sign_targets(local_dir: str) -> list:
@@ -198,6 +211,39 @@ class DeployService:
                 if f.is_file():
                     targets.append((signer_type, str(f)))
         return targets
+
+    async def _distribute(
+        self,
+        deployment,
+        project,
+        version_id: uuid.UUID,
+        local_dir: str,
+        sign_results: list,
+        storage_prefix: str,
+    ) -> None:
+        """制品分发层 (v6.2.0 T5) — distributor 上传 + 下载页/更新元数据生成。
+
+        graceful 不阻断: 产物已由 deployer 落制品仓, 分发失败仅记日志, deployment
+        状态保持 DEPLOYED (分发是部署后的增强, 非部署成功条件)。
+        """
+        from arc.application.deployment.distribution import DistributionService
+
+        try:
+            version = await self._version_repo.get_by_id(version_id)
+            if version is None:
+                logger.warning("DeployService: version %s 不存在, 跳过分发", version_id)
+                return
+            svc = DistributionService()
+            manifest = await svc.finalize(
+                deployment, version, project, local_dir, sign_results, storage_prefix
+            )
+            deployment.set_distribution_manifest(svc.generate_manifest_json(manifest))
+            logger.info(
+                "DeployService: 分发完成 download_page=%s channels=%d",
+                manifest.download_page_url, len(manifest.distributions),
+            )
+        except Exception as e:
+            logger.warning("DeployService: 分发异常 (不阻断): %s", e)
 
     async def deploy_static_site(
         self,

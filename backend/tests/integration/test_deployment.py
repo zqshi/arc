@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime
 
@@ -31,7 +32,8 @@ async def _make_project(client: AsyncClient, name: str = "Deploy Test") -> tuple
 
 
 async def _insert_deployment(
-    db_session, project_id: str, version_id: str, *, status: str = "deployed"
+    db_session, project_id: str, version_id: str, *,
+    status: str = "deployed", distribution_manifest: str | None = None,
 ) -> str:
     """直接插入一条 DeploymentModel 记录，返回 deployment_id。"""
     deploy_id = uuid.uuid4()
@@ -48,6 +50,7 @@ async def _insert_deployment(
             deploy_url="https://cdn.example.com/deployments/test/index.html",
             storage_prefix="deployments/test",
             files_uploaded=12,
+            distribution_manifest=distribution_manifest,
             deployed_at=datetime.now(UTC) if status == "deployed" else None,
         )
     )
@@ -138,5 +141,47 @@ class TestLatestDeployment:
 
         resp = await client.get(
             f"/api/projects/{project_id}/versions/{version_id}/deployment/latest"
+        )
+        assert resp.status_code == 404
+
+
+class TestDeploymentManifest:
+    """分发清单端点 (v6.2.0 T5): 返回 distribution_manifest + download_page_url。"""
+
+    async def test_manifest_returns_distribution_manifest(self, client, db_session):
+        project_id, version_id = await _make_project(client, "Manifest Test")
+        manifest_json = json.dumps({
+            "version_name": "1.2.0",
+            "download_page_url": "https://cdn/p/d/download.html",
+            "artifacts": [{"filename": "App.dmg", "signed": True}],
+        })
+        deploy_id = await _insert_deployment(
+            db_session, project_id, version_id,
+            status="deployed", distribution_manifest=manifest_json,
+        )
+
+        resp = await client.get(
+            f"/api/projects/{project_id}/deployments/{deploy_id}/manifest"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["distribution_manifest"]["version_name"] == "1.2.0"
+        assert data["download_page_url"] == "https://cdn/p/d/download.html"
+
+    async def test_manifest_empty_when_not_distributed(self, client, db_session):
+        project_id, version_id = await _make_project(client, "Manifest Empty")
+        deploy_id = await _insert_deployment(db_session, project_id, version_id)
+
+        resp = await client.get(
+            f"/api/projects/{project_id}/deployments/{deploy_id}/manifest"
+        )
+        assert resp.status_code == 200
+        assert resp.json()["distribution_manifest"] == {}
+        assert resp.json()["download_page_url"] == ""
+
+    async def test_manifest_nonexistent_deployment_404(self, client, db_session):
+        project_id, _ = await _make_project(client, "Manifest 404")
+        resp = await client.get(
+            f"/api/projects/{project_id}/deployments/{uuid.uuid4()}/manifest"
         )
         assert resp.status_code == 404

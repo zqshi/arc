@@ -35,6 +35,8 @@ class Deployment:
     storage_prefix: str | None = None
     files_uploaded: int = 0
     error_message: str | None = None
+    # 分发清单 (v6.2.0 T5) — DistributionManifest JSON, Arc API + 下载页/元数据源
+    distribution_manifest: str = ""
 
     # 生命周期
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -69,3 +71,7 @@ class Deployment:
 
     def rollback(self) -> None:
         self._transition_to(DeploymentStatus.ROLLED_BACK)
+
+    def set_distribution_manifest(self, manifest_json: str) -> None:
+        """持久化分发清单 JSON (T5: 产物+渠道结果的结构化真相, Arc API + 渲染源)。"""
+        self.distribution_manifest = manifest_json
