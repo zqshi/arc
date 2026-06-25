@@ -131,9 +131,15 @@
 
 ---
 
-## v6.3.0 — 项目治理规范传递（交付物初始化声明规范）🔄 进行中
+## v6.3.0 — 项目治理规范传递（交付物初始化声明规范）✅ 已完成
 
-→ [v6.3.0-current.md](v6.3.0-current.md)
+→ [v6.3.0-snapshot.md](v6.3.0-snapshot.md)
+
+---
+
+## v6.4.0 — 债务清理 + prompt-upgrade P2（规则残留 LLM 化）🔄 进行中
+
+→ [v6.4.0-current.md](v6.4.0-current.md)
 
 ---
 

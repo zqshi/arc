@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-06-25 — 项目治理规范传递（交付物初始化声明规范）
+
+### Added — 把 Arc 治理体系作为"基因"传给交付项目
+
+"不同项目类型落地"终局第五步（构建 → 签名 → 分发 → **治理规范传递**）。不传则交付即腐烂：
+
+- **project_charter artifact 建模 + 初始化产出** (T1): ProjectCharter frozen 值对象 + ConventionTemplateProvider abc 接口 + DefaultConventionTemplateProvider 通用意图驱动骨架 (domain/project/charter.py 新)。Project 加 charter 字段 + initialize_charter() 方法。JSONB 持久化 (migration z15)。charter 与 conventions 并存分工 (charter 系统按类型生成治理底座, conventions 用户补充零改动)
+- **CONVENTION_TEMPLATES 注册表按 ProjectType 特化** (T2): static_site 特化 (SEO/PWA/性能意图) + binary_app 特化 (签名/分发/跨平台意图, 复用 v6.0-v6.2 成果)。ConventionTemplateRegistry 查表+fallback 通用骨架, 与 v5.9.0 get_distributor/get_prototype_guide 同构
+- **两层传递** (T3): ① charter 文本深化把 Arc 4 样治理机制 (版本协议/上下文加载/任务依赖表/质量门禁) 意图驱动化织入通用骨架; ② GovernanceArtifactWriter 落盘交付产物 (CHARTER.md + CLAUDE.md 初始治理文件结构), 让交付项目 agent 能自运转版本切换/质量检测。两处接入 (workspace_service.create_project + github_service.clone_repo 后补落盘)
+- **类型差异端到端验证矩阵** (T4): 验证 static_site vs binary_app 贯穿 DB charter → 落盘 CHARTER.md → 落盘 CLAUDE.md 三层类型特化, 特化互斥, 通用骨架共享
+
+### 决策
+
+- **charter 与 conventions 并存分工**: charter=系统按类型生成的意图驱动治理底座 (等价 CLAUDE.md), conventions=用户补充 (保留现状零改动), 两者都注入 AI 上下文, 职责正交
+- **意图驱动纪律贯穿全程**: charter/CLAUDE.md 禁 Arc 规则执行式硬规则 ("文件<500行""必须auth""必修项"等), 只给目标+输出契约+上下文。复用 prompt-upgrade #8-10 范式
+- **charter 是 Project 内嵌字段非独立 Artifact**: 项目级元数据 (不绑定 phase/todo), 与 domain_model/context_policy 同层
+- **交付产物落项目根**: CLAUDE.md 在根 (通用 AI 入口约定) + .arc/governance/CHARTER.md。不预生成空 docs/versions/ 多文件 (agent 按意图自建 .arc/versions/)
+- **github 类型异步就绪处理**: local_path 初始空 graceful skip, clone 后补落盘 (仿 scan 触发, 非阻断)
+
+### 遗留
+
+- ruff 既有债务 164 (E501/F401/I001, main 既有非本次引入) — v6.4 T5 清理
+- 前端类型错误 34 (TS6133/TS2322 等, main 既有) — v6.4 T6 清理
+- charter 升级 UI (initialize_charter 可重复调用覆盖, 但无升级入口) — P3 后续
+
 ## [6.2.0] - 2026-06-25 — 商店分发 + 制品分发层（凭证可配置）
 
 ### Added — BINARY_APP 构建产物分发层
