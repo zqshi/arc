@@ -11,11 +11,9 @@ from fastapi import APIRouter, HTTPException
 from arc.application.baas.service import BaasService
 from arc.application.template.apply_service import TemplateApplyService
 from arc.application.template.matching_service import TemplateMatchingService
-from arc.domain.errors import DomainError
-from arc.domain.template.value_objects import (
-    TemplateCategory,
-    TemplateStatus,
-)
+from arc.application.template.service import TemplateService
+from arc.domain.errors import AppError, DomainError
+from arc.domain.template.value_objects import TemplateStatus
 from arc.infrastructure.repositories.template import TemplateRepository
 from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.template import (
@@ -77,65 +75,53 @@ async def update_template(
     template_id: uuid.UUID, req: TemplateUpdateRequest, db: DbSession, user: CurrentUser,
 ):
     """编辑模板元信息 (仅 draft 状态)。"""
-    repo = TemplateRepository(db)
-    template = await repo.get_by_id(template_id)
-    if not template:
-        raise HTTPException(404, "Template not found")
-    if template.status != TemplateStatus.DRAFT:
-        raise HTTPException(409, "仅 draft 状态模板可编辑")
-
-    if req.title is not None:
-        template.title = req.title
-    if req.description is not None:
-        template.description = req.description
-    if req.category is not None:
-        template.category = TemplateCategory(req.category)
-    if req.tags is not None:
-        template.tags = req.tags
-    updated = await repo.update(template)
+    svc = TemplateService(db)
+    try:
+        updated = await svc.update(template_id, req.model_dump(exclude_unset=True))
+    except AppError as e:
+        raise HTTPException(e.status_code, e.detail)
+    except (ValueError, DomainError) as e:
+        raise HTTPException(409, str(e))
     return _to_response(updated)
 
 
 @router.post("/{template_id}/confirm", response_model=TemplateResponse)
 async def confirm_template(template_id: uuid.UUID, db: DbSession, user: CurrentUser):
     """确认 draft 模板 (draft → confirmed)。"""
-    repo = TemplateRepository(db)
-    template = await repo.get_by_id(template_id)
-    if not template:
-        raise HTTPException(404, "Template not found")
+    svc = TemplateService(db)
     try:
-        template.confirm()
+        template = await svc.confirm(template_id)
+    except AppError as e:
+        raise HTTPException(e.status_code, e.detail)
     except (ValueError, DomainError) as e:
         raise HTTPException(409, str(e))
-    return _to_response(await repo.update(template))
+    return _to_response(template)
 
 
 @router.post("/{template_id}/publish", response_model=TemplateResponse)
 async def publish_template(template_id: uuid.UUID, db: DbSession, user: CurrentUser):
     """发布模板 (confirmed → published, 团队可见)。"""
-    repo = TemplateRepository(db)
-    template = await repo.get_by_id(template_id)
-    if not template:
-        raise HTTPException(404, "Template not found")
+    svc = TemplateService(db)
     try:
-        template.publish()
+        template = await svc.publish(template_id)
+    except AppError as e:
+        raise HTTPException(e.status_code, e.detail)
     except (ValueError, DomainError) as e:
         raise HTTPException(409, str(e))
-    return _to_response(await repo.update(template))
+    return _to_response(template)
 
 
 @router.post("/{template_id}/deprecate", response_model=TemplateResponse)
 async def deprecate_template(template_id: uuid.UUID, db: DbSession, user: CurrentUser):
     """废弃模板 (→ deprecated, 终态)。"""
-    repo = TemplateRepository(db)
-    template = await repo.get_by_id(template_id)
-    if not template:
-        raise HTTPException(404, "Template not found")
+    svc = TemplateService(db)
     try:
-        template.deprecate()
+        template = await svc.deprecate(template_id)
+    except AppError as e:
+        raise HTTPException(e.status_code, e.detail)
     except (ValueError, DomainError) as e:
         raise HTTPException(409, str(e))
-    return _to_response(await repo.update(template))
+    return _to_response(template)
 
 
 @router.post("/search", response_model=list[TemplateResponse])
