@@ -18,6 +18,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from arc.application.execution.llm_review import default_llm_review
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +49,8 @@ ARCH_SUB_PHASES: list[ArchSubPhase] = [
 **目标**: 自顶向下看全局，划定业务边界。
 
 ### 引导要点:
-1. **识别子域** — "这个系统涉及哪些业务领域？哪些是核心竞争力（核心域）？哪些是必需但可标准化的（支撑域）？哪些通用功能优先外采（通用域）？"
+1. **识别子域** — "这个系统涉及哪些业务领域？哪些是核心竞争力（核心域）？\
+哪些是必需但可标准化的（支撑域）？哪些通用功能优先外采（通用域）？"
    - 核心域: 重点投入，差异化竞争力
    - 支撑域: 业务必需，可标准化
    - 通用域: 优先外采/用开源
@@ -68,7 +71,10 @@ ARCH_SUB_PHASES: list[ArchSubPhase] = [
 - 核心域数量不固定 — 创业公司通常 1 个，大型系统 5-10 个
 - 通用域始终标注"外采"或"自建理由"
 - 避免上下文间循环依赖""",
-        output_fields=["domain_design.subdomains", "domain_design.bounded_contexts", "domain_design.context_relations"],
+        output_fields=[
+            "domain_design.subdomains", "domain_design.bounded_contexts",
+            "domain_design.context_relations",
+        ],
         validation_rules=[
             "至少有 1 个核心域",
             "通用域标注了外采策略或自建理由",
@@ -175,8 +181,15 @@ class ValidationResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def validate_architecture(content: dict) -> ValidationResult:
-    """对架构产出物执行 DDD 规则校验（quick 模式，纯规则无 LLM）。
+async def validate_architecture(content: dict, *, llm_review_fn=None) -> ValidationResult:
+    """对架构产出物执行 DDD 规则校验。
+
+    事件名过去时态校验采用 🟡结构预筛 + 🟢LLM确认 + 降级兜底:
+    _is_past_tense 字面预筛后, 对可疑事件名 LLM 判断 DDD 合规性,
+    LLM 异常时回退字面匹配(原行为)。其余规则为纯结构校验。
+
+    Args:
+        llm_review_fn: 可注入 (prompt) -> dict, 用于测试; None 用 default_llm_review。
 
     Returns ValidationResult with violations (hard fail) and warnings (soft).
     """
@@ -186,19 +199,26 @@ def validate_architecture(content: dict) -> ValidationResult:
     # --- 战略设计校验 ---
     domain_design = content.get("domain_design", {})
     subdomains = domain_design.get("subdomains", [])
-    contexts = domain_design.get("bounded_contexts", [])
     relations = domain_design.get("context_relations", [])
 
     if subdomains:
-        core_domains = [s for s in subdomains if isinstance(s, dict) and s.get("type") in ("核心域", "core")]
+        core_domains = [
+            s for s in subdomains
+            if isinstance(s, dict) and s.get("type") in ("核心域", "core")
+        ]
         if not core_domains:
             violations.append("战略设计: 未识别出核心域")
 
-        generic_domains = [s for s in subdomains if isinstance(s, dict) and s.get("type") in ("通用域", "generic")]
+        generic_domains = [
+            s for s in subdomains
+            if isinstance(s, dict) and s.get("type") in ("通用域", "generic")
+        ]
         for gd in generic_domains:
             desc = gd.get("description", "")
             if "外采" not in desc and "自建" not in desc and "outsource" not in desc.lower():
-                warnings.append(f"战略设计: 通用域「{gd.get('name', '?')}」未标注外采策略或自建理由")
+                warnings.append(
+                    f"战略设计: 通用域「{gd.get('name', '?')}」未标注外采策略或自建理由"
+                )
 
     if relations:
         # 简单循环依赖检测
@@ -221,14 +241,14 @@ def validate_architecture(content: dict) -> ValidationResult:
     # --- 事件风暴校验 ---
     event_storming = content.get("event_storming", {})
     events = event_storming.get("events", [])
-    commands = event_storming.get("commands", [])
+
+    # 事件名过去时态: 🟡预筛(_is_past_tense) + 🟢LLM确认 + 降级回退预筛
+    warnings.extend(await _check_events_past_tense(events, llm_review_fn))
 
     for evt in events:
         if not isinstance(evt, dict):
             continue
         name = evt.get("name", "")
-        if name and not _is_past_tense(name):
-            warnings.append(f"事件风暴: 事件「{name}」不是过去时态")
         if not evt.get("trigger") and not evt.get("aggregate"):
             warnings.append(f"事件风暴: 事件「{name}」缺少触发命令或聚合归属")
 
@@ -242,7 +262,9 @@ def validate_architecture(content: dict) -> ValidationResult:
             continue
         options = td.get("options_considered", [])
         if len(options) < 2:
-            violations.append(f"ADR: 决策「{td.get('decision', '?')}」只有 {len(options)} 个选项（需 ≥2）")
+            violations.append(
+                f"ADR: 决策「{td.get('decision', '?')}」只有 {len(options)} 个选项（需 ≥2）"
+            )
         if not td.get("trade_offs"):
             warnings.append(f"ADR: 决策「{td.get('decision', '?')}」缺少 trade_offs 分析")
 
@@ -303,23 +325,23 @@ Step 3: 战术建模 → 设计聚合根、实体/值对象、领域服务、API
 
 def _has_cycle(graph: dict[str, set[str]]) -> bool:
     """DFS 检测有向图是否有环。"""
-    WHITE, GRAY, BLACK = 0, 1, 2
-    color: dict[str, int] = {node: WHITE for node in graph}
+    white, gray, black = 0, 1, 2
+    color: dict[str, int] = {node: white for node in graph}
 
     def dfs(node: str) -> bool:
-        color[node] = GRAY
+        color[node] = gray
         for neighbor in graph.get(node, set()):
             if neighbor not in color:
-                color[neighbor] = WHITE
-            if color[neighbor] == GRAY:
+                color[neighbor] = white
+            if color[neighbor] == gray:
                 return True
-            if color[neighbor] == WHITE and dfs(neighbor):
+            if color[neighbor] == white and dfs(neighbor):
                 return True
-        color[node] = BLACK
+        color[node] = black
         return False
 
     for node in list(graph.keys()):
-        if color.get(node, WHITE) == WHITE:
+        if color.get(node, white) == white:
             if dfs(node):
                 return True
     return False
@@ -333,3 +355,47 @@ def _is_past_tense(name: str) -> bool:
         "已", "完成", "创建了", "发生了",
     ]
     return any(name.endswith(ind) or ind in name for ind in past_indicators)
+
+
+_EVENT_TENSE_REVIEW_PROMPT = """\
+判断以下事件名是否符合 DDD 事件风暴"过去时态"规范(事件表示已发生的事实,\
+如"订单已创建""支付已完成")。
+
+事件名:
+{names}
+
+输出 JSON 契约:
+{{"compliant": ["判定为符合过去时态的事件名"]}}
+
+只把符合规范的事件名放入 compliant, 其余视为不合规。"""
+
+
+async def _check_events_past_tense(events: list, llm_review_fn) -> list[str]:
+    """🟡预筛 + 🟢LLM确认事件名过去时态, 返回 warnings。
+
+    预筛: _is_past_tense 字面匹配明显过去时态(快, 无 LLM)。
+    LLM确认: 预筛不通过的事件名交 LLM 判断 DDD 合规性。
+    降级: LLM 异常/解析失败 → 回退预筛(全部可疑视为不合规, 原行为)。
+    """
+    suspicious: list[str] = []
+    for evt in events:
+        if isinstance(evt, dict):
+            name = evt.get("name", "")
+            if name and not _is_past_tense(name):
+                suspicious.append(name)
+    if not suspicious:
+        return []
+    try:
+        prompt = _EVENT_TENSE_REVIEW_PROMPT.format(names="\n".join(suspicious))
+        if llm_review_fn is not None:
+            data = await llm_review_fn(prompt)
+        else:
+            data = await default_llm_review(prompt)
+        compliant = set(data.get("compliant", [])) if isinstance(data, dict) else set()
+        return [
+            f"事件风暴: 事件「{n}」不是过去时态"
+            for n in suspicious if n not in compliant
+        ]
+    except Exception as exc:
+        logger.warning("事件时态 LLM 校验降级, 回退字面匹配: %s", exc)
+        return [f"事件风暴: 事件「{n}」不是过去时态" for n in suspicious]
