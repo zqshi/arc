@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.5.0] - 2026-06-25 — execution 层拆分评估 + 测试补全 + config 核对
+
+### Changed — v6.4 遗留 3 项技术债务清理
+
+v6.4 收尾后的健康度修复, 无新功能:
+
+- **execution 层文件拆分评估** (T1): 4 文件(tools 601/execution_engine 551/artifact_extractor 546/tool_loop 509)均 500-800 警告区间(非>800必修), 职责内聚。tools.py 拆分需引入兼容间接层(execution_engine 直接 import 私有 _run_command), 减行收益低于复杂度成本, 评估结论保持记债务
+- **ui_design_methodology domain 单测补全** (T2): 13 单测覆盖 wireframe 缺 user_story 检查 + 三态 gap(empty/loading/error, 含 v6.4 T5 补的 error state gap)。v6.4 遗留"ui_design 无 domain 测试"债务清零
+- **config↔env 核对** (T3): 实查差 5(非估的 3), supabase×4 字段(db_url/schema_prefix/anon_key/api_url)补 .env.example BaaS 段; sandbox_builder_images(dict 类型)已注释说明。补全后 config 52 vs env 51, 仅差 dict 类型(合理)
+
+### 决策
+
+- **不强拆 execution 层**: 500-800 警告区间职责内聚, tools.py 拆分需重新 export 保持 execution_engine 对私有函数的直接 import 兼容, 间接层成本 > 减行收益
+- **ui_design 单测零 mock**: domain 层直接构造 content dict 验证 validate_ui_design 行为
+- **config↔env 精确核对**: 用 AST 提取 Settings 字段 + 去 ARC_ 前缀对比, 修正 v6.4 估算的"差 3"为实际"差 5"
+
+### 遗留
+
+- execution 层 4 文件 500-800 行 — 待超 800 或明确拆分动机再拆
+- v6.6 方向待定(backlog 无规划, v6.5 无自然驱动)
+
 ## [6.4.0] - 2026-06-25 — 债务清理 + prompt-upgrade P2（规则残留 LLM 化）
 
 ### Added — 收尾"规则执行式→意图驱动"升级 + 清零 CI 债务
