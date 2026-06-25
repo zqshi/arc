@@ -43,6 +43,7 @@ class ProjectResponse(BaseModel):
     repo_url: str
     local_path: str
     conventions: str
+    charter: dict | None = None
     codebase_summary: str
     scan_fingerprint: str = ""
     scan_status: str = "idle"
