@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.adapter_pool import AdapterPool
 from arc.application.ai.llm_adapter import LLMMessage
+from arc.application.execution.tool_loop import ToolLoopEvent
 from arc.application.orchestration.prompts import (
     PLANNING_PROMPT,
     SYNTHESIS_PROMPT,
@@ -30,7 +31,6 @@ from arc.domain.orchestration.entity import OrchestrationPlan, Subtask
 from arc.domain.orchestration.value_objects import SubtaskType, WorkerRole
 
 if TYPE_CHECKING:
-    from arc.application.execution.tool_loop import ToolLoopEvent
     from arc.application.execution.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -71,14 +71,42 @@ class OrchestrationService:
             "orchestration.start plan=%s subtasks=%d",
             plan_id, len(plan.subtasks),
         )
-
         yield ToolLoopEvent(
             type="orchestration_start",
             metadata={"plan_id": plan_id, "subtask_count": len(plan.subtasks)},
         )
 
-        # Execute workers layer by layer
+        # Execute workers layer by layer (结果累积到 worker_results 供 synthesize)
         worker_results: list[tuple[Subtask, str]] = []
+        async for event in self._execute_layers(plan, registry, plan_id, worker_results):
+            yield event
+
+        # Synthesis phase
+        yield ToolLoopEvent(
+            type="synthesis_start",
+            metadata={"plan_id": plan_id},
+        )
+        async for event in self._synthesize(messages, user_message, worker_results):
+            yield event
+
+        plan.mark_complete()
+        yield ToolLoopEvent(
+            type="orchestration_complete",
+            metadata=self._build_plan_summary(plan, plan_id),
+        )
+
+    async def _execute_layers(
+        self,
+        plan: OrchestrationPlan,
+        registry: ToolRegistry,
+        plan_id: str,
+        worker_results: list[tuple[Subtask, str]],
+    ) -> AsyncIterator[ToolLoopEvent]:
+        """逐层并行执行 worker, 流式 yield worker 事件, 结果累积到 worker_results。
+
+        worker_results 作为引用传入, 供后续 _synthesize 使用 (async generator
+        无法直接 return 值, 用 list 累积传递)。
+        """
         for layer in plan.execution_layers():
             layer_results = await asyncio.gather(
                 *[
@@ -114,19 +142,10 @@ class OrchestrationService:
                     )
                 worker_results.append((st, output))
 
-        # Synthesis phase
-        yield ToolLoopEvent(
-            type="synthesis_start",
-            metadata={"plan_id": plan_id},
-        )
-
-        async for event in self._synthesize(messages, user_message, worker_results):
-            yield event
-
-        plan.mark_complete()
-
-        # --- C4: 编排可观测性 — 输出结构化的执行摘要 ---
-        plan_summary = {
+    @staticmethod
+    def _build_plan_summary(plan: OrchestrationPlan, plan_id: str) -> dict:
+        """构造编排执行摘要 (C4 可观测性, 输出到 orchestration_complete 事件)。"""
+        return {
             "plan_id": plan_id,
             "total_tokens": plan.total_tokens,
             "worker_count": len(plan.subtasks),
@@ -143,10 +162,6 @@ class OrchestrationService:
             "layers": len(plan.execution_layers()),
             "completed_at": plan.completed_at.isoformat() if plan.completed_at else None,
         }
-        yield ToolLoopEvent(
-            type="orchestration_complete",
-            metadata=plan_summary,
-        )
 
     # ------------------------------------------------------------------
     # Planning
