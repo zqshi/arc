@@ -10,6 +10,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.project.convention_templates import ConventionTemplateRegistry
+from arc.application.project.governance_writer import GovernanceArtifactWriter
 from arc.domain.project.charter import ConventionTemplateProvider
 from arc.domain.project.entity import Project
 from arc.domain.project.value_objects import (
@@ -98,6 +99,10 @@ class ProjectWorkspaceService:
 
         # v6.3.0 — 按 project_type 初始化项目宪章 (系统生成的意图驱动治理规范)
         project.initialize_charter(self._template_provider)
+
+        # v6.3.0 T3 — charter 落盘到 local_path (temporary/local 立即生效;
+        # github 类型 local_path 为空, write() 静默跳过, 待 clone 后补落盘)
+        GovernanceArtifactWriter().write(project)
 
         await self._project_repo.create(project, user_id=user_id)
         await self._member_repo.add_member(project.id, user_id, "admin")
