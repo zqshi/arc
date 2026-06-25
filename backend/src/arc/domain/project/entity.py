@@ -8,6 +8,10 @@ from datetime import UTC, datetime
 
 from arc.domain.deployment.distributor import DistributorType
 from arc.domain.deployment.signer import SignerType
+from arc.domain.project.charter import (
+    ConventionTemplateProvider,
+    ProjectCharter,
+)
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
@@ -34,6 +38,9 @@ class Project:
     repo_url: str = ""
     local_path: str = ""
     conventions: str = ""
+    # v6.3.0 — 项目宪章: 系统按 project_type 生成的意图驱动治理规范 (等价 CLAUDE.md)。
+    # 与 conventions (用户补充) 并存分工, 同为 Project 内嵌字段层 (非独立 Artifact 记录)。
+    charter: ProjectCharter | None = None
     codebase_summary: str = ""
     scan_fingerprint: str = ""
     scan_status: str = "idle"  # idle / scanning / completed / error
@@ -203,6 +210,26 @@ class Project:
         """更新项目的上下文策略。"""
         self.context_policy = policy
         self.updated_at = datetime.now(UTC)
+
+    # -- Charter lifecycle (v6.3.0) ---------------------------------------
+
+    def initialize_charter(
+        self, provider: ConventionTemplateProvider
+    ) -> ProjectCharter:
+        """按当前 project_type 从 provider 取模板, 初始化项目宪章。
+
+        创建项目时由 workspace_service 调用 (注入 provider)。重复调用覆盖旧 charter
+        (类型变更或模板升级时重新生成)。返回生成的 charter。
+        """
+        markdown = provider.get_template(self.project_type)
+        self.charter = ProjectCharter(
+            markdown=markdown,
+            project_type=self.project_type,
+            template_version=1,
+            created_at=datetime.now(UTC),
+        )
+        self.updated_at = datetime.now(UTC)
+        return self.charter
 
     # -- Domain model lifecycle -------------------------------------------
 

@@ -9,8 +9,17 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.project.charter import (
+    ConventionTemplateProvider,
+    DefaultConventionTemplateProvider,
+)
 from arc.domain.project.entity import Project
-from arc.domain.project.value_objects import ExecutionMode, ProcessConfig, ProcessConstraint, ProjectType
+from arc.domain.project.value_objects import (
+    ExecutionMode,
+    ProcessConfig,
+    ProcessConstraint,
+    ProjectType,
+)
 from arc.infrastructure.repositories.project import ProjectRepository
 from arc.infrastructure.repositories.project_member import ProjectMemberRepository
 
@@ -20,10 +29,16 @@ logger = logging.getLogger(__name__)
 class ProjectWorkspaceService:
     """编排项目创建时的工作区策略分发和后台任务调度。"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(
+        self,
+        db: AsyncSession,
+        template_provider: ConventionTemplateProvider | None = None,
+    ):
         self._db = db
         self._project_repo = ProjectRepository(db)
         self._member_repo = ProjectMemberRepository(db)
+        # v6.3.0 — 规范模板提供者 (T1 默认通用骨架; T2 注入 ConventionTemplateRegistry 做类型特化)
+        self._template_provider = template_provider or DefaultConventionTemplateProvider()
 
     async def create_project(
         self,
@@ -81,6 +96,9 @@ class ProjectWorkspaceService:
             local_path=local_path,
             repo_url=repo_url,
         )
+
+        # v6.3.0 — 按 project_type 初始化项目宪章 (系统生成的意图驱动治理规范)
+        project.initialize_charter(self._template_provider)
 
         await self._project_repo.create(project, user_id=user_id)
         await self._member_repo.add_member(project.id, user_id, "admin")
