@@ -1,6 +1,6 @@
 # Prompt 升级路线图 — 规则执行式 → 意图驱动
 
-> 状态: v5.10(#1-6)已归档, v6.0 #7 sufficiency已完成(产出前门禁), v6.3 #8/#9/#10 已完成(drift/error_loop/tool_loop LLM 化), 进度 10/14
+> 状态: v5.10(#1-6)已归档, v6.0 #7 sufficiency已完成(产出前门禁), v6.3 #8/#9/#10 已完成(drift/error_loop/tool_loop LLM 化), v6.4 #11/#12/#13/#14 已完成(事件时态/测试失败 LLM 化 + route_strategy 空参数 + _infer_phase LLM 化), 进度 14/14 全清 ✅
 > 关联: backlog.md v6.3.0 前置 / memory [AI Interaction Philosophy]
 
 ## 背景
@@ -41,6 +41,8 @@ Arc 的核心交互哲学是**意图驱动 + Agent 自主推理**: 给 LLM 目�
 | 12 | `execution/dev_test_methodology.py:156` | `"FAIL" in text.upper()` 字面匹配 | LLM 解析测试结果语义 | P2 | v6.2 |
 | 13 | `execution/constraint_policy.py:202` | `route_strategy("","",round)` 空参数(主路径已修, 此处为 pipeline strict 方法论残留) | 传入真实 title/description 或移除该调用点 | P2 | v6.2 |
 | 14 | `context/prompt_builder.py:140` `_infer_phase` | 按 artifact 完成顺序硬编码推断阶段 | 结合门禁结果 + 剩余工作量, LLM 推理推进/回退 | P2 | v6.2 |
+
+> ✅ **#11-14 全部完成 (v6.4.0, 2026-06-25)**: #11/#12 LLM 化(🟡结构预筛+🟢LLM确认+降级兜底), #13 route_strategy 传入真实 title/description, #14 _infer_phase 保留预筛+LLM 推进/回退。详见 [v6.4.0-snapshot.md](versions/v6.4.0-snapshot.md)。**prompt-upgrade 14/14 全清, execution/context 层无规则执行式残留。**
 
 ---
 

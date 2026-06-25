@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.4.0] - 2026-06-25 — 债务清理 + prompt-upgrade P2（规则残留 LLM 化）
+
+### Added — 收尾"规则执行式→意图驱动"升级 + 清零 CI 债务
+
+prompt-upgrade P2 (#11-14) 把 execution 层 4 处残留规则执行式判断 LLM 化, 复用 #8-10 的"🟡结构预筛+🟢LLM确认+降级兜底"范式; 清零 main 既有 ruff/tsc 债务让 CI 转绿:
+
+- **#11 事件时态 LLM 化** (T1): architecture_methodology _is_past_tense 字面预筛(🟡) + LLM 判断 DDD 合规(🟢) + 异常回退字面匹配。validate_architecture 改 async 连锁 _check_methodology/_safe_methodology
+- **#12 测试失败 LLM 化** (T2): dev_test_methodology 字面预筛 FAIL/ERROR(🟡) + LLM 判断是否真失败(区分测试名/注释字样 vs 实际失败)(🟢) + 降级回退字面
+- **#13 route_strategy 空参数修复** (T3): constraint_policy 传入真实 title/description 让关键词路由(NEW_DOMAIN/OPTIMIZATION)生效
+- **#14 _infer_phase LLM 化** (T4): prompt_builder 保留 _infer_phase 标准线性流程作预筛 + LLM 推断推进/回退(覆盖非线性返工) + 降级回退预筛
+- **ruff 68 债务清理** (T5): 26 文件 E501 折行 + F841×2 死变量(ui_design 补 error state gap 修复三态对称遗漏)
+- **前端类型 34 债务清理** (T6): 16 未使用快修 + 18 真实类型(ArtifactEditor/RollbackButton 修 api.todos/projects 调用 bug, toast/confirm 统一 ToastType/ConfirmOptions, UnifiedWorkspaceView metadata 断言+ApprovalDialog props 映射)
+
+### 决策
+
+- **范式统一**: T1-T4 复用 execution/llm_review.py 的 default_llm_review (llm_review_fn 可注入测试), 🟡预筛+🟢LLM确认+降级兜底, LLM 异常不阻断主流程
+- **债务清理零逻辑改动**: T5 纯折行/死变量清理, T6 前端删未使用+修真实类型(含 2 处 api 调用 bug 修复)
+- **prompt-upgrade 14/14 全清**: execution/context 层判断无规则执行式残留
+
+### 遗留
+
+- execution 层 500-800 行文件 (tools 601/execution_engine 551/artifact_extractor 546/tool_loop 509) — v6.5 评估拆分
+- ui_design_methodology 无 domain 测试 — v6.5 补
+- config↔env 差 3 字段 (derived, 既有) — v6.5 核对
+
 ## [6.3.0] - 2026-06-25 — 项目治理规范传递（交付物初始化声明规范）
 
 ### Added — 把 Arc 治理体系作为"基因"传给交付项目
