@@ -46,19 +46,6 @@ class DeployService:
     ) -> Deployment:
         """按项目类型路由部署。
 
-        Args:
-            project_id: 项目 ID
-            version_id: 版本 ID
-            local_dir: 构建产物目录（完整路径）
-            project_type: 项目交付形态，决定部署器选型
-            todo_id: 触发部署的需求 ID（可选）
-            config: 部署配置（可选，未传则按 project_type 取默认）
-            project: Project 实体（可选，用于签名凭证加载 v6.1.0）
-            build_target: 构建目标（可选，决定签名器选型 v6.1.0）
-
-        Returns:
-            部署实体（状态为 deployed 或 failed）
-
         补偿事务：任何阶段异常都确保状态标记为 failed，不留脏状态。
         签名 (v6.1.0): build 后 upload 前签名, graceful skip (凭证未配/签名器未实现不阻断)。
         """
@@ -73,72 +60,93 @@ class DeployService:
             build_command=cfg.build_command,
             artifact_path=cfg.artifact_path,
         )
-
-        # 持久化 pending 状态
         deployment = await self._deploy_repo.create(deployment)
 
         try:
-            # 开始构建（实际构建由 Agent 完成，这里标记状态）
-            deployment.start_build()
-            await self._deploy_repo.update(deployment)
-
-            # 签名 (v6.1.0): build 后 upload 前。graceful skip — 不阻断部署。
-            # 路由按产物平台 (.app/.exe/.apk) 检测, 非按 build_target。
-            sign_results: list = []
-            if project is not None:
-                sign_results = await self._sign_artifact(
-                    deployment, project, build_target, local_dir,
-                )
-
-            # 开始上传
-            deployment.start_upload()
-            await self._deploy_repo.update(deployment)
-
-            # 执行上传（按部署类型选部署器）
-            deployer = get_deployer(deploy_type, path_prefix=self._get_deploy_prefix())
-            result = await deployer.deploy(
-                local_dir=local_dir,
-                project_id=project_id,
-                deploy_id=deployment.id,
+            await self._execute_deploy_steps(
+                deployment, project, build_target, local_dir,
+                project_id, version_id, deploy_type,
             )
-
-            if result.success:
-                deployment.complete(
-                    url=result.url,
-                    prefix=result.prefix,
-                    file_count=result.file_count,
-                )
-                # 回写 Version deploy_url
-                await self._update_version_deploy_url(version_id, result.url)
-                # 制品分发层 (v6.2.0 T5): BINARY_APP 产物 distributor 上传 + 下载页/元数据。
-                # graceful 不阻断 (产物已在制品仓可手动下载)。
-                if project is not None and deploy_type == DeployType.BINARY_ARTIFACT:
-                    await self._distribute(
-                        deployment, project, version_id, local_dir, sign_results, result.prefix
-                    )
-            else:
-                deployment.fail(result.error)
         except Exception as exc:
-            # 补偿：任何异常都将状态标记为 failed，防止脏状态
-            logger.error(
-                "DeployService: deploy failed with exception project=%s: %s",
-                project_id, exc,
-            )
-            try:
-                deployment.fail(f"部署异常中断: {exc}")
-            except Exception:
-                # 如果状态转换也失败（如从不合法的状态转），强制设置
-                deployment.status = DeploymentStatus.FAILED
-                deployment.error_message = f"部署异常中断: {exc}"
+            self._handle_deploy_failure(deployment, exc, project_id)
 
         await self._deploy_repo.update(deployment)
         await self._db.commit()
-
         logger.info(
             "DeployService: project=%s version=%s status=%s url=%s",
             project_id, version_id, deployment.status.value, deployment.deploy_url,
         )
         return deployment
+
+    async def _execute_deploy_steps(
+        self,
+        deployment,
+        project,
+        build_target,
+        local_dir: str,
+        project_id: uuid.UUID,
+        version_id: uuid.UUID,
+        deploy_type,
+    ) -> None:
+        """执行 构建 → 签名 → 上传 → 部署 → 分发 主链路。
+
+        产物分发 (v6.2.0 T5) graceful 不阻断 (产物已在制品仓可手动下载)。
+        """
+        # 开始构建（实际构建由 Agent 完成，这里标记状态）
+        deployment.start_build()
+        await self._deploy_repo.update(deployment)
+
+        # 签名 (v6.1.0): build 后 upload 前。graceful skip — 不阻断部署。
+        # 路由按产物平台 (.app/.exe/.apk) 检测, 非按 build_target。
+        sign_results: list = []
+        if project is not None:
+            sign_results = await self._sign_artifact(
+                deployment, project, build_target, local_dir,
+            )
+
+        # 开始上传
+        deployment.start_upload()
+        await self._deploy_repo.update(deployment)
+
+        # 执行上传（按部署类型选部署器）
+        deployer = get_deployer(deploy_type, path_prefix=self._get_deploy_prefix())
+        result = await deployer.deploy(
+            local_dir=local_dir,
+            project_id=project_id,
+            deploy_id=deployment.id,
+        )
+
+        if result.success:
+            deployment.complete(
+                url=result.url,
+                prefix=result.prefix,
+                file_count=result.file_count,
+            )
+            # 回写 Version deploy_url
+            await self._update_version_deploy_url(version_id, result.url)
+            # 制品分发层 (v6.2.0 T5): BINARY_APP 产物 distributor 上传 + 下载页/元数据。
+            # graceful 不阻断 (产物已在制品仓可手动下载)。
+            if project is not None and deploy_type == DeployType.BINARY_ARTIFACT:
+                await self._distribute(
+                    deployment, project, version_id, local_dir, sign_results, result.prefix
+                )
+        else:
+            deployment.fail(result.error)
+
+    def _handle_deploy_failure(
+        self, deployment, exc: Exception, project_id: uuid.UUID
+    ) -> None:
+        """补偿：任何异常都将状态标记为 failed，防止脏状态。"""
+        logger.error(
+            "DeployService: deploy failed with exception project=%s: %s",
+            project_id, exc,
+        )
+        try:
+            deployment.fail(f"部署异常中断: {exc}")
+        except Exception:
+            # 如果状态转换也失败（如从不合法的状态转），强制设置
+            deployment.status = DeploymentStatus.FAILED
+            deployment.error_message = f"部署异常中断: {exc}"
 
     async def _sign_artifact(self, deployment, project, build_target, local_dir: str) -> list:
         """签名构建产物 (v6.1.0) — build 后 upload 前, graceful skip 不阻断。
