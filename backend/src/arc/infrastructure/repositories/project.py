@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.project.charter import ProjectCharter
 from arc.domain.project.entity import Project, Version
 from arc.domain.project.repository import AbstractProjectRepository, AbstractVersionRepository
 from arc.domain.project.value_objects import (
@@ -48,6 +49,7 @@ class ProjectRepository(AbstractProjectRepository):
             domain_model=project.domain_model or None,
             domain_model_history=project.domain_model_history or [],
             context_policy=project.context_policy.to_dict() if project.context_policy else None,
+            charter=project.charter.to_dict() if project.charter else None,
         )
         self.db.add(model)
         await self.db.flush()
@@ -135,6 +137,7 @@ class ProjectRepository(AbstractProjectRepository):
         model.domain_model = project.domain_model or None
         model.domain_model_history = project.domain_model_history or []
         model.context_policy = project.context_policy.to_dict() if project.context_policy else None
+        model.charter = project.charter.to_dict() if project.charter else None
         model.github_token = project.github_token or None
         model.github_webhook_secret = project.github_webhook_secret or None
         model.github_config = project.github_config or None
@@ -195,6 +198,7 @@ class ProjectRepository(AbstractProjectRepository):
             context_policy=ContextPolicy.from_dict(
                 getattr(model, "context_policy", None)
             ),
+            charter=ProjectCharter.from_dict(getattr(model, "charter", None)),
             github_token=model.github_token or "",
             github_webhook_secret=model.github_webhook_secret or "",
             github_config=model.github_config or {},

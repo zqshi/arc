@@ -37,6 +37,8 @@ class ProjectModel(TimestampMixin, Base):
     domain_model: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     domain_model_history: Mapped[list | None] = mapped_column(JSONB, nullable=True, server_default="[]")
     context_policy: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # 项目宪章 (v6.3.0) — 系统按 project_type 生成的意图驱动治理规范 (ProjectCharter.to_dict)
+    charter: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     github_token: Mapped[str | None] = mapped_column(String(500), nullable=True)
     github_webhook_secret: Mapped[str | None] = mapped_column(String(200), nullable=True)
     github_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

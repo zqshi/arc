@@ -16,6 +16,7 @@ def _project_resp(p: Project) -> ProjectResponse:
         repo_url=p.repo_url,
         local_path=p.local_path,
         conventions=p.conventions,
+        charter=p.charter.to_dict() if p.charter else None,
         codebase_summary=p.codebase_summary,
         scan_fingerprint=p.scan_fingerprint,
         scan_status=p.scan_status,

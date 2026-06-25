@@ -18,6 +18,7 @@ class ProjectContext:
     project_description: str = ""
     tech_stack: str = ""
     conventions: str = ""
+    charter: str = ""
     repo_url: str = ""
     local_path: str = ""
     codebase_summary: str = ""
@@ -55,6 +56,8 @@ class ProjectContext:
                 )
         if self.codebase_summary:
             parts.append(f"\n## 代码库概况\n{self.codebase_summary}")
+        if self.charter:
+            parts.append(f"\n## 项目宪章 (系统生成·按项目类型)\n{self.charter}")
         if self.conventions:
             parts.append(f"\n## 项目规范\n{self.conventions}")
         if self.sibling_requirements:
@@ -84,6 +87,8 @@ class ProjectContext:
             parts.append(
                 f"\n## 版本分析洞察\n{self.version_analysis_summary}"
             )
+        if self.charter:
+            parts.append(f"\n## 项目宪章 (系统生成·必须遵守)\n{self.charter}")
         if self.conventions:
             parts.append(f"\n## 项目规范（必须遵守）\n{self.conventions}")
         if self.codebase_summary:
@@ -123,6 +128,7 @@ class ProjectContextProvider:
             project_description=project.description,
             tech_stack=project.tech_stack,
             conventions=project.conventions,
+            charter=project.charter.markdown if project.charter else "",
             repo_url=project.repo_url,
             local_path=project.local_path,
             codebase_summary=project.codebase_summary,
