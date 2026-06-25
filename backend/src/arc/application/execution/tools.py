@@ -146,7 +146,10 @@ async def _list_directory(params: dict, *, base_path: Path) -> str:
             for item in items:
                 if item.name.startswith(".") and item.name not in (".env.example",):
                     continue
-                if item.name in ("node_modules", "__pycache__", ".git", "dist", "build", ".venv", "venv"):
+                if item.name in (
+                    "node_modules", "__pycache__", ".git",
+                    "dist", "build", ".venv", "venv",
+                ):
                     continue
                 if item.is_dir():
                     entries.append(f"{prefix}{item.name}/")
@@ -271,8 +274,15 @@ class ToolRegistry:
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "相对于项目根目录的文件路径"},
-                    "start_line": {"type": "integer", "description": "起始行号（从1开始），默认为1", "default": 1},
-                    "end_line": {"type": "integer", "description": "结束行号，默认读取500行"},
+                    "start_line": {
+                        "type": "integer",
+                        "description": "起始行号（从1开始），默认为1",
+                        "default": 1,
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "结束行号，默认读取500行",
+                    },
                 },
                 "required": ["path"],
             },
@@ -299,8 +309,16 @@ class ToolRegistry:
             input_schema={
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "相对于项目根目录的目录路径", "default": "."},
-                    "max_depth": {"type": "integer", "description": "遍历深度，默认2", "default": 2},
+                    "path": {
+                        "type": "string",
+                        "description": "相对于项目根目录的目录路径",
+                        "default": ".",
+                    },
+                    "max_depth": {
+                        "type": "integer",
+                        "description": "遍历深度，默认2",
+                        "default": 2,
+                    },
                 },
                 "required": [],
             },
@@ -313,9 +331,19 @@ class ToolRegistry:
             input_schema={
                 "type": "object",
                 "properties": {
-                    "pattern": {"type": "string", "description": "搜索模式（支持正则表达式）"},
-                    "path": {"type": "string", "description": "搜索范围（相对路径），默认整个项目", "default": "."},
-                    "include": {"type": "string", "description": "文件名过滤，如 '*.py' 或 '*.tsx'"},
+                    "pattern": {
+                        "type": "string",
+                        "description": "搜索模式（支持正则表达式）",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "搜索范围（相对路径），默认整个项目",
+                        "default": ".",
+                    },
+                    "include": {
+                        "type": "string",
+                        "description": "文件名过滤，如 '*.py' 或 '*.tsx'",
+                    },
                 },
                 "required": ["pattern"],
             },
@@ -324,12 +352,19 @@ class ToolRegistry:
 
         self.register(ToolDefinition(
             name="run_command",
-            description="在项目根目录下执行 shell 命令。用于 git、npm、pytest、ls 等操作。超时最大300秒。",
+            description=(
+                "在项目根目录下执行 shell 命令。"
+                "用于 git、npm、pytest、ls 等操作。超时最大300秒。"
+            ),
             input_schema={
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "要执行的 shell 命令"},
-                    "timeout": {"type": "integer", "description": "超时秒数，默认30，最大300", "default": 30},
+                    "timeout": {
+                        "type": "integer",
+                        "description": "超时秒数，默认30，最大300",
+                        "default": 30,
+                    },
                 },
                 "required": ["command"],
             },
