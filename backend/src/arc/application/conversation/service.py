@@ -425,7 +425,10 @@ class ConversationService:
         - 死循环检测
         """
         from arc.application.ai.adapter_pool import adapter_pool
-        from arc.application.execution.drift_detector import DriftDetector
+        from arc.application.execution.drift_detector import (
+            DriftDetector,
+            _default_llm_review,
+        )
         from arc.application.execution.error_loop_detector import ErrorLoopDetector
         from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
         from arc.application.execution.tools import ToolRegistry
@@ -439,7 +442,11 @@ class ConversationService:
                 user_goal = m.content[:500]
                 break
 
-        drift_detector = DriftDetector(user_goal) if user_goal else None
+        drift_detector = (
+            DriftDetector(user_goal, llm_review_fn=_default_llm_review)
+            if user_goal
+            else None
+        )
         error_detector = ErrorLoopDetector()
 
         message_id = str(uuid.uuid4())
