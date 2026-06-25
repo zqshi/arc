@@ -202,7 +202,7 @@ async def _check_methodology(phase_type: PhaseType, content: dict) -> list[str]:
     elif phase_type == PhaseType.DEVELOPMENT:
         from arc.application.execution.dev_test_methodology import validate_development
 
-        dev_gaps = validate_development(content)
+        dev_gaps = await validate_development(content)
         gaps.extend(dev_gaps)
 
     elif phase_type == PhaseType.TESTING:

@@ -20,7 +20,7 @@ from arc.domain.project.value_objects import ProjectType
 def _make_request(phase: str = "ui_design", completed: list[str] | None = None) -> SimpleNamespace:
     """轻量构造 ContextRequest (duck typing, _build 只访问这几个属性)。"""
     return SimpleNamespace(
-        todo=SimpleNamespace(project_id=uuid.uuid4()),
+        todo=SimpleNamespace(project_id=uuid.uuid4(), title="测试需求", description=""),
         conversation=SimpleNamespace(messages=[]),
         phase=phase,
         completed_artifacts=completed if completed is not None else [],
