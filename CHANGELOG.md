@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.2.0] - 2026-06-25 — 商店分发 + 制品分发层（凭证可配置）
+
+### Added — BINARY_APP 构建产物分发层
+
+为 v6.0 构建、v6.1 签名的 BINARY_APP 产物加分发层，"不同项目类型落地"终局第四步（构建 → 签名 → **分发**）：
+
+- **Distributor 抽象 + 分发凭证项目维度加密** (T1): Distributor 契约 + DistributorType + DistributionCredentials 值对象 (domain)。分发凭证复用 v6.1 crypto, 独立 enc_appstore/playstore/tauri_updater_creds 字段。play_key_json 从 SigningCredentials 归位到 DistributionCredentials。migration z13
+- **三渠道商店上传器** (T2/T3/T4): AppStoreDistributor (xcrun altool) / PlayStoreDistributor (jose RS256 JWT→OAuth2→Play Developer API v3, 复用已有 jose 不引入 PyJWT) / TauriUpdaterDistributor (httpx PUT)。注册 DISTRIBUTORS, graceful skip
+- **制品分发层** (T5): DistributionManifest/ArtifactEntry/DistributionOutcome 值对象 (artifact 显式建模) + DistributionService (build_manifest/distribute/generate 下载页·manifest·latest.json·appcast/publish) + distributor 接入 deploy 流程 (DeployService._distribute, graceful 不阻断) + DB/制品仓双写 + Arc API manifest 路由。migration z14
+- **端到端验证** (T6): deploy() 串联验证 (BINARY_APP 触发分发+manifest, STATIC_SITE 不触发, 分发失败不阻断)
+
+### 决策
+
+- **T3 用 jose RS256 不引入 PyJWT**: 复用 pyproject 已有 python-jose (v6.1 引入), 纠正"T3 需 PyJWT"评估
+- **play_package_name 补字段**: Play edit API 必需 packageName
+- **artifact 显式建模**: DistributionManifest 值对象, DB 持久化 + 制品仓渲染双写
+- **签名平台 ≠ 分发渠道**: 两维度独立 (.app→APPLE 签名 + TAURI_UPDATER 分发)
+- **distributor 接入 graceful**: 分发失败不阻断 deploy, 产物已落制品仓可手动下载
+
+### 遗留
+
+- Tauri minisign .sig / Sparkle edSignature 真实签名生成 (v6.1 签名不产出, T5 用 signature_id 占位) — P2 待后续
+
 ## [6.1.0] - 2026-06-24 — 签名/公证层（凭证项目维度加密存储，非阻塞）
 
 ### Added — BINARY_APP 构建产物签名/公证

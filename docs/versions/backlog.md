@@ -125,36 +125,15 @@
 
 ---
 
-## v6.2.0 — 商店分发 + 制品分发层（凭证可配置）
+## v6.2.0 — 商店分发 + 制品分发层（凭证可配置）✅ 已完成
 
-- App Store Connect / Play Console / Tauri updater 上传器
-- 二进制制品分发层（下载页 / 更新元数据）
-- 未配凭证 → skip 商店上传，产物落制品仓可手动下载
-- 验证: 配凭证后能上传商店
+→ [v6.2.0-snapshot.md](v6.2.0-snapshot.md)
 
 ---
 
-## v6.3.0 — 项目治理规范传递（交付物初始化声明规范）
+## v6.3.0 — 项目治理规范传递（交付物初始化声明规范）🔄 进行中
 
-> 把 Arc 自己的迭代治理体系作为"基因"传给交付出的每个项目, 闭环"上下文不断裂"承诺。
-> ✅ 前置: prompt-upgrade-plan 路线图已落地 (见 [docs/prompt-upgrade-plan.md](../prompt-upgrade-plan.md))。
-> v5.10 已完成 6 处 (自由模式门禁/部署/澄清双轨), v6.0 完成 #7 (sufficiency 产出门禁), 剩余 7 处按 v6.0-v6.2 推进。
-> v6.3.0 可在 v6.0 完成核心意图驱动化后启动, 不再把过渡期反模式锁死给新项目。
-
-核心拆解:
-- **可复用的机制(治理骨架, 与项目类型无关)**: `docs/versions/` 版本迭代协议 + `current.md` 上下文加载 + 任务依赖表 + 质量门禁协议 + 上下文不断裂思路
-- **必须按类型生成的内容**: `CONVENTION_TEMPLATES: dict[ProjectType, str]` — 复用 v5.9.0 的类型路由(ProjectType 第三维度: 治理规范)。官网=SEO/PWA/性能规范, 客户端=签名/分发/跨平台规范
-- **两层传递**: ① 规范文本(新 artifact `project_charter`/项目宪章, 创建项目时初始化, 等价 CLAUDE.md 但按 ProjectType 生成) ② 维护规范的 agent 行为(版本切换/质量检测的自运转能力 — 只传文本不传机制则文本交付即腐烂)
-
-落地形态:
-- 新增 artifact: `project_charter` (项目初始化时产出)
-- `CONVENTION_TEMPLATES` 注册表: key=`ProjectType`, value=规范模板(**意图驱动格式**, 非 Arc 现有规则执行式)
-- 复用 v5.9.0 注册点模式(与 `PROTOTYPE_BUILD_GUIDES` / `get_deployer` 同构, 同一套六处注册点)
-
-风险/约束:
-- 规范模板**必须意图驱动化** — 不能原样复制 Arc 现有 `CLAUDE.md`(含"文件<500行/必须auth/必须分页"等规则执行式硬规则), 待 prompt-upgrade-plan 完成后基于稳定范式抽象
-- 规范按类型裁剪 — 官网套重型 DDD 规范是负担, 不是越多越好
-- 依赖: prompt-upgrade-plan (P0/P1/P2 分版本推进) 完成情况决定本版本何时启动
+→ [v6.3.0-current.md](v6.3.0-current.md)
 
 ---
 

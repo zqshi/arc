@@ -38,11 +38,12 @@ class TestLoadDistributionCredsForProject:
         p = Project(name="t")
         p.set_distribution_creds(
             DistributorType.PLAY_STORE,
-            {"play_key_json": '{"type":"service_account"}'},
+            {"play_key_json": '{"type":"service_account"}', "play_package_name": "com.example.app"},
             encrypt,
         )
         creds = load_distribution_creds_for_project(p, DistributorType.PLAY_STORE)
         assert creds.has_play_store() is True
+        assert creds.play_package_name == "com.example.app"
 
     def test_unconfigured_project_yields_empty(self):
         p = Project(name="t")
@@ -67,9 +68,13 @@ class TestGetDistributor:
         assert d is not None
         assert isinstance(d, AppStoreDistributor)
 
-    def test_play_not_implemented(self):
-        """T3 未实现 → None (调用方 graceful skip)。"""
-        assert get_distributor(DistributorType.PLAY_STORE) is None
+    def test_play_registered(self):
+        """T3 done: PlayStoreDistributor 已注册。"""
+        from arc.infrastructure.distributor.playstore import PlayStoreDistributor
+
+        d = get_distributor(DistributorType.PLAY_STORE)
+        assert d is not None
+        assert isinstance(d, PlayStoreDistributor)
 
     def test_tauri_registered(self):
         """T4 done: TauriUpdaterDistributor 已注册。"""
@@ -79,7 +84,8 @@ class TestGetDistributor:
         assert d is not None
         assert isinstance(d, TauriUpdaterDistributor)
 
-    def test_distributors_registry_has_appstore_tauri(self):
-        """T2/T4 后注册表含 APP_STORE/TAURI_UPDATER; T3 实现后补 PLAY。"""
+    def test_distributors_registry_has_all_channels(self):
+        """T2/T3/T4 后注册表三渠道齐全。"""
         assert DistributorType.APP_STORE in DISTRIBUTORS
+        assert DistributorType.PLAY_STORE in DISTRIBUTORS
         assert DistributorType.TAURI_UPDATER in DISTRIBUTORS

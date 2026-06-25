@@ -43,6 +43,7 @@ class DistributionCredentials:
 
     # Google Play Console (service account JSON, v6.1 归位)
     play_key_json: str = ""
+    play_package_name: str = ""  # 应用包名 (applicationId), Play edit API 必需
 
     # Tauri updater (自建更新服务)
     tauri_updater_url: str = ""  # 更新服务器 URL
@@ -57,7 +58,8 @@ class DistributionCredentials:
         return bool(self.appstore_issuer_id and self.appstore_key_id and self.appstore_api_key)
 
     def has_play_store(self) -> bool:
-        return bool(self.play_key_json)
+        # service account JSON + 应用包名齐备才算配全 (edit API 两都需要)
+        return bool(self.play_key_json and self.play_package_name)
 
     def has_tauri_updater(self) -> bool:
         return bool(self.tauri_updater_url and self.tauri_updater_secret)

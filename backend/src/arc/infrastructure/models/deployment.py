@@ -32,5 +32,6 @@ class DeploymentModel(TimestampMixin, Base):
     storage_prefix: Mapped[str | None] = mapped_column(String(500), nullable=True)
     files_uploaded: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    distribution_manifest: Mapped[str | None] = mapped_column(Text, nullable=True)  # v6.2.0 T5
 
     deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
