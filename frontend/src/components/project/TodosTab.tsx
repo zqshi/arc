@@ -25,31 +25,43 @@ const VERSION_STATUS_STYLE: Record<VersionStatus, { bg: string; label: string }>
   released: { bg: 'bg-status-done/15 text-status-done', label: '已发布' },
 };
 
+interface VersionForm {
+  show: boolean;
+  setShow: (v: boolean) => void;
+  name: string;
+  setName: (v: string) => void;
+  goal: string;
+  setGoal: (v: string) => void;
+  type: VersionType;
+  setType: (v: VersionType) => void;
+  create: () => void;
+}
+
+interface VersionActions {
+  activate: (id: string) => void;
+  release: (id: string) => void;
+  remove: (id: string, name: string) => void;
+  analyze?: (id: string) => void;
+  setCreateForVersion: (id: string) => void;
+}
+
+interface TodoActions {
+  delete: (todoId: string, todoTitle: string, versionId: string) => void;
+  resume?: (todoId: string) => void;
+  complete?: (todoId: string) => void;
+  reopen?: (todoId: string) => void;
+}
+
 interface TodosTabProps {
   projectId: string;
   versions: Version[];
   versionTodos: Record<string, Todo[]>;
   expandedVersions: Set<string>;
   toggleVersion: (id: string) => void;
-  showNewVersion: boolean;
-  setShowNewVersion: (v: boolean) => void;
-  versionName: string;
-  setVersionName: (v: string) => void;
-  versionGoal: string;
-  setVersionGoal: (v: string) => void;
-  versionType: VersionType;
-  setVersionType: (v: VersionType) => void;
-  handleCreateVersion: () => void;
-  handleActivateVersion: (id: string) => void;
-  handleReleaseVersion: (id: string) => void;
-  handleDeleteVersion: (id: string, name: string) => void;
-  handleDeleteTodo: (todoId: string, todoTitle: string, versionId: string) => void;
-  handleResumeTodo?: (todoId: string) => void;
-  handleCompleteTodo?: (todoId: string) => void;
-  handleReopenTodo?: (todoId: string) => void;
-  setCreateForVersion: (id: string) => void;
+  versionForm: VersionForm;
+  versionActions: VersionActions;
+  todoActions: TodoActions;
   navigate: (path: string) => void;
-  onAnalyzeVersion?: (versionId: string) => void;
   onRefreshData: () => void;
   onPreviewRoadmap?: (session: PlanningSession) => void;
   getTaskState?: (todoId: string) => TaskState;
@@ -64,24 +76,10 @@ export function TodosTab({
   versionTodos,
   expandedVersions,
   toggleVersion,
-  showNewVersion,
-  setShowNewVersion,
-  versionName,
-  setVersionName,
-  versionGoal,
-  setVersionGoal,
-  versionType,
-  setVersionType,
-  handleCreateVersion,
-  handleActivateVersion,
-  handleReleaseVersion,
-  handleDeleteVersion,
-  handleDeleteTodo,
-  handleCompleteTodo,
-  handleReopenTodo,
-  setCreateForVersion,
+  versionForm,
+  versionActions,
+  todoActions,
   navigate,
-  onAnalyzeVersion,
   onRefreshData,
   onPreviewRoadmap,
   getTaskState,
@@ -113,7 +111,7 @@ export function TodosTab({
                 <Map size={12} /> AI 全局规划
               </button>
               <button
-                onClick={() => setShowNewVersion(true)}
+                onClick={() => versionForm.setShow(true)}
                 className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary"
               >
                 <Plus size={12} /> 新版本
@@ -133,13 +131,13 @@ export function TodosTab({
         />
       )}
 
-      {showNewVersion && (
+      {versionForm.show && (
         <div className="mb-3 rounded-lg border border-accent/30 bg-bg-card p-4">
           <div className="mb-3">
             <input
               type="text"
-              value={versionGoal}
-              onChange={(e) => setVersionGoal(e.target.value)}
+              value={versionForm.goal}
+              onChange={(e) => versionForm.setGoal(e.target.value)}
               placeholder="版本目标（一句话描述本迭代要做什么）"
               className="h-8 w-full rounded-md border border-border bg-bg-input px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
               autoFocus
@@ -153,9 +151,9 @@ export function TodosTab({
             ] as const).map((t) => (
               <button
                 key={t.key}
-                onClick={() => setVersionType(t.key)}
+                onClick={() => versionForm.setType(t.key)}
                 className={`flex-1 rounded-md border px-2 py-1.5 text-center text-[11px] font-medium transition-colors ${
-                  versionType === t.key
+                  versionForm.type === t.key
                     ? 'border-accent bg-accent/10 text-accent'
                     : 'border-border text-text-tertiary hover:text-text-secondary'
                 }`}
@@ -167,21 +165,21 @@ export function TodosTab({
           <div className="mb-3">
             <input
               type="text"
-              value={versionName}
-              onChange={(e) => setVersionName(e.target.value)}
+              value={versionForm.name}
+              onChange={(e) => versionForm.setName(e.target.value)}
               placeholder="版本号（留空按类型自动生成）"
               className="h-8 w-full rounded-md border border-border bg-bg-input px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-border-active focus:outline-none"
             />
           </div>
           <div className="flex justify-end gap-2">
-            <button onClick={() => setShowNewVersion(false)} className="rounded-md border border-border px-3 py-1 text-xs text-text-secondary">取消</button>
-            <button onClick={handleCreateVersion} className="rounded-md bg-accent px-3 py-1 text-xs text-white hover:bg-accent-hover">创建</button>
+            <button onClick={() => versionForm.setShow(false)} className="rounded-md border border-border px-3 py-1 text-xs text-text-secondary">取消</button>
+            <button onClick={versionForm.create} className="rounded-md bg-accent px-3 py-1 text-xs text-white hover:bg-accent-hover">创建</button>
           </div>
         </div>
       )}
 
       <div className="space-y-3">
-        {versions.length === 0 && !showNewVersion && !showGlobalPlanning && (
+        {versions.length === 0 && !versionForm.show && !showGlobalPlanning && (
           <p className="rounded-lg border border-border bg-bg-card p-4 text-center text-xs text-text-muted">
             还没有版本。创建一个版本来圈定需求范围，或使用「AI 全局规划」从文档自动生成。
           </p>
@@ -219,7 +217,7 @@ export function TodosTab({
                 <div className="ml-3 flex items-center gap-1.5">
                   {canWrite && v.status !== 'released' && (
                     <button
-                      onClick={() => setCreateForVersion(v.id)}
+                      onClick={() => versionActions.setCreateForVersion(v.id)}
                       className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-text-secondary hover:border-accent hover:text-accent"
                     >
                       <Plus size={10} /> 需求
@@ -227,7 +225,7 @@ export function TodosTab({
                   )}
                   {canWrite && v.status === 'planning' && (
                     <button
-                      onClick={() => handleActivateVersion(v.id)}
+                      onClick={() => versionActions.activate(v.id)}
                       className="flex items-center gap-1 rounded-md bg-accent/10 border border-accent/30 px-2 py-1 text-[10px] font-medium text-accent hover:bg-accent/20"
                     >
                       <Play size={10} /> 开始迭代
@@ -235,13 +233,13 @@ export function TodosTab({
                   )}
                   {canWrite && v.status === 'active' && done === total && total > 0 && (
                     <button
-                      onClick={() => handleReleaseVersion(v.id)}
+                      onClick={() => versionActions.release(v.id)}
                       className="flex items-center gap-1 rounded-md bg-status-done/10 border border-status-done/30 px-2 py-1 text-[10px] font-medium text-status-done hover:bg-status-done/20"
                     >
                       <CheckCircle size={10} /> 发布版本
                     </button>
                   )}
-                  {canWrite && v.status === 'active' && onAnalyzeVersion && (
+                  {canWrite && v.status === 'active' && versionActions.analyze && (
                     (() => {
                       const hasAnalysis = v.has_analysis;
                       const isStale = v.analysis_stale;
@@ -255,7 +253,7 @@ export function TodosTab({
                       const Icon = isStale ? RotateCw : Sparkles;
                       return (
                         <button
-                          onClick={() => onAnalyzeVersion(v.id)}
+                          onClick={() => versionActions.analyze?.(v.id)}
                           className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${style}`}
                         >
                           <Icon size={10} /> {label}
@@ -266,7 +264,7 @@ export function TodosTab({
                   <ActionMenu items={(() => {
                     const items: ActionMenuItem[] = [];
                     if (v.status !== 'released') {
-                      items.push({ label: '删除版本', icon: <Trash2 size={12} />, danger: true, onClick: () => handleDeleteVersion(v.id, v.name) });
+                      items.push({ label: '删除版本', icon: <Trash2 size={12} />, danger: true, onClick: () => versionActions.remove(v.id, v.name) });
                     }
                     return items;
                   })()} />
@@ -318,7 +316,7 @@ export function TodosTab({
                         todos={todos}
                         versionId={v.id}
                         navigate={navigate}
-                        handleDeleteTodo={handleDeleteTodo}
+                        handleDeleteTodo={todoActions.delete}
                       />
                     </div>
                   )}
@@ -340,9 +338,9 @@ export function TodosTab({
                       onBatchStart={onBatchStart}
                       batchStarting={batchStarting}
                       setBatchStarting={setBatchStarting}
-                      handleDeleteTodo={handleDeleteTodo}
-                      handleCompleteTodo={handleCompleteTodo}
-                      handleReopenTodo={handleReopenTodo}
+                      handleDeleteTodo={todoActions.delete}
+                      handleCompleteTodo={todoActions.complete}
+                      handleReopenTodo={todoActions.reopen}
                       versionId={v.id}
                     />
                   ) : (
@@ -350,9 +348,9 @@ export function TodosTab({
                       todos={todos}
                       versionId={v.id}
                       navigate={navigate}
-                      handleDeleteTodo={handleDeleteTodo}
-                      handleCompleteTodo={handleCompleteTodo}
-                      handleReopenTodo={handleReopenTodo}
+                      handleDeleteTodo={todoActions.delete}
+                      handleCompleteTodo={todoActions.complete}
+                      handleReopenTodo={todoActions.reopen}
                     />
                   )}
                 </div>
