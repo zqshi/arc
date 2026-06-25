@@ -83,3 +83,39 @@ class TestMethodologyPromptIntact:
             ProcessConstraint.STRICT, "nonexistent_phase", 1
         )
         assert prompt == ""
+
+
+class TestClarificationStrictRouting:
+    """v6.4 #13: route_strategy 传真实 title/description 后关键词路由生效
+    (空参数时退化为纯 round 路由, 丢失 NEW_DOMAIN/OPTIMIZATION 路由)。"""
+
+    def test_new_domain_keyword_routes_first_principles(self):
+        prompt = get_methodology_prompt_for_constraint(
+            ProcessConstraint.STRICT, "clarification", 5,
+            title="从零开始做新业务", description="",
+        )
+        assert "第一性原理拆解" in prompt
+
+    def test_optimization_keyword_routes_socratic(self):
+        prompt = get_methodology_prompt_for_constraint(
+            ProcessConstraint.STRICT, "clarification", 5,
+            title="优化现有方案", description="",
+        )
+        assert "苏格拉底追问" in prompt
+
+    def test_plain_requirement_routes_value_assessment(self):
+        prompt = get_methodology_prompt_for_constraint(
+            ProcessConstraint.STRICT, "clarification", 5,
+            title="做一个普通功能", description="",
+        )
+        assert "产品价值评估" in prompt
+
+    def test_empty_args_degrade_to_round_routing(self):
+        """空参数(旧调用) round>=2 → VALUE_ASSESSMENT(不命中关键词路由)。
+        对比 test_new_domain_keyword_routes_first_principles, 证明传真实参数的修复价值。"""
+        prompt = get_methodology_prompt_for_constraint(
+            ProcessConstraint.STRICT, "clarification", 5,
+            title="", description="",
+        )
+        assert "第一性原理拆解" not in prompt
+        assert "苏格拉底追问" not in prompt

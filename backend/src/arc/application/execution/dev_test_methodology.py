@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import logging
 
+from arc.application.execution.llm_review import default_llm_review
+
 logger = logging.getLogger(__name__)
 
 
@@ -153,14 +155,23 @@ def get_testing_prompt(conversation_round: int) -> str:
 # 开发产出物校验
 # ---------------------------------------------------------------------------
 
-def validate_development(content: dict) -> list[str]:
-    """开发报告质量校验。"""
+async def validate_development(content: dict, *, llm_review_fn=None) -> list[str]:
+    """开发报告质量校验。
+
+    测试结果失败检测采用 🟡结构预筛 + 🟢LLM确认 + 降级兜底:
+    字面预筛命中 FAIL/ERROR 后, LLM 判断测试是否真失败(区分测试名/注释中
+    的字样 vs 实际失败), LLM 异常回退字面匹配(原行为)。其余为纯结构校验。
+
+    Args:
+        llm_review_fn: 可注入 (prompt) -> dict, 用于测试; None 用 default_llm_review。
+    """
     gaps = []
 
     test_results = content.get("test_results", "")
     if isinstance(test_results, str):
         if "FAIL" in test_results.upper() or "ERROR" in test_results.upper():
-            gaps.append("测试结果中存在 FAIL/ERROR，开发未完成")
+            # 🟡预筛命中 → 🟢LLM确认是否真失败
+            gaps.extend(await _check_test_failure(test_results, llm_review_fn))
         if not test_results.strip():
             gaps.append("test_results 为空，缺少测试验证")
 
@@ -169,6 +180,37 @@ def validate_development(content: dict) -> list[str]:
         gaps.append("code_changes 为空，无代码变更记录")
 
     return gaps
+
+
+_TEST_FAILURE_REVIEW_PROMPT = """\
+判断以下测试命令输出是否表示测试真正失败(而非测试名/注释中恰好出现 FAIL/ERROR 字样)。
+
+测试输出:
+{output}
+
+输出 JSON 契约:
+{{"failed": true}}
+
+failed=true: 测试真正失败(有 failed test / 断言失败 / 异常退出);
+failed=false: 测试实际通过(FAIL/ERROR 仅出现在测试名或描述中)。"""
+
+
+async def _check_test_failure(test_results: str, llm_review_fn) -> list[str]:
+    """🟡预筛已命中 FAIL/ERROR, 🟢LLM确认是否真失败, 返回 gaps。
+
+    降级: LLM 异常/解析失败 → 回退字面匹配(报 gap, 原行为)。
+    """
+    try:
+        prompt = _TEST_FAILURE_REVIEW_PROMPT.format(output=test_results[:4000])
+        if llm_review_fn is not None:
+            data = await llm_review_fn(prompt)
+        else:
+            data = await default_llm_review(prompt)
+        failed = bool(data.get("failed", True)) if isinstance(data, dict) else True
+        return ["测试结果中存在 FAIL/ERROR，开发未完成"] if failed else []
+    except Exception as exc:
+        logger.warning("测试失败 LLM 校验降级, 回退字面匹配: %s", exc)
+        return ["测试结果中存在 FAIL/ERROR，开发未完成"]
 
 
 def validate_testing(content: dict, prior_requirement: dict | None = None) -> list[str]:
