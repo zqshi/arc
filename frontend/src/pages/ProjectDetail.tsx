@@ -171,25 +171,31 @@ export default function ProjectDetail() {
               versionTodos={s.versionTodos}
               expandedVersions={s.expandedVersions}
               toggleVersion={s.toggleVersion}
-              showNewVersion={s.showNewVersion}
-              setShowNewVersion={s.setShowNewVersion}
-              versionName={s.versionName}
-              setVersionName={s.setVersionName}
-              versionGoal={s.versionGoal}
-              setVersionGoal={s.setVersionGoal}
-              versionType={s.versionType}
-              setVersionType={s.setVersionType}
-              handleCreateVersion={s.handleCreateVersion}
-              handleActivateVersion={s.handleActivateVersion}
-              handleReleaseVersion={s.handleReleaseVersion}
-              handleDeleteVersion={s.handleDeleteVersion}
-              handleDeleteTodo={s.handleDeleteTodo}
-              handleResumeTodo={s.handleResumeTodo}
-              handleCompleteTodo={s.handleCompleteTodo}
-              handleReopenTodo={s.handleReopenTodo}
-              setCreateForVersion={s.setCreateForVersion}
+              versionForm={{
+                show: s.showNewVersion,
+                setShow: s.setShowNewVersion,
+                name: s.versionName,
+                setName: s.setVersionName,
+                goal: s.versionGoal,
+                setGoal: s.setVersionGoal,
+                type: s.versionType,
+                setType: s.setVersionType,
+                create: s.handleCreateVersion,
+              }}
+              versionActions={{
+                activate: s.handleActivateVersion,
+                release: s.handleReleaseVersion,
+                remove: s.handleDeleteVersion,
+                analyze: s.handleAnalyzeVersion,
+                setCreateForVersion: s.setCreateForVersion,
+              }}
+              todoActions={{
+                delete: s.handleDeleteTodo,
+                resume: s.handleResumeTodo,
+                complete: s.handleCompleteTodo,
+                reopen: s.handleReopenTodo,
+              }}
               navigate={s.navigate}
-              onAnalyzeVersion={s.handleAnalyzeVersion}
               onRefreshData={s.fetchData}
               onPreviewRoadmap={(session) => s.setDrawerSession(session)}
               executionMode={s.form.execution_mode}
