@@ -268,7 +268,15 @@ class ToolAwareLoop:
                         f"{tc.name}:{tc.input.get('path', tc.input.get('command', ''))}"
                         for tc in tool_calls
                     )
-                    if self._error_loop_detector.record_and_check(sig):
+                    err_parts = [
+                        f"{tc.name}: {str(result_map.get(tc.id, {}).get('content', ''))[:80]}"
+                        for tc in tool_calls
+                        if result_map.get(tc.id, {}).get("is_error")
+                    ]
+                    error_summary = "; ".join(err_parts) if err_parts else None
+                    if await self._error_loop_detector.record_and_check(
+                        sig, error_summary=error_summary
+                    ):
                         break_prompt = self._error_loop_detector.get_break_prompt()
                         if self._error_loop_detector.loop_count >= 2:
                             yield ToolLoopEvent(
