@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 
 from arc.domain.deployment.value_objects import (
     VALID_TRANSITIONS,
-    DeployConfig,
     DeploymentStatus,
     DeployType,
 )

@@ -86,10 +86,9 @@ async def update_settings(body: LLMSettingsUpdate, user: CurrentUser):
 
 def _persist_to_env(env_path, updates: dict) -> None:
     """将更新的配置写入 .env 文件。"""
-    from pathlib import Path
 
     # 环境变量名映射
-    KEY_MAP = {
+    key_map = {
         "llm_provider": "LLM_PROVIDER",
         "openai_api_key": "OPENAI_API_KEY",
         "openai_base_url": "OPENAI_BASE_URL",
@@ -116,7 +115,7 @@ def _persist_to_env(env_path, updates: dict) -> None:
     for field, value in updates.items():
         if value is None:
             continue
-        env_key = KEY_MAP.get(field, field.upper())
+        env_key = key_map.get(field, field.upper())
         if env_key in existing_keys:
             lines[existing_keys[env_key]] = f"{env_key}={value}"
         else:

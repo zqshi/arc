@@ -5,10 +5,10 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.application.pipeline import hooks as pipeline_hooks
 from arc.application.pipeline.prompts import (
     PHASE_GREETINGS,
 )
-from arc.application.pipeline import hooks as pipeline_hooks
 from arc.domain.agent.entity import AgentSession
 from arc.domain.agent.value_objects import AgentType
 from arc.domain.artifact.entity import Artifact

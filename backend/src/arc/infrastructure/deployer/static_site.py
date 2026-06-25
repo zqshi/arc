@@ -9,7 +9,7 @@ import logging
 import uuid
 from pathlib import Path
 
-from arc.infrastructure.deployer.base import DeployResult, Deployer
+from arc.infrastructure.deployer.base import Deployer, DeployResult
 from arc.infrastructure.storage import (
     DEPLOY_MAX_UPLOAD_SIZE,
     get_public_url,

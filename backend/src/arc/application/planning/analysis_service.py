@@ -45,6 +45,7 @@ class AnalysisService:
         """读取最新的分析结果（不触发生成）。"""
         try:
             from sqlalchemy import select
+
             from arc.infrastructure.models.planning import VersionAnalysisModel
 
             result = await self.db.execute(
@@ -187,6 +188,7 @@ class AnalysisService:
         """查询缓存。返回 (content, suggestions) 或 None。"""
         try:
             from sqlalchemy import select
+
             from arc.infrastructure.models.planning import VersionAnalysisModel
 
             result = await self.db.execute(
@@ -231,8 +233,8 @@ class AnalysisService:
             # 建表后重试一次
             if await self._ensure_table():
                 try:
-                    from arc.infrastructure.models.planning import VersionAnalysisModel as VAM
-                    a = VAM(version_id=version_id, fingerprint=fingerprint, content=content)
+                    from arc.infrastructure.models.planning import VersionAnalysisModel
+                    a = VersionAnalysisModel(version_id=version_id, fingerprint=fingerprint, content=content)
                     self.db.add(a)
                     await self.db.flush()
                 except Exception:

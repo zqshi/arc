@@ -10,7 +10,6 @@ from sqlalchemy import select
 from arc.infrastructure.models.project import ProjectModel
 from arc.infrastructure.repositories.project import (
     ProjectRepository,
-    VersionRepository,
 )
 from arc.interface.deps import CurrentUser, DbSession
 

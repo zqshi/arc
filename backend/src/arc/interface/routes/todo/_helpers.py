@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.todo.entity import Todo
-from arc.interface.schemas import TodoResponse
 from arc.infrastructure.models.project import ProjectModel, VersionModel
+from arc.interface.schemas import TodoResponse
 
 
 def to_response(

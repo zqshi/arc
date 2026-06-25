@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException
 
 from arc.infrastructure.repositories.todo import TodoRepository
 from arc.interface.deps import CurrentUser, DbSession
-from arc.interface.routes.todo._helpers import to_response
 
 logger = logging.getLogger(__name__)
 

@@ -10,8 +10,13 @@
 
 from __future__ import annotations
 
-from arc.domain.artifact.value_objects import ARTIFACT_LABELS, ArtifactType
+from typing import TYPE_CHECKING
+
 from arc.application.context.artifact_schemas import ARTIFACT_SCHEMAS
+from arc.domain.artifact.value_objects import ARTIFACT_LABELS, ArtifactType
+
+if TYPE_CHECKING:
+    from arc.domain.project.value_objects import ProjectType
 
 # re-export 供 deliverable provider 等引用
 __all__ = [

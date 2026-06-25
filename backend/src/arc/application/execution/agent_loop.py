@@ -351,4 +351,4 @@ class DeliverableValidator(_Validator):
 
 
 # Re-export from domain — single source of truth
-from arc.domain.artifact.value_objects import DELIVERABLE_REQUIRED_FIELDS  # noqa: F401
+from arc.domain.artifact.value_objects import DELIVERABLE_REQUIRED_FIELDS  # noqa: F401, E402

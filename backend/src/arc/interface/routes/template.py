@@ -8,14 +8,13 @@ import uuid
 
 from fastapi import APIRouter, HTTPException
 
-from arc.application.template.matching_service import TemplateMatchingService
-from arc.application.template.apply_service import TemplateApplyService
 from arc.application.baas.service import BaasService
+from arc.application.template.apply_service import TemplateApplyService
+from arc.application.template.matching_service import TemplateMatchingService
 from arc.domain.errors import DomainError
 from arc.domain.template.value_objects import (
     TemplateCategory,
     TemplateStatus,
-    TemplateScope,
 )
 from arc.infrastructure.repositories.template import TemplateRepository
 from arc.interface.deps import CurrentUser, DbSession

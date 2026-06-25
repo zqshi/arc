@@ -1,8 +1,6 @@
 """模板 API schema (v5.7.0 T9)。"""
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 

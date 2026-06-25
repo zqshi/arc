@@ -16,7 +16,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
+    from arc.application.ai.llm_adapter import LLMAdapter
     from arc.domain.conversation.entity import Message
 
 logger = logging.getLogger(__name__)

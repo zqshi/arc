@@ -37,6 +37,7 @@ async def list_versions(
     analysis_info: dict[uuid.UUID, dict] = {}  # {version_id: {has: bool, stale: bool}}
     try:
         from sqlalchemy import select, text
+
         from arc.infrastructure.models.planning import VersionAnalysisModel
         from arc.infrastructure.models.todo import Todo as TodoModel
 

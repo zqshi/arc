@@ -166,7 +166,6 @@ class PromptBuilder:
         """旧版 system prompt 组装 — 仅 pipeline 模式使用。"""
         from arc.application.context.prompts import (
             ARTIFACT_SCHEMAS,
-            AUTOPILOT_SECTION,
             CONVERSATION_MODE_SYSTEM_PROMPT,
             build_ddd_tdd_section,
             build_deliverable_checklist,

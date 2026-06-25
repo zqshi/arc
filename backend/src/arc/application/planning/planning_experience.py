@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.experience.entity import Experience
 from arc.domain.planning.entity import PlanningSession
-from arc.domain.todo.entity import Todo
 from arc.domain.todo.value_objects import (
     ExperienceCategory,
     ExperienceSource,

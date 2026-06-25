@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import mimetypes
-import os
 from pathlib import Path
 
 from arc.config import settings

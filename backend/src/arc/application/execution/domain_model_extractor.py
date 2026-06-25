@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import logging
 import uuid
-from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -15,11 +15,11 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.application.baas.rls_validator import validate_rls
 from arc.domain.baas.entity import BaasInstance
 from arc.domain.baas.errors import SchemaApplyError
 from arc.domain.baas.value_objects import BaasSchema, BaasStatus
 from arc.domain.errors import DomainError
-from arc.application.baas.rls_validator import validate_rls
 from arc.infrastructure.baas.rls_generator import generate_policy_sql
 from arc.infrastructure.baas.schema_provisioner import SchemaProvisioner
 from arc.infrastructure.baas.sql_generator import generate_table_sql

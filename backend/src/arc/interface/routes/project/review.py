@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException, Query
 from arc.application.review.impact_analyzer import ImpactAnalyzer
 from arc.application.review.orchestrator import ModelUpgradeOrchestrator
 from arc.application.review.service import ReviewService
-from arc.domain.project.value_objects import ModelChangeTrigger
 from arc.domain.review.value_objects import ModelChangeScope, ReviewFeedbackStatus, UpgradeStrategy
 from arc.infrastructure.repositories.artifact import ArtifactRepository as ArtifactRepoImpl
 from arc.infrastructure.repositories.project import ProjectRepository

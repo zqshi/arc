@@ -5,8 +5,8 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from arc.domain.pipeline.repository import PipelinePhaseRepository as PipelinePhaseRepositoryABC
 from arc.domain.pipeline.entity import PipelinePhase
+from arc.domain.pipeline.repository import PipelinePhaseRepository as PipelinePhaseRepositoryABC
 from arc.domain.pipeline.value_objects import PhaseStatus, PhaseType
 from arc.infrastructure.models.pipeline import PipelinePhaseModel
 
