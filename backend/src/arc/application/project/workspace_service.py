@@ -9,10 +9,8 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from arc.domain.project.charter import (
-    ConventionTemplateProvider,
-    DefaultConventionTemplateProvider,
-)
+from arc.application.project.convention_templates import ConventionTemplateRegistry
+from arc.domain.project.charter import ConventionTemplateProvider
 from arc.domain.project.entity import Project
 from arc.domain.project.value_objects import (
     ExecutionMode,
@@ -37,8 +35,9 @@ class ProjectWorkspaceService:
         self._db = db
         self._project_repo = ProjectRepository(db)
         self._member_repo = ProjectMemberRepository(db)
-        # v6.3.0 — 规范模板提供者 (T1 默认通用骨架; T2 注入 ConventionTemplateRegistry 做类型特化)
-        self._template_provider = template_provider or DefaultConventionTemplateProvider()
+        # v6.3.0 — 规范模板提供者 (T2 默认 ConventionTemplateRegistry 按类型特化;
+        # 可注入自定义 provider 覆盖, 如测试用 stub)
+        self._template_provider = template_provider or ConventionTemplateRegistry()
 
     async def create_project(
         self,
