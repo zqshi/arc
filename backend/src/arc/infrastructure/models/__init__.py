@@ -19,6 +19,7 @@ __all__ = [
     "ArtifactModel",
     "BaasInstanceModel",
     "Base",
+    "DomainTemplateModel",
     "TimestampMixin",
     "Conversation",
     "DeploymentModel",

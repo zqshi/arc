@@ -95,6 +95,7 @@ class ExperienceService:
         """
         # 去重：experience_card artifact 已同步过则跳过
         from sqlalchemy import select
+
         from arc.infrastructure.models.experience import Experience as ExpModel
         existing = await self.db.execute(
             select(ExpModel.id).where(ExpModel.todo_id == todo.id).limit(1)

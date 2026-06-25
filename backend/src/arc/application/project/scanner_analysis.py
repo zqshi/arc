@@ -249,7 +249,7 @@ def parse_domain_model_response(response_text: str) -> dict | None:
     text = response_text.strip()
     if "```" in text:
         lines = text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
+        lines = [line for line in lines if not line.strip().startswith("```")]
         text = "\n".join(lines).strip()
     try:
         model = json.loads(text)

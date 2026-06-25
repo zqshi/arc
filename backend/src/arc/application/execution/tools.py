@@ -17,9 +17,9 @@ import logging
 import os
 import re
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Awaitable
+from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -350,7 +350,6 @@ class ToolRegistry:
         - supabase_execute_sql: 在项目 schema 内执行 SQL (Agent 直接操作 DB)
         - get_domain_model: introspect 当前 schema 领域结构
         """
-        import uuid as _uuid
 
         pid = project_id
         svc = baas_service
@@ -487,7 +486,7 @@ class ToolRegistry:
                 def _make_scoped(orig_handler, tool_name):
                     async def _handler(p: dict) -> str:
                         if not _path_in_scope(p):
-                            return f"错误: 路径不在此 worker 的作用域内"
+                            return "错误: 路径不在此 worker 的作用域内"
                         return await orig_handler(p)
                     return _handler
 

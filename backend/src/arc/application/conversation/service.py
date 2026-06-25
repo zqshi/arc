@@ -248,6 +248,8 @@ class ConversationService:
         """
         from arc.application.execution.clarification_strategy import (
             build_clarification_prompt as build_strategy_prompt,
+        )
+        from arc.application.execution.clarification_strategy import (
             route_strategy,
         )
 
@@ -428,7 +430,7 @@ class ConversationService:
         from arc.application.execution.drift_detector import DriftDetector
         from arc.application.execution.error_loop_detector import ErrorLoopDetector
         from arc.application.execution.llm_review import default_llm_review
-        from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
+        from arc.application.execution.tool_loop import ToolAwareLoop
         from arc.application.execution.tools import ToolRegistry
 
         registry = ToolRegistry(project_path)

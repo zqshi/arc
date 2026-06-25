@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +16,10 @@ from arc.domain.artifact.value_objects import ArtifactType
 from arc.domain.planning.entity import DeliverableTracker
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.planning import DeliverableTrackerRepository
+
+if TYPE_CHECKING:
+    from arc.application.execution.conversation_gate import ConversationGateResult
+    from arc.domain.project.value_objects import ProcessConstraint
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +298,7 @@ class ArtifactExtractor:
             # 去重：如果已经从这个 todo 同步过经验，跳过
             exp_repo = ExperienceRepository(self.db)
             from sqlalchemy import select
+
             from arc.infrastructure.models.experience import Experience as ExpModel
             existing = await self.db.execute(
                 select(ExpModel.id).where(ExpModel.todo_id == todo_id).limit(1)

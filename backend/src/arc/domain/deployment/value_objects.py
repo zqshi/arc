@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from arc.domain.project.value_objects import ProjectType
+    from arc.domain.sandbox.value_objects import BuildTarget
 
 
 class DeploymentStatus(StrEnum):
@@ -54,15 +55,15 @@ class DeployConfig:
         target 决定"容器内构建到哪个目标"。波次2/3 激活新 target 时在此加分支。
         """
         from arc.domain.project.value_objects import ProjectType
-        from arc.domain.sandbox.value_objects import BuildTarget as _BT
+        from arc.domain.sandbox.value_objects import BuildTarget
 
-        target = build_target if build_target is not None else _BT.TAURI_LINUX
+        target = build_target if build_target is not None else BuildTarget.TAURI_LINUX
 
         if project_type == ProjectType.STATIC_SITE:
             return DeployConfig(build_command="npm run build", artifact_path="dist")
         if project_type == ProjectType.BINARY_APP:
             # 原生客户端构建: 跨平台编译在容器内编排(见 sandbox runtime + build_images)。
-            if target == _BT.TAURI_LINUX:
+            if target == BuildTarget.TAURI_LINUX:
                 # tauri linux bundle (deb/AppImage), 产物落 src-tauri/target/release/bundle
                 return DeployConfig(
                     build_command="cargo tauri build",

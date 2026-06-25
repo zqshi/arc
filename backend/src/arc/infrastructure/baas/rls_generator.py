@@ -11,8 +11,6 @@ PostgreSQL RLS 语义:
 """
 from __future__ import annotations
 
-import re
-
 from arc.domain.baas.value_objects import RlsPolicy
 from arc.infrastructure.baas.sql_generator import _assert_ident
 from arc.infrastructure.baas.supabase_client import SupabaseClient

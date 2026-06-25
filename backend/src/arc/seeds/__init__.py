@@ -43,7 +43,8 @@ async def ensure_seed_users() -> None:
             await db.commit()
 
             # Check if seed data has ever been created (including deleted projects)
-            from sqlalchemy import select, func
+            from sqlalchemy import func, select
+
             from arc.infrastructure.models.project import ProjectModel
 
             for acct in SEED_ACCOUNTS:

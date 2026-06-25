@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from arc.domain.deployment.value_objects import DeployType
-from arc.infrastructure.deployer.base import DeployResult, Deployer
+from arc.infrastructure.deployer.base import Deployer, DeployResult
 from arc.infrastructure.deployer.binary_artifact import BinaryArtifactDeployer
 from arc.infrastructure.deployer.static_site import StaticSiteDeployer
 

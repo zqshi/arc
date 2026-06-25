@@ -10,17 +10,13 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
-from arc.application.review.impact_analyzer import ImpactAnalyzer, assess_risk
+from arc.application.review.impact_analyzer import ImpactAnalyzer
 from arc.domain.artifact.repository import ArtifactRepository
-from arc.domain.project.entity import Project
 from arc.domain.project.repository import AbstractProjectRepository
 from arc.domain.project.value_objects import ModelChangeTrigger
-from arc.domain.review.entity import ReviewFeedback
 from arc.domain.review.repository import IReviewFeedbackRepository
 from arc.domain.review.value_objects import (
-    ImpactReport,
     ModelChangeScope,
     RiskLevel,
     UpgradeStrategy,

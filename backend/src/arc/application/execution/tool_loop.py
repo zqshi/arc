@@ -20,10 +20,23 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
-from arc.application.execution.tools import ToolCall, ToolRegistry, ToolResult
+from arc.application.execution.tool_helpers import (
+    build_anthropic_messages_with_tools as _build_anthropic_messages_with_tools,
+)
 from arc.application.execution.tool_helpers import (
     build_output_preview as _build_output_preview,
-    build_anthropic_messages_with_tools as _build_anthropic_messages_with_tools,
+)
+from arc.application.execution.tool_loop_adapters import (
+    build_openai_messages as _build_openai_messages,
+)
+from arc.application.execution.tool_loop_adapters import (
+    extract_usage_tokens as _extract_usage_tokens,
+)
+from arc.application.execution.tool_loop_adapters import (
+    parse_anthropic as _parse_anthropic,
+)
+from arc.application.execution.tool_loop_adapters import (
+    parse_openai as _parse_openai,
 )
 from arc.application.execution.tool_loop_metrics import (
     MAX_TOOL_ROUNDS,
@@ -34,12 +47,7 @@ from arc.application.execution.tool_loop_metrics import (
     ToolLoopEvent,
     ToolLoopMetrics,
 )
-from arc.application.execution.tool_loop_adapters import (
-    build_openai_messages as _build_openai_messages,
-    extract_usage_tokens as _extract_usage_tokens,
-    parse_anthropic as _parse_anthropic,
-    parse_openai as _parse_openai,
-)
+from arc.application.execution.tools import ToolCall, ToolRegistry, ToolResult
 
 # re-export 保持向后兼容 (execution_engine 等从 tool_loop 导入)
 __all__ = [

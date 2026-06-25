@@ -16,7 +16,7 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from arc.application.artifact.service import ArtifactService

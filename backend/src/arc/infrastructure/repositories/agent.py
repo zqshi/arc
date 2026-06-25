@@ -5,8 +5,8 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from arc.domain.agent.repository import AgentSessionRepository as AgentSessionRepositoryABC
 from arc.domain.agent.entity import AgentSession
+from arc.domain.agent.repository import AgentSessionRepository as AgentSessionRepositoryABC
 from arc.domain.agent.value_objects import AgentType, SessionStatus
 from arc.infrastructure.models.agent import AgentSessionModel
 

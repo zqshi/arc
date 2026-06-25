@@ -166,11 +166,12 @@ class VersionService:
                 return
 
             # domain_model → BaasSchema (复用 v5.6.0 applier 的纯转换)
+            from datetime import UTC, datetime
+
             from arc.domain.project.value_objects import (
                 DomainModelSnapshot,
                 ModelChangeTrigger,
             )
-            from datetime import UTC, datetime
 
             snapshot = DomainModelSnapshot(
                 version=dm.get("version", 1),
@@ -243,8 +244,8 @@ class VersionService:
         )
 
         try:
-            from arc.application.ai.resilience import create_resilient_adapter
             from arc.application.ai.llm_adapter import LLMMessage
+            from arc.application.ai.resilience import create_resilient_adapter
 
             adapter = create_resilient_adapter()
             try:

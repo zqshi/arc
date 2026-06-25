@@ -13,7 +13,6 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from arc.application.context.controller import estimate_tokens
 from arc.application.context.protocol import (
     ContextRequest,
     ContextSegment,
@@ -99,7 +98,6 @@ class ContextAssembler:
             AUTOPILOT_SECTION,
             CONVERSATION_MODE_SYSTEM_PROMPT,
         )
-        from arc.domain.project.value_objects import ContextPolicy as ContextPolicyVO
 
         # 获取项目策略
         policy = await self._get_policy(request)
@@ -225,7 +223,6 @@ class ContextAssembler:
         """获取项目的 ContextPolicy，无项目时返回默认策略。"""
         from arc.domain.project.value_objects import (
             DEFAULT_CONTEXT_POLICY,
-            ContextPolicy,
         )
 
         if not request.todo or not request.todo.project_id:

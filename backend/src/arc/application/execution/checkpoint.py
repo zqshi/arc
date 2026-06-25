@@ -87,7 +87,6 @@ class CheckpointManager:
         Returns:
             checkpoint_id
         """
-        from arc.domain.conversation.entity import Conversation
         from arc.domain.todo.value_objects import MessageRole
         from arc.infrastructure.repositories.conversation import ConversationRepository
 

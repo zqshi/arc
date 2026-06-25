@@ -10,7 +10,6 @@ Anthropic (native tool_use) 与 OpenAI (function calling) 的:
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from arc.application.ai.llm_adapter import LLMMessage
 from arc.application.execution.tools import ToolCall

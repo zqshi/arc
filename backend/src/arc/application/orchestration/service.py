@@ -20,17 +20,17 @@ import uuid
 from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.adapter_pool import AdapterPool
-from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
+from arc.application.ai.llm_adapter import LLMMessage
 from arc.application.orchestration.prompts import (
     PLANNING_PROMPT,
     SYNTHESIS_PROMPT,
     WORKER_PROMPT,
 )
 from arc.domain.orchestration.entity import OrchestrationPlan, Subtask
-from arc.domain.orchestration.value_objects import SubtaskType, WorkerRole, WorkerStatus
+from arc.domain.orchestration.value_objects import SubtaskType, WorkerRole
 
 if TYPE_CHECKING:
-    from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
+    from arc.application.execution.tool_loop import ToolLoopEvent
     from arc.application.execution.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)

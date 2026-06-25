@@ -245,7 +245,6 @@ class ConversationExecutionService:
         if not version or version.status.value != "planning":
             return
         try:
-            from arc.domain.project.value_objects import VersionStatus
             version.activate()
             await version_repo.update(version)
             logger.info("Auto-activated version %s: planning → active", version_id)
@@ -356,6 +355,7 @@ class ConversationExecutionService:
 
     async def _get_project_local_path(self, todo_id: uuid.UUID) -> str | None:
         from pathlib import Path
+
         from arc.infrastructure.repositories.project import ProjectRepository
 
         todo = await self.todo_repo.get_by_id(todo_id)

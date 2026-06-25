@@ -14,14 +14,17 @@ import time
 import uuid
 from typing import TYPE_CHECKING, AsyncIterator
 
-from arc.domain.artifact.value_objects import ARTIFACT_LABELS
-from arc.domain.todo.value_objects import MessageRole
-
 from arc.application.execution.execution_helpers import (
     map_tool_event as _map_tool_event,
+)
+from arc.application.execution.execution_helpers import (
     needs_user_input as _needs_user_input,
+)
+from arc.application.execution.execution_helpers import (
     summarize_tool_input as _summarize_tool_input,
 )
+from arc.domain.artifact.value_objects import ARTIFACT_LABELS
+from arc.domain.todo.value_objects import MessageRole
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -173,7 +176,6 @@ class ExecutionEngine:
             tracker = await self._tracker_repo.get_by_todo_id(conversation.todo_id)
             tracker_snapshot = None
             if tracker:
-                from arc.domain.planning.value_objects import DeliverableStatus
                 tracker_snapshot = {
                     "required": tracker.required,
                     "deliverables": {k: v.value for k, v in tracker.deliverables.items()},
@@ -339,7 +341,7 @@ class ExecutionEngine:
         from arc.application.execution.drift_detector import DriftDetector
         from arc.application.execution.error_loop_detector import ErrorLoopDetector
         from arc.application.execution.llm_review import default_llm_review
-        from arc.application.execution.tool_loop import ToolAwareLoop, ToolLoopEvent
+        from arc.application.execution.tool_loop import ToolAwareLoop
         from arc.application.execution.tools import ToolRegistry
 
         registry = ToolRegistry(project_path)
@@ -413,7 +415,6 @@ class ExecutionEngine:
             DELIVERABLE_REQUIRED_FIELDS,
             AgentLoop,
             DeliverableValidator,
-            LoopConfig,
         )
 
         validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)

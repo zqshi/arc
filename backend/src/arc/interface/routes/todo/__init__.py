@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
+from arc.interface.routes.todo.conversations import router as conversations_router
 from arc.interface.routes.todo.crud import router as crud_router
 from arc.interface.routes.todo.git import router as git_router
-from arc.interface.routes.todo.conversations import router as conversations_router
 
 router = APIRouter()
 

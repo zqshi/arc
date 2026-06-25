@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.domain.planning.entity import DeliverableTracker, Document, PlanningSession
 from arc.domain.planning.repository import (
     DeliverableTrackerRepository as DeliverableTrackerRepositoryABC,
+)
+from arc.domain.planning.repository import (
     DocumentRepository as DocumentRepositoryABC,
+)
+from arc.domain.planning.repository import (
     PlanningSessionRepository as PlanningSessionRepositoryABC,
 )
 from arc.domain.planning.value_objects import (

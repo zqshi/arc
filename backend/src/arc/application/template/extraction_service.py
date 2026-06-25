@@ -11,11 +11,10 @@ LLM 步骤封装为 _generate_title_desc, 失败时 fallback 到结构化标题 
 from __future__ import annotations
 
 import logging
-import re
 import uuid
 from typing import Any
 
-from arc.domain.baas.value_objects import BaasSchema, TableDef
+from arc.domain.baas.value_objects import BaasSchema
 from arc.domain.template.entity import DomainTemplate
 from arc.domain.template.value_objects import TemplateCategory
 
