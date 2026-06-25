@@ -108,7 +108,10 @@ async def get_dependencies(todo_id: str, db: DbSession, user: CurrentUser):
     dep_repo = TodoDependencyRepository(db)
     blocked_by = await dep_repo.get_blocked_by(UUID(todo_id))
     blocks = await dep_repo.get_blocks(UUID(todo_id))
-    return DependencyListResponse(blocked_by=[str(x) for x in blocked_by], blocks=[str(x) for x in blocks])
+    return DependencyListResponse(
+        blocked_by=[str(x) for x in blocked_by],
+        blocks=[str(x) for x in blocks],
+    )
 
 
 @router.post("/{todo_id}/dependencies", status_code=201)

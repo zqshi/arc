@@ -337,7 +337,10 @@ def _create_worker_adapter():
         )
     elif provider in ("openai", "deepseek"):
         api_key = settings.deepseek_api_key if provider == "deepseek" else settings.openai_api_key
-        base_url = settings.deepseek_base_url if provider == "deepseek" else settings.openai_base_url
+        base_url = (
+            settings.deepseek_base_url if provider == "deepseek"
+            else settings.openai_base_url
+        )
         inner = OpenAIAdapter(api_key=api_key, model=worker_model, base_url=base_url)
     else:
         return create_resilient_adapter()

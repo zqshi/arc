@@ -137,9 +137,9 @@
 
 ---
 
-## v6.4.0 — 债务清理 + prompt-upgrade P2（规则残留 LLM 化）🔄 进行中
+## v6.4.0 — 债务清理 + prompt-upgrade P2（规则残留 LLM 化）✅ 已完成 2026-06-25
 
-→ [v6.4.0-current.md](v6.4.0-current.md)
+→ [v6.4.0-snapshot.md](v6.4.0-snapshot.md)
 
 ---
 

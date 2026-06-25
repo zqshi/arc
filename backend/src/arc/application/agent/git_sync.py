@@ -189,7 +189,10 @@ class GitSync:
         _, numstat, _ = await _run_git(
             ["diff", "--stat", "HEAD~1..HEAD"], self._path
         )
-        files_count = len([line for line in numstat.splitlines() if line.strip() and "changed" not in line])
+        files_count = len([
+            line for line in numstat.splitlines()
+            if line.strip() and "changed" not in line
+        ])
 
         logger.info(
             "Git push success: %s → %s/%s (%d files)",

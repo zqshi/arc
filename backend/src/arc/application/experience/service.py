@@ -102,7 +102,8 @@ class ExperienceService:
         )
         if existing.scalar_one_or_none():
             logger.info(
-                "extract_from_todo: experience already exists for todo %s (synced from artifact), skip LLM extraction",
+                "extract_from_todo: experience already exists for todo %s "
+                "(synced from artifact), skip LLM extraction",
                 todo.id,
             )
             return None

@@ -82,7 +82,7 @@ class ExecutionEngine:
         from arc.application.hooks.manager import HookPoint
 
         # Hook: pre_input
-        hook_ctx = await self._hooks.trigger(HookPoint.PRE_INPUT, {
+        await self._hooks.trigger(HookPoint.PRE_INPUT, {
             "conversation_id": str(conversation.id),
             "message_count": len(conversation.messages),
         })
@@ -224,7 +224,10 @@ class ExecutionEngine:
                         recovery_msg = conversation.add_message(
                             role=MessageRole.SYSTEM,
                             content=handoff.to_prompt(),
-                            metadata={"checkpoint_recovery": True, "resumed_from_round": resume_round},
+                            metadata={
+                                "checkpoint_recovery": True,
+                                "resumed_from_round": resume_round,
+                            },
                         )
                         await self._conv_repo.add_message(conversation.id, recovery_msg)
                         logger.info(
@@ -281,7 +284,10 @@ class ExecutionEngine:
             # 质量达标完成 (非虚假完成——杜绝从劣质产出提炼经验)
             if tracker and tracker.is_quality_complete(qualified):
                 await self._extract_experience(conversation.todo_id)
-                yield {"event": "autopilot_complete", "reason": "all_deliverables_quality_qualified"}
+                yield {
+                    "event": "autopilot_complete",
+                    "reason": "all_deliverables_quality_qualified",
+                }
                 return
 
             last_msg = conversation.messages[-1] if conversation.messages else None

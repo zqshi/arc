@@ -173,7 +173,8 @@ class AnalysisService:
                 "updated_at TIMESTAMPTZ NOT NULL DEFAULT now())"
             ))
             await self.db.execute(text(
-                "CREATE INDEX IF NOT EXISTS ix_version_analyses_version_id ON version_analyses(version_id)"
+                "CREATE INDEX IF NOT EXISTS ix_version_analyses_version_id "
+                "ON version_analyses(version_id)"
             ))
             await self.db.commit()
             return True
@@ -214,7 +215,10 @@ class AnalysisService:
             await self._ensure_table()
         return None
 
-    async def _persist(self, version_id: uuid.UUID, fingerprint: str, content: str, suggestions: list[dict]):
+    async def _persist(
+        self, version_id: uuid.UUID, fingerprint: str,
+        content: str, suggestions: list[dict],
+    ):
         """持久化分析结果。"""
         try:
             from arc.infrastructure.models.planning import VersionAnalysisModel
@@ -234,7 +238,10 @@ class AnalysisService:
             if await self._ensure_table():
                 try:
                     from arc.infrastructure.models.planning import VersionAnalysisModel
-                    a = VersionAnalysisModel(version_id=version_id, fingerprint=fingerprint, content=content)
+                    a = VersionAnalysisModel(
+                        version_id=version_id, fingerprint=fingerprint,
+                        content=content,
+                    )
                     self.db.add(a)
                     await self.db.flush()
                 except Exception:

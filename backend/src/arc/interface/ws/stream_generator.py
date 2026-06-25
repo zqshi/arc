@@ -1,4 +1,5 @@
-"""Stream generator — builds the async generator that normalizes AI events for WebSocket broadcast."""
+"""Stream generator — builds the async generator that normalizes AI events
+for WebSocket broadcast."""
 
 from __future__ import annotations
 

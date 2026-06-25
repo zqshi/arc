@@ -281,7 +281,8 @@ class DistributionService:
 
     @staticmethod
     def _sign_state_for(sign_results, signer_type) -> tuple[bool, str, str]:
-        """从 sign_results 取某平台签名状态 (任一成功则 signed)。返回 (signed, signer_str, sig_id)。"""
+        """从 sign_results 取某平台签名状态 (任一成功则 signed)。
+        返回 (signed, signer_str, sig_id)。"""
         for st, _path, result in sign_results:
             if st == signer_type and result.signed:
                 return True, st.value, result.signature_id

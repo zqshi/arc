@@ -78,7 +78,10 @@ class StorageAdapter:
     ) -> str:
         return await asyncio.to_thread(self.upload, key, content, content_type, max_size=max_size)
 
-    def upload_dir(self, local_dir: str, prefix: str, *, max_file_size: int = DEPLOY_MAX_UPLOAD_SIZE) -> int:
+    def upload_dir(
+        self, local_dir: str, prefix: str, *,
+        max_file_size: int = DEPLOY_MAX_UPLOAD_SIZE,
+    ) -> int:
         """递归上传目录到 S3 prefix，保持相对路径结构。
 
         Args:
@@ -121,7 +124,9 @@ class StorageAdapter:
         self, local_dir: str, prefix: str, *, max_file_size: int = DEPLOY_MAX_UPLOAD_SIZE
     ) -> int:
         """异步版 upload_dir。"""
-        return await asyncio.to_thread(self.upload_dir, local_dir, prefix, max_file_size=max_file_size)
+        return await asyncio.to_thread(
+            self.upload_dir, local_dir, prefix, max_file_size=max_file_size,
+        )
 
     def delete(self, key: str) -> None:
         if self._is_s3:

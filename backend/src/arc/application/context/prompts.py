@@ -92,7 +92,8 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你正在帮用户完成「{title}」。
 
 
 AUTOPILOT_SECTION = """## 自驾模式
-你可以自主推进所有交付物，无需等待确认。只有在遇到真正无法独立决策的分歧点时才暂停（输出 [NEEDS_INPUT]）。"""
+你可以自主推进所有交付物，无需等待确认。只有在遇到真正无法独立决策的分歧点时
+才暂停（输出 [NEEDS_INPUT]）。"""
 
 
 # ---------------------------------------------------------------------------
@@ -122,14 +123,20 @@ def build_ddd_tdd_section(domain_model: dict) -> str:
     source = domain_model.get("source", "artifact_extraction")
     updated_at = domain_model.get("updated_at", "")
 
-    lines = [f"## 项目领域模型（{len(aggregates)} 聚合, {len(subdomains)} 子域, {len(contexts)} 上下文 | v{version}, 来源: {source}）"]
+    lines = [
+        f"## 项目领域模型（{len(aggregates)} 聚合, {len(subdomains)} 子域, "
+        f"{len(contexts)} 上下文 | v{version}, 来源: {source}）"
+    ]
     if updated_at:
         lines.append(f"*最后更新: {updated_at}*\n")
 
     if subdomains:
         lines.append("\n### 子域")
         for sd in subdomains:
-            lines.append(f"- {sd.get('name', '')} ({sd.get('type', '')}): {sd.get('description', '')}")
+            lines.append(
+                f"- {sd.get('name', '')} ({sd.get('type', '')}): "
+                f"{sd.get('description', '')}"
+            )
 
     if contexts:
         lines.append("\n### 限界上下文")
@@ -189,7 +196,8 @@ def build_ddd_tdd_section(domain_model: dict) -> str:
 PROTOTYPE_ENGINEERING_PROMPT = """\
 ## 原型工程要求
 
-当需要产出原型时，你需要使用 write_file 工具在项目目录下创建一个**完整的前端工程**（不是 HTML 片段）。
+当需要产出原型时，你需要使用 write_file 工具在项目目录下创建一个
+**完整的前端工程**（不是 HTML 片段）。
 
 ### 目录结构
 
@@ -280,8 +288,10 @@ prototype/
 
 ### 关键约束
 
-- 构建在 arc/tauri-builder:linux 镜像内执行 (Rust+Node+webkit2gtk+tauri-cli, 见 sandbox/images/), 无需宿主装工具链
-- build_target=tauri_linux 时 tauri.conf.json 的 bundle.targets 配 ["deb","appimage"] (波次1 唯一激活目标), 不配 dmg/msi/apk
+- 构建在 arc/tauri-builder:linux 镜像内执行 (Rust+Node+webkit2gtk+tauri-cli,
+  见 sandbox/images/), 无需宿主装工具链
+- build_target=tauri_linux 时 tauri.conf.json 的 bundle.targets 配
+  ["deb","appimage"] (波次1 唯一激活目标), 不配 dmg/msi/apk
 - 前端 web 资源 build_command 与 static_site 一致 (npm run build → dist)，tauri 引用此 dist
 - 构建/签名/分发分离：本阶段只保证构建产物落 bundle 目录；签名在 v6.1 (凭证可配)、分发在 v6.2
 - Android 构建若用 Capacitor (波次3)，需配 capacitor.config.ts + android/ 平台目录

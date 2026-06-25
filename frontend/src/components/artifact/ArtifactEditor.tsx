@@ -34,7 +34,7 @@ export default function ArtifactEditor({ artifact, todoId, onSave, onCancel }: P
     setSaving(true);
     setError(null);
     try {
-      const updated = await api.todos.updateArtifact(todoId, artifact.id, parsed);
+      const updated = await api.updateArtifact(todoId, artifact.id, parsed);
       onSave(updated);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '保存失败';

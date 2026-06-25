@@ -99,3 +99,85 @@ class TestContextProtocol:
         assert PromptBuilder._infer_phase(
             ["requirement_spec", "interaction_design", "tech_architecture"]
         ) == "development"
+
+
+class TestInferPhaseWithLlm:
+    """v6.4 #14: _infer_phase_with_llm 🟡预筛+🟢LLM确认+降级(推进/回退)。"""
+
+    def _make_builder(self):
+        from unittest.mock import AsyncMock
+
+        from arc.application.context.prompt_builder import PromptBuilder
+        return PromptBuilder(db=AsyncMock())
+
+    async def test_llm_confirms_prefilter(self):
+        """LLM 返回预筛一致 → 返回预筛。"""
+        builder = self._make_builder()
+
+        async def llm_fn(prompt: str) -> dict:
+            return {"phase": "ui_design"}
+
+        phase = await builder._infer_phase_with_llm(
+            ["requirement_spec"], llm_review_fn=llm_fn
+        )
+        assert phase == "ui_design"
+
+    async def test_llm_advances_phase(self):
+        """LLM 推进(预筛 ui_design, LLM 说 architecture) → 返回 architecture。"""
+        builder = self._make_builder()
+
+        async def llm_fn(prompt: str) -> dict:
+            return {"phase": "architecture"}
+
+        phase = await builder._infer_phase_with_llm(
+            ["requirement_spec"], llm_review_fn=llm_fn
+        )
+        assert phase == "architecture"
+
+    async def test_llm_regresses_phase(self):
+        """LLM 回退(预筛 architecture, LLM 说 ui_design 返工) → 返回 ui_design。"""
+        builder = self._make_builder()
+
+        async def llm_fn(prompt: str) -> dict:
+            return {"phase": "ui_design"}
+
+        phase = await builder._infer_phase_with_llm(
+            ["requirement_spec", "interaction_design"], llm_review_fn=llm_fn
+        )
+        assert phase == "ui_design"
+
+    async def test_llm_invalid_phase_falls_back(self):
+        """LLM 返回无效 phase → 回退预筛。"""
+        builder = self._make_builder()
+
+        async def llm_fn(prompt: str) -> dict:
+            return {"phase": "invalid_phase"}
+
+        phase = await builder._infer_phase_with_llm(
+            ["requirement_spec"], llm_review_fn=llm_fn
+        )
+        assert phase == "ui_design"
+
+    async def test_llm_exception_degrades(self):
+        """LLM 异常 → 降级预筛。"""
+        builder = self._make_builder()
+
+        async def llm_fn(prompt: str) -> dict:
+            raise RuntimeError("LLM down")
+
+        phase = await builder._infer_phase_with_llm(
+            ["requirement_spec"], llm_review_fn=llm_fn
+        )
+        assert phase == "ui_design"
+
+    async def test_llm_non_dict_falls_back(self):
+        """LLM 返回非 dict → 回退预筛。"""
+        builder = self._make_builder()
+
+        async def llm_fn(prompt: str) -> dict:
+            return "not a dict"  # type: ignore[return-value]
+
+        phase = await builder._infer_phase_with_llm(
+            ["requirement_spec"], llm_review_fn=llm_fn
+        )
+        assert phase == "ui_design"

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { Todo } from '../types/api';
+import type { ToastType } from '../components/Toast';
+import type { ConfirmOptions } from '../components/ConfirmProvider';
 
 /**
  * 需求 CRUD 操作：创建、删除、恢复、完成、重开。
@@ -8,12 +10,12 @@ import type { Todo } from '../types/api';
 export function useTodoActions(
   projectId: string | undefined,
   navigate: (path: string) => void,
-  toast: (msg: string, type?: string) => void,
+  toast: (msg: string, type?: ToastType) => void,
   versionTodos: Record<string, Todo[]>,
   setVersionTodos: React.Dispatch<React.SetStateAction<Record<string, Todo[]>>>,
   fetchData: (opts?: { silent?: boolean }) => Promise<void>,
   versions: Array<{ id: string; status: string }>,
-  confirm?: (options: { title: string; message: string; confirmLabel?: string; variant?: string }) => Promise<boolean>,
+  confirm?: (options: ConfirmOptions) => Promise<boolean>,
 ) {
   const [createForVersion, setCreateForVersion] = useState<string | null>(null);
 
