@@ -254,7 +254,7 @@ class ToolAwareLoop:
                 if self._drift_detector:
                     action_desc = ", ".join(tc.name for tc in tool_calls)
                     from arc.application.execution.drift_detector import DriftLevel
-                    drift = self._drift_detector.check_drift(action_desc)
+                    drift = await self._drift_detector.check_drift(action_desc)
                     if drift >= DriftLevel.MODERATE:
                         refocus = self._drift_detector.get_refocus_prompt(drift)
                         tool_history.append({

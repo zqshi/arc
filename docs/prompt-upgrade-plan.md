@@ -1,6 +1,6 @@
 # Prompt 升级路线图 — 规则执行式 → 意图驱动
 
-> 状态: v5.10(#1-6)已归档, v6.0 #7 sufficiency已完成(产出前门禁), 进度 7/14 (见 [v6.0.0-current.md](versions/v6.0.0-current.md))
+> 状态: v5.10(#1-6)已归档, v6.0 #7 sufficiency已完成(产出前门禁), v6.3 #8 drift_detector已完成(混合: Jaccard预筛+LLM确认), 进度 8/14
 > 关联: backlog.md v6.3.0 前置 / memory [AI Interaction Philosophy]
 
 ## 背景
@@ -27,6 +27,7 @@ Arc 的核心交互哲学是**意图驱动 + Agent 自主推理**: 给 LLM 目�
 | 5 | `conversation/service.py:_build_clarification_prompt` | 澄清从"固定6层苏格拉底"切到 **`clarification_strategy` 三策略路由** (按需求类型动态选方法论) | 🟢 |
 | 6 | `execution/execution_engine.py` run_autopilot | auto_advance 从"盲目推进"改为**门禁卡点反馈重试** + max_gate_retries 截断 | 🟡 |
 | 7 | `execution/sufficiency_gate.py`(新) + `artifact/service.py` confirm + `context/providers/sufficiency.py` | sufficiency 接线为 requirement_spec **产出门禁**(产出前判断), 非每轮注入; 职责分离: 轮次管引导, LLM 管质量判断; 降级放行 | 🟢 |
+| 8 | `execution/drift_detector.py` | Jaccard 关键词重叠度判漂移 → **混合**: 🟡Jaccard预筛(重复循环→SEVERE, >=0.50→NONE, 控成本) + 🟢LLM确认(serves_goal+置信度精确分级); 降级Jaccard阈值 | 🟡 |
 
 ---
 
@@ -34,7 +35,6 @@ Arc 的核心交互哲学是**意图驱动 + Agent 自主推理**: 给 LLM 目�
 
 | # | 位置 | 现状(🔴) | 目标(🟢/🟡) | 优先级 | 版本 |
 |---|------|---------|------------|--------|------|
-| 8 | `execution/drift_detector.py` | Jaccard 关键词重叠度判漂移 | LLM 判断"当前动作是否服务于原始目标" + 置信度 | P1 | v6.1 |
 | 9 | `execution/error_loop_detector.py` | LCS 字符串相似度判循环 | LLM 判断"是否换工具犯同类错" | P1 | v6.1 |
 | 10 | `execution/tool_loop.py:312` | 死板 3 次重试 + sleep | LLM 诊断错误类型(超时/权限/逻辑) → 决策(重试/换工具/放弃) | P1 | v6.1 |
 | 11 | `execution/architecture_methodology.py:178` | 正则判事件名"过去时态" | LLM DDD 合规判断 (或保留结构校验为 🟡 预筛) | P2 | v6.2 |
