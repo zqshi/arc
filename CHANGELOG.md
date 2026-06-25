@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.6.0] - 2026-06-25 — 代码质量修复收尾
+
+### Changed — 全项目深度审计质量修复
+
+基于全项目深度审计(后端 545 + 前端 117 文件)的质量修复收尾, TDD 路径(补单测→拆分→行为保持)验证可行, 累计修 2 真实 latent bug:
+
+- **P1 架构清理**: 删后端死代码 experience/analytics.py(218 行零引用) + 前端 6 死代码文件 + inspector 孤儿; k8s 占位符 :placeholder → :latest; 移除冗余依赖 websockets
+- **P2 route 逻辑泄漏抽 service**(+32 单测): 新建 SettingsService/TemplateService, 扩展 ExperienceService(create/update), 3 处 route 降至参数校验+调用
+- **P2 repository 接口漂移补齐**: domain 补 AbstractUserRepository + AbstractOrganization(Member)Repository, infrastructure 继承
+- **P2 前端清理重构**: Field 重复合并→shared.LabeledField; vite esbuild.drop; globPatterns 移除 png; ProjectDetail 抽 SuggestionsPanel(405→329); TodosTab props 聚合 32→15(+4 组件单测); useConversationSocket onmessage 180 行 switch→分发器+4 子函数(全<80 行, +14 单测)
+- **P2 service 方法 TDD 拆分**(修 2 bug): deploy(108→45)/extract_from_todo(112→36)/confirm_phase(100→33, 修 GateResult UnboundLocalError)/execute(102→49, 修 ToolLoopEvent NameError)
+- **P3 mcp _call_tool if 分发改字典表**
+- **T1 ExperienceInjectionLog 孤儿表清理**: 新增 z16 migration drop(down_revision=z15, downgrade 复用建表) + 删 model。revision id 受 alembic_version.version_num varchar(32) 约束须 ≤32 字符
+- **T2 artifact-renderers lazy 统一**: 11 renderer 顶层 import→lazy()+Suspense 自包含, 12 renderer 切独立 chunk, 首屏不再加载
+
+### 决策
+
+- **TDD 重构路径**: 补 characterization 单测→拆分→行为保持, 测试网保护下修真实 bug
+- **评估保持不强拆**: execution 4 文件 500-800 警告(职责内聚, 单方法未超 80); useConversationSocket 523 行(hook 天然复杂度); 聚合边界收敛(application service 多聚合协调是合理模式)
+- **lazy 自包含 Suspense**: 调用方零改动, 杜绝漏包运行时报错
+
+### 遗留
+
+- T4 project_member repository 接口(P2, 需先定聚合边界) — 待 v6.7
+- T3 GitHubSection 19 props 聚合(P3, 评估负收益可能)
+- execution 4 文件 500-800 行 — 待超 800 或明确动机再拆
+
 ## [6.5.0] - 2026-06-25 — execution 层拆分评估 + 测试补全 + config 核对
 
 ### Changed — v6.4 遗留 3 项技术债务清理
