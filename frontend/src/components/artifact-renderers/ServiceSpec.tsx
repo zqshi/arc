@@ -1,4 +1,4 @@
-import { CodeBlock, SectionTitle } from './shared';
+import { CodeBlock, LabeledField, SectionTitle } from './shared';
 import { asString } from './utils';
 
 interface Endpoint {
@@ -37,11 +37,11 @@ export default function ServiceSpec({ content }: { content: Content }) {
     <div className="space-y-4">
       <SectionTitle>服务契约</SectionTitle>
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <Field label="领域模型引用" value={content.data_model_ref} mono />
-        <Field label="认证策略" value={content.auth_strategy} />
-        <Field label="数据持久化" value={persistenceLabel} />
+        <LabeledField label="领域模型引用" value={content.data_model_ref} mono />
+        <LabeledField label="认证策略" value={content.auth_strategy} />
+        <LabeledField label="数据持久化" value={persistenceLabel} />
         {content.external_api_base && (
-          <Field label="外部 API" value={content.external_api_base} mono />
+          <LabeledField label="外部 API" value={content.external_api_base} mono />
         )}
       </div>
 
@@ -101,21 +101,3 @@ export default function ServiceSpec({ content }: { content: Content }) {
   );
 }
 
-function Field({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string | undefined | null;
-  mono?: boolean;
-}) {
-  return (
-    <div>
-      <div className="text-[10px] text-text-muted">{label}</div>
-      <div className={`text-text-primary ${mono ? 'font-mono' : ''}`}>
-        {value ?? '(未填写)'}
-      </div>
-    </div>
-  );
-}
