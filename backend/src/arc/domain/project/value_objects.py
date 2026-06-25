@@ -64,7 +64,8 @@ class ProjectType(StrEnum):
     """
 
     STATIC_SITE = "static_site"  # 静态站点(官网/SPA) — v5.9.0 落地
-    BINARY_APP = "binary_app"  # 原生客户端(Tauri/Capacitor) — v6.0.0 激活, 聚焦容器可构建目标(linux/web/android apk)
+    # 原生客户端(Tauri/Capacitor) — v6.0.0 激活, 聚焦容器可构建目标(linux/web/android apk)
+    BINARY_APP = "binary_app"
     # 预留（后续版本激活时再加，避免触发死代码检测）:
     # BACKEND_SERVICE = "backend_service"  # 后端服务
     # CONTAINER = "container"            # 容器镜像

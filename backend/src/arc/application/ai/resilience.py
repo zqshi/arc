@@ -122,7 +122,8 @@ class ResilientAdapter(LLMAdapter):
                         break
                     except asyncio.TimeoutError:
                         raise asyncio.TimeoutError(
-                            f"AI 生成中断（{stream_idle_timeout}秒无响应），上游模型服务可能不稳定，请重试"
+                            f"AI 生成中断（{stream_idle_timeout}秒无响应），"
+                            f"上游模型服务可能不稳定，请重试"
                         )
                     if not started:
                         self._chat_breaker.on_success()
@@ -197,7 +198,8 @@ class ResilientAdapter(LLMAdapter):
                     except asyncio.TimeoutError:
                         result.finish_reason = "error"
                         raise asyncio.TimeoutError(
-                            f"AI 生成中断（{stream_idle_timeout}秒无响应），上游模型服务可能不稳定，请重试"
+                            f"AI 生成中断（{stream_idle_timeout}秒无响应），"
+                            f"上游模型服务可能不稳定，请重试"
                         )
                     if not started:
                         self._chat_breaker.on_success()
@@ -261,7 +263,8 @@ class ResilientAdapter(LLMAdapter):
             except asyncio.TimeoutError:
                 breaker.on_failure()
                 last_exc = asyncio.TimeoutError(
-                    f"AI 服务响应超时（已重试 {attempt + 1} 次），可能是上游模型服务拥堵，请稍后重试"
+                    f"AI 服务响应超时（已重试 {attempt + 1} 次），"
+                    f"可能是上游模型服务拥堵，请稍后重试"
                 )
                 logger.warning("LLM timeout (attempt %d/%d)", attempt + 1, self._max_retries)
             except Exception as exc:

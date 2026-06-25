@@ -114,7 +114,11 @@ class ModelUpgradeOrchestrator:
         old_version = project.domain_model_version
 
         # 2. 确定受影响的聚合
-        affected_aggs = self._extract_affected_aggregates(new_model, project.domain_model) if new_model.get("aggregates") else set()
+        affected_aggs = (
+            self._extract_affected_aggregates(new_model, project.domain_model)
+            if new_model.get("aggregates")
+            else set()
+        )
 
         # 3. 影响分析（有受影响聚合时才执行）
         suspended: list[uuid.UUID] = []
@@ -189,8 +193,16 @@ class ModelUpgradeOrchestrator:
     @staticmethod
     def _extract_affected_aggregates(new_model: dict, old_model: dict) -> set[str]:
         """比较新旧模型，提取变化的聚合名称。"""
-        new_aggs = {a.get("name", "") for a in new_model.get("aggregates", []) if isinstance(a, dict)}
-        old_aggs = {a.get("name", "") for a in old_model.get("aggregates", []) if isinstance(a, dict)}
+        new_aggs = {
+            a.get("name", "")
+            for a in new_model.get("aggregates", [])
+            if isinstance(a, dict)
+        }
+        old_aggs = {
+            a.get("name", "")
+            for a in old_model.get("aggregates", [])
+            if isinstance(a, dict)
+        }
 
         # 新增的 + 删除的 + 内容变化的
         added = new_aggs - old_aggs
@@ -198,8 +210,16 @@ class ModelUpgradeOrchestrator:
 
         # 检查同名聚合内容变化
         changed: set[str] = set()
-        old_by_name = {a.get("name"): a for a in old_model.get("aggregates", []) if isinstance(a, dict)}
-        new_by_name = {a.get("name"): a for a in new_model.get("aggregates", []) if isinstance(a, dict)}
+        old_by_name = {
+            a.get("name"): a
+            for a in old_model.get("aggregates", [])
+            if isinstance(a, dict)
+        }
+        new_by_name = {
+            a.get("name"): a
+            for a in new_model.get("aggregates", [])
+            if isinstance(a, dict)
+        }
         for name in new_aggs & old_aggs:
             if old_by_name.get(name) != new_by_name.get(name):
                 changed.add(name)

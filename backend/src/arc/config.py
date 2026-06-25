@@ -83,7 +83,8 @@ class Settings(BaseSettings):
 
     # Signing (v6.1.0) — 凭证项目维度加密存储 (见 infrastructure/crypto.py)
     # 此为 Fernet 密钥, 加密各项目的签名凭证。空=dev 降级明文 (生产必配)
-    # 生成: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # 生成: python -c "from cryptography.fernet import Fernet;
+    #         print(Fernet.generate_key().decode())"
     signing_secret_key: str = ""
 
     # BaaS (v5.6.0) — Supabase PG 连接

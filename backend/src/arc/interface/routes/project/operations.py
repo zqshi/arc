@@ -202,8 +202,14 @@ def _deployment_resp(deployment) -> dict:
         "project_id": str(deployment.project_id),
         "version_id": str(deployment.version_id),
         "todo_id": str(deployment.todo_id) if deployment.todo_id else None,
-        "status": deployment.status.value if hasattr(deployment.status, "value") else str(deployment.status),
-        "deploy_type": deployment.deploy_type.value if hasattr(deployment.deploy_type, "value") else str(deployment.deploy_type),
+        "status": (
+            deployment.status.value
+            if hasattr(deployment.status, "value") else str(deployment.status)
+        ),
+        "deploy_type": (
+            deployment.deploy_type.value
+            if hasattr(deployment.deploy_type, "value") else str(deployment.deploy_type)
+        ),
         "deploy_url": deployment.deploy_url,
         "storage_prefix": deployment.storage_prefix,
         "files_uploaded": deployment.files_uploaded,

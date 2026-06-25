@@ -185,7 +185,10 @@ def _check_methodology(phase_type: PhaseType, content: dict) -> list[str]:
                 gaps.append(f"用户故事未覆盖目标用户: {', '.join(uncovered)}")
 
         if user_stories and ac:
-            story_count = len([s for s in user_stories if isinstance(s, dict) and s.get("priority") == "P0"])
+            story_count = len([
+                s for s in user_stories
+                if isinstance(s, dict) and s.get("priority") == "P0"
+            ])
             ac_count = len(ac)
             if story_count > 0 and ac_count < story_count:
                 gaps.append(f"验收标准({ac_count}条)少于P0用户故事({story_count}条)，可能覆盖不足")

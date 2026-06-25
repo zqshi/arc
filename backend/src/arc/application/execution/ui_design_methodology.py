@@ -130,5 +130,7 @@ def validate_ui_design(content: dict) -> list[str]:
         gaps.append("未定义空状态设计")
     if wireframes and not has_loading_state:
         gaps.append("未定义加载状态")
+    if wireframes and not has_error_state:
+        gaps.append("未定义错误状态设计")
 
     return gaps

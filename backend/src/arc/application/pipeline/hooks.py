@@ -144,7 +144,8 @@ async def trigger_deployment(db, todo_repo, todo_id: uuid.UUID, deploy_content: 
 
 
 async def _resolve_build_status(db, todo_id: uuid.UUID, deploy_content: dict) -> str | None:
-    """解析 build_status: deploy_report.build_evidence 优先，fallback app_code/prototype artifact。"""
+    """解析 build_status: deploy_report.build_evidence 优先，
+    fallback app_code/prototype artifact。"""
     evidence = deploy_content.get("build_evidence")
     if isinstance(evidence, dict) and evidence.get("build_status"):
         return evidence["build_status"]
