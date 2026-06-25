@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { api, ApiError } from '../api/client';
-import type { Version, VersionType } from '../types/api';
+import type { VersionType } from '../types/api';
+import type { ToastType } from '../components/Toast';
+import type { ConfirmOptions } from '../components/ConfirmProvider';
 
 /**
  * 版本 CRUD 操作：创建、激活、发布、删除。
  */
 export function useVersionActions(
   projectId: string | undefined,
-  toast: (msg: string, type?: string) => void,
+  toast: (msg: string, type?: ToastType) => void,
   refreshVersions: () => Promise<void>,
-  confirm?: (options: { title: string; message: string; confirmLabel?: string; variant?: string }) => Promise<boolean>,
+  confirm?: (options: ConfirmOptions) => Promise<boolean>,
 ) {
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [versionName, setVersionName] = useState('');

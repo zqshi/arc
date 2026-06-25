@@ -64,7 +64,7 @@ export function useProjectDetail() {
         repo_url: p.repo_url, local_path: p.local_path || '',
         conventions: p.conventions, codebase_summary: p.codebase_summary || '',
         execution_mode: p.execution_mode || 'pipeline',
-        process_constraint: (p as Record<string, unknown>).process_constraint as 'strict' | 'moderate' | 'free' || 'free',
+        process_constraint: (p as unknown as Record<string, unknown>).process_constraint as 'strict' | 'moderate' | 'free' || 'free',
         pipeline_config: p.pipeline_config || {},
         conversation_config: p.conversation_config || {},
       });

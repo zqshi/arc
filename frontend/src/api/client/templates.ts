@@ -1,6 +1,3 @@
-import type {
-  Deployment,
-} from '../../types/api';
 import type { RequestFn } from './base';
 
 export interface DomainTemplate {
