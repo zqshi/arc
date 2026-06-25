@@ -38,13 +38,39 @@ class TestProjectCharter:
         assert charter["project_type"] == "static_site"
 
     async def test_create_binary_app_charter(self, client: AsyncClient):
-        """binary_app 项目 → charter.project_type == binary_app (T1 通用骨架, 内容 T2 才特化)。"""
+        """binary_app 项目 → charter.project_type == binary_app 且含客户端特化 (T2 注册表)。"""
         resp = await client.post(
             "/api/projects",
             json={"name": "Charter Binary", "project_type": "binary_app"},
         )
         assert resp.status_code in (200, 201)
-        assert resp.json()["charter"]["project_type"] == "binary_app"
+        charter = resp.json()["charter"]
+        assert charter["project_type"] == "binary_app"
+        assert "原生客户端特化治理意图" in charter["markdown"]
+
+    async def test_static_site_charter_has_specialization(self, client: AsyncClient):
+        """static_site 项目 → charter 含静态站点特化 (SEO/PWA/性能, T2 注册表)。"""
+        resp = await client.post("/api/projects", json={"name": "Charter Static"})
+        md = resp.json()["charter"]["markdown"]
+        assert "静态站点特化治理意图" in md
+        assert "可发现性意图" in md  # SEO
+        assert "离线降级意图" in md  # PWA
+
+    async def test_different_types_produce_different_charters(self, client: AsyncClient):
+        """端到端: 不同 ProjectType 产出不同 charter (T4 核心验证项)。"""
+        static_resp = await client.post(
+            "/api/projects", json={"name": "Diff Static", "project_type": "static_site"}
+        )
+        binary_resp = await client.post(
+            "/api/projects", json={"name": "Diff Binary", "project_type": "binary_app"}
+        )
+        static_md = static_resp.json()["charter"]["markdown"]
+        binary_md = binary_resp.json()["charter"]["markdown"]
+        assert static_md != binary_md
+        assert "静态站点特化治理意图" in static_md
+        assert "静态站点特化治理意图" not in binary_md
+        assert "原生客户端特化治理意图" in binary_md
+        assert "原生客户端特化治理意图" not in static_md
 
     async def test_charter_markdown_is_intent_driven(self, client: AsyncClient):
         """端到端验证: 产出的 charter 骨架禁用规则执行式硬规则 (意图驱动约束)。"""
