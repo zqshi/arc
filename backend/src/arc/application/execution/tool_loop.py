@@ -16,6 +16,7 @@ import asyncio
 import logging
 import time
 import uuid
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
@@ -64,6 +65,39 @@ logger = logging.getLogger(__name__)
 # Main tool loop
 # ---------------------------------------------------------------------------
 
+TOOL_ERROR_DIAGNOSIS_PROMPT = """诊断工具调用失败原因, 决定是否值得重试。
+
+[上下文]
+工具: {tool_name}
+输入: {tool_input}
+错误: {error}
+
+[输出契约] 仅输出 JSON, 不要其他内容:
+{{"should_retry": <bool>, "error_type": <str>, "reason": <str>}}
+
+瞬时错误(超时/网络/限流)→should_retry=true; 永久错误(权限/参数/逻辑)→should_retry=false。
+"""
+
+
+@dataclass(frozen=True)
+class ToolErrorDiagnosis:
+    """LLM 工具错误诊断结果。"""
+
+    should_retry: bool
+    error_type: str
+    reason: str = ""
+
+    @classmethod
+    def from_llm(cls, data: object) -> "ToolErrorDiagnosis | None":
+        """从 LLM 输出构造。缺 should_retry 或非 dict → None (降级信号)。"""
+        if not isinstance(data, dict) or "should_retry" not in data:
+            return None
+        return cls(
+            should_retry=bool(data["should_retry"]),
+            error_type=str(data.get("error_type", "unknown")),
+            reason=str(data.get("reason", "")),
+        )
+
 
 class ToolAwareLoop:
     """Manages LLM generation with tool-use support.
@@ -82,6 +116,7 @@ class ToolAwareLoop:
         compression: CompressionManager | None = None,
         drift_detector: DriftDetector | None = None,
         error_loop_detector: ErrorLoopDetector | None = None,
+        llm_review_fn=None,
     ):
         self._adapter = adapter
         self._registry = registry
@@ -89,6 +124,7 @@ class ToolAwareLoop:
         self._compression = compression
         self._drift_detector = drift_detector
         self._error_loop_detector = error_loop_detector
+        self._llm_review_fn = llm_review_fn  # None → 降级死板重试
         self._total_tokens = 0
         self._tool_rounds = 0
         self._metrics = ToolLoopMetrics()
@@ -318,7 +354,13 @@ class ToolAwareLoop:
         )
 
     async def _execute_tool_with_retry(self, tc: ToolCall) -> ToolResult:
-        """Execute a tool call with timeout and retry for transient failures."""
+        """Execute a tool call with timeout and retry.
+
+        v6.3 #10: 死板重试升级为 LLM 诊断错误类型决定重试策略。
+        - 🟡 超时 = 瞬时, 直接重试 (零 LLM)
+        - 🟢 非超时错误 → LLM 诊断 should_retry; 永久错误快速失败
+        - 降级: LLM 失败/未注入 → 现状死板重试
+        """
         last_exc: Exception | None = None
         for attempt in range(TOOL_MAX_RETRIES + 1):
             try:
@@ -333,12 +375,30 @@ class ToolAwareLoop:
                     "tool_loop.tool_timeout tool=%s attempt=%d/%d",
                     tc.name, attempt + 1, TOOL_MAX_RETRIES + 1,
                 )
+                # 🟡 超时 = 瞬时, 直接重试 (零 LLM)
             except Exception as exc:
                 last_exc = exc
                 logger.warning(
                     "tool_loop.tool_error tool=%s attempt=%d/%d: %s",
                     tc.name, attempt + 1, TOOL_MAX_RETRIES + 1, exc,
                 )
+                # 🟢 LLM 诊断: 非超时错误 → 判断是否值得重试
+                if (
+                    self._llm_review_fn is not None
+                    and attempt < TOOL_MAX_RETRIES
+                ):
+                    diagnosis = await self._diagnose_tool_error(tc, exc)
+                    if diagnosis is not None and not diagnosis.should_retry:
+                        # 永久错误, 不重试, 快速失败
+                        return ToolResult(
+                            tool_use_id=tc.id,
+                            content=(
+                                f"工具 {tc.name} 执行失败 "
+                                f"({diagnosis.error_type}, 不重试): {exc}"
+                            ),
+                            is_error=True,
+                        )
+                # 降级: LLM 失败/未注入/建议重试 → 现状重试
 
             if attempt < TOOL_MAX_RETRIES:
                 await asyncio.sleep(1)
@@ -349,6 +409,22 @@ class ToolAwareLoop:
             content=f"工具 {tc.name} 执行失败 (已重试 {TOOL_MAX_RETRIES} 次): {last_exc}",
             is_error=True,
         )
+
+    async def _diagnose_tool_error(
+        self, tc: ToolCall, exc: Exception
+    ) -> ToolErrorDiagnosis | None:
+        """调 LLM 诊断工具错误类型, 决定是否重试。失败返回 None (降级)。"""
+        prompt = TOOL_ERROR_DIAGNOSIS_PROMPT.format(
+            tool_name=tc.name,
+            tool_input=str(tc.input)[:200],
+            error=str(exc)[:200],
+        )
+        try:
+            data = await self._llm_review_fn(prompt)
+        except Exception as diag_exc:
+            logger.warning("tool error LLM diagnose failed: %s", diag_exc)
+            return None
+        return ToolErrorDiagnosis.from_llm(data)
 
     async def _call_with_tools(
         self,

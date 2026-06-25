@@ -389,6 +389,7 @@ class ExecutionEngine:
                         compression=compression,
                         drift_detector=drift_detector,
                         error_loop_detector=error_detector,
+                        llm_review_fn=default_llm_review,
                     )
                     async for ev in loop.run(llm_messages):
                         yield ev

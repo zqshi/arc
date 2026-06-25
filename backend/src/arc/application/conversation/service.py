@@ -454,6 +454,7 @@ class ConversationService:
                 adapter, registry,
                 drift_detector=drift_detector,
                 error_loop_detector=error_detector,
+                llm_review_fn=default_llm_review,
             )
             async for event in loop.run(llm_messages):
                 for mapped in self._map_tool_event(event, message_id):
