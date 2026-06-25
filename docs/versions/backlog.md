@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-24 (v6.1 归档 — 签名/公证层完成, 真实产物签名验证遗留待 v6.0 波次2/3)
+> 最后更新: 2026-06-25 (v6.6 归档 — 代码质量修复收尾完成, T4 project_member repository 遗留待 v6.7)
 
 ---
 
@@ -59,6 +59,7 @@
 | tauri-builder smoke 手动验证 | P3 | v6.0 遗留 | CI 默认 skip; `make tauri-builder`(~10min) 后 `pytest -m slow` 跑; 完整 cargo tauri build 端到端留作手动 |
 | v6.1 真实产物签名验证 | P2 | v6.1 遗留 | 待 v6.0 波次2/3 (mac/win/apk 构建链路) 就绪后, 真实 .app/.exe/.apk 经签名器验证; 当前 mock subprocess 覆盖逻辑层 |
 | v6.1 notarytool --apple-id 用 team_id 兼用 | P3 | v6.1 遗留 | 真实 notarytool 需 Apple ID (邮箱) 非 team_id, 真实验证时修正 |
+| T4 project_member repository 接口(聚合边界未定) | P2 | v6.6 遗留 | 需先定 project_member 归 project 还是 organization 聚合, 再补 AbstractRepository+实现 |
 
 ---
 
@@ -149,9 +150,15 @@
 
 ---
 
-## v6.6.0 — 待定方向 🔄 待规划
+## v6.6.0 — 代码质量修复收尾 ✅ 已完成 2026-06-25
 
-→ [v6.6.0-current.md](v6.6.0-current.md)
+→ [v6.6.0-snapshot.md](v6.6.0-snapshot.md)
+
+---
+
+## v6.7.0 — 方向待定 🔄 待规划
+
+→ [v6.7.0-current.md](v6.7.0-current.md)
 
 ---
 
