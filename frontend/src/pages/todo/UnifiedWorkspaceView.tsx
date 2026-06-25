@@ -8,12 +8,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useConversationSocket } from '../../hooks/useConversationSocket';
-import type { ToolCallInfo } from '../../hooks/useConversationSocket';
 import { ApprovalDialog } from '../../components/todo/ApprovalDialog';
 import { CodeChangesReview } from '../../components/todo/CodeChangesReview';
 import type { CodeChangesInfo } from '../../components/todo/CodeChangesReview';
-import { ToolCallsLive, ToolCallsCollapsed, ToolCallsStreamingStatus } from '../../components/todo/ToolCallDisplay';
-import { openPrototypeInNewTab } from '../../components/todo/prototypePreview';
+import { ToolCallsLive, ToolCallsStreamingStatus } from '../../components/todo/ToolCallDisplay';
 import { WorkerProgress } from '../../components/todo/WorkerProgress';
 import { DeliverableSidebar } from '../../components/todo/DeliverableSidebar';
 import DeliverableDrawer from '../../components/DeliverableDrawer';
@@ -152,7 +150,13 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
   useEffect(() => {
     const latest = wsMessages[wsMessages.length - 1];
     if (latest?.role === 'system' && latest?.metadata?.type === 'code_changes_ready' && !codeChanges) {
-      const m = latest.metadata;
+      const m = latest.metadata as {
+        files_changed?: unknown[];
+        insertions?: number;
+        deletions?: number;
+        diff_stat?: string;
+        diff_preview?: string;
+      };
       setCodeChanges({
         todoId: id!,
         filesChanged: m.files_changed?.length || 0,
@@ -211,11 +215,16 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
               />
               {/* Approval dialog */}
               {pendingApproval && (
-                <ApprovalDialog approval={pendingApproval} onRespond={respondToApproval} />
+                <ApprovalDialog
+                  toolName={pendingApproval.tool_name}
+                  toolInput={pendingApproval.tool_input}
+                  requestId={pendingApproval.request_id}
+                  onRespond={respondToApproval}
+                />
               )}
               {/* Worker progress */}
               {workers.length > 0 && (
-                <WorkerProgress workers={workers} phase={orchestrationPhase} />
+                <WorkerProgress workers={workers} phase={orchestrationPhase === 'idle' ? undefined : orchestrationPhase} />
               )}
               {/* Tool calls — 实时展示工具执行过程 */}
               {isStreaming && toolCalls.length > 0 && (

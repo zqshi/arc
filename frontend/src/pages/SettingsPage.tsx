@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Server, Bot, Cpu, CheckCircle, XCircle, CreditCard } from 'lucide-react';
-import { api, ApiError } from '../api/client';
+import { Settings as SettingsIcon, Server, Bot, Cpu, CheckCircle, XCircle } from 'lucide-react';
+import { api } from '../api/client';
 import { LLMConfigSection } from '../components/project/LLMConfigSection';
-import type { SystemSettings, UsageResponse } from '../types/api';
+import type { SystemSettings } from '../types/api';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [healthStatus, setHealthStatus] = useState<Record<string, string>>({});
-  const [usage, setUsage] = useState<UsageResponse | null>(null);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -20,11 +19,6 @@ export default function SettingsPage() {
         ]);
         setSettings(s);
         setHealthStatus(h);
-        try {
-          setUsage(await api.getUsage());
-        } catch (e) {
-          if (!(e instanceof ApiError && e.status === 400)) throw e;
-        }
       } catch {
         setSettings(null);
       } finally {
@@ -45,36 +39,6 @@ export default function SettingsPage() {
       </div>
     );
   }
-
-  const providerLabels: Record<string, string> = {
-    openai: 'OpenAI',
-    anthropic: 'Anthropic',
-    deepseek: 'DeepSeek',
-  };
-
-  const providerConfigs = [
-    {
-      key: 'openai',
-      label: 'OpenAI',
-      model: settings.openai_model,
-      baseUrl: settings.openai_base_url,
-      keySet: settings.openai_api_key_set,
-    },
-    {
-      key: 'anthropic',
-      label: 'Anthropic',
-      model: settings.anthropic_model,
-      baseUrl: settings.anthropic_base_url,
-      keySet: settings.anthropic_api_key_set,
-    },
-    {
-      key: 'deepseek',
-      label: 'DeepSeek',
-      model: settings.deepseek_model,
-      baseUrl: settings.deepseek_base_url,
-      keySet: settings.deepseek_api_key_set,
-    },
-  ];
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -117,8 +81,8 @@ export default function SettingsPage() {
             <LLMConfigSection
               config={{
                 provider: settings.llm_provider,
-                model: (settings as Record<string, unknown>)[`${settings.llm_provider}_model`] as string || '',
-                base_url: (settings as Record<string, unknown>)[`${settings.llm_provider}_base_url`] as string || '',
+                model: (settings as unknown as Record<string, unknown>)[`${settings.llm_provider}_model`] as string || '',
+                base_url: (settings as unknown as Record<string, unknown>)[`${settings.llm_provider}_base_url`] as string || '',
               }}
               onChange={async (config) => {
                 try {
@@ -193,28 +157,6 @@ function InfoRow({ label, value, ok }: { label: string; value: string; ok?: bool
             {ok ? <CheckCircle size={11} /> : <XCircle size={11} />}
           </span>
         )}
-      </div>
-    </div>
-  );
-}
-
-function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
-  const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
-  const nearLimit = pct >= 80;
-  const atLimit = pct >= 100;
-  return (
-    <div className="rounded-md border border-border/50 px-3 py-2">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[11px] text-text-secondary">{label}</span>
-        <span className={`text-[11px] font-medium ${atLimit ? 'text-status-error' : nearLimit ? 'text-amber-500' : 'text-text-primary'}`}>
-          {used} / {limit}
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/30">
-        <div
-          className={`h-full rounded-full transition-all ${atLimit ? 'bg-status-error' : nearLimit ? 'bg-amber-400' : 'bg-accent'}`}
-          style={{ width: `${pct}%` }}
-        />
       </div>
     </div>
   );

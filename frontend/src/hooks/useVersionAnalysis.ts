@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api/client';
 import type { Version } from '../types/api';
+import type { ToastType } from '../components/Toast';
 
 interface AnalysisState {
   analysisResult: string | null;
@@ -16,7 +17,7 @@ export function useVersionAnalysis(
   projectId: string | undefined,
   versions: Version[],
   setVersions: React.Dispatch<React.SetStateAction<Version[]>>,
-  toast: (msg: string, type?: string) => void,
+  toast: (msg: string, type?: ToastType) => void,
 ) {
   const [state, setState] = useState<AnalysisState>({
     analysisResult: null,

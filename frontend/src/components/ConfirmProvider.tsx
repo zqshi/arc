@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, Trash2, Info } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Trash2, Info } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
 
 type ConfirmVariant = 'default' | 'warning' | 'danger' | 'info';
 
-interface ConfirmOptions {
+export interface ConfirmOptions {
   title: string;
   message: string;
   confirmLabel?: string;
@@ -39,7 +39,6 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     title: '',
     message: '',
   });
-  const [loading, setLoading] = useState(false);
   const resolverRef = useRef<((value: boolean) => void) | null>(null);
 
   const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
