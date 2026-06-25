@@ -233,16 +233,7 @@ export function useConversationSocket(conversationId: string | null) {
         setError('WebSocket 连接异常');
       };
 
-      ws.onmessage = (event) => {
-        if (!mountedRef.current) return;
-
-        let data: WsEvent;
-        try {
-          data = JSON.parse(event.data);
-        } catch {
-          return;
-        }
-
+      function handleMessageEvent(data: WsEvent) {
         switch (data.type) {
           case 'ping':
             ws.send(JSON.stringify({ type: 'pong' }));
@@ -257,12 +248,34 @@ export function useConversationSocket(conversationId: string | null) {
               return [...prev, data.message];
             });
             setIsStreaming(false);
-            break;
+            return;
 
+          case 'quota_exceeded':
+            quotaEvents.emit(data.detail);
+            setIsStreaming(false);
+            return;
+
+          case 'error':
+            setError(data.detail);
+            setIsStreaming(false);
+            return;
+
+          case 'artifacts_extracted':
+            setArtifactsVersion((v) => v + 1);
+            // 如果后端携带了 tracker 快照，直接通知上层更新（避免额外 API 往返）
+            if (data.tracker) {
+              trackerSnapshotRef.current = data.tracker;
+            }
+            return;
+        }
+      }
+
+      function handleStreamEvent(data: WsEvent) {
+        switch (data.type) {
           case 'stream_start':
             setIsStreaming(true);
             setToolCalls([]); // 新一轮开始时清空上一轮工具记录
-            break;
+            return;
 
           case 'stream_resume':
             // 重连后恢复流式状态 — 合并已缓冲的内容
@@ -289,7 +302,7 @@ export function useConversationSocket(conversationId: string | null) {
                 ];
               });
             }
-            break;
+            return;
 
           case 'stream_chunk':
             setMessages((prev) => {
@@ -313,30 +326,16 @@ export function useConversationSocket(conversationId: string | null) {
                 },
               ];
             });
-            break;
+            return;
 
           case 'stream_end':
             setIsStreaming(false);
-            break;
+            return;
+        }
+      }
 
-          case 'quota_exceeded':
-            quotaEvents.emit(data.detail);
-            setIsStreaming(false);
-            break;
-
-          case 'error':
-            setError(data.detail);
-            setIsStreaming(false);
-            break;
-
-          case 'artifacts_extracted':
-            setArtifactsVersion((v) => v + 1);
-            // 如果后端携带了 tracker 快照，直接通知上层更新（避免额外 API 往返）
-            if (data.tracker) {
-              trackerSnapshotRef.current = data.tracker;
-            }
-            break;
-
+      function handleToolEvent(data: WsEvent) {
+        switch (data.type) {
           case 'tool_call':
             setToolCalls((prev) => [
               ...prev,
@@ -349,9 +348,9 @@ export function useConversationSocket(conversationId: string | null) {
                 round: data.round,
               },
             ]);
-            break;
+            return;
 
-          case 'tool_result': {
+          case 'tool_result':
             setToolCalls((prev) => {
               let matched = false;
               return prev.map((tc) => {
@@ -362,13 +361,12 @@ export function useConversationSocket(conversationId: string | null) {
                 return tc;
               });
             });
-            break;
-          }
+            return;
 
           case 'tool_error':
             setError(data.detail);
             setIsStreaming(false);
-            break;
+            return;
 
           case 'approval_required':
             setPendingApproval({
@@ -376,12 +374,16 @@ export function useConversationSocket(conversationId: string | null) {
               tool_name: data.tool_name,
               tool_input: data.tool_input,
             });
-            break;
+            return;
+        }
+      }
 
+      function handleOrchestrationEvent(data: WsEvent) {
+        switch (data.type) {
           case 'orchestration_start':
             setWorkers([]);
             setOrchestrationPhase('working');
-            break;
+            return;
 
           case 'worker_start':
             setWorkers((prev) => [
@@ -393,7 +395,7 @@ export function useConversationSocket(conversationId: string | null) {
                 status: 'running',
               },
             ]);
-            break;
+            return;
 
           case 'worker_complete':
             setWorkers((prev) =>
@@ -403,7 +405,7 @@ export function useConversationSocket(conversationId: string | null) {
                   : w
               )
             );
-            break;
+            return;
 
           case 'worker_error':
             setWorkers((prev) =>
@@ -411,16 +413,62 @@ export function useConversationSocket(conversationId: string | null) {
                 w.id === data.worker_id ? { ...w, status: 'error' as const, output_preview: data.error } : w
               )
             );
-            break;
+            return;
 
           case 'synthesis_start':
             setOrchestrationPhase('synthesizing');
-            break;
+            return;
 
           case 'orchestration_complete':
             setOrchestrationPhase('complete');
+            return;
+        }
+      }
+
+      function handleEvent(data: WsEvent) {
+        switch (data.type) {
+          case 'ping':
+          case 'token_expired':
+          case 'message':
+          case 'quota_exceeded':
+          case 'error':
+          case 'artifacts_extracted':
+            handleMessageEvent(data);
+            break;
+          case 'stream_start':
+          case 'stream_resume':
+          case 'stream_chunk':
+          case 'stream_end':
+            handleStreamEvent(data);
+            break;
+          case 'tool_call':
+          case 'tool_result':
+          case 'tool_error':
+          case 'approval_required':
+            handleToolEvent(data);
+            break;
+          case 'orchestration_start':
+          case 'worker_start':
+          case 'worker_complete':
+          case 'worker_error':
+          case 'synthesis_start':
+          case 'orchestration_complete':
+            handleOrchestrationEvent(data);
             break;
         }
+      }
+
+      ws.onmessage = (event) => {
+        if (!mountedRef.current) return;
+
+        let data: WsEvent;
+        try {
+          data = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+
+        handleEvent(data);
       };
     }
 
