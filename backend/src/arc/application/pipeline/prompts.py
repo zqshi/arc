@@ -335,7 +335,10 @@ PHASE_GREETINGS: dict[PhaseType, str] = {
 # ---------------------------------------------------------------------------
 
 PHASE_REQUIRED_FIELDS: dict[PhaseType, list[str]] = {
-    PhaseType.CLARIFICATION: ["background", "target_users", "user_scenarios", "boundaries", "acceptance_criteria"],
+    PhaseType.CLARIFICATION: [
+        "background", "target_users", "user_scenarios",
+        "boundaries", "acceptance_criteria",
+    ],
     PhaseType.UI_DESIGN: ["flow_diagram", "wireframes", "component_specs"],
     PhaseType.ARCHITECTURE: ["architecture_overview", "data_model", "api_design", "tech_decisions"],
     PhaseType.DEVELOPMENT: ["execution_log", "code_changes", "test_results"],

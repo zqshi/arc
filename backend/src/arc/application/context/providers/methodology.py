@@ -69,7 +69,9 @@ class MethodologyProvider:
         )
 
         methodology = get_methodology_prompt_for_constraint(
-            constraint, phase, user_rounds
+            constraint, phase, user_rounds,
+            title=request.todo.title if request.todo else "",
+            description=request.todo.description if request.todo else "",
         )
 
         # 原型工程化指导 — 按 project_type 注入 (prototype 未完成且在原型产出阶段)。

@@ -87,7 +87,7 @@ async def evaluate_gate(
     structural_gaps = check_required_fields(phase_type, content)
 
     # --- 方法论校验 (DDD / ADR) ---
-    methodology_gaps = _check_methodology(phase_type, content)
+    methodology_gaps = await _check_methodology(phase_type, content)
     structural_gaps.extend(methodology_gaps)
 
     # --- 交叉一致性检查 ---
@@ -158,14 +158,14 @@ async def evaluate_gate(
 # ---------------------------------------------------------------------------
 
 
-def _check_methodology(phase_type: PhaseType, content: dict) -> list[str]:
+async def _check_methodology(phase_type: PhaseType, content: dict) -> list[str]:
     """根据阶段执行方法论专项校验。"""
     gaps = []
 
     if phase_type == PhaseType.ARCHITECTURE:
         from arc.application.execution.architecture_methodology import validate_architecture
 
-        result = validate_architecture(content)
+        result = await validate_architecture(content)
         gaps.extend(result.violations)
         # warnings 不阻断，仅记录
         for w in result.warnings:
@@ -185,7 +185,10 @@ def _check_methodology(phase_type: PhaseType, content: dict) -> list[str]:
                 gaps.append(f"用户故事未覆盖目标用户: {', '.join(uncovered)}")
 
         if user_stories and ac:
-            story_count = len([s for s in user_stories if isinstance(s, dict) and s.get("priority") == "P0"])
+            story_count = len([
+                s for s in user_stories
+                if isinstance(s, dict) and s.get("priority") == "P0"
+            ])
             ac_count = len(ac)
             if story_count > 0 and ac_count < story_count:
                 gaps.append(f"验收标准({ac_count}条)少于P0用户故事({story_count}条)，可能覆盖不足")
@@ -199,7 +202,7 @@ def _check_methodology(phase_type: PhaseType, content: dict) -> list[str]:
     elif phase_type == PhaseType.DEVELOPMENT:
         from arc.application.execution.dev_test_methodology import validate_development
 
-        dev_gaps = validate_development(content)
+        dev_gaps = await validate_development(content)
         gaps.extend(dev_gaps)
 
     elif phase_type == PhaseType.TESTING:

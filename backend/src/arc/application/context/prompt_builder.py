@@ -120,7 +120,7 @@ class PromptBuilder:
         ]
 
         # 推断当前阶段
-        phase = self._infer_phase(completed)
+        phase = await self._infer_phase_with_llm(completed)
 
         request = ContextRequest(
             todo=todo,
@@ -151,6 +151,34 @@ class PromptBuilder:
         if "test_report" not in completed:
             return "testing"
         return "deployment"
+
+    async def _infer_phase_with_llm(
+        self, completed: list[str], *, llm_review_fn=None
+    ) -> str:
+        """🟡结构预筛 + 🟢LLM确认推断当前阶段, 降级回退预筛。
+
+        预筛: _infer_phase 标准线性流程推断。
+        LLM确认: LLM 基于 completed 推断是否推进/回退(覆盖非线性场景, 如返工)。
+        降级: LLM 异常/返回无效 phase → 回退预筛。
+        """
+        prefilter = self._infer_phase(completed)
+        try:
+            prompt = _PHASE_INFERENCE_PROMPT.format(
+                completed=", ".join(completed) or "(无)",
+                prefilter=prefilter,
+            )
+            if llm_review_fn is not None:
+                data = await llm_review_fn(prompt)
+            else:
+                from arc.application.execution.llm_review import default_llm_review
+                data = await default_llm_review(prompt)
+            phase = data.get("phase") if isinstance(data, dict) else None
+            if phase in PHASE_SEQUENCE:
+                return phase
+            return prefilter
+        except Exception as exc:
+            logger.warning("phase 推断 LLM 降级, 回退预筛: %s", exc)
+            return prefilter
 
     # ------------------------------------------------------------------
     # Legacy: pipeline 模式兼容
@@ -255,3 +283,23 @@ class PromptBuilder:
             sufficiency_hint="",
             completed_artifacts=completed_text,
         )
+
+
+PHASE_SEQUENCE = [
+    "clarification", "ui_design", "architecture",
+    "development", "testing", "deployment",
+]
+
+_PHASE_INFERENCE_PROMPT = """\
+根据已完成的交付物, 推断当前应聚焦的开发阶段。
+
+已完成交付物: {completed}
+标准流程预筛: {prefilter}
+
+阶段序列(参考): clarification → ui_design → architecture → development → testing → deployment
+
+输出 JSON 契约:
+{{"phase": "当前阶段名"}}
+
+若实际进度与预筛一致则返回预筛值; 若需推进或回退(如某阶段产出有问题需返工),\
+返回调整后的阶段名(必须是上述阶段序列之一)。"""

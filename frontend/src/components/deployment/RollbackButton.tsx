@@ -29,7 +29,7 @@ export default function RollbackButton({ projectId, versionId, deploymentId, onR
       setConfirming(true);
       // 预查 latest deployment 状态，用于确认弹窗展示 + 已回滚则禁用
       try {
-        const dep = await api.projects.getLatestDeployment(projectId, versionId);
+        const dep = await api.getLatestDeployment(projectId, versionId);
         setCurrent(dep);
         if (dep.status === 'rolled_back') {
           // 已回滚，直接展示禁用态，不进确认
@@ -49,7 +49,7 @@ export default function RollbackButton({ projectId, versionId, deploymentId, onR
         setRolling(false);
         return;
       }
-      const updated = await api.projects.rollbackDeployment(projectId, targetId);
+      const updated = await api.rollbackDeployment(projectId, targetId);
       setCurrent(updated);
       setConfirming(false);
       onRolledBack?.(updated);

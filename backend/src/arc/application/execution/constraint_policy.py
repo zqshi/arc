@@ -51,12 +51,19 @@ def get_methodology_prompt_for_constraint(
     constraint: ProcessConstraint,
     phase: str,
     conversation_round: int,
+    *,
+    title: str = "",
+    description: str = "",
 ) -> str:
     """根据 constraint 级别返回不同深度的方法论 prompt。
 
     - strict: 完整流程，逐步引导
     - moderate: 核心要点，一次性给出
     - free: 质量底线提示（不引导方法论步骤，但明确产出物质量标准）
+
+    Args:
+        title/description: 需求标题与描述, 供 clarification strict 模式的
+            route_strategy 做关键词路由(NEW_DOMAIN/OPTIMIZATION)。
     """
     policy = get_policy(constraint)
 
@@ -64,7 +71,7 @@ def get_methodology_prompt_for_constraint(
         return _quality_baseline_prompt(phase)  # free 模式: 质量底线
 
     if phase == "clarification":
-        return _clarification_prompt(policy, conversation_round)
+        return _clarification_prompt(policy, conversation_round, title, description)
     if phase == "ui_design":
         return _ui_design_prompt(policy, conversation_round)
     if phase == "architecture":
@@ -140,14 +147,16 @@ def _quality_baseline_prompt(phase: str) -> str:
     return baselines.get(phase, "")
 
 
-def _clarification_prompt(policy: ConstraintPolicy, round: int) -> str:
+def _clarification_prompt(
+    policy: ConstraintPolicy, round: int, title: str, description: str
+) -> str:
     if policy.methodology_depth == "full":
         # strict: 完整三策略递进
         from arc.application.execution.clarification_strategy import (
             build_clarification_prompt,
             route_strategy,
         )
-        strategy = route_strategy("", "", round)
+        strategy = route_strategy(title, description, round)
         return build_clarification_prompt(strategy, round)
     else:
         # moderate: 直接给六维框架，不做策略路由

@@ -149,8 +149,19 @@ class CodebaseScanner:
         except PermissionError:
             return
 
-        dirs = [e for e in entries if e.is_dir() and e.name not in IGNORE_DIRS and not (e.name.startswith(".") and e.name not in (".github", ".circleci", ".gitlab"))]
-        files = [e for e in entries if e.is_file() and not e.name.startswith(".") and e.suffix.lower() not in BINARY_EXTENSIONS]
+        dirs = [
+            e for e in entries
+            if e.is_dir()
+            and e.name not in IGNORE_DIRS
+            and not (e.name.startswith(".")
+                     and e.name not in (".github", ".circleci", ".gitlab"))
+        ]
+        files = [
+            e for e in entries
+            if e.is_file()
+            and not e.name.startswith(".")
+            and e.suffix.lower() not in BINARY_EXTENSIONS
+        ]
 
         rel_dir = str(directory.relative_to(self.root)) if directory != self.root else "."
 
@@ -184,14 +195,16 @@ class CodebaseScanner:
                     self._walk_recursive(entry, prefix + ext_prefix, lines, depth + 1,
                                          file_index, ext_counter, dir_loc, dir_files)
                 else:
-                    _index_deep(self.root, entry, depth + 1, file_index, ext_counter, dir_loc, dir_files)
+                    _index_deep(self.root, entry, depth + 1,
+                                file_index, ext_counter, dir_loc, dir_files)
             else:
                 lines.append(f"{prefix}{connector}{entry.name}")
 
     # -- Phase 2: File selection — read all or by coverage -------------------
 
     def _select_files(self, file_index: dict[str, dict], scale: ProjectScale) -> list[str]:
-        """Select files to read. Small projects: all. Larger: ensure every directory is represented."""
+        """Select files to read. Small projects: all.
+    Larger: ensure every directory is represented."""
         if scale.read_all:
             return list(file_index.keys())
 

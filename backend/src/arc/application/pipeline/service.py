@@ -221,7 +221,10 @@ class PipelineService:
                             passed=False,
                             score=0,
                             gaps=[f"部署前置构建未就绪: {exc}"],
-                            suggestion="请先完成构建并确认产物 (build_status=success) 后再确认部署阶段。",
+                            suggestion=(
+                                "请先完成构建并确认产物 (build_status=success) "
+                                "后再确认部署阶段。"
+                            ),
                         )
                     )
 

@@ -307,7 +307,10 @@ async def scan_and_summarize_stream(path: str) -> AsyncIterator[dict]:
 
     if total_prompt_size <= context_budget:
         # --- Single-pass: fits in one prompt ---
-        yield {"event": "stage", "message": f"AI 正在分析 (~{total_prompt_size // 3000}K tokens)..."}
+        yield {
+            "event": "stage",
+            "message": f"AI 正在分析 (~{total_prompt_size // 3000}K tokens)...",
+        }
         full_content = ""
         prompt = SCAN_PROMPT.format(
             **skeleton,

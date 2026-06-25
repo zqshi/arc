@@ -43,7 +43,7 @@ export function ApprovalDialog({ toolName, toolInput, requestId, onRespond }: Ap
           <pre className="max-h-40 overflow-auto text-sm text-text-primary whitespace-pre-wrap break-all font-mono">
             {displayContent}
           </pre>
-          {!isCommand && toolInput.content && (
+          {!isCommand && !!toolInput.content && (
             <>
               <div className="mt-3 mb-1 text-[10px] font-medium uppercase tracking-wide text-text-muted">
                 文件内容预览

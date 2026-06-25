@@ -124,7 +124,7 @@ async def evaluate_conversation_gate(
     # 层 2: 方法论校验 (仅 phase 主产物，复用 gate.py)
     if profile.enable_methodology and is_primary:
         checked.append("methodology")
-        gaps.extend(_safe_methodology(phase_type, content))
+        gaps.extend(await _safe_methodology(phase_type, content))
 
     # 层 3: 交叉一致性 (仅 phase 主产物且有前置)
     if profile.enable_cross_check and is_primary and prior_artifacts:
@@ -161,12 +161,12 @@ async def evaluate_conversation_gate(
     )
 
 
-def _safe_methodology(phase_type: PhaseType, content: dict) -> list[str]:
+async def _safe_methodology(phase_type: PhaseType, content: dict) -> list[str]:
     """防御性调用 gate._check_methodology — 字段错配时降级为空 (不阻断)。"""
     try:
         from arc.application.pipeline.gate import _check_methodology
 
-        return _check_methodology(phase_type, content)
+        return await _check_methodology(phase_type, content)
     except Exception as exc:
         logger.debug("methodology check skipped for %s: %s", phase_type, exc)
         return []

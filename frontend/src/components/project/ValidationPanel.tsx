@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { ShieldCheck, X, AlertTriangle, Loader2, RefreshCw, CheckCircle2, Info, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import type { DomainModelValidation, ReviewFeedback, ReviewFeedbackStatus, ModelChangeScope } from '../../types/api';
+import type { DomainModelValidation, ReviewFeedback } from '../../types/api';
 import type { ReviewState } from '../../hooks/useDomainModelReview';
 
 const LEVEL_STYLES: Record<string, { label: string; color: string; bg: string }> = {

@@ -202,7 +202,7 @@ export default function ExperienceList() {
                   {exp.pitfalls.length > 0 && (
                     <div className="mb-2">
                       <span className="text-[10px] font-medium text-status-error/80">
-                        踩坑: {typeof exp.pitfalls[0] === 'string' ? exp.pitfalls[0] : (exp.pitfalls[0] as Record<string, unknown>)?.cause || (exp.pitfalls[0] as Record<string, unknown>)?.fix || JSON.stringify(exp.pitfalls[0])}
+                        踩坑: {typeof exp.pitfalls[0] === 'string' ? exp.pitfalls[0] : String((exp.pitfalls[0] as Record<string, unknown>)?.cause || (exp.pitfalls[0] as Record<string, unknown>)?.fix || JSON.stringify(exp.pitfalls[0]))}
                       </span>
                     </div>
                   )}
