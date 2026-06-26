@@ -15,9 +15,30 @@ import pytest
 
 from arc.infrastructure.redis_bus import RedisEventBus
 
-pytestmark = pytest.mark.slow
-
 REDIS_URL = "redis://localhost:6379/15"  # db 15 测试专用, 避免污染
+
+
+def _redis_available() -> bool:
+    """本地 redis 是否可用 (不可用则 skip, 避免 CI 无 redis 时失败)。"""
+    try:
+        import redis
+
+        client = redis.from_url(REDIS_URL, socket_connect_timeout=0.5)
+        client.ping()
+        client.close()
+        return True
+    except Exception:
+        return False
+
+
+# 无本地 redis 时自动 skip (而非标记后因连接失败)
+pytestmark = [
+    pytest.mark.slow,
+    pytest.mark.skipif(
+        not _redis_available(),
+        reason="本地 redis 不可用 (CI 默认 -m 'not slow' 跳过)",
+    ),
+]
 
 
 @pytest.fixture
