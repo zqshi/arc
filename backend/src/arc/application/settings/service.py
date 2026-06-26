@@ -13,18 +13,33 @@ from arc.config import settings
 
 logger = logging.getLogger(__name__)
 
-# 配置字段 → .env 变量名映射
+# 配置字段 → .env 变量名映射 (config env_prefix=ARC_, 故持久化 key 须带 ARC_ 前缀,
+# 否则重启后读不回 → 配置变更只在运行时生效不持久。波次2 修复既有 LLM prefix 遗漏 + 补 agent)
 _ENV_KEY_MAP = {
-    "llm_provider": "LLM_PROVIDER",
-    "openai_api_key": "OPENAI_API_KEY",
-    "openai_base_url": "OPENAI_BASE_URL",
-    "openai_model": "OPENAI_MODEL",
-    "anthropic_api_key": "ANTHROPIC_API_KEY",
-    "anthropic_base_url": "ANTHROPIC_BASE_URL",
-    "anthropic_model": "ANTHROPIC_MODEL",
-    "deepseek_api_key": "DEEPSEEK_API_KEY",
-    "deepseek_base_url": "DEEPSEEK_BASE_URL",
-    "deepseek_model": "DEEPSEEK_MODEL",
+    "llm_provider": "ARC_LLM_PROVIDER",
+    "openai_api_key": "ARC_OPENAI_API_KEY",
+    "openai_base_url": "ARC_OPENAI_BASE_URL",
+    "openai_model": "ARC_OPENAI_MODEL",
+    "anthropic_api_key": "ARC_ANTHROPIC_API_KEY",
+    "anthropic_base_url": "ARC_ANTHROPIC_BASE_URL",
+    "anthropic_model": "ARC_ANTHROPIC_MODEL",
+    "deepseek_api_key": "ARC_DEEPSEEK_API_KEY",
+    "deepseek_base_url": "ARC_DEEPSEEK_BASE_URL",
+    "deepseek_model": "ARC_DEEPSEEK_MODEL",
+    "openhands_url": "ARC_OPENHANDS_URL",
+    "openhands_api_key": "ARC_OPENHANDS_API_KEY",
+    "codex_api_key": "ARC_CODEX_API_KEY",
+    "codex_base_url": "ARC_CODEX_BASE_URL",
+    "claude_code_path": "ARC_CLAUDE_CODE_PATH",
+    "claude_code_work_dir": "ARC_CLAUDE_CODE_WORK_DIR",
+    "claude_code_model": "ARC_CLAUDE_CODE_MODEL",
+    "cursor_cli_path": "ARC_CURSOR_CLI_PATH",
+}
+
+# 涉 agent adapter 的字段 → update 后需重建 AgentRegistry
+_AGENT_FIELDS = {
+    "openhands_url", "openhands_api_key", "codex_api_key", "codex_base_url",
+    "claude_code_path", "claude_code_work_dir", "claude_code_model", "cursor_cli_path",
 }
 
 
@@ -42,10 +57,11 @@ class SettingsService:
         self._env_path = env_path
 
     async def update(self, updates: dict) -> dict:
-        """应用配置变更: 运行时覆盖 → 持久化 → 失效缓存。"""
+        """应用配置变更: 运行时覆盖 → 持久化 → 失效缓存 → (涉agent)重建registry。"""
         self._apply_runtime(updates)
         self._persist_to_env(updates)
         await self._invalidate_adapter_cache()
+        self._maybe_reload_agent_registry(updates)
         return {
             "status": "updated",
             "llm_provider": self._settings.llm_provider,
@@ -75,7 +91,7 @@ class SettingsService:
         for field, value in updates.items():
             if value is None:
                 continue
-            env_key = _ENV_KEY_MAP.get(field, field.upper())
+            env_key = _ENV_KEY_MAP.get(field, f"ARC_{field.upper()}")
             if env_key in existing_keys:
                 lines[existing_keys[env_key]] = f"{env_key}={value}"
             else:
@@ -105,3 +121,18 @@ class SettingsService:
             await adapter_pool.shutdown()
         except Exception:
             logger.warning("Failed to invalidate adapter pool cache", exc_info=True)
+
+    def _maybe_reload_agent_registry(self, updates: dict) -> None:
+        """涉 agent adapter 字段时原地重建 AgentRegistry (skill 运行时配置生效)。"""
+        if not (_AGENT_FIELDS & set(updates.keys())):
+            return
+        try:
+            from arc.application.agent.registry import agent_registry
+
+            agent_registry.reload()
+            logger.info(
+                "AgentRegistry reloaded: %s",
+                [a.value for a in agent_registry.available_agents()],
+            )
+        except Exception:
+            logger.warning("Failed to reload agent registry", exc_info=True)
