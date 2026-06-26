@@ -440,7 +440,36 @@ class ConversationExecutionService:
             from arc.domain.project.value_objects import FREE_DELIVERABLES
             required_types = FREE_DELIVERABLES
 
+        # v6.9: 按项目类型裁剪可见交付物 — 非app类不显示 app_code/build 节点
+        required_types = await self._filter_visible_deliverables(todo_id, required_types)
+
         return await self.extractor.get_or_create_tracker(todo_id, required_types)
+
+    async def _filter_visible_deliverables(
+        self, todo_id: uuid.UUID, deliverables: list[str]
+    ) -> list[str]:
+        """v6.9: 按项目类型裁剪可见交付物(非app类去 app_code/build)。
+
+        tracker.required 决定前端交付物节点显示, 类型过滤让非app类不显示
+        app_code/build 节点(无原生构建产物)。graceful: 取项目失败→原样返回。
+        """
+        try:
+            from arc.domain.project.value_objects import is_deliverable_visible
+            from arc.infrastructure.repositories.project import ProjectRepository
+
+            todo = await self.todo_repo.get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return deliverables
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if not project:
+                return deliverables
+            return [
+                d
+                for d in deliverables
+                if is_deliverable_visible(project.project_type, d)
+            ]
+        except Exception:
+            return deliverables
 
     async def _sync_tracker_required(
         self, tracker: DeliverableTracker, todo, override: list[str] | None,
