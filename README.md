@@ -235,6 +235,34 @@ ARC_SMS_MOCK_MODE=false
 
 完整变量说明见 [.env.example](.env.example)（与 `backend/src/arc/config.py` 一一对应）。
 
+## Kubernetes 部署
+
+生产环境可用 `kubectl apply -k k8s/` 一键部署。**应用前必须完成两步前置**，否则部署会失败：
+
+```bash
+# 1. 生成真实 Secret（k8s/secrets.example.yml 仅是占位模板，真实 secrets.yml 被 .gitignore 忽略，不入库）
+cp k8s/secrets.example.yml k8s/secrets.yml
+#   填入真实值：ARC_DATABASE_URL / ARC_JWT_SECRET / 至少一个 LLM Key / ARC_CORS_ORIGINS
+#   签名凭证密钥 ARC_SIGNING_SECRET_KEY 生成：
+#     python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# 2. 替换镜像仓库占位符（k8s/kustomization.yml 中 ghcr.io/YOUR_ORG/arc-backend|arc-frontend）
+#   改为实际的 GHCR 组织或私有镜像仓库地址
+```
+
+```bash
+kubectl apply -k k8s/
+```
+
+部署清单说明：
+- `namespace.yml` — 创建 arc 命名空间
+- `configmap.yml` — 非敏感配置（对应 `backend/src/arc/config.py` 字段）
+- `secrets.yml` — 敏感配置（**不入库，由 `secrets.example.yml` 复制生成**）
+- `backend.yml` / `frontend.yml` / `redis.yml` — 工作负载
+- `ingress.yml` — 入口路由
+
+> 本地存储模式（未配 `ARC_STORAGE_ENDPOINT`）需为 backend Pod 挂载可写卷并设置 `ARC_PREVIEW_STATIC_DIR=/app/data/static/previews`，否则预览静态文件写入会失败；生产建议配置对象存储。
+
 ## 常用命令
 
 ```bash
