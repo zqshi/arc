@@ -156,11 +156,8 @@ def create_eventbus() -> "EventBus":
     from arc.config import settings
 
     if settings.redis_url:
-        # 阶段 2 接入: from arc.infrastructure.redis_bus import RedisEventBus
-        # return RedisEventBus(settings.redis_url)
-        logger.warning(
-            "redis_url configured but RedisEventBus not yet implemented; "
-            "falling back to InMemoryEventBus (单 worker 模式)"
-        )
+        from arc.infrastructure.redis_bus import RedisEventBus
+
+        return RedisEventBus(settings.redis_url)
     return InMemoryEventBus()
 
