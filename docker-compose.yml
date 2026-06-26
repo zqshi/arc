@@ -24,6 +24,8 @@ services:
       ARC_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-arc}:${POSTGRES_PASSWORD:-arc}@db:5432/${POSTGRES_DB:-arc}
       ARC_DEBUG: "false"
       ARC_JWT_SECRET: ${ARC_JWT_SECRET:-}
+      # v6.7: 多 worker 测试时配 redis://redis:6379/0, 空则单 worker
+      ARC_REDIS_URL: ${ARC_REDIS_URL:-}
       ARC_SMS_MOCK_MODE: ${ARC_SMS_MOCK_MODE:-true}
       ARC_LLM_PROVIDER: ${ARC_LLM_PROVIDER:-openai}
       ARC_OPENAI_API_KEY: ${ARC_OPENAI_API_KEY:-}
@@ -74,6 +76,19 @@ services:
       timeout: 3s
       retries: 3
 
+  redis:
+    # v6.7: 跨进程事件总线 (可选, 多 worker 测试用; 不配 ARC_REDIS_URL 则单 worker InMemory)
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
   openhands:
     image: docker.all-hands.dev/all-hands-ai/openhands:latest
     ports:
@@ -105,3 +120,4 @@ volumes:
   pgdata:
   openhands_data:
   minio_data:
+  redis_data:
