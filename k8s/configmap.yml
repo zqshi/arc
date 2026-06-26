@@ -17,6 +17,9 @@ data:
   ARC_DB_POOL_SIZE: "10"
   ARC_DB_MAX_OVERFLOW: "20"
   ARC_DB_POOL_RECYCLE: "3600"
+  # v6.7: 跨进程事件总线 (多 worker 前置, 空则退回单 worker InMemory)
+  ARC_REDIS_URL: "redis://arc-redis:6379/0"
+  ARC_WORKERS: "2"
   # ── BaaS / Supabase (非敏感, 启用 BaaS 功能时填真实值) ──
   ARC_SUPABASE_API_URL: "http://localhost:54321"
   ARC_SUPABASE_SCHEMA_PREFIX: "arc_"

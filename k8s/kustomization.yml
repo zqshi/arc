@@ -5,6 +5,7 @@ resources:
   - namespace.yml
   - configmap.yml
   - secrets.yml
+  - redis.yml
   - backend.yml
   - frontend.yml
   - ingress.yml
