@@ -1,15 +1,16 @@
-"""Redis 跨进程事件总线实现 (v6.7 阶段2)。
+"""Redis 跨进程事件总线实现 (v6.7)。
 
-用 redis.asyncio 的 pub/sub 做跨 worker 事件广播, 用 Redis List 做 replay
-缓冲 (迟到订阅者重放历史)。契约与 InMemoryEventBus 一致 (见 test_eventbus)。
+用 Redis Stream 做跨 worker 事件广播 + replay。契约与 InMemoryEventBus 一致
+(见 test_eventbus)。
 
-设计:
-- publish(channel, event): PUBLISH 事件 + RPUSH 到 replay list (LTRIM + EXPIRE)
-- subscribe(channel): 独立 pubsub 连接订阅 + 先 LRANGE 重放历史
-- shutdown: 关闭所有 pubsub 与连接
+设计 (v6.7 沙箱波次: pub/sub → Stream 升级, 保证关键事件不丢):
+- publish(channel, event): XADD 到 stream (MAXLEN ~ 500 近似裁剪, 持久化)
+- subscribe(channel): XRANGE 重放历史 + XREAD BLOCK 读新事件 (last-id 追踪)
+- shutdown: XADD sentinel 到所有活跃 channel 让订阅者立即退出, 再关连接
 
-每个 subscribe 用独立 pubsub (一个 redis 连接一个订阅者); replay list 与
-channel 同生命周期, TTL 自动回收。
+相比 pub/sub (at-most-once, 无消费者时事件丢): Stream 持久化, 迟到订阅者
+XRANGE 能重放全部历史, stream_end/error 等关键事件不丢。每个 subscribe 用
+独立连接读 stream (XREAD BLOCK)。
 """
 
 from __future__ import annotations
@@ -23,8 +24,8 @@ from arc.infrastructure.eventbus import _DEFAULT_REPLAY_SIZE, EventBus
 
 logger = logging.getLogger(__name__)
 
-_REPLAY_TTL_SECONDS = 300  # replay list 保留 5 分钟
-_REPLAY_SUFFIX = ":events"  # replay list key 后缀
+_STREAM_TTL_SECONDS = 300  # stream 保留 5 分钟 (供迟到订阅者重放)
+_XREAD_BLOCK_MS = 1000  # XREAD 阻塞 1 秒, 周期检查 _closed
 
 
 def _serialize(event: dict) -> str:
@@ -38,7 +39,7 @@ def _deserialize(raw: str | bytes) -> dict:
 
 
 class RedisEventBus(EventBus):
-    """Redis pub/sub + List replay 跨进程事件总线。"""
+    """Redis Stream 跨进程事件总线。"""
 
     def __init__(
         self,
@@ -47,98 +48,117 @@ class RedisEventBus(EventBus):
     ) -> None:
         import redis.asyncio as aioredis
 
+        self._url = redis_url
         self._redis = aioredis.from_url(redis_url, decode_responses=True)
         self._replay_size = replay_size
         self._closed = False
-        # publish 用主连接, 各 subscribe 用独立 pubsub 连接
-        self._pubsubs: list[Any] = []
+        # 各 subscribe 用独立连接读 stream; publish 用主连接
+        self._read_conns: list[Any] = []
         self._channels: set[str] = set()
-
-    def _replay_key(self, channel: str) -> str:
-        return f"{channel}{_REPLAY_SUFFIX}"
 
     async def publish(self, channel: str, event: dict) -> None:
         if self._closed:
             return
         self._channels.add(channel)
-        # sentinel 不进 replay list (只通知 live 订阅者终止)
-        is_sentinel = event.get("_sentinel") is True
         payload = _serialize(event)
-        pipe = self._redis.pipeline()
-        if not is_sentinel:
-            pipe.rpush(self._replay_key(channel), payload)
-            pipe.ltrim(self._replay_key(channel), -self._replay_size, -1)
-            pipe.expire(self._replay_key(channel), _REPLAY_TTL_SECONDS)
-        pipe.publish(channel, payload)
-        await pipe.execute()
+        # XADD 持久化到 stream, MAXLEN 近似裁剪保留最近 N 条
+        await self._redis.xadd(
+            channel,
+            {"data": payload},
+            maxlen=self._replay_size,
+            approximate=True,
+        )
+        # stream TTL 自动回收 (无活跃订阅者后)
+        await self._redis.expire(channel, _STREAM_TTL_SECONDS)
 
     async def subscribe(self, channel: str) -> AsyncIterator[dict]:
-        # 独立 pubsub 连接 (redis 限制: 一个连接一个订阅)
-        pubsub = self._redis.pubsub()
-        self._pubsubs.append(pubsub)
-        await pubsub.subscribe(channel)
+        # 独立连接读 stream (XREAD BLOCK 占用连接)
+        import redis.asyncio as aioredis
 
-        # Phase 1: replay 历史 (从 replay list)
+        read_conn = aioredis.from_url(self._url, decode_responses=True)
+        self._read_conns.append(read_conn)
+
+        # Phase 1: replay 历史 (XRANGE)
+        last_id = "0-0"
         try:
-            history = await self._redis.lrange(
-                self._replay_key(channel), 0, -1
-            )
+            history = await read_conn.xrange(channel, min="-", max="+")
         except Exception as exc:
-            logger.warning("Replay read failed for %s: %s", channel, exc)
+            logger.warning("Stream replay failed for %s: %s", channel, exc)
             history = []
 
-        for raw in history:
+        for _event_id, fields in history:
+            raw = fields.get("data")
+            if not raw:
+                continue
             try:
-                yield _deserialize(raw)
+                event = _deserialize(raw)
             except Exception:
                 continue
+            if event.get("_sentinel") is True:
+                return
+            yield event
+            # 追踪最后 yield 的 id (用于 XREAD 起点避免重复)
+            last_id = _event_id
 
-        # Phase 2: live (监听 pubsub)
+        # Phase 2: live (XREAD BLOCK 从 last_id 之后)
         try:
-            async for message in pubsub.listen():
-                if self._closed:
-                    break
-                if message["type"] != "message":
-                    continue
+            while not self._closed:
                 try:
-                    event = _deserialize(message["data"])
-                except Exception:
-                    continue
-                if event.get("_sentinel") is True:
+                    result = await read_conn.xread(
+                        {channel: last_id}, count=100, block=_XREAD_BLOCK_MS
+                    )
+                except Exception as exc:
+                    logger.debug("Stream read ended for %s: %s", channel, exc)
                     break
-                yield event
+                if not result:
+                    # block 超时无新事件, 继续轮询 (检查 _closed)
+                    continue
+                for _stream, messages in result:
+                    for event_id, fields in messages:
+                        last_id = event_id
+                        raw = fields.get("data")
+                        if not raw:
+                            continue
+                        try:
+                            event = _deserialize(raw)
+                        except Exception:
+                            continue
+                        if event.get("_sentinel") is True:
+                            return
+                        yield event
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            # shutdown 关闭连接 / 连接异常 → 正常结束迭代
-            logger.debug("Redis pubsub listen ended for %s: %s", channel, exc)
+            logger.debug("Stream subscribe ended for %s: %s", channel, exc)
         finally:
             try:
-                await pubsub.unsubscribe(channel)
-                await pubsub.aclose()
+                await read_conn.aclose()
             except Exception:
                 pass
-            if pubsub in self._pubsubs:
-                self._pubsubs.remove(pubsub)
+            if read_conn in self._read_conns:
+                self._read_conns.remove(read_conn)
 
     async def shutdown(self) -> None:
         if self._closed:
             return
         self._closed = True
-        # 给所有活跃 channel 发 sentinel, 让 listen 中的订阅者自然退出
+        # 给所有活跃 channel 发 sentinel, 让 XREAD 中的订阅者立即退出
         for ch in list(self._channels):
             try:
-                await self._redis.publish(ch, _serialize({"_sentinel": True}))
+                await self._redis.xadd(
+                    ch, {"data": _serialize({"_sentinel": True})},
+                    maxlen=self._replay_size, approximate=True,
+                )
             except Exception:
                 pass
-        # 等待订阅者处理 sentinel 后关闭连接
+        # 等待订阅者处理 sentinel
         await asyncio.sleep(0.05)
-        for pubsub in list(self._pubsubs):
+        for conn in list(self._read_conns):
             try:
-                await pubsub.aclose()
+                await conn.aclose()
             except Exception:
                 pass
-        self._pubsubs.clear()
+        self._read_conns.clear()
         self._channels.clear()
         try:
             await self._redis.aclose()

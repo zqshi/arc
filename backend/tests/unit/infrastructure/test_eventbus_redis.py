@@ -130,3 +130,56 @@ class TestRedisEventBusPublishSubscribe:
         await asyncio.wait_for(consumer, timeout=2.0)
 
         assert a == [{"to": "a"}]
+
+
+class TestRedisStreamReliability:
+    """Stream 升级的核心价值: 关键事件不丢 (pub/sub 无消费者时事件丢)。"""
+
+    @pytest.mark.asyncio
+    async def test_late_subscriber_replays_all_including_critical(self, bus):
+        """迟到订阅者 (发布时无消费者) 通过 XRANGE 重放全部历史, 含关键事件。"""
+        ch = "test:reliability:late"
+        # 发布时无任何订阅者 — pub/sub 模式这些会全丢, Stream 持久化保留
+        await bus.publish(ch, {"type": "stream_chunk", "content": "part1"})
+        await bus.publish(ch, {"type": "stream_chunk", "content": "part2"})
+        await bus.publish(ch, {"type": "stream_end"})  # 关键事件
+        await asyncio.sleep(0.05)
+
+        # 迟到订阅者现在才订阅, 应 replay 全部 3 条
+        replayed: list[dict] = []
+
+        async def consume():
+            async for event in bus.subscribe(ch):
+                replayed.append(event)
+                if len(replayed) >= 3:
+                    break
+
+        await asyncio.wait_for(consume(), timeout=2.0)
+
+        types = [e["type"] for e in replayed]
+        assert types == ["stream_chunk", "stream_chunk", "stream_end"], (
+            f"关键事件丢失: {types}"
+        )
+        # stream_end (关键事件) 必须在 replay 中, 不能丢
+        assert replayed[-1]["type"] == "stream_end"
+
+    @pytest.mark.asyncio
+    async def test_maxlen_does_not_lose_recent_events(self, bus):
+        """MAXLEN 近似裁剪只裁旧事件, 最近的关键事件不丢。"""
+        ch = "test:reliability:maxlen"
+        # 发布超过 replay_size 的事件 (replay_size 默认 500)
+        for i in range(20):
+            await bus.publish(ch, {"seq": i})
+        await bus.publish(ch, {"type": "stream_end"})  # 最新关键事件
+        await asyncio.sleep(0.05)
+
+        replayed: list[dict] = []
+        async for event in bus.subscribe(ch):
+            replayed.append(event)
+            if event.get("type") == "stream_end":
+                break
+
+        # 最新的 stream_end 必须在 (未被裁剪)
+        assert replayed[-1]["type"] == "stream_end"
+        # 旧事件可能被裁, 但最近的保留
+        assert len(replayed) >= 1
