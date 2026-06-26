@@ -7,7 +7,6 @@ import pytest
 
 from arc.application.execution.stream_manager import StreamManager, StreamSession
 
-
 # ---------------------------------------------------------------------------
 # StreamSession 单元测试
 # ---------------------------------------------------------------------------
@@ -202,3 +201,56 @@ class TestStreamManager:
         session = StreamSession(conversation_id="conv-1")
         # message_id should be a valid UUID string
         uuid.UUID(session.message_id)
+
+
+# ---------------------------------------------------------------------------
+# 多 worker (bus 注入) 路径 — v6.7
+# ---------------------------------------------------------------------------
+
+class TestStreamManagerWithBus:
+    """注入 EventBus 后的跨进程投递语义 (用 InMemoryEventBus 模拟)。"""
+
+    @pytest.mark.asyncio
+    async def test_bus_subscriber_receives_events(self):
+        from arc.infrastructure.eventbus import InMemoryEventBus
+
+        bus = InMemoryEventBus()
+        mgr = StreamManager(bus=bus)
+
+        async def gen():
+            yield {"type": "stream_chunk", "message_id": "m1", "content": "a"}
+            yield {"type": "stream_chunk", "message_id": "m1", "content": "b"}
+
+        session = mgr.start_stream("conv-1", gen())
+        await asyncio.sleep(0.1)  # 等流跑完
+
+        events = []
+        async for event in mgr.subscribe(session):
+            events.append(event)
+
+        contents = [e.get("content", "") for e in events if e.get("content")]
+        assert contents == ["a", "b"]
+        await bus.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_bus_no_duplicate_delivery(self):
+        """有 bus 时, 订阅者不收到重复事件 (本地不再直投 queue)。"""
+        from arc.infrastructure.eventbus import InMemoryEventBus
+
+        bus = InMemoryEventBus()
+        mgr = StreamManager(bus=bus)
+
+        async def gen():
+            yield {"type": "stream_chunk", "message_id": "m1", "content": "x"}
+
+        session = mgr.start_stream("conv-1", gen())
+        await asyncio.sleep(0.1)
+
+        events = []
+        async for event in mgr.subscribe(session):
+            events.append(event)
+
+        # 应只收到 1 条 content 事件, 不重复
+        contents = [e.get("content", "") for e in events if e.get("content")]
+        assert contents == ["x"]
+        await bus.shutdown()

@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     db_max_overflow: int = 20
     db_pool_recycle: int = 3600
 
+    # Redis (v6.7) — 跨进程事件总线, 启用多 worker 的前置
+    # 空 = 退回进程内 InMemoryEventBus (单 worker / dev / 单测默认)
+    # 生产多 worker 部署必配, 如 redis://redis:6379/0
+    redis_url: str = ""
+
     # Auth / JWT
     jwt_secret: str = ""
     jwt_access_expire_minutes: int = 30

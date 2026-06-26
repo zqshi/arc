@@ -3,6 +3,10 @@
 Manages per-project async scan tasks with event queues for SSE streaming.
 Tasks run independently of client connections — results persist to DB
 even if the client disconnects.
+
+多 worker (v6.7): _emit/subscribe/_finish 走 EventBus channel
+`arc:scan:{project_id}` 跨进程广播。bus=None 时退回进程内模式。
+累积内容 (_accumulated) 是业务状态, 留在 manager 本地维护。
 """
 
 from __future__ import annotations
@@ -10,22 +14,38 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
+
+if TYPE_CHECKING:
+    from arc.infrastructure.eventbus import EventBus
 
 logger = logging.getLogger(__name__)
 
 _QUEUE_SENTINEL = None
+_CHANNEL_PREFIX = "arc:scan:"
 
 
 class ScanTaskManager:
     """Manages per-project background codebase scan tasks."""
 
-    def __init__(self):
+    def __init__(self, bus: EventBus | None = None):
         self._tasks: dict[str, asyncio.Task] = {}
         self._queues: dict[str, list[asyncio.Queue]] = {}
         self._last_error: dict[str, str] = {}  # project_id → error message
         self._accumulated: dict[str, str] = {}  # project_id → accumulated chunk content
         self._lock = asyncio.Lock()
+        self._explicit_bus = bus
+
+    @property
+    def _bus(self) -> EventBus | None:
+        if self._explicit_bus is not None:
+            return self._explicit_bus
+        from arc.infrastructure.eventbus import get_global_bus
+
+        return get_global_bus()
+
+    def _channel(self, project_id: str) -> str:
+        return f"{_CHANNEL_PREFIX}{project_id}"
 
     def is_running(self, project_id: str) -> bool:
         task = self._tasks.get(project_id)
@@ -55,6 +75,14 @@ class ScanTaskManager:
         the generator returns immediately — callers must handle the empty case.
         Late subscribers receive accumulated content first, then live events.
         """
+        bus = self._bus
+        if bus is not None:
+            # 多 worker: 经 bus 订阅 (bus 自带 replay 缓冲)
+            async for event in bus.subscribe(self._channel(project_id)):
+                yield event
+            return
+
+        # 进程内模式
         queue: asyncio.Queue = asyncio.Queue()
         accumulated = ""
         async with self._lock:
@@ -90,8 +118,9 @@ class ScanTaskManager:
                     subs.remove(queue)
 
     async def _emit(self, project_id: str, event: dict) -> None:
+        # 累积内容是业务状态, 本地维护 (多 worker 下各 worker 各自累积;
+        # replay 由 bus 缓冲承接, accumulated 用于错误时持久化部分内容)
         async with self._lock:
-            # Accumulate chunk content for late subscribers
             evt_type = event.get("event")
             if evt_type == "chunk":
                 self._accumulated.setdefault(project_id, "")
@@ -100,22 +129,34 @@ class ScanTaskManager:
                 # Replace accumulated with final summary
                 self._accumulated[project_id] = event.get("summary", "")
 
+        bus = self._bus
+        if bus is not None:
+            await bus.publish(self._channel(project_id), event)
+            return
+
+        # 进程内: 投本地订阅者
+        async with self._lock:
             subscribers = self._queues.get(project_id, [])
-            for q in subscribers:
-                try:
-                    q.put_nowait(event)
-                except asyncio.QueueFull:
-                    pass
+        for q in subscribers:
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
 
     async def _finish(self, project_id: str) -> None:
         """Signal all subscribers that the scan is done."""
+        bus = self._bus
+        if bus is not None:
+            await bus.publish(self._channel(project_id), {"_sentinel": True})
+            return
+
         async with self._lock:
             subscribers = self._queues.get(project_id, [])
-            for q in subscribers:
-                try:
-                    q.put_nowait(_QUEUE_SENTINEL)
-                except asyncio.QueueFull:
-                    pass
+        for q in subscribers:
+            try:
+                q.put_nowait(_QUEUE_SENTINEL)
+            except asyncio.QueueFull:
+                pass
 
     async def _run_scan(self, project_id: str, path: str, task_id: str) -> None:
         """Execute the scan, emitting events and persisting the result."""

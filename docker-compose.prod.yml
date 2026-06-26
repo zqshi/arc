@@ -18,6 +18,23 @@ services:
         limits:
           memory: 512M
 
+  redis:
+    # v6.7: 跨进程事件总线, 多 worker 前置 (流式对话/SSE 跨 worker 广播)
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
   backend:
     image: ${ARC_BACKEND_IMAGE:-arc-backend:latest}
     build:
@@ -28,6 +45,9 @@ services:
       ARC_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-arc}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-arc}
       ARC_DEBUG: "false"
       ARC_JWT_SECRET: ${ARC_JWT_SECRET:?ARC_JWT_SECRET is required}
+      # v6.7: 多 worker 前置, 空则退回单 worker InMemory 模式
+      ARC_REDIS_URL: ${ARC_REDIS_URL:-redis://redis:6379/0}
+      ARC_WORKERS: ${ARC_WORKERS:-2}
       ARC_SMS_MOCK_MODE: "false"
       ARC_LLM_PROVIDER: ${ARC_LLM_PROVIDER:-openai}
       ARC_OPENAI_API_KEY: ${ARC_OPENAI_API_KEY:-}
@@ -53,6 +73,8 @@ services:
       ARC_PREVIEW_STATIC_DIR: ${ARC_PREVIEW_STATIC_DIR:-/app/data/static/previews}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
@@ -92,3 +114,4 @@ services:
 volumes:
   pgdata:
   arcdata:
+  redisdata:

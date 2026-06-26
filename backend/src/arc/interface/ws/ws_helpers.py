@@ -15,6 +15,11 @@ TOKEN_CHECK_INTERVAL = 120
 # ---------------------------------------------------------------------------
 # Sandbox approval bridge
 # ---------------------------------------------------------------------------
+# 注 (v6.7): _active_sandboxes 是进程内 dict, 多 worker 下跨进程不可共享。
+# 当前沙箱审批为半成品 (execution_engine 的 emit_callback=no-op, runtime
+# 未 register_sandbox_runtime), 此路径生产未触发, 暂不引入 bus 改造。
+# 未来接线审批功能时, 需将 respond 改为 bus 广播 (arc:sandbox:{cid}),
+# 各 worker 的 runtime 监听本地解析 future (future 不可跨进程)。
 _active_sandboxes: dict[str, object] = {}
 
 
