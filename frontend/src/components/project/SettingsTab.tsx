@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Save, Lightbulb, Settings, FolderOpen } from 'lucide-react';
 import { GitHubSection } from './GitHubSection';
 import { ExecutionModeSection } from './ExecutionModeSection';
+import { PhaseCapabilitiesSection } from './PhaseCapabilitiesSection';
 import { ScanSection } from './ScanSection';
 import { GitSyncSection } from './GitSyncSection';
 import { Field } from './FormFields';
 import { api, ApiError } from '../../api/client';
 import FolderPicker from '../FolderPicker';
 import { useToast } from '../Toast';
-import type { ExecutionMode, ProcessConstraint } from '../../types/api';
+import type { ExecutionMode, ProcessConstraint, PhaseCapabilities } from '../../types/api';
 
 interface SettingsTabProps {
   projectId: string;
@@ -274,6 +275,12 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
             const execMode = constraint === 'strict' ? 'pipeline' : 'conversation';
             setForm({ ...form, process_constraint: constraint, execution_mode: execMode, pipeline_config: pc, conversation_config: cc });
           }}
+        />
+
+        <PhaseCapabilitiesSection
+          projectId={projectId}
+          phaseCapabilities={(form.pipeline_config?.phase_capabilities as PhaseCapabilities) ?? {}}
+          onRefresh={onRefresh}
         />
 
         <GitSyncSection
