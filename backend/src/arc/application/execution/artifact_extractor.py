@@ -438,9 +438,12 @@ class ArtifactExtractor:
                 return result
 
             # 质量门禁 (按 GateProfile 分级的 4 层评估)
+            # 接通 charter (系统治理底座) + conventions (用户规范) → LLM 评审遵守度 (波次3)
+            charter_md, conventions = await self._get_project_governance(todo_id)
             result = await evaluate_conversation_gate(
                 artifact.artifact_type, artifact.content,
                 constraint=constraint, prior_artifacts=qualified,
+                conventions=conventions, charter=charter_md,
             )
 
             # 软模式前置警告 (不阻断，记录供 LLM 后续修正)
@@ -503,6 +506,27 @@ class ArtifactExtractor:
             return project.process_constraint
         except Exception:
             return ProcessConstraint.FREE
+
+    async def _get_project_governance(self, todo_id: uuid.UUID) -> tuple[str, str]:
+        """读取项目治理文本 (charter + conventions) 供门禁 LLM 评审。
+
+        charter = 系统生成治理底座 (ProjectCharter.markdown),
+        conventions = 用户手填增量。查不到降级 ("", "") 不阻断门禁。
+        """
+        try:
+            from arc.infrastructure.repositories.project import ProjectRepository
+            from arc.infrastructure.repositories.todo import TodoRepository
+
+            todo = await TodoRepository(self.db).get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return "", ""
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if not project:
+                return "", ""
+            charter_md = project.charter.markdown if project.charter else ""
+            return charter_md, project.conventions or ""
+        except Exception:
+            return "", ""
 
     async def _try_review_after_extract(self, todo_id: uuid.UUID) -> None:
         """领域模型提取后自动触发评审，产出 ReviewFeedback。"""
