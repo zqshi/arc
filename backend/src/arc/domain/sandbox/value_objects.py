@@ -16,6 +16,7 @@ class SandboxMode(StrEnum):
     NONE = "none"  # Direct host execution (current default)
     APPROVAL_GATE = "approval_gate"  # Pause & ask user before mutating
     DOCKER = "docker"  # Execute inside a disposable container
+    OPEN_SANDBOX = "open_sandbox"  # v6.7: 远程云沙箱 (OpenSandbox), 沙箱即工作区
 
 
 class BuildTarget(StrEnum):
@@ -55,6 +56,9 @@ class SandboxPolicy:
     memory_limit_mb: int = 512
     network_enabled: bool = False
 
+    # OpenSandbox-specific (v6.7) — 云沙箱镜像, 空=用 config.opensandbox_image
+    opensandbox_image: str = ""
+
     # Approval-gate-specific — which tools require user approval
     approval_required_for: list[str] = field(
         default_factory=lambda: ["write_file", "run_command"]
@@ -84,6 +88,7 @@ class SandboxPolicy:
             timeout_seconds=data.get("timeout_seconds", cls.timeout_seconds),
             memory_limit_mb=data.get("memory_limit_mb", cls.memory_limit_mb),
             network_enabled=data.get("network_enabled", cls.network_enabled),
+            opensandbox_image=data.get("opensandbox_image", ""),
             approval_required_for=data.get(
                 "approval_required_for", ["write_file", "run_command"]
             ),

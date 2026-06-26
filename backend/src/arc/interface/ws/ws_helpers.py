@@ -13,36 +13,13 @@ HEARTBEAT_TIMEOUT = 60
 TOKEN_CHECK_INTERVAL = 120
 
 # ---------------------------------------------------------------------------
-# Sandbox approval bridge
+# Sandbox approval bridge (v6.7 重构)
 # ---------------------------------------------------------------------------
-# 注 (v6.7): _active_sandboxes 是进程内 dict, 多 worker 下跨进程不可共享。
-# 当前沙箱审批为半成品 (execution_engine 的 emit_callback=no-op, runtime
-# 未 register_sandbox_runtime), 此路径生产未触发, 暂不引入 bus 改造。
-# 未来接线审批功能时, 需将 respond 改为 bus 广播 (arc:sandbox:{cid}),
-# 各 worker 的 runtime 监听本地解析 future (future 不可跨进程)。
-_active_sandboxes: dict[str, object] = {}
-
-
-def register_sandbox_runtime(conversation_id: str, runtime: object) -> None:
-    """Register a sandbox runtime to receive approval responses."""
-    _active_sandboxes[conversation_id] = runtime
-
-
-def unregister_sandbox_runtime(conversation_id: str) -> None:
-    """Remove sandbox runtime registration."""
-    _active_sandboxes.pop(conversation_id, None)
-
-
-def _resolve_approval(conversation_id: str, request_id: str, approved: bool) -> None:
-    """Forward an approval response to the sandbox runtime."""
-    runtime = _active_sandboxes.get(conversation_id)
-    if runtime and hasattr(runtime, "respond"):
-        runtime.respond(request_id, approved)
-    else:
-        logger.warning(
-            "Approval response for unknown sandbox: conv=%s req=%s",
-            conversation_id, request_id,
-        )
+# 审批响应不再用进程内 _active_sandboxes dict (多 worker 下跨进程丢失)。
+# 改为: chat.py 收到 approval_response → bus.publish("arc:sandbox:{cid}",
+# {request_id, approved}); ApprovalGateSandboxRuntime 监听该 channel, 收到后
+# 本地 respond 解析 asyncio.Future (future 不可跨进程, 必须在持有 runtime
+# 的 worker 本地解析)。全跨 worker, 无进程内注册表。
 
 
 async def _authenticate_ws(token: str | None):

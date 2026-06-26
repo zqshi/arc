@@ -26,6 +26,10 @@ services:
       ARC_JWT_SECRET: ${ARC_JWT_SECRET:-}
       # v6.7: 多 worker 测试时配 redis://redis:6379/0, 空则单 worker
       ARC_REDIS_URL: ${ARC_REDIS_URL:-}
+      # v6.7: OpenSandbox 云沙箱 (mode=open_sandbox 时启用)
+      ARC_OPENSANDBOX_URL: ${ARC_OPENSANDBOX_URL:-}
+      ARC_OPENSANDBOX_API_KEY: ${ARC_OPENSANDBOX_API_KEY:-}
+      ARC_OPENSANDBOX_IMAGE: ${ARC_OPENSANDBOX_IMAGE:-python:3.12-slim}
       ARC_SMS_MOCK_MODE: ${ARC_SMS_MOCK_MODE:-true}
       ARC_LLM_PROVIDER: ${ARC_LLM_PROVIDER:-openai}
       ARC_OPENAI_API_KEY: ${ARC_OPENAI_API_KEY:-}
@@ -76,6 +80,20 @@ services:
       timeout: 3s
       retries: 3
 
+  opensandbox:
+    # v6.7: OpenSandbox 云沙箱 server (可选, mode=open_sandbox 时启用)
+    # 本地开发用官方 server; 生产可指向自建或外部
+    image: opensandbox/server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - opensandbox_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
   redis:
     # v6.7: 跨进程事件总线 (可选, 多 worker 测试用; 不配 ARC_REDIS_URL 则单 worker InMemory)
     image: redis:7-alpine
@@ -121,3 +139,4 @@ volumes:
   openhands_data:
   minio_data:
   redis_data:
+  opensandbox_data:
