@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.8.0] - 2026-06-26 — 能力注册表: Agent/Skill 声明管理 + 环节级配置
+
+### Added — 能力运行时入口补全
+
+- **能力注册表骨架**: domain/capability 值对象 + CapabilityModel + migration z17 + CapabilityService + /api/capabilities CRUD(读登录/写admin)
+- **agent 声明 env→DB 迁移**: AgentRegistry 声明驱动重构(双读兼容, DB 空回退 env) + lifespan sync
+- **skill SKILL.md 加载器**: frontmatter 解析 + 容错
+- **环节级能力配置**: pipeline_config.phase_capabilities(固定7阶段) + PUT route(admin, 单phase增量) + list_by_ids
+- **执行按环节注入**: CapabilityProvider 走 ContextAssembler Provider 管道(第10个 provider), skill 注入 prompt / agent 影响可用集合
+- **门禁 LLM 延伸**: conversation_gate capabilities_section(charter 门禁同构)
+- **前端能力管理页**: SettingsPage 能力管理 section(CapabilityManager 列表+toggle+删除, CapabilityEditorModal 新增/编辑)
+- **前端环节配置 UI**: SettingsTab PhaseCapabilitiesSection(7阶段×能力勾选, 即时保存)
+
+### 决策
+
+- 统一能力注册表(agent+skill 复用 SIGNERS 模式, MCP 预留 type 不实现 loader)
+- 环节内能力可配(固定7阶段), 非环节自定义(保研发链路定位)
+- 执行注入走 Provider 管道非 execution_engine(plan 原写注入点经核查该方法无 phase 不组 prompt)
+- 门禁走 LLM 延伸非规则引擎; type-phase 不硬匹配(skill 通用性, LLM 软约束)
+- 顺带修 update_pipeline_config 重置→增量 merge + 全局 DomainError→400 handler
+
+### 遗留
+
+- artifact_extractor 622 行(警告区) / pipeline 模式 capabilities_section 传空 / agent 环节级选配未做 / 能力热加载未做 / 前端 config JSON textarea — 均 P3
+
+## [6.7.0] - 2026-06-26 — 运行时入口补全: 对话双轨统一 + 凭证API + skill热重载 + charter门禁
+
+### Added — v6.6 收尾后无自然驱动版本, 收敛 4 项运行时入口
+
+- **T1 对话执行双轨统一**: ConversationService 委托 ExecutionEngine, service.py 498→135 行, 删~360 行死代码(PURPOSE_TO_PHASE/_build_system_prompt/_tool_aware_stream)
+- **T2 签名/分发凭证配置 API**: DeployService.configure_*_creds + 3 route, 接通零调用方 crypto.encrypt, deploy 签名不再恒 skip
+- **波次2 skill 运行时配置热重载**: AgentRegistry.reload() 原地重建 + 修 LLM 持久化 env_prefix 不一致致配置重启丢失
+- **波次3 charter 遵守度门禁**: evaluate_conversation_gate 加 charter 参数, _run_llm_review 注入 charter_section, charter 违规可阻断推进
+- **T0a/T0b 基线修复**: k8s 部署文档断裂(README K8s 小节) + 前端死代码(api/client/templates.ts 8 零调用方法)
+
+### 决策
+
+- 对话执行统一到 ExecutionEngine, 禁止再自实现 _tool_aware_stream
+- 凭证加密 domain 回调注入, infrastructure 不直接持 domain
+- charter 门禁走 LLM 延伸非规则引擎; pipeline 模式不评 charter(记技术债务)
+
+### 遗留
+
+- T4 project_member repository(P2, 聚合边界未定) / v6.0 波次2-3 构建链路(P2) / artifact 显式建模(runtime 前置) / 凭证清除 DELETE(P3) / pipeline charter 评审(P3) / test_health 时序污染(P2)
+
 ## [6.6.0] - 2026-06-25 — 代码质量修复收尾
 
 ### Changed — 全项目深度审计质量修复

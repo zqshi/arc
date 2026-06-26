@@ -1,5 +1,6 @@
 """上下文提供者注册表。"""
 
+from arc.application.context.providers.capability import CapabilityProvider
 from arc.application.context.providers.code_capability import CodeCapabilityProvider
 from arc.application.context.providers.deliverable import DeliverableProvider
 from arc.application.context.providers.domain_model import DomainModelProvider
@@ -18,6 +19,7 @@ __all__ = [
     "TemplateProvider",
     "MethodologyProvider",
     "CodeCapabilityProvider",
+    "CapabilityProvider",
     "DeliverableProvider",
     "SufficiencyHintProvider",
 ]

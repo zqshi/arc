@@ -747,3 +747,47 @@ export interface PlanLimitsResponse {
   team: Record<string, number>;
 }
 
+// ─── Capabilities (v6.8.0) — 能力注册表 ──────────────────
+export type CapabilityType = 'agent' | 'skill' | 'mcp';
+export type CapabilityStatus = 'active' | 'disabled';
+export type CapabilityScope = 'global';
+
+export interface Capability {
+  id: string;
+  name: string;
+  type: CapabilityType;
+  config: Record<string, unknown>;
+  status: CapabilityStatus;
+  scope: CapabilityScope;
+}
+
+export interface CapabilityCreate {
+  name: string;
+  type: CapabilityType;
+  config?: Record<string, unknown>;
+  status?: CapabilityStatus;
+  scope?: CapabilityScope;
+}
+
+// type 不可改 (后端 CapabilityUpdateRequest 约束)
+export interface CapabilityUpdate {
+  name?: string;
+  config?: Record<string, unknown>;
+  status?: CapabilityStatus;
+  scope?: CapabilityScope;
+}
+
+// 环节级能力配置: {phase: [capability_id]}, 键为固定7阶段 (与后端 VALID_PHASES 对齐)
+export type PhaseCapabilities = Record<string, string[]>;
+
+// 固定7阶段 (后端 VALID_PHASES 单一事实源) — 环节配置 UI 渲染用
+export const PIPELINE_PHASES: { key: PhaseType; label: string }[] = [
+  { key: 'clarification', label: '需求澄清' },
+  { key: 'ui_design', label: 'UI 设计' },
+  { key: 'architecture', label: '架构' },
+  { key: 'development', label: '开发' },
+  { key: 'testing', label: '测试' },
+  { key: 'deployment', label: '部署' },
+  { key: 'extraction', label: '经验抽取' },
+];
+

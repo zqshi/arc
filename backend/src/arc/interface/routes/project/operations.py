@@ -7,11 +7,14 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
+from arc.domain.user.entity import User as UserEntity
+from arc.domain.user.value_objects import UserRole
 from arc.infrastructure.models.project import ProjectModel
 from arc.infrastructure.repositories.project import (
     ProjectRepository,
 )
-from arc.interface.deps import CurrentUser, DbSession
+from arc.interface.deps import CurrentUser, DbSession, require_project_role
+from arc.interface.schemas.project import PhaseCapabilitiesUpdate
 
 router = APIRouter()
 
@@ -311,3 +314,27 @@ async def get_distribution_manifest(
     if not deployment:
         raise HTTPException(404, "Deployment not found")
     return _deployment_resp(deployment)
+
+
+# ── Phase Capabilities (v6.8.0 W3) — 环节级能力配置 ──────────────
+
+
+@router.put("/{project_id}/pipeline/phase-capabilities")
+async def update_phase_capabilities(
+    project_id: uuid.UUID,
+    body: PhaseCapabilitiesUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    _admin: UserEntity = require_project_role(UserRole.ADMIN),
+):
+    """配置某环节启用的能力 (仅 admin)。
+
+    非法 phase→400 (DomainError), capability 不存在→404, 禁用→409。
+    """
+    from arc.application.project.workspace_service import ProjectWorkspaceService
+
+    svc = ProjectWorkspaceService(db)
+    project = await svc.update_phase_capabilities(
+        project_id, body.phase, body.capability_ids, user_id=user.id
+    )
+    return {"phase_capabilities": project.pipeline_config.get("phase_capabilities", {})}

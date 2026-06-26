@@ -9,8 +9,10 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.application.capability.service import CapabilityService
 from arc.application.project.convention_templates import ConventionTemplateRegistry
 from arc.application.project.governance_writer import GovernanceArtifactWriter
+from arc.domain.errors import ConflictError, NotFoundError
 from arc.domain.project.charter import ConventionTemplateProvider
 from arc.domain.project.entity import Project
 from arc.domain.project.value_objects import (
@@ -266,5 +268,37 @@ class ProjectWorkspaceService:
             if val is not None:
                 setattr(project, key, val)
 
+        await self._project_repo.update(project)
+        return project
+
+    async def update_phase_capabilities(
+        self,
+        project_id: uuid.UUID,
+        phase: str,
+        capability_ids: list[uuid.UUID],
+        *,
+        user_id: uuid.UUID,
+    ) -> Project:
+        """更新某环节启用的能力 (v6.8.0 W3)。
+
+        编排: 校验 capability 存在 + active (CapabilityService.list_by_ids) →
+        project.update_phase_capabilities (结构性校验 phase, 非法抛 DomainError→400) →
+        持久化。route 层零逻辑。
+        """
+        project = await self._project_repo.get_by_id(project_id, user_id=user_id)
+        if not project:
+            raise NotFoundError("项目不存在")
+
+        if capability_ids:
+            caps = await CapabilityService(self._db).list_by_ids(capability_ids)
+            found = {c.id for c in caps}
+            missing = [cid for cid in capability_ids if cid not in found]
+            if missing:
+                raise NotFoundError(f"能力不存在: {missing}")
+            inactive = [c.name for c in caps if not c.is_active]
+            if inactive:
+                raise ConflictError(f"能力已禁用, 不可配置: {inactive}")
+
+        project.update_phase_capabilities(phase, [str(cid) for cid in capability_ids])
         await self._project_repo.update(project)
         return project

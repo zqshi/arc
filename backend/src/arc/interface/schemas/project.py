@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -174,4 +175,11 @@ class DistributionCredsUpdate(BaseModel):
 class CredentialsStatusResponse(BaseModel):
     signing: dict[str, bool]
     distribution: dict[str, bool]
+
+
+class PhaseCapabilitiesUpdate(BaseModel):
+    """更新某环节启用能力 (v6.8.0 W3)。"""
+
+    phase: str
+    capability_ids: list[uuid.UUID] = Field(default_factory=list)
 

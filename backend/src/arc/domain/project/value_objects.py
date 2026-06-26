@@ -106,7 +106,13 @@ DEFAULT_PIPELINE_CONFIG: dict = {
     ],
     "gate_strictness": "strict",
     "auto_advance": False,
+    # v6.8.0 W3 — 环节级能力配置: {phase: [capability_id(str)]}, 默认空=不注入。
+    # 键为 VALID_PHASES (固定7阶段); CapabilityProvider 注入 + 门禁 capabilities_section 读取。
+    "phase_capabilities": {},
 }
+
+# 固定7阶段合法键 (从 enabled_phases 派生, 单一事实来源) — 环节能力配置校验用。
+VALID_PHASES = frozenset(DEFAULT_PIPELINE_CONFIG["enabled_phases"])
 
 # 产品研发全量交付物 — 单一事实来源
 #

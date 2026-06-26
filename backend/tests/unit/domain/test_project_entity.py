@@ -4,12 +4,14 @@ import uuid
 
 import pytest
 
+from arc.domain.errors import DomainError
 from arc.domain.project.entity import Project, Version
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
     ExecutionMode,
     ProjectStatus,
+    VALID_PHASES,
     VersionStatus,
 )
 
@@ -71,6 +73,41 @@ class TestProjectBehavior:
         p.update_conversation_config({"auto_archive": False})
         assert p.conversation_config["auto_archive"] is False
         assert "required_deliverables" in p.conversation_config
+
+    def test_update_pipeline_config_preserves_existing_custom(self) -> None:
+        """部分更新不丢已有非默认值 (回归: 重置式 merge 会丢 phase_capabilities 等自定义)。"""
+        p = self._make()
+        p.update_pipeline_config({"gate_strictness": "moderate"})
+        p.update_pipeline_config({"auto_advance": True})
+        assert p.pipeline_config["gate_strictness"] == "moderate"
+        assert p.pipeline_config["auto_advance"] is True
+
+    def test_update_pipeline_config_deep_merges_phase_capabilities(self) -> None:
+        """phase_capabilities 作为 dict 字段深度 merge, 不整体替换。"""
+        p = self._make()
+        p.update_phase_capabilities("development", ["cap-1"])
+        p.update_pipeline_config({"phase_capabilities": {"testing": ["cap-2"]}})
+        assert p.pipeline_config["phase_capabilities"]["development"] == ["cap-1"]
+        assert p.pipeline_config["phase_capabilities"]["testing"] == ["cap-2"]
+
+    def test_default_pipeline_config_has_phase_capabilities(self) -> None:
+        p = self._make()
+        assert p.pipeline_config["phase_capabilities"] == {}
+
+    def test_update_phase_capabilities_sets_phase(self) -> None:
+        p = self._make()
+        p.update_phase_capabilities("development", ["cap-1", "cap-2"])
+        assert p.pipeline_config["phase_capabilities"]["development"] == ["cap-1", "cap-2"]
+
+    def test_update_phase_capabilities_invalid_phase_raises(self) -> None:
+        p = self._make()
+        with pytest.raises(DomainError):
+            p.update_phase_capabilities("not_a_phase", ["cap-1"])
+
+    def test_update_phase_capabilities_invalid_ids_raises(self) -> None:
+        p = self._make()
+        with pytest.raises(DomainError):
+            p.update_phase_capabilities("development", "cap-1")
 
     def test_configure_github(self) -> None:
         p = self._make()

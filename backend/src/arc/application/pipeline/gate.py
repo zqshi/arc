@@ -117,6 +117,7 @@ async def evaluate_gate(
         artifact_content=json.dumps(content, ensure_ascii=False, indent=2),
         charter_section="",  # pipeline 模式暂不评 charter (对话模式已接通, 见 conversation_gate)
         conventions_section=conventions_section,
+        capabilities_section="",  # pipeline 模式不注入环节能力 (对话模式 W3.3 接通)
     )
 
     adapter = create_resilient_adapter()

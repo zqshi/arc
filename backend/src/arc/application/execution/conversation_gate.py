@@ -96,6 +96,7 @@ async def evaluate_conversation_gate(
     prior_artifacts: dict | None = None,
     conventions: str = "",
     charter: str = "",
+    capabilities: str = "",
     llm_review_fn=None,
 ) -> ConversationGateResult:
     """对话模式质量门禁评估，按 GateProfile 分级。
@@ -148,7 +149,7 @@ async def evaluate_conversation_gate(
     if profile.enable_llm_review:
         checked.append("llm_review")
         score, llm_gaps, suggestion = await _run_llm_review(
-            phase_type, content, conventions, charter, llm_review_fn,
+            phase_type, content, conventions, charter, capabilities, llm_review_fn,
         )
 
     all_gaps = list(dict.fromkeys(gaps + llm_gaps))  # 去重保序
@@ -187,11 +188,12 @@ def _safe_cross_consistency(
         return []
 
 
-async def _run_llm_review(phase_type, content, conventions, charter, llm_review_fn):
+async def _run_llm_review(phase_type, content, conventions, charter, capabilities, llm_review_fn):
     """执行 LLM 质量评审，返回 (score, gaps, suggestion)。
 
-    charter (系统生成治理底座) + conventions (用户增量) 均注入, 评判产出是否符合
-    项目宪章治理意图与用户规范。两者为空则对应 section 省略 (不污染 prompt)。
+    charter (系统生成治理底座) + conventions (用户增量) + capabilities (本环节启用能力)
+    均注入, 评判产出是否符合项目宪章治理意图、用户规范与环节能力约束。为空则对应
+    section 省略 (不污染 prompt)。
     """
     from arc.application.pipeline.gate import PHASE_LABELS
     from arc.application.pipeline.prompts import GATE_EVALUATION_PROMPT
@@ -206,11 +208,17 @@ async def _run_llm_review(phase_type, content, conventions, charter, llm_review_
         f"{charter}\n"
         if charter.strip() else ""
     )
+    capabilities_section = (
+        "\n## 本环节启用能力（产出须符合其规范）:\n"
+        f"{capabilities}\n"
+        if capabilities.strip() else ""
+    )
     prompt = GATE_EVALUATION_PROMPT.format(
         phase_label=phase_label,
         artifact_content=json.dumps(content, ensure_ascii=False, indent=2),
         charter_section=charter_section,
         conventions_section=conventions_section,
+        capabilities_section=capabilities_section,
     )
 
     if llm_review_fn is not None:

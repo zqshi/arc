@@ -204,3 +204,26 @@ class TestCharterCompliance:
         )
         assert "用户手填规范" in captured[0]
         assert "项目宪章" in captured[0]
+
+    async def test_capabilities_injected_into_prompt(self) -> None:
+        """capabilities 非空 → prompt 含 capabilities_section (v6.8.0 W3.3)。"""
+        captured: list[str] = []
+        await evaluate_conversation_gate(
+            ArtifactType.REQUIREMENT_SPEC, _complete_req_spec(),
+            constraint=ProcessConstraint.STRICT,
+            capabilities="- ui-skill (技能)\n- openhands (Agent)",
+            llm_review_fn=self._capturing_reviewer(captured),
+        )
+        assert "本环节启用能力" in captured[0]
+        assert "ui-skill" in captured[0]
+
+    async def test_empty_capabilities_omitted(self) -> None:
+        """capabilities 空 → prompt 不含 capabilities_section。"""
+        captured: list[str] = []
+        await evaluate_conversation_gate(
+            ArtifactType.REQUIREMENT_SPEC, _complete_req_spec(),
+            constraint=ProcessConstraint.STRICT,
+            capabilities="",
+            llm_review_fn=self._capturing_reviewer(captured),
+        )
+        assert "本环节启用能力" not in captured[0]

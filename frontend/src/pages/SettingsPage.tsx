@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Server, Bot, Cpu, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
 import { LLMConfigSection } from '../components/project/LLMConfigSection';
+import { CapabilityManager } from '../components/CapabilityManager';
 import type { SystemSettings } from '../types/api';
 
 export default function SettingsPage() {
@@ -127,6 +128,9 @@ export default function SettingsPage() {
               />
             </div>
           </section>
+
+          {/* 能力管理 — v6.8.0 W3.4 */}
+          <CapabilityManager />
         </div>
       </div>
     </div>

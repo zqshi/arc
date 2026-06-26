@@ -440,10 +440,14 @@ class ArtifactExtractor:
             # 质量门禁 (按 GateProfile 分级的 4 层评估)
             # 接通 charter (系统治理底座) + conventions (用户规范) → LLM 评审遵守度 (波次3)
             charter_md, conventions = await self._get_project_governance(todo_id)
+            capabilities = await self._get_phase_capabilities(
+                todo_id, artifact.artifact_type
+            )
             result = await evaluate_conversation_gate(
                 artifact.artifact_type, artifact.content,
                 constraint=constraint, prior_artifacts=qualified,
                 conventions=conventions, charter=charter_md,
+                capabilities=capabilities,
             )
 
             # 软模式前置警告 (不阻断，记录供 LLM 后续修正)
@@ -527,6 +531,54 @@ class ArtifactExtractor:
             return charter_md, project.conventions or ""
         except Exception:
             return "", ""
+
+    async def _get_phase_capabilities(
+        self, todo_id: uuid.UUID, artifact_type: ArtifactType
+    ) -> str:
+        """取该 artifact 所属环节启用能力的描述 (v6.8.0 W3.3)。
+
+        供门禁 LLM 按环节能力规范生成检查项。查不到降级空串, 不阻断门禁
+        (与 _get_project_governance 同模式)。
+        """
+        try:
+            from arc.application.capability.service import CapabilityService
+            from arc.application.execution.conversation_gate import _phase_for
+            from arc.infrastructure.repositories.project import ProjectRepository
+            from arc.infrastructure.repositories.todo import TodoRepository
+
+            phase = _phase_for(artifact_type)
+            if not phase:
+                return ""
+            todo = await TodoRepository(self.db).get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return ""
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if not project:
+                return ""
+            cap_ids = (
+                (project.pipeline_config or {}).get("phase_capabilities") or {}
+            ).get(phase.value)
+            if not cap_ids:
+                return ""
+            uuids: list[uuid.UUID] = []
+            for cid in cap_ids:
+                try:
+                    uuids.append(uuid.UUID(cid) if isinstance(cid, str) else cid)
+                except (ValueError, AttributeError):
+                    pass
+            if not uuids:
+                return ""
+            caps = await CapabilityService(self.db).list_by_ids(uuids)
+            active = [c for c in caps if c.is_active]
+            if not active:
+                return ""
+            lines = []
+            for cap in active:
+                type_label = "技能" if cap.is_skill else "Agent"
+                lines.append(f"- {cap.name} ({type_label})")
+            return "\n".join(lines)
+        except Exception:
+            return ""
 
     async def _try_review_after_extract(self, todo_id: uuid.UUID) -> None:
         """领域模型提取后自动触发评审，产出 ReviewFeedback。"""

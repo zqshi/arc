@@ -5,6 +5,7 @@ import { createTodoMethods } from './todos';
 import { createConversationMethods, createExperienceMethods } from './experiences';
 import { createAgentMethods, createPlanningMethods } from './planning';
 import { createSystemMethods } from './system';
+import { createCapabilityMethods } from './capabilities';
 
 const request = createRequestFn(API_BASE);
 
@@ -16,6 +17,7 @@ export const api = {
   ...createAgentMethods(request),
   ...createPlanningMethods(request),
   ...createSystemMethods(request, API_BASE),
+  ...createCapabilityMethods(request),
 };
 
 export { ApiError };

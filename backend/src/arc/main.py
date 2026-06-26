@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from arc.config import settings
-from arc.domain.errors import AppError
+from arc.domain.errors import AppError, DomainError
 from arc.domain.pipeline.entity import InvalidPhaseTransitionError
 from arc.domain.todo.entity import InvalidStatusTransitionError
 from arc.interface.middleware.request_id import RequestIdFilter
@@ -68,6 +68,14 @@ async def lifespan(app: FastAPI):
     from arc.seeds import ensure_seed_users
 
     await ensure_seed_users()
+
+    # v6.8 W2.1: agent 声明从 DB 同步 (env→DB 双读, DB 空→seed env 兜底)
+    from arc.application.agent.registry import agent_registry, sync_registry_from_db
+    from arc.infrastructure.database import async_session_factory
+
+    async with async_session_factory() as db:
+        await sync_registry_from_db(db, agent_registry)
+        await db.commit()
 
     decay_task = asyncio.create_task(_experience_decay_loop())
     yield
@@ -165,6 +173,15 @@ async def handle_app_error(request: Request, exc: AppError):
     )
 
 
+@app.exception_handler(DomainError)
+async def handle_domain_error(request: Request, exc: DomainError):
+    """domain 层领域规则违反 → 400 (非法 phase/空名/状态非法等, 非系统错误)。"""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": exc.detail, "error_code": "DOMAIN_ERROR"},
+    )
+
+
 @app.exception_handler(InvalidStatusTransitionError)
 async def handle_invalid_transition(request: Request, exc: InvalidStatusTransitionError):
     return JSONResponse(
@@ -221,6 +238,7 @@ def register_routes():
     from arc.interface.routes.agent import router as agent_router
     from arc.interface.routes.auth import router as auth_router
     from arc.interface.routes.billing import router as billing_router
+    from arc.interface.routes.capability import router as capability_router
     from arc.interface.routes.conversation import router as conversation_router
     from arc.interface.routes.experience import router as experience_router
     from arc.interface.routes.filesystem import router as filesystem_router
@@ -248,6 +266,7 @@ def register_routes():
     app.include_router(webhook_router, prefix="/api/webhooks", tags=["webhooks"])
     app.include_router(mcp_router, prefix="/api/mcp", tags=["mcp"])
     app.include_router(template_router, prefix="/api/templates", tags=["templates"])
+    app.include_router(capability_router, prefix="/api/capabilities", tags=["capabilities"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
     from arc.config import settings

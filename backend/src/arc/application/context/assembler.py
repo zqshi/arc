@@ -56,6 +56,7 @@ class ContextAssembler:
     def _create_default_providers(db: AsyncSession) -> list:
         """创建默认 provider 列表（注册顺序不影响结果，按 priority 排序）。"""
         from arc.application.context.providers import (
+            CapabilityProvider,
             CodeCapabilityProvider,
             DeliverableProvider,
             DomainModelProvider,
@@ -75,6 +76,7 @@ class ContextAssembler:
             ExperienceProvider(db),         # P1: 经验召回
             TemplateProvider(db),           # P1: 历史模板推荐 (v5.7.0, ARCHITECTURE 阶段)
             CodeCapabilityProvider(db),     # P1: 代码能力
+            CapabilityProvider(db),          # P1: 环节能力 (v6.8.0 W3.2)
             MethodologyProvider(db),        # P2: 方法论
             SufficiencyHintProvider(),      # P2: 充分性提示
         ]
@@ -172,6 +174,7 @@ class ContextAssembler:
         methodology_section = ""
         experience_context = ""
         sufficiency_hint = ""
+        capabilities_section = ""
         completed_artifacts = ""
 
         for key, content in assembled_parts.items():
@@ -189,6 +192,8 @@ class ContextAssembler:
                 experience_context = content
             elif source == "sufficiency":
                 sufficiency_hint = content
+            elif source == "capability":
+                capabilities_section = content
 
         # 5. 检查 autopilot
         autonomy = await self._get_autonomy(request)
@@ -204,6 +209,7 @@ class ContextAssembler:
             methodology_section=methodology_section,
             project_context=project_context,
             experience_context=experience_context,
+            capabilities_section=capabilities_section,
             sufficiency_hint=sufficiency_hint,
             completed_artifacts=completed_artifacts or "暂无",
         )
