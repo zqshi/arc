@@ -247,7 +247,12 @@ def register_routes():
 
         from fastapi.staticfiles import StaticFiles
 
-        static_dir = Path(__file__).resolve().parent.parent / "static" / "previews"
+        # preview_static_dir 可配(容器指向可写卷); 空则回退 arc 包目录(dev 可写)
+        static_dir = (
+            Path(settings.preview_static_dir)
+            if settings.preview_static_dir
+            else Path(__file__).resolve().parent.parent / "static" / "previews"
+        )
         static_dir.mkdir(parents=True, exist_ok=True)
         app.mount(
             "/static/previews",

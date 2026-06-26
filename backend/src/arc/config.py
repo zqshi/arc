@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     storage_secret_key: str = ""
     storage_bucket: str = "arc-previews"
     storage_public_url: str = ""
+    # 本地存储模式(无 storage_endpoint 时)的预览静态目录; 容器须指向可写卷
+    # (如 /app/data/static/previews)。空则回退 arc 包目录(dev 可写, 但容器内
+    # site-packages 只读 → PermissionError)。生产推荐配 storage_endpoint 走对象存储
+    preview_static_dir: str = ""
 
     # Deployment
     deploy_path_prefix: str = "deployments"
