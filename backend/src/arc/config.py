@@ -68,7 +68,12 @@ class Settings(BaseSettings):
     max_concurrent_workers: int = 3
 
     # Sandbox
-    sandbox_default_mode: str = "none"  # none | approval_gate | docker
+    sandbox_default_mode: str = "none"  # none | approval_gate | docker | open_sandbox
+    # OpenSandbox (v6.7) — 云沙箱后端, sandbox_default_mode=open_sandbox 时启用
+    # 空 server_url → 单机默认 (opensandbox-server 本地); 生产填真实地址
+    opensandbox_url: str = ""
+    opensandbox_api_key: str = ""
+    opensandbox_image: str = "python:3.12-slim"
     # 覆盖默认构建镜像映射, key 格式 "{project_type}:{build_target}"
     # 例: {"binary_app:tauri_linux": "registry.example.com/tauri:v2"}
     # 留空则用 domain/sandbox/build_images.py 的 DEFAULT_BUILD_IMAGES 注册表

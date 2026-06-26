@@ -104,6 +104,7 @@ class ExecutionEngine:
             async for event_dict in self._tool_aware_stream(
                 llm_messages, project_path, sandbox_policy, orchestration_enabled,
                 llm_config=llm_config,
+                conversation_id=str(conversation.id),
             ):
                 if "message_id" in event_dict and event_dict.get("content"):
                     if message_id is None:
@@ -341,6 +342,8 @@ class ExecutionEngine:
         sandbox_policy,
         orchestration_enabled: bool,
         llm_config: dict | None = None,
+        *,
+        conversation_id: str = "",
     ) -> AsyncIterator[dict]:
         from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.context.compression import CompressionManager
@@ -371,41 +374,57 @@ class ExecutionEngine:
         # purely to avoid loading sandbox modules when sandbox is disabled)
         sandbox_runtime = None
         if sandbox_policy and sandbox_policy.mode.value != "none":
+            from arc.application.execution.stream_manager import stream_manager
             from arc.application.execution.tools import _run_command, _write_file
             from arc.application.sandbox.runtime import create_sandbox_runtime
             from arc.application.sandbox.tools import SandboxedToolRegistry
 
+            # v6.7: emit_callback 经 stream_manager 把审批事件发到 conversation 流,
+            # 避免 application 层直接依赖 interface (DDD)。runtime 内部监听
+            # bus arc:sandbox:{cid} 接收审批响应 (跨 worker 路由)。
+            async def _emit_approval(event: dict) -> None:
+                await stream_manager.publish_event(conversation_id, event)
+
             sandbox_runtime = create_sandbox_runtime(
                 sandbox_policy, project_path,
-                emit_callback=lambda ev: None,
+                conversation_id=conversation_id,
+                emit_callback=_emit_approval,
                 run_command_impl=_run_command,
                 write_file_impl=_write_file,
             )
             registry = SandboxedToolRegistry(project_path, sandbox_runtime)
 
         # Orchestration or single-agent
-        if orchestration_enabled:
-            from arc.application.orchestration.service import OrchestrationService
+        try:
+            if orchestration_enabled:
+                from arc.application.orchestration.service import OrchestrationService
 
-            orch = OrchestrationService(adapter_pool)
-            event_stream = orch.execute(llm_messages, registry)
-        else:
-            async def _single():
-                async with adapter_pool.acquire_for_project(llm_config) as adapter:
-                    loop = ToolAwareLoop(
-                        adapter, registry,
-                        compression=compression,
-                        drift_detector=drift_detector,
-                        error_loop_detector=error_detector,
-                        llm_review_fn=default_llm_review,
-                    )
-                    async for ev in loop.run(llm_messages):
-                        yield ev
-            event_stream = _single()
+                orch = OrchestrationService(adapter_pool)
+                event_stream = orch.execute(llm_messages, registry)
+            else:
+                async def _single():
+                    async with adapter_pool.acquire_for_project(llm_config) as adapter:
+                        loop = ToolAwareLoop(
+                            adapter, registry,
+                            compression=compression,
+                            drift_detector=drift_detector,
+                            error_loop_detector=error_detector,
+                            llm_review_fn=default_llm_review,
+                        )
+                        async for ev in loop.run(llm_messages):
+                            yield ev
+                event_stream = _single()
 
-        async for event in event_stream:
-            for mapped in _map_tool_event(event):
-                yield mapped
+            async for event in event_stream:
+                for mapped in _map_tool_event(event):
+                    yield mapped
+        finally:
+            # v6.7: stream 结束释放沙箱资源 (OpenSandbox kill); 长驻缓存记入技术债务
+            if sandbox_runtime is not None:
+                try:
+                    await sandbox_runtime.close()
+                except Exception as exc:
+                    logger.warning("Sandbox close failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Text-only execution path
