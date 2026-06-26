@@ -48,6 +48,10 @@ services:
       # v6.7: 多 worker 前置, 空则退回单 worker InMemory 模式
       ARC_REDIS_URL: ${ARC_REDIS_URL:-redis://redis:6379/0}
       ARC_WORKERS: ${ARC_WORKERS:-2}
+      # v6.7: OpenSandbox 云沙箱 (mode=open_sandbox 时启用; 多 worker 需 sandbox_id 共享, 建议 open_sandbox 配 ARC_WORKERS=1)
+      ARC_OPENSANDBOX_URL: ${ARC_OPENSANDBOX_URL:-}
+      ARC_OPENSANDBOX_API_KEY: ${ARC_OPENSANDBOX_API_KEY:-}
+      ARC_OPENSANDBOX_IMAGE: ${ARC_OPENSANDBOX_IMAGE:-python:3.12-slim}
       ARC_SMS_MOCK_MODE: "false"
       ARC_LLM_PROVIDER: ${ARC_LLM_PROVIDER:-openai}
       ARC_OPENAI_API_KEY: ${ARC_OPENAI_API_KEY:-}
