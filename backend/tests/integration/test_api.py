@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
+import pytest
 from httpx import AsyncClient
 
 
@@ -9,6 +12,33 @@ class TestHealthEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
+        assert data["database"] == "connected"
+
+    async def test_health_degraded_when_db_error(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        """DB execute 抛异常时 /health 返回 degraded(200), 非 500。
+
+        覆盖 /health 异常分支: 全局 factory 创建的 session execute 失败时, 端点应
+        捕获并降级, 而非冒泡 500(健康检查端点必须总返回 200 + status)。
+        """
+        from arc.infrastructure import database as db_module
+
+        class _BadSession:
+            async def execute(self, *_args, **_kwargs):
+                raise RuntimeError("simulated db failure")
+
+        @asynccontextmanager
+        async def _broken_factory():
+            yield _BadSession()
+
+        monkeypatch.setattr(db_module, "async_session_factory", _broken_factory)
+
+        resp = await client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "degraded"
+        assert "RuntimeError" in data["database"]
 
 
 class TestTodoCRUD:
