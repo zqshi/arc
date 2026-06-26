@@ -40,15 +40,19 @@ class AgentRegistry:
     def is_available(self, agent_type: AgentType) -> bool:
         return agent_type in self._factories
 
+    def reload(self) -> None:
+        """原地重建: 清空并按当前 settings 重新注册 (运行时配置变更后调用)。
 
-def create_agent_registry() -> AgentRegistry:
-    """Build registry from application settings.
+        不替换单例对象 — 持有 registry 引用的调用方 (如 session_manager 顶层 import)
+        自动看到新状态, 无需改引用方式。
+        """
+        self._factories.clear()
+        _register_configured(self)
 
-    Only registers configured and implemented agents.
-    """
+
+def _register_configured(registry: AgentRegistry) -> None:
+    """按 settings 注册已配置且已实现的 agent (create / reload 共用)。"""
     from arc.config import settings
-
-    registry = AgentRegistry()
 
     if settings.openhands_url:
         adapter = OpenHandsAdapter()
@@ -89,6 +93,14 @@ def create_agent_registry() -> AgentRegistry:
                 lambda: CursorAdapter(cli_path=settings.cursor_cli_path),
             )
 
+
+def create_agent_registry() -> AgentRegistry:
+    """Build registry from application settings.
+
+    Only registers configured and implemented agents.
+    """
+    registry = AgentRegistry()
+    _register_configured(registry)
     return registry
 
 

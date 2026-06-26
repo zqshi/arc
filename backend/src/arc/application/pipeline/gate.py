@@ -115,6 +115,7 @@ async def evaluate_gate(
     prompt = GATE_EVALUATION_PROMPT.format(
         phase_label=phase_label,
         artifact_content=json.dumps(content, ensure_ascii=False, indent=2),
+        charter_section="",  # pipeline 模式暂不评 charter (对话模式已接通, 见 conversation_gate)
         conventions_section=conventions_section,
     )
 

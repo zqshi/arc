@@ -156,3 +156,22 @@ class MemberResponse(BaseModel):
     username: str | None = None
     role: str
     joined_at: str
+
+
+# ── Credentials (T2) — 签名/分发凭证配置 ──────────────────────
+# creds 不强校验具体字段: 读取侧 load_*_creds_for_project 已对缺失字段容错。
+# platform/channel 合法性由 route 路径参数 (SignerType/DistributorType 枚举) 校验。
+
+
+class SigningCredsUpdate(BaseModel):
+    creds: dict
+
+
+class DistributionCredsUpdate(BaseModel):
+    creds: dict
+
+
+class CredentialsStatusResponse(BaseModel):
+    signing: dict[str, bool]
+    distribution: dict[str, bool]
+

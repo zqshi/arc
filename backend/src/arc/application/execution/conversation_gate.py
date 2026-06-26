@@ -95,6 +95,7 @@ async def evaluate_conversation_gate(
     constraint: ProcessConstraint,
     prior_artifacts: dict | None = None,
     conventions: str = "",
+    charter: str = "",
     llm_review_fn=None,
 ) -> ConversationGateResult:
     """对话模式质量门禁评估，按 GateProfile 分级。
@@ -102,6 +103,7 @@ async def evaluate_conversation_gate(
     4 层评估: 结构校验 (必跑) → 方法论 (主产物+启用时) → 交叉一致性 (主产物+启用时)
               → LLM 评审 (启用且结构缺口未短路时)。
     结构缺口≥short_circuit 直接判失败，省 LLM 成本。
+    charter/conventions 在 LLM 评审层注入, 评判产出是否符合项目宪章治理意图 + 用户规范。
     llm_review_fn 可注入用于测试；None 用默认 resilient adapter。
     """
     profile = get_profile(constraint)
@@ -146,7 +148,7 @@ async def evaluate_conversation_gate(
     if profile.enable_llm_review:
         checked.append("llm_review")
         score, llm_gaps, suggestion = await _run_llm_review(
-            phase_type, content, conventions, llm_review_fn,
+            phase_type, content, conventions, charter, llm_review_fn,
         )
 
     all_gaps = list(dict.fromkeys(gaps + llm_gaps))  # 去重保序
@@ -185,8 +187,12 @@ def _safe_cross_consistency(
         return []
 
 
-async def _run_llm_review(phase_type, content, conventions, llm_review_fn):
-    """执行 LLM 质量评审，返回 (score, gaps, suggestion)。"""
+async def _run_llm_review(phase_type, content, conventions, charter, llm_review_fn):
+    """执行 LLM 质量评审，返回 (score, gaps, suggestion)。
+
+    charter (系统生成治理底座) + conventions (用户增量) 均注入, 评判产出是否符合
+    项目宪章治理意图与用户规范。两者为空则对应 section 省略 (不污染 prompt)。
+    """
     from arc.application.pipeline.gate import PHASE_LABELS
     from arc.application.pipeline.prompts import GATE_EVALUATION_PROMPT
 
@@ -195,9 +201,15 @@ async def _run_llm_review(phase_type, content, conventions, llm_review_fn):
         f"\n## 项目规范（产出物必须符合）:\n{conventions}\n"
         if conventions.strip() else ""
     )
+    charter_section = (
+        "\n## 项目宪章 (系统生成·按项目类型, 产出必须符合治理意图):\n"
+        f"{charter}\n"
+        if charter.strip() else ""
+    )
     prompt = GATE_EVALUATION_PROMPT.format(
         phase_label=phase_label,
         artifact_content=json.dumps(content, ensure_ascii=False, indent=2),
+        charter_section=charter_section,
         conventions_section=conventions_section,
     )
 
