@@ -49,6 +49,8 @@ services:
       ARC_STORAGE_SECRET_KEY: ${ARC_STORAGE_SECRET_KEY:-minioadmin}
       ARC_STORAGE_BUCKET: ${ARC_STORAGE_BUCKET:-arc-previews}
       ARC_STORAGE_PUBLIC_URL: ${ARC_STORAGE_PUBLIC_URL:-http://localhost:9000/arc-previews}
+      # 本地存储模式(无 storage_endpoint)预览目录; prod 已配 MinIO 走对象存储, 此为兜底
+      ARC_PREVIEW_STATIC_DIR: ${ARC_PREVIEW_STATIC_DIR:-/app/data/static/previews}
     ports:
       - "8000:8000"
     depends_on:

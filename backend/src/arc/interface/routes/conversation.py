@@ -46,12 +46,13 @@ async def send_message(
     message = conv.add_message(role=MessageRole.USER, content=req.content)
     await repo.add_message(conv.id, message)
 
-    # Trigger AI response asynchronously
+    # Trigger AI response — generate_response 委托 ExecutionEngine,
+    # 已在内部 add_message 持久化 assistant 消息,此处不再重复 add(否则双重插入);
+    # DbSession 退出时自动 commit
     from arc.application.conversation.service import ConversationService
 
     ai_service = ConversationService(db)
     ai_message = await ai_service.generate_response(conv)
-    await repo.add_message(conv.id, ai_message)
 
     return MessageResponse(
         id=str(ai_message.id),
