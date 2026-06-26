@@ -142,3 +142,65 @@ class TestEvaluateConversationGate:
         )
         assert result.passed is False  # 结构缺口存在
         assert any("boundaries" in g for g in result.gaps)
+
+
+class TestCharterCompliance:
+    """charter 遵守度门禁 — charter 注入 LLM 评审 prompt (波次3)。"""
+
+    @staticmethod
+    def _capturing_reviewer(captured: list[str], score: int = 8, gaps=None):
+        """捕获 prompt + 返回固定评审结果。"""
+        async def fn(prompt: str) -> dict:
+            captured.append(prompt)
+            return {"passed": score >= 5, "score": score, "gaps": gaps or [], "suggestion": "ok"}
+        return fn
+
+    async def test_charter_injected_into_llm_prompt(self) -> None:
+        """传 charter → LLM 评审 prompt 含 charter 内容 + section 标记。"""
+        captured: list[str] = []
+        result = await evaluate_conversation_gate(
+            ArtifactType.REQUIREMENT_SPEC, _complete_req_spec(),
+            constraint=ProcessConstraint.STRICT,
+            charter="## 静态站点特化治理意图\n### 可发现性意图 (SEO)\n- 目标: 页面有准确标题",
+            llm_review_fn=self._capturing_reviewer(captured),
+        )
+        assert result.passed is True
+        assert len(captured) == 1
+        assert "可发现性意图" in captured[0]
+        assert "项目宪章" in captured[0]
+
+    async def test_empty_charter_omits_section(self) -> None:
+        """空 charter → prompt 不含 charter_section (不污染)。"""
+        captured: list[str] = []
+        await evaluate_conversation_gate(
+            ArtifactType.REQUIREMENT_SPEC, _complete_req_spec(),
+            constraint=ProcessConstraint.STRICT,
+            charter="",
+            llm_review_fn=self._capturing_reviewer(captured),
+        )
+        assert "项目宪章" not in captured[0]
+
+    async def test_charter_violation_lowers_score_and_blocks(self) -> None:
+        """charter 违规 (LLM 返回低分 + charter 相关 gap) → passed=False。"""
+        result = await evaluate_conversation_gate(
+            ArtifactType.REQUIREMENT_SPEC, _complete_req_spec(),
+            constraint=ProcessConstraint.STRICT,
+            charter="### 离线降级意图 (PWA)\n- 目标: 离线不白屏",
+            llm_review_fn=_llm_reviewer(3, gaps=["未实现离线降级,违反 PWA 治理意图"]),
+        )
+        assert result.passed is False
+        assert result.score == 3
+        assert any("PWA" in g or "离线" in g for g in result.gaps)
+
+    async def test_conventions_also_injected_alongside_charter(self) -> None:
+        """conventions + charter 同时注入 (两者并列, 顺带验证 conventions 接通)。"""
+        captured: list[str] = []
+        await evaluate_conversation_gate(
+            ArtifactType.REQUIREMENT_SPEC, _complete_req_spec(),
+            constraint=ProcessConstraint.STRICT,
+            conventions="用户手填规范: 必须有错误处理",
+            charter="## 项目宪章治理意图\n- 安全意图",
+            llm_review_fn=self._capturing_reviewer(captured),
+        )
+        assert "用户手填规范" in captured[0]
+        assert "项目宪章" in captured[0]

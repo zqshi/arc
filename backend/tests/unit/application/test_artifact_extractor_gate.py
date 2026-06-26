@@ -32,7 +32,7 @@ def _make_extractor() -> ArtifactExtractor:
 def patch_gate_pass(monkeypatch):
     """让 evaluate_conversation_gate 恒返回通过 (隔离真实 LLM)。"""
     async def fake(artifact_type, content, *, constraint, prior_artifacts=None,
-                   conventions="", llm_review_fn=None):
+                   conventions="", charter="", llm_review_fn=None):
         return ConversationGateResult(
             passed=True, score=8, threshold=5,
             checked_layers=["structural", "llm_review"],
