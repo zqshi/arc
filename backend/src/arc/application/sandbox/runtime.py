@@ -369,5 +369,18 @@ def create_sandbox_runtime(
         )
     if policy.mode == SandboxMode.DOCKER:
         return DockerSandboxRuntime(policy, project_path)
+    if policy.mode == SandboxMode.OPEN_SANDBOX:
+        from arc.application.sandbox.opensandbox_runtime import OpenSandboxRuntime
+        from arc.config import settings
+
+        image = policy.opensandbox_image or settings.opensandbox_image
+        return OpenSandboxRuntime(
+            policy,
+            project_path,
+            conversation_id,
+            image=image,
+            server_url=settings.opensandbox_url,
+            api_key=settings.opensandbox_api_key,
+        )
 
     raise ValueError(f"Unknown sandbox mode: {policy.mode}")
