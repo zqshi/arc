@@ -221,6 +221,7 @@ def register_routes():
     from arc.interface.routes.agent import router as agent_router
     from arc.interface.routes.auth import router as auth_router
     from arc.interface.routes.billing import router as billing_router
+    from arc.interface.routes.capability import router as capability_router
     from arc.interface.routes.conversation import router as conversation_router
     from arc.interface.routes.experience import router as experience_router
     from arc.interface.routes.filesystem import router as filesystem_router
@@ -248,6 +249,7 @@ def register_routes():
     app.include_router(webhook_router, prefix="/api/webhooks", tags=["webhooks"])
     app.include_router(mcp_router, prefix="/api/mcp", tags=["mcp"])
     app.include_router(template_router, prefix="/api/templates", tags=["templates"])
+    app.include_router(capability_router, prefix="/api/capabilities", tags=["capabilities"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
     from arc.config import settings

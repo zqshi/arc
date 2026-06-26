@@ -3,6 +3,7 @@ from .artifact import ArtifactModel
 from .baas import BaasInstanceModel
 from .base import Base, TimestampMixin
 from .billing import UsageDailyModel
+from .capability import CapabilityModel
 from .conversation import Conversation, Message
 from .deployment import DeploymentModel
 from .experience import Experience
@@ -18,6 +19,7 @@ __all__ = [
     "AgentSessionModel",
     "ArtifactModel",
     "BaasInstanceModel",
+    "CapabilityModel",
     "Base",
     "DomainTemplateModel",
     "TimestampMixin",
