@@ -18,6 +18,10 @@ dependencies = [
     "sentence-transformers>=3.0.0",
     "python-jose[cryptography]>=3.3.0",
     "cryptography>=43.0.0",  # v6.1: 签名凭证加密 (jose 带入但显式声明, 避免 transitive 依赖)
+    "bcrypt>=4.0.0",  # 密码 hash (auth/password.py 直接 import, 显式声明避免本地 dev 手动装而 prod 缺失)
+    "python-multipart>=0.0.9",  # Form/UploadFile (FastAPI 隐式依赖, 缺失阻断 app 启动)
+    "python-docx>=1.1.0",  # DOCX 文本提取 (planning 文档解析, 函数内 import 已 ImportError 降级)
+    "pypdf>=4.0.0",  # PDF 文本提取 (planning 文档解析, 函数内 import 已 ImportError 降级)
     "boto3>=1.35.0",
 ]
 
