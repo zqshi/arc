@@ -11,6 +11,12 @@ router = APIRouter()
 
 
 class LLMSettingsUpdate(BaseModel):
+    """系统设置更新 (LLM + Agent adapter)。
+
+    运行时覆盖 settings → 持久化 .env → 失效 LLM adapter 缓存 →
+    若涉 agent 字段则重建 AgentRegistry (波次2: skill 运行时配置)。
+    """
+    # LLM
     llm_provider: str | None = None
     openai_api_key: str | None = None
     openai_base_url: str | None = None
@@ -21,6 +27,15 @@ class LLMSettingsUpdate(BaseModel):
     deepseek_api_key: str | None = None
     deepseek_base_url: str | None = None
     deepseek_model: str | None = None
+    # Agent adapter (波次2) — 配置后 registry 重建, 立即可用
+    openhands_url: str | None = None
+    openhands_api_key: str | None = None
+    codex_api_key: str | None = None
+    codex_base_url: str | None = None
+    claude_code_path: str | None = None
+    claude_code_work_dir: str | None = None
+    claude_code_model: str | None = None
+    cursor_cli_path: str | None = None
 
 
 @router.get("")
@@ -39,6 +54,11 @@ async def get_settings(user: CurrentUser):
         "deepseek_api_key_set": bool(settings.deepseek_api_key),
         "openhands_url": settings.openhands_url,
         "openhands_api_key_set": bool(settings.openhands_api_key),
+        "codex_api_key_set": bool(settings.codex_api_key),
+        "codex_base_url": settings.codex_base_url,
+        "claude_code_path": settings.claude_code_path,
+        "claude_code_model": settings.claude_code_model,
+        "cursor_cli_path": settings.cursor_cli_path,
         "agent_default": settings.agent_default,
         "agent_development": settings.agent_development,
         "agent_testing": settings.agent_testing,

@@ -365,6 +365,7 @@ GATE_EVALUATION_PROMPT = """\
 ```json
 {artifact_content}
 ```
+{charter_section}
 {conventions_section}
 
 输出 JSON:
