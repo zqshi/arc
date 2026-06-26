@@ -59,6 +59,12 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+          volumeMounts:
+            - name: preview-static
+              mountPath: /app/data/static/previews
+      volumes:
+        - name: preview-static
+          emptyDir: {}
   strategy:
     type: RollingUpdate
     rollingUpdate:

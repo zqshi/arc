@@ -25,3 +25,5 @@ data:
   # ── BaaS / Supabase (非敏感, 启用 BaaS 功能时填真实值) ──
   ARC_SUPABASE_API_URL: "http://localhost:54321"
   ARC_SUPABASE_SCHEMA_PREFIX: "arc_"
+  # 本地存储模式(无 storage_endpoint)预览目录; 生产建议配 ARC_STORAGE_ENDPOINT 走对象存储, 此为兜底
+  ARC_PREVIEW_STATIC_DIR: "/app/data/static/previews"
