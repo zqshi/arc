@@ -135,6 +135,26 @@ class StreamManager:
             return None
         return session
 
+    async def publish_event(self, conversation_id: str, event: dict) -> None:
+        """供 application 层发事件到 conversation 的流 (v6.7 审批链路用)。
+
+        沙箱审批 approval_required 事件经此注入流: 复用 _run 的投递逻辑
+        (有 bus 走 _buffer + bus 跨进程, 无 bus 走 session.publish 进程内)。
+        使审批事件经 stream 到达前端 WS, 无需 application 层依赖 interface。
+        """
+        session = self.get_session(conversation_id)
+        if session is None:
+            logger.warning(
+                "No stream session for %s event on %s",
+                event.get("type"), conversation_id,
+            )
+            return
+        if self._bus is not None:
+            session._buffer(event)
+            await self._bus.publish(self._channel(conversation_id), event)
+        else:
+            session.publish(event)
+
     def start_stream(
         self,
         conversation_id: str,

@@ -28,6 +28,9 @@ ToolImplFn = Callable[..., Awaitable[str]]
 
 logger = logging.getLogger(__name__)
 
+# v6.7: 审批响应跨 worker 路由的 bus channel 前缀
+_SANDBOX_CHANNEL_PREFIX = "arc:sandbox:"
+
 
 @dataclass
 class ApprovalRequest:
@@ -78,6 +81,7 @@ class ApprovalGateSandboxRuntime(SandboxRuntime):
         policy: SandboxPolicy,
         project_path: str,
         *,
+        conversation_id: str = "",
         emit_callback: Any = None,
         timeout_seconds: float = 120.0,
         run_command_impl: ToolImplFn | None = None,
@@ -85,11 +89,53 @@ class ApprovalGateSandboxRuntime(SandboxRuntime):
     ):
         self._policy = policy
         self._base_path = Path(project_path).expanduser().resolve()
+        self._conversation_id = conversation_id
         self._emit = emit_callback  # async callable(event_dict) -> None
         self._timeout = timeout_seconds
         self._pending: dict[str, asyncio.Future] = {}
         self._run_command_impl = run_command_impl
         self._write_file_impl = write_file_impl
+        self._monitor_task: asyncio.Task | None = None
+
+    def _channel(self) -> str:
+        return f"{_SANDBOX_CHANNEL_PREFIX}{self._conversation_id}"
+
+    def _get_bus(self):
+        """惰性取全局 EventBus (lifespan 注入); None=进程内无 bus。"""
+        try:
+            from arc.infrastructure.eventbus import get_global_bus
+
+            return get_global_bus()
+        except Exception:
+            return None
+
+    def _ensure_monitor(self) -> None:
+        """启动 bus 监听 (懒启动, 多 worker 下审批响应跨进程路由)。
+
+        监听 arc:sandbox:{cid} channel, 收到 {request_id, approved} 后
+        本地 respond 解析 future (future 不可跨进程, 必须在持有 runtime
+        的 worker 本地解析)。
+        """
+        if self._monitor_task is not None or not self._conversation_id:
+            return
+        bus = self._get_bus()
+        if bus is None:
+            return
+        self._monitor_task = asyncio.create_task(self._monitor_approvals(bus))
+
+    async def _monitor_approvals(self, bus) -> None:
+        """监听 bus channel, 把审批响应路由到本地 respond。"""
+        try:
+            async for event in bus.subscribe(self._channel()):
+                request_id = event.get("request_id")
+                if request_id is None:
+                    continue
+                approved = event.get("approved", False)
+                self.respond(request_id, bool(approved))
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            logger.debug("Approval monitor ended for %s: %s", self._conversation_id, exc)
 
     async def run_command(self, params: dict) -> str:
         if "run_command" in self._policy.approval_required_for:
@@ -119,6 +165,7 @@ class ApprovalGateSandboxRuntime(SandboxRuntime):
 
     async def _request_approval(self, tool_name: str, tool_input: dict) -> bool:
         """Emit approval_required event and wait for user response."""
+        self._ensure_monitor()
         request_id = str(uuid.uuid4())[:12]
         future: asyncio.Future = asyncio.get_event_loop().create_future()
         self._pending[request_id] = future
@@ -153,6 +200,14 @@ class ApprovalGateSandboxRuntime(SandboxRuntime):
         return False
 
     async def close(self) -> None:
+        # Cancel bus monitor (跨 worker 审批路由)
+        if self._monitor_task is not None:
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._monitor_task = None
         # Cancel any pending approvals
         for future in self._pending.values():
             if not future.done():
@@ -284,6 +339,7 @@ def create_sandbox_runtime(
     policy: SandboxPolicy,
     project_path: str,
     *,
+    conversation_id: str = "",
     emit_callback: Any = None,
     run_command_impl: ToolImplFn | None = None,
     write_file_impl: ToolImplFn | None = None,
@@ -291,6 +347,8 @@ def create_sandbox_runtime(
     """Create the appropriate sandbox runtime from a policy.
 
     Args:
+        conversation_id: 对话 ID (v6.7 审批链路: emit_callback 路由 +
+            bus 监听 arc:sandbox:{cid} 跨 worker 路由审批响应)
         run_command_impl: Async function matching execution.tools._run_command
             signature. Injected by caller to avoid circular import with
             execution module.
@@ -304,6 +362,7 @@ def create_sandbox_runtime(
         return ApprovalGateSandboxRuntime(
             policy,
             project_path,
+            conversation_id=conversation_id,
             emit_callback=emit_callback,
             run_command_impl=run_command_impl,
             write_file_impl=write_file_impl,
