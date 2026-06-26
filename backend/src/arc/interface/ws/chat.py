@@ -14,9 +14,6 @@ from arc.interface.ws.ws_helpers import (
     _authenticate_ws,
     _get_org_id_for_todo,
     _heartbeat,
-    _resolve_approval,
-    register_sandbox_runtime,
-    unregister_sandbox_runtime,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,8 +25,6 @@ __all__ = [
     "router",
     "manager",
     "ConnectionManager",
-    "register_sandbox_runtime",
-    "unregister_sandbox_runtime",
 ]
 
 
@@ -161,9 +156,17 @@ async def conversation_ws(
                 continue
 
             if data.get("type") == "approval_response":
+                # v6.7: 审批响应经 bus 路由到持有 runtime 的 worker (跨 worker)
                 request_id = data.get("request_id", "")
                 approved = bool(data.get("approved", False))
-                _resolve_approval(conversation_id, request_id, approved)
+                from arc.infrastructure.eventbus import get_global_bus
+
+                bus = get_global_bus()
+                if bus is not None:
+                    await bus.publish(
+                        f"arc:sandbox:{conversation_id}",
+                        {"request_id": request_id, "approved": approved},
+                    )
                 continue
 
             if data.get("type") == "retry":
