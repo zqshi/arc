@@ -1,18 +1,18 @@
-"""OpenSandbox 云沙箱运行时 (v6.7 波次3)。
+"""OpenSandbox 云沙箱运行时 (v6.7 全量多 worker)。
 
 远程沙箱后端, 对接 opensandbox-group/OpenSandbox (Python SDK)。沙箱即工作区
-模式: 项目初始化上传到沙箱, read/write/run 全在沙箱内执行, 保证一致性
-(远程沙箱无法挂载本地 project_path, 故 read 类也走沙箱)。
+模式: 项目初始化上传到沙箱, read/write/run 全在沙箱内执行, 保证一致性。
 
-沙箱惰性创建: 首次工具调用时 Sandbox.create + 上传项目; 按 conversation
-长驻, close 时释放。多 worker 下靠 sticky session (nginx 按 conversation_id
-哈希路由 WS), runtime 在持有它的 worker 长驻。
+全量多 worker (v6.7): sandbox_id 经 SandboxRegistry 存 Redis 跨 worker 共享。
+Sandbox 实例持有远程连接不可跨进程, 但 sandbox_id 可共享 — 各 worker 用
+Sandbox.connect(id) resume 同一远程沙箱。首个 worker create + 上传项目 +
+注册 id; 其他 worker connect 复用 (跳过上传)。
 
 API (opensandbox SDK):
-- Sandbox.create(image, *, timeout, env, entrypoint) → Sandbox
+- Sandbox.create(image, *, timeout) → Sandbox (首创建, sandbox_id 在实例上)
+- Sandbox.connect(sandbox_id) → Sandbox (resume 已有, 跨 worker 复用)
 - sandbox.commands.run(command) → Execution (logs.stdout[].text)
-- sandbox.files.read_file(path) → str
-- sandbox.files.write_files([WriteEntry(path, data, mode)])
+- sandbox.files.read_file(path) → str / write_files([WriteEntry])
 - sandbox.close()
 """
 
@@ -25,6 +25,7 @@ from typing import Any
 from opensandbox import Sandbox
 from opensandbox.models import WriteEntry
 
+from arc.application.sandbox.registry import sandbox_registry
 from arc.application.sandbox.runtime import SandboxRuntime
 from arc.domain.sandbox.value_objects import SandboxPolicy
 
@@ -40,7 +41,11 @@ _UPLOAD_MAX_BYTES = 512 * 1024  # 单文件上传上限 512KB (大文件如 lock
 
 
 class OpenSandboxRuntime(SandboxRuntime):
-    """OpenSandbox 云沙箱运行时 — 沙箱即工作区。"""
+    """OpenSandbox 云沙箱运行时 — 沙箱即工作区, 全量多 worker。
+
+    sandbox_id 跨 worker 共享 (SandboxRegistry/Redis); 各 worker 本地 connect
+    缓存 Sandbox 实例避免重连。首建 worker 上传项目, 其他 worker connect 复用。
+    """
 
     def __init__(
         self,
@@ -60,18 +65,31 @@ class OpenSandboxRuntime(SandboxRuntime):
         self._server_url = server_url
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
-        self._sandbox: Sandbox | None = None
-        self._upload_done = False
+        self._sandbox: Sandbox | None = None  # 本地 connect 缓存
+        self._sandbox_id: str | None = None  # 跨 worker 共享的 id
 
     def _sandbox_path(self, rel: str) -> str:
         """相对项目路径 → 沙箱绝对路径 (项目统一上传到 /workspace)。"""
         return "/workspace/" + rel.lstrip("/")
 
     async def _ensure_sandbox(self) -> Sandbox:
-        """惰性创建沙箱 + 首次上传项目。"""
+        """获取沙箱: 优先 connect 已有 id (跨 worker 复用), 否则 create + 注册。"""
         if self._sandbox is not None:
             return self._sandbox
 
+        # 1. 查 registry 是否已有 sandbox_id (其他 worker 已 create)
+        existing_id = await sandbox_registry.get(self._conversation_id)
+        if existing_id:
+            logger.info(
+                "Connecting to existing OpenSandbox conv=%s id=%s",
+                self._conversation_id, existing_id,
+            )
+            self._sandbox = await Sandbox.connect(existing_id)
+            self._sandbox_id = existing_id
+            # connect 复用, 跳过项目上传 (首建 worker 已上传)
+            return self._sandbox
+
+        # 2. 首建: create + 上传项目 + 注册 id
         import datetime as dt
 
         logger.info(
@@ -82,16 +100,18 @@ class OpenSandboxRuntime(SandboxRuntime):
             self._image,
             timeout=dt.timedelta(seconds=self._timeout_seconds),
         )
+        self._sandbox_id = self._sandbox.sandbox_id
         await self._upload_project()
+        await sandbox_registry.set(self._conversation_id, self._sandbox_id)
         return self._sandbox
 
     async def _upload_project(self) -> None:
-        """把项目目录上传到沙箱 (批量 write_files)。
+        """把项目目录上传到沙箱 (仅首建 worker 执行)。
 
         跳过 node_modules/.git 等目录与大文件。MVP 用逐文件上传; 大项目
         后续优化为 tar 上传或 PVC 预置。
         """
-        if self._upload_done or self._sandbox is None:
+        if self._sandbox is None:
             return
 
         entries: list[WriteEntry] = []
@@ -109,9 +129,9 @@ class OpenSandboxRuntime(SandboxRuntime):
 
         if entries:
             await self._sandbox.files.write_files(entries)
-        self._upload_done = True
         logger.info(
-            "Project uploaded to sandbox conv=%s", self._conversation_id
+            "Project uploaded to sandbox conv=%s id=%s",
+            self._conversation_id, self._sandbox_id,
         )
 
     def _iter_project_files(self):
@@ -224,10 +244,11 @@ class OpenSandboxRuntime(SandboxRuntime):
         return "\n".join(parts) if parts else "(无输出)"
 
     async def close(self) -> None:
-        if self._sandbox is not None:
-            try:
-                await self._sandbox.close()
-            except Exception as exc:
-                logger.warning("Sandbox close failed: %s", exc)
-            self._sandbox = None
-            self._upload_done = False
+        """释放本地 connect 缓存 (不 kill 共享沙箱)。
+
+        多 worker 共享: 沙箱可能被其他 worker 复用, close 只断本地连接缓存,
+        不调 sandbox.close() (会 kill 远程沙箱影响其他 worker)。注册表 TTL
+        自动回收 sandbox_id; 真正销毁由沙箱 timeout 或显式清理负责。
+        """
+        self._sandbox = None
+        self._sandbox_id = None
