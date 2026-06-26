@@ -69,6 +69,14 @@ async def lifespan(app: FastAPI):
 
     await ensure_seed_users()
 
+    # v6.8 W2.1: agent 声明从 DB 同步 (env→DB 双读, DB 空→seed env 兜底)
+    from arc.application.agent.registry import agent_registry, sync_registry_from_db
+    from arc.infrastructure.database import async_session_factory
+
+    async with async_session_factory() as db:
+        await sync_registry_from_db(db, agent_registry)
+        await db.commit()
+
     decay_task = asyncio.create_task(_experience_decay_loop())
     yield
     decay_task.cancel()
