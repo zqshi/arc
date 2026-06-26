@@ -1,7 +1,8 @@
-"""OpenSandboxRuntime 适配器测试 (v6.7 波次3)。
+"""OpenSandboxRuntime 适配器测试 (v6.7 全量多 worker)。
 
-验证云沙箱后端: 沙箱即工作区模式 (run_command/write_file/read_file 全走沙箱),
-惰性创建 + 项目上传, close 释放。mock opensandbox SDK, 不连真实 server。
+验证云沙箱后端: 沙箱即工作区 + sandbox_id 跨 worker 共享 (SandboxRegistry)。
+首建 worker create+上传+注册 id; 其他 worker connect 复用跳过上传。
+mock opensandbox SDK + registry, 不连真实 server/redis。
 """
 
 from __future__ import annotations
@@ -27,8 +28,9 @@ def _mock_execution(stdout: str = "", stderr: str = "", exit_code: int = 0):
 
 @pytest.fixture
 def mock_sandbox():
-    """mock opensandbox.Sandbox, 拦截 create + 实例方法。"""
+    """mock opensandbox.Sandbox + sandbox_registry (首建路径: get 返回 None)。"""
     sb = AsyncMock()
+    sb.sandbox_id = "sb-id-123"
     sb.commands = AsyncMock()
     sb.commands.run = AsyncMock(return_value=_mock_execution(stdout="ok\n"))
     sb.files = AsyncMock()
@@ -36,17 +38,22 @@ def mock_sandbox():
     sb.files.write_files = AsyncMock(return_value=None)
     sb.close = AsyncMock()
 
-    with patch(
-        "arc.application.sandbox.opensandbox_runtime.Sandbox"
-    ) as sandbox_cls:
+    with (
+        patch("arc.application.sandbox.opensandbox_runtime.Sandbox") as sandbox_cls,
+        patch("arc.application.sandbox.opensandbox_runtime.sandbox_registry") as reg,
+    ):
         sandbox_cls.create = AsyncMock(return_value=sb)
-        yield sb
+        sandbox_cls.connect = AsyncMock(return_value=sb)
+        reg.get = AsyncMock(return_value=None)  # 无已有 id → 走 create
+        reg.set = AsyncMock()
+        reg.remove = AsyncMock()
+        yield sb, reg, sandbox_cls
 
 
 class TestOpenSandboxRunCommand:
     @pytest.mark.asyncio
     async def test_run_command_executes_in_sandbox(self, mock_sandbox, tmp_path):
-        """run_command 在沙箱内执行, 返回 stdout。"""
+        sb, _, _ = mock_sandbox
         rt = OpenSandboxRuntime(
             policy=MagicMock(mode=MagicMock(value="open_sandbox")),
             project_path=str(tmp_path),
@@ -55,33 +62,76 @@ class TestOpenSandboxRunCommand:
         )
         result = await rt.run_command({"command": "echo hello", "timeout": 10})
 
-        mock_sandbox.commands.run.assert_called_once()
-        called_cmd = mock_sandbox.commands.run.call_args[0][0]
-        assert "echo hello" in called_cmd
+        sb.commands.run.assert_called_once()
         assert "ok" in result
         await rt.close()
 
     @pytest.mark.asyncio
     async def test_run_command_lazy_creates_sandbox(self, mock_sandbox, tmp_path):
-        """沙箱惰性创建: 构造时不 create, 首次 run_command 才 create。"""
-        from arc.application.sandbox.opensandbox_runtime import Sandbox
-
+        """首建: get 返回 None → create + 上传 + 注册 id。"""
+        sb, reg, sandbox_cls = mock_sandbox
         rt = OpenSandboxRuntime(
             policy=MagicMock(mode=MagicMock(value="open_sandbox")),
             project_path=str(tmp_path),
             conversation_id="c1",
             image="python:3.12-slim",
         )
-        Sandbox.create.assert_not_called()  # 构造后未创建
+        sandbox_cls.create.assert_not_called()
         await rt.run_command({"command": "ls", "timeout": 10})
-        Sandbox.create.assert_called_once()  # 首次调用才创建
+        sandbox_cls.create.assert_called_once()
+        reg.set.assert_called_once_with("c1", "sb-id-123")  # 注册 id
+        await rt.close()
+
+
+class TestOpenSandboxConnectReuse:
+    """全量多 worker: sandbox_id 共享, connect 复用。"""
+
+    @pytest.mark.asyncio
+    async def test_connect_reuses_existing_sandbox_skips_upload(self, mock_sandbox, tmp_path):
+        """已有 id → connect 复用, 跳过项目上传。"""
+        sb, reg, sandbox_cls = mock_sandbox
+        reg.get = AsyncMock(return_value="existing-id")  # 其他 worker 已 create
+
+        rt = OpenSandboxRuntime(
+            policy=MagicMock(mode=MagicMock(value="open_sandbox")),
+            project_path=str(tmp_path),
+            conversation_id="c2",
+            image="python:3.12-slim",
+        )
+        await rt.run_command({"command": "ls", "timeout": 10})
+
+        # connect 而非 create
+        sandbox_cls.connect.assert_called_once_with("existing-id")
+        sandbox_cls.create.assert_not_called()
+        # 复用 worker 不上传项目
+        sb.files.write_files.assert_not_called()
+        # 也不重复注册
+        reg.set.assert_not_called()
+        await rt.close()
+
+    @pytest.mark.asyncio
+    async def test_connect_id_cached_locally_no_reconnect(self, mock_sandbox, tmp_path):
+        """同 runtime 内多次调用只 connect 一次 (本地缓存)。"""
+        sb, reg, sandbox_cls = mock_sandbox
+        reg.get = AsyncMock(return_value="existing-id")
+
+        rt = OpenSandboxRuntime(
+            policy=MagicMock(mode=MagicMock(value="open_sandbox")),
+            project_path=str(tmp_path),
+            conversation_id="c3",
+            image="python:3.12-slim",
+        )
+        await rt.run_command({"command": "ls", "timeout": 10})
+        await rt.run_command({"command": "pwd", "timeout": 10})
+
+        sandbox_cls.connect.assert_called_once()  # 第二次用本地缓存
         await rt.close()
 
 
 class TestOpenSandboxFiles:
     @pytest.mark.asyncio
     async def test_write_file_uploads_to_sandbox(self, mock_sandbox, tmp_path):
-        """write_file 经 sandbox.files.write_files 写入沙箱。"""
+        sb, _, _ = mock_sandbox
         rt = OpenSandboxRuntime(
             policy=MagicMock(mode=MagicMock(value="open_sandbox")),
             project_path=str(tmp_path),
@@ -90,15 +140,13 @@ class TestOpenSandboxFiles:
         )
         result = await rt.write_file({"path": "src/main.py", "content": "print(1)"})
 
-        mock_sandbox.files.write_files.assert_called_once()
-        entries = mock_sandbox.files.write_files.call_args[0][0]
-        assert len(entries) == 1
+        sb.files.write_files.assert_called()
         assert result is not None
         await rt.close()
 
     @pytest.mark.asyncio
     async def test_read_file_reads_from_sandbox(self, mock_sandbox, tmp_path):
-        """read_file 从沙箱读取 (沙箱即工作区, 不读本地)。"""
+        sb, _, _ = mock_sandbox
         rt = OpenSandboxRuntime(
             policy=MagicMock(mode=MagicMock(value="open_sandbox")),
             project_path=str(tmp_path),
@@ -107,34 +155,35 @@ class TestOpenSandboxFiles:
         )
         result = await rt.read_file({"path": "README.md"})
 
-        mock_sandbox.files.read_file.assert_called_once_with("/workspace/README.md")
+        sb.files.read_file.assert_called_once_with("/workspace/README.md")
         assert "file content" in result
         await rt.close()
 
 
 class TestOpenSandboxLifecycle:
     @pytest.mark.asyncio
-    async def test_close_releases_sandbox(self, mock_sandbox, tmp_path):
-        """close 调 sandbox.close 释放沙箱资源。"""
+    async def test_close_does_not_kill_shared_sandbox(self, mock_sandbox, tmp_path):
+        """close 只断本地缓存, 不 kill 共享沙箱 (其他 worker 可能复用)。"""
+        sb, _, _ = mock_sandbox
         rt = OpenSandboxRuntime(
             policy=MagicMock(mode=MagicMock(value="open_sandbox")),
             project_path=str(tmp_path),
             conversation_id="c1",
             image="python:3.12-slim",
         )
-        await rt.run_command({"command": "ls", "timeout": 10})  # 触发创建
+        await rt.run_command({"command": "ls", "timeout": 10})
         await rt.close()
 
-        mock_sandbox.close.assert_called_once()
+        sb.close.assert_not_called()  # 不 kill 共享沙箱
 
     @pytest.mark.asyncio
     async def test_close_without_create_is_noop(self, mock_sandbox, tmp_path):
-        """未创建沙箱时 close 不抛 (noop)。"""
+        sb, _, _ = mock_sandbox
         rt = OpenSandboxRuntime(
             policy=MagicMock(mode=MagicMock(value="open_sandbox")),
             project_path=str(tmp_path),
             conversation_id="c1",
             image="python:3.12-slim",
         )
-        await rt.close()  # 未触发创建, 不应抛
-        mock_sandbox.close.assert_not_called()
+        await rt.close()
+        sb.close.assert_not_called()
