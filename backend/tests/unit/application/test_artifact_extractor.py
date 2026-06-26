@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import re
+import uuid
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
-from arc.application.execution.artifact_extractor import DELIVERABLE_PATTERN
+import pytest
+
+from arc.application.execution.artifact_extractor import (
+    DELIVERABLE_PATTERN,
+    ArtifactExtractor,
+)
+from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.value_objects import ArtifactType
+from arc.domain.project.value_objects import ProjectType
 
 
 class TestDeliverablePattern:
@@ -81,6 +91,117 @@ class TestAppCodeServiceSpecExtraction:
         matches = DELIVERABLE_PATTERN.findall(text)
         assert len(matches) == 1
         assert ArtifactType(matches[0][0]) == ArtifactType.SERVICE_SPEC
+
+    def test_build_marker_recognized_as_valid_type(self) -> None:
+        """v6.9: [DELIVERABLE:build] 的 type 字符串能转为 ArtifactType。
+
+        构建产物 BUILD 走与既有类型相同的 DELIVERABLE 提取链路, 枚举已含(T1),
+        提取自动支持。agent 在 DEVELOPMENT 阶段构建后产出 [DELIVERABLE:build]。
+        """
+        text = """[DELIVERABLE:build]
+```json
+{"build_target": "tauri_linux", "artifact_path": "dist", "build_status": "success"}
+```"""
+        matches = DELIVERABLE_PATTERN.findall(text)
+        assert len(matches) == 1
+        assert ArtifactType(matches[0][0]) == ArtifactType.BUILD
+
+
+class TestProduceBuildArtifact:
+    """v6.9: extractor 从 prototype content 抽产出 BUILD artifact(方案B, BINARY_APP)。"""
+
+    @pytest.mark.asyncio
+    async def test_binary_app_with_build_status_produces_build(self):
+        todo_id = uuid.uuid4()
+        prototype = Artifact(
+            todo_id=todo_id,
+            artifact_type=ArtifactType.PROTOTYPE,
+            content={"build_status": "success", "artifact_path": "dist"},
+        )
+        svc = ArtifactExtractor.__new__(ArtifactExtractor)
+        svc.db = AsyncMock()
+
+        with (
+            patch("arc.infrastructure.repositories.todo.TodoRepository") as todo_repo,
+            patch("arc.infrastructure.repositories.project.ProjectRepository") as proj_repo,
+            patch("arc.application.artifact.service.ArtifactService") as art_svc,
+        ):
+            todo_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_id=uuid.uuid4())
+            )
+            proj_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_type=ProjectType.BINARY_APP)
+            )
+            art_svc_inst = AsyncMock()
+            art_svc.return_value = art_svc_inst
+
+            await svc._try_produce_build_artifact(todo_id, prototype)
+
+            art_svc.assert_called_once_with(svc.db)
+            art_svc_inst.create_or_update_build.assert_awaited_once()
+            kwargs = art_svc_inst.create_or_update_build.call_args.kwargs
+            assert kwargs["build_target"] == "tauri_linux"
+            assert kwargs["build_status"] == "success"
+            assert kwargs["artifact_path"] == "dist"
+            assert kwargs["todo_id"] == todo_id
+
+    @pytest.mark.asyncio
+    async def test_static_site_skips_build(self):
+        """STATIC_SITE 走 dist 静态站点部署, 无 build_target, 不产出 BUILD。"""
+        todo_id = uuid.uuid4()
+        prototype = Artifact(
+            todo_id=todo_id,
+            artifact_type=ArtifactType.PROTOTYPE,
+            content={"build_status": "success", "artifact_path": "dist"},
+        )
+        svc = ArtifactExtractor.__new__(ArtifactExtractor)
+        svc.db = AsyncMock()
+
+        with (
+            patch("arc.infrastructure.repositories.todo.TodoRepository") as todo_repo,
+            patch("arc.infrastructure.repositories.project.ProjectRepository") as proj_repo,
+            patch("arc.application.artifact.service.ArtifactService") as art_svc,
+        ):
+            todo_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_id=uuid.uuid4())
+            )
+            proj_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_type=ProjectType.STATIC_SITE)
+            )
+            art_svc.return_value.create_or_update_build = AsyncMock()
+
+            await svc._try_produce_build_artifact(todo_id, prototype)
+
+            art_svc.return_value.create_or_update_build.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_no_build_status_skips(self):
+        """prototype content 无 build_status → 不产出 BUILD(无构建信息)。"""
+        todo_id = uuid.uuid4()
+        prototype = Artifact(
+            todo_id=todo_id,
+            artifact_type=ArtifactType.PROTOTYPE,
+            content={"artifact_path": "dist"},
+        )
+        svc = ArtifactExtractor.__new__(ArtifactExtractor)
+        svc.db = AsyncMock()
+
+        with (
+            patch("arc.infrastructure.repositories.todo.TodoRepository") as todo_repo,
+            patch("arc.infrastructure.repositories.project.ProjectRepository") as proj_repo,
+            patch("arc.application.artifact.service.ArtifactService") as art_svc,
+        ):
+            todo_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_id=uuid.uuid4())
+            )
+            proj_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_type=ProjectType.BINARY_APP)
+            )
+            art_svc.return_value.create_or_update_build = AsyncMock()
+
+            await svc._try_produce_build_artifact(todo_id, prototype)
+
+            art_svc.return_value.create_or_update_build.assert_not_awaited()
 
     def test_dev_report_and_app_code_coexist_in_one_message(self) -> None:
         """DEVELOPMENT 阶段一条消息同时产出 DEV_REPORT + APP_CODE。"""
