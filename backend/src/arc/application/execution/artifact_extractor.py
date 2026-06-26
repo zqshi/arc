@@ -14,6 +14,7 @@ from arc.application.ai.json_extract import extract_json
 from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.value_objects import ArtifactType
 from arc.domain.planning.entity import DeliverableTracker
+from arc.domain.project.value_objects import ProjectType, is_deliverable_visible
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.planning import DeliverableTrackerRepository
 
@@ -50,12 +51,25 @@ class ArtifactExtractor:
         extracted: list[Artifact] = []
         tracker = await self.tracker_repo.get_by_todo_id(todo_id)
         constraint = await self._get_constraint(todo_id)
+        project_type = await self._get_project_type(todo_id)
 
         for artifact_type_str, json_str in matches:
             try:
                 artifact_type = ArtifactType(artifact_type_str)
             except ValueError:
                 logger.warning("Unknown artifact type in DELIVERABLE marker: %s", artifact_type_str)
+                continue
+
+            # v6.9: 按项目类型过滤 — 非app类不产出 app_code(无原生构建产物)
+            if (
+                artifact_type == ArtifactType.APP_CODE
+                and project_type is not None
+                and not is_deliverable_visible(project_type, ArtifactType.APP_CODE.value)
+            ):
+                logger.info(
+                    "Skip app_code for non-app project %s (type=%s)",
+                    todo_id, project_type.value,
+                )
                 continue
 
             parsed = extract_json(json_str.strip())
@@ -117,6 +131,20 @@ class ArtifactExtractor:
                 await self._try_produce_build_artifact(todo_id, prototype_art)
 
         return extracted
+
+    async def _get_project_type(self, todo_id: uuid.UUID) -> ProjectType | None:
+        """v6.9: 取项目类型(交付物可见性过滤用)。graceful: 失败→None。"""
+        try:
+            from arc.infrastructure.repositories.project import ProjectRepository
+            from arc.infrastructure.repositories.todo import TodoRepository
+
+            todo = await TodoRepository(self.db).get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return None
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            return project.project_type if project else None
+        except Exception:
+            return None
 
     async def _try_produce_build_artifact(
         self, todo_id: uuid.UUID, prototype: Artifact

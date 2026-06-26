@@ -5,6 +5,9 @@ import pytest
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
+    DELIVERABLES_BY_TYPE,
+    PHASES_BY_TYPE,
+    REQUIRED_DELIVERABLES,
     VALID_VERSION_TRANSITIONS,
     AgentAutonomy,
     ExecutionMode,
@@ -12,6 +15,8 @@ from arc.domain.project.value_objects import (
     ProjectStatus,
     ProjectType,
     VersionStatus,
+    deliverables_for_type,
+    is_deliverable_visible,
 )
 
 
@@ -216,3 +221,92 @@ class TestProjectType:
     def test_invalid_value_raises(self):
         with pytest.raises(ValueError):
             ProjectType("library")  # 未激活类型
+
+
+class TestDeliverablesByType:
+    """v6.9: 按项目类型裁剪可见交付物 — 非app类不应显示 app_code/构建产物。"""
+
+    def test_all_types_covered(self):
+        for pt in ProjectType:
+            assert pt in DELIVERABLES_BY_TYPE
+
+    def test_static_site_excludes_app_code(self):
+        """静态站点无原生构建产物, app_code 不可见。"""
+        visible = DELIVERABLES_BY_TYPE[ProjectType.STATIC_SITE]
+        assert "app_code" not in visible
+
+    def test_static_site_excludes_build(self):
+        """静态站点无构建产物锚点, build 不可见。"""
+        visible = DELIVERABLES_BY_TYPE[ProjectType.STATIC_SITE]
+        assert "build" not in visible
+
+    def test_binary_app_includes_app_code(self):
+        visible = DELIVERABLES_BY_TYPE[ProjectType.BINARY_APP]
+        assert "app_code" in visible
+
+    def test_binary_app_includes_build(self):
+        """原生客户端有构建产物, build 可见(签名/分发锚点)。"""
+        visible = DELIVERABLES_BY_TYPE[ProjectType.BINARY_APP]
+        assert "build" in visible
+
+    def test_static_site_subset_of_required(self):
+        """静态站点可见交付物是全量的子集(只裁剪, 不新增)。"""
+        assert DELIVERABLES_BY_TYPE[ProjectType.STATIC_SITE].issubset(
+            set(REQUIRED_DELIVERABLES)
+        )
+
+    def test_binary_app_superset_of_required(self):
+        """原生客户端含全量 + 构建产物 build。"""
+        assert set(REQUIRED_DELIVERABLES).issubset(
+            DELIVERABLES_BY_TYPE[ProjectType.BINARY_APP]
+        )
+
+    def test_common_deliverables_visible_for_all(self):
+        """基础交付物(需求/架构/测试/部署等)所有类型都可见。"""
+        common = {"requirement_spec", "tech_architecture", "test_report", "deploy_report"}
+        for pt in ProjectType:
+            assert common.issubset(DELIVERABLES_BY_TYPE[pt])
+
+
+class TestDeliverablesForType:
+    def test_returns_frozenset_for_static_site(self):
+        result = deliverables_for_type(ProjectType.STATIC_SITE)
+        assert result == DELIVERABLES_BY_TYPE[ProjectType.STATIC_SITE]
+
+    def test_returns_frozenset_for_binary_app(self):
+        result = deliverables_for_type(ProjectType.BINARY_APP)
+        assert result == DELIVERABLES_BY_TYPE[ProjectType.BINARY_APP]
+
+
+class TestIsDeliverableVisible:
+    def test_app_code_visible_for_binary_app(self):
+        assert is_deliverable_visible(ProjectType.BINARY_APP, "app_code") is True
+
+    def test_app_code_invisible_for_static_site(self):
+        assert is_deliverable_visible(ProjectType.STATIC_SITE, "app_code") is False
+
+    def test_build_visible_for_binary_app(self):
+        assert is_deliverable_visible(ProjectType.BINARY_APP, "build") is True
+
+    def test_build_invisible_for_static_site(self):
+        assert is_deliverable_visible(ProjectType.STATIC_SITE, "build") is False
+
+    def test_common_deliverable_visible_for_all_types(self):
+        for pt in ProjectType:
+            assert is_deliverable_visible(pt, "requirement_spec") is True
+
+
+class TestPhasesByType:
+    """v6.9: 按项目类型裁剪可见阶段(当前两类型都全7阶段, 为后续类型裁剪预留)。"""
+
+    def test_all_types_covered(self):
+        for pt in ProjectType:
+            assert pt in PHASES_BY_TYPE
+
+    def test_both_types_full_phases(self):
+        """当前两类型都全7阶段(差异在交付物, 非阶段)。"""
+        from arc.domain.pipeline.value_objects import PhaseType
+
+        all_phases = frozenset(pt.value for pt in PhaseType)
+        for pt in ProjectType:
+            assert PHASES_BY_TYPE[pt] == all_phases

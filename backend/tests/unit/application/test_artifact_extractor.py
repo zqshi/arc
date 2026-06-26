@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import uuid
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -219,4 +219,52 @@ class TestProduceBuildArtifact:
         types = [m[0] for m in matches]
         assert "dev_report" in types
         assert "app_code" in types
+
+
+class TestProcessMessageTypeFilter:
+    """v6.9: process_message 按项目类型过滤 — 非app类不产出 app_code。"""
+
+    @pytest.mark.asyncio
+    async def test_static_site_skips_app_code(self):
+        content = (
+            '[DELIVERABLE:app_code]\n```json\n'
+            '{"project_dir":"x","tech_stack":[],"build_command":"",'
+            '"run_command":"","entry_points":[]}\n```'
+        )
+        svc = ArtifactExtractor.__new__(ArtifactExtractor)
+        svc.db = AsyncMock()
+        svc.tracker_repo = MagicMock()
+        svc.tracker_repo.get_by_todo_id = AsyncMock(return_value=None)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.upsert_by_type = AsyncMock(side_effect=lambda a: a)
+        svc._get_constraint = AsyncMock(return_value=None)
+        svc._get_project_type = AsyncMock(return_value=ProjectType.STATIC_SITE)
+
+        result = await svc.process_message(content, uuid.uuid4())
+
+        assert result == []  # app_code 被类型过滤, 无产出
+        svc.artifact_repo.upsert_by_type.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_binary_app_extracts_app_code(self):
+        content = (
+            '[DELIVERABLE:app_code]\n```json\n'
+            '{"project_dir":"x","tech_stack":["react"],'
+            '"build_command":"npm run build","run_command":"npm run dev",'
+            '"entry_points":["src/main.tsx"]}\n```'
+        )
+        svc = ArtifactExtractor.__new__(ArtifactExtractor)
+        svc.db = AsyncMock()
+        svc.tracker_repo = MagicMock()
+        svc.tracker_repo.get_by_todo_id = AsyncMock(return_value=None)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.upsert_by_type = AsyncMock(side_effect=lambda a: a)
+        svc._get_constraint = AsyncMock(return_value=None)
+        svc._get_project_type = AsyncMock(return_value=ProjectType.BINARY_APP)
+
+        result = await svc.process_message(content, uuid.uuid4())
+
+        assert len(result) == 1
+        assert result[0].artifact_type == ArtifactType.APP_CODE
+        svc.artifact_repo.upsert_by_type.assert_awaited_once()
 
