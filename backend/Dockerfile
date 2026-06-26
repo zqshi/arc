@@ -22,6 +22,9 @@ COPY --from=builder /install /usr/local
 COPY alembic.ini .
 COPY alembic/ alembic/
 
+# 本地存储模式预览目录(命名卷挂载, 首次复制继承权限, arc 用户可写)
+RUN mkdir -p /app/data/static && chown -R arc:arc /app/data
+
 USER arc
 
 EXPOSE 8000
