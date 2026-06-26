@@ -24,6 +24,7 @@ dependencies = [
     "pypdf>=4.0.0",  # PDF 文本提取 (planning 文档解析, 函数内 import 已 ImportError 降级)
     "boto3>=1.35.0",
     "redis>=5.0.0",  # v6.7: 跨进程事件总线 (多 worker), redis.asyncio pub/sub
+    "opensandbox>=0.1.0",  # v6.7: 云沙箱后端 (sandbox_default_mode=open_sandbox)
 ]
 
 [project.optional-dependencies]
