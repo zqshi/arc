@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from arc.interface.routes.project.core import router as core_router
+from arc.interface.routes.project.credentials import router as credentials_router
 from arc.interface.routes.project.experiences import router as experiences_router
 from arc.interface.routes.project.github import router as github_router
 from arc.interface.routes.project.members import router as members_router
@@ -27,6 +28,7 @@ for _sub in (
     review_router,
     scanning_router,
     github_router,
+    credentials_router,
 ):
     for route in _sub.routes:
         router.routes.append(route)

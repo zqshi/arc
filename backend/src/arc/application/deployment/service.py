@@ -13,7 +13,9 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.deployment.distributor import DistributorType
 from arc.domain.deployment.entity import Deployment
+from arc.domain.deployment.signer import SignerType
 from arc.domain.deployment.value_objects import DeployConfig, DeploymentStatus, DeployType
 from arc.domain.project.value_objects import ProjectType
 from arc.infrastructure.deployer import get_deployer
@@ -295,6 +297,78 @@ class DeployService:
     ) -> list[Deployment]:
         """列出项目的部署历史。"""
         return await self._deploy_repo.list_by_project(project_id, offset=offset, limit=limit)
+
+    # ------------------------------------------------------------------
+    # Credentials configuration (T2) — 接通零调用方的 encrypt + Project.set_*_creds
+    # ------------------------------------------------------------------
+
+    async def configure_signing_creds(
+        self,
+        project_id: uuid.UUID,
+        platform: SignerType,
+        creds: dict,
+        *,
+        user_id: uuid.UUID,
+    ) -> dict:
+        """配置某平台签名凭证 → 加密存 Project。空 creds 不存 (保持原值, 非清除)。
+
+        读取侧 (load_credentials_for_project) 经 get_signing_creds(decrypt) 解密。
+        """
+        project = await self._get_project(project_id, user_id)
+        from arc.infrastructure.crypto import encrypt
+
+        project.set_signing_creds(platform, creds, encrypt)
+        if creds:
+            await self._project_repo.update(project)
+            await self._db.commit()
+        return {"platform": platform.value, "configured": bool(creds)}
+
+    async def configure_distribution_creds(
+        self,
+        project_id: uuid.UUID,
+        channel: DistributorType,
+        creds: dict,
+        *,
+        user_id: uuid.UUID,
+    ) -> dict:
+        """配置某渠道分发凭证 → 加密存 Project (独立于签名凭证字段)。空 creds 不存 (保持原值)。"""
+        project = await self._get_project(project_id, user_id)
+        from arc.infrastructure.crypto import encrypt
+
+        project.set_distribution_creds(channel, creds, encrypt)
+        if creds:
+            await self._project_repo.update(project)
+            await self._db.commit()
+        return {"channel": channel.value, "configured": bool(creds)}
+
+    async def list_credentials(
+        self, project_id: uuid.UUID, *, user_id: uuid.UUID
+    ) -> dict:
+        """列出各平台/渠道凭证配置状态 (mask 明文, 只返回 configured bool)。"""
+        project = await self._get_project(project_id, user_id)
+        from arc.infrastructure.crypto import decrypt
+
+        return {
+            "signing": {
+                p.value: project.get_signing_creds(p, decrypt) is not None
+                for p in SignerType
+            },
+            "distribution": {
+                c.value: project.get_distribution_creds(c, decrypt) is not None
+                for c in DistributorType
+            },
+        }
+
+    async def _get_project(self, project_id: uuid.UUID, user_id: uuid.UUID):
+        """取项目 (带 user_id 作用域, 非成员/不存在 → ValueError)。
+
+        route 层 require_project_role(ADMIN) 已做角色校验; 此处 user_id 作用域为
+        双重保险, 确保只能操作自己有权项目。
+        """
+        project = await self._project_repo.get_by_id(project_id, user_id=user_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found or access denied")
+        return project
 
     async def rollback_deployment(self, deployment_id: uuid.UUID) -> Deployment:
         """回滚指定部署（标记状态，不删除文件）。"""
