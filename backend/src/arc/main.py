@@ -56,6 +56,14 @@ async def lifespan(app: FastAPI):
     logger.info("Arc backend starting (debug=%s)", settings.debug)
     if not settings.debug and not settings.jwt_secret:
         raise RuntimeError("ARC_JWT_SECRET must be set in production mode")
+
+    # v6.7: 初始化跨进程事件总线 (redis_url 非空 → Redis, 否则 InMemory)
+    from arc.infrastructure.eventbus import create_eventbus, set_global_bus
+
+    bus = create_eventbus()
+    set_global_bus(bus)
+    logger.info("EventBus initialized: %s", type(bus).__name__)
+
     await _cleanup_orphan_agent_sessions()
     from arc.seeds import ensure_seed_users
 
@@ -67,6 +75,8 @@ async def lifespan(app: FastAPI):
     from arc.application.ai.adapter_pool import adapter_pool
 
     await adapter_pool.shutdown()
+    await bus.shutdown()
+    set_global_bus(None)
     logger.info("Arc backend shut down")
 
 
