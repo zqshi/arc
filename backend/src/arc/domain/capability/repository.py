@@ -38,6 +38,13 @@ class AbstractCapabilityRepository(ABC):
     ) -> list[Capability]: ...
 
     @abstractmethod
+    async def list_by_ids(
+        self, capability_ids: list[uuid.UUID]
+    ) -> list[Capability]:
+        """按 id 批量取 (过滤不存在, 空列表返回空)。W3 注入/门禁共用。"""
+        ...
+
+    @abstractmethod
     async def update(self, capability: Capability) -> Capability: ...
 
     @abstractmethod

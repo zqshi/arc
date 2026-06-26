@@ -81,6 +81,8 @@ CONVERSATION_MODE_SYSTEM_PROMPT = """你正在帮用户完成「{title}」。
 
 {experience_context}
 
+{capabilities_section}
+
 {sufficiency_hint}
 
 ## 当前任务

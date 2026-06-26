@@ -137,6 +137,7 @@ DEFAULT_BUDGET: dict[str, int] = {
     "experience": 5000,
     "methodology": 3000,
     "code_capability": 1000,
+    "capability": 1500,
     "deliverable": 2000,
     "sufficiency": 500,
 }

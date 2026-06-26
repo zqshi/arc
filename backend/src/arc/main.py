@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from arc.config import settings
-from arc.domain.errors import AppError
+from arc.domain.errors import AppError, DomainError
 from arc.domain.pipeline.entity import InvalidPhaseTransitionError
 from arc.domain.todo.entity import InvalidStatusTransitionError
 from arc.interface.middleware.request_id import RequestIdFilter
@@ -170,6 +170,15 @@ async def handle_app_error(request: Request, exc: AppError):
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail, "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(DomainError)
+async def handle_domain_error(request: Request, exc: DomainError):
+    """domain 层领域规则违反 → 400 (非法 phase/空名/状态非法等, 非系统错误)。"""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": exc.detail, "error_code": "DOMAIN_ERROR"},
     )
 
 

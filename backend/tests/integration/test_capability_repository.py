@@ -193,3 +193,20 @@ class TestCapabilityCRUD:
         assert fetched is not None
         assert fetched.is_skill is True
         assert fetched.config["directory"] == "/skills/ui-design"
+
+    @pytest.mark.asyncio
+    async def test_list_by_ids(self, db_session, cleanup):
+        """按 id 批量取, 过滤不存在的 id (W3)。"""
+        from arc.infrastructure.repositories.capability import CapabilityRepository
+
+        repo = CapabilityRepository(db_session)
+        c1 = await repo.create(_make_capability(name="c1"))
+        c2 = await repo.create(_make_capability(name="c2"))
+        await repo.create(_make_capability(name="c3"))
+
+        # 混合存在 + 不存在的 id
+        result = await repo.list_by_ids([c1.id, c2.id, uuid.uuid4()])
+        assert len(result) == 2
+        assert {c.name for c in result} == {"c1", "c2"}
+        # 空列表
+        assert await repo.list_by_ids([]) == []

@@ -53,7 +53,7 @@ def _patch_gate(monkeypatch, *, passed: bool, score: int):
     from arc.application.execution.conversation_gate import ConversationGateResult
 
     async def fake(artifact_type, content, *, constraint, prior_artifacts=None,
-                   conventions="", charter="", llm_review_fn=None):
+                   conventions="", charter="", capabilities="", llm_review_fn=None):
         return ConversationGateResult(
             passed=passed, score=score, threshold=5,
             checked_layers=["structural", "llm_review"],

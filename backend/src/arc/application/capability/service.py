@@ -70,6 +70,12 @@ class CapabilityService:
             scope=CapabilityScope(scope) if scope else None,
         )
 
+    async def list_by_ids(
+        self, capability_ids: list[uuid.UUID]
+    ) -> list[Capability]:
+        """按 id 批量取 (过滤不存在, 空列表返回空)。W3 注入/门禁共用。"""
+        return await self.repo.list_by_ids(capability_ids)
+
     async def update(self, capability_id: uuid.UUID, updates: dict) -> Capability:
         cap = await self.get(capability_id)
         # 值对象不可变, 用 replace 创建变更实例 (type 不在更新字段, 保持不变)

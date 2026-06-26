@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 from arc.domain.deployment.distributor import DistributorType
 from arc.domain.deployment.signer import SignerType
+from arc.domain.errors import DomainError
 from arc.domain.project.charter import (
     ConventionTemplateProvider,
     ProjectCharter,
@@ -15,6 +16,7 @@ from arc.domain.project.charter import (
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
+    VALID_PHASES,
     VALID_VERSION_TRANSITIONS,
     ContextPolicy,
     ExecutionMode,
@@ -101,7 +103,40 @@ class Project:
         self.updated_at = datetime.now(UTC)
 
     def update_pipeline_config(self, config: dict) -> None:
-        self.pipeline_config = {**DEFAULT_PIPELINE_CONFIG, **config}
+        """增量更新 pipeline_config — 以现有配置为 base 深度 merge, 不重置已有自定义。
+
+        与 update_conversation_config 同构: dict 字段做 key 级 merge, 标量字段覆盖。
+        v6.8.0 W3 修正: 旧实现 {**DEFAULT, **config} 为重置式, 部分更新会丢
+        phase_capabilities 等已配字段。
+        """
+        base = {**DEFAULT_PIPELINE_CONFIG, **(self.pipeline_config or {})}
+        for key, val in config.items():
+            if isinstance(val, dict) and isinstance(base.get(key), dict):
+                base[key] = {**base[key], **val}
+            else:
+                base[key] = val
+        self.pipeline_config = base
+        self.updated_at = datetime.now(UTC)
+
+    def update_phase_capabilities(
+        self, phase: str, capability_ids: list[str]
+    ) -> None:
+        """更新某环节启用的能力 (v6.8.0 W3)。
+
+        结构性校验 phase ∈ 固定7阶段 + capability_ids 为 list;
+        capability_id 存在性/active 由 application 层 (CapabilityService) 校验。
+        """
+        if phase not in VALID_PHASES:
+            raise DomainError(
+                f"非法环节: {phase} (合法: {sorted(VALID_PHASES)})"
+            )
+        if not isinstance(capability_ids, list):
+            raise DomainError("capability_ids 必须为 list[str]")
+        base = {**DEFAULT_PIPELINE_CONFIG, **(self.pipeline_config or {})}
+        phase_caps = dict(base.get("phase_capabilities") or {})
+        phase_caps[phase] = list(capability_ids)
+        base["phase_capabilities"] = phase_caps
+        self.pipeline_config = base
         self.updated_at = datetime.now(UTC)
 
     def update_conversation_config(self, config: dict) -> None:

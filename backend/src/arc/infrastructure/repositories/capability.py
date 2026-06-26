@@ -72,6 +72,17 @@ class CapabilityRepository(AbstractCapabilityRepository):
         result = await self.db.execute(stmt)
         return [self._to_entity(row) for row in result.scalars().all()]
 
+    async def list_by_ids(
+        self, capability_ids: list[uuid.UUID]
+    ) -> list[Capability]:
+        """按 id 列表批量取 (过滤不存在, 空列表返回空)。"""
+        if not capability_ids:
+            return []
+        result = await self.db.execute(
+            select(CapabilityModel).where(CapabilityModel.id.in_(capability_ids))
+        )
+        return [self._to_entity(row) for row in result.scalars().all()]
+
     async def update(self, capability: Capability) -> Capability:
         result = await self.db.execute(
             select(CapabilityModel).where(CapabilityModel.id == capability.id)
