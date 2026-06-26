@@ -40,6 +40,8 @@ services:
       ARC_DEEPSEEK_BASE_URL: ${ARC_DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
       ARC_DEEPSEEK_MODEL: ${ARC_DEEPSEEK_MODEL:-deepseek-chat}
       ARC_CORS_ORIGINS: ${ARC_CORS_ORIGINS:?ARC_CORS_ORIGINS is required}
+      # 签名凭证加密密钥 (v6.1): 空=dev 降级明文, 生产必配。生成见 .env.example
+      ARC_SIGNING_SECRET_KEY: ${ARC_SIGNING_SECRET_KEY:?ARC_SIGNING_SECRET_KEY is required}
       ARC_STORAGE_ENDPOINT: ${ARC_STORAGE_ENDPOINT:-}
       ARC_STORAGE_ACCESS_KEY: ${ARC_STORAGE_ACCESS_KEY:-}
       ARC_STORAGE_SECRET_KEY: ${ARC_STORAGE_SECRET_KEY:-}
