@@ -202,3 +202,95 @@ class ArtifactService:
         if not phase:
             return None
         return await self.artifact_repo.get_by_phase_id(phase.id)
+
+    # v6.9 — BUILD artifact (构建产物锚点): builder 产出 / 签名 / 分发统一锚点
+
+    async def create_or_update_build(
+        self,
+        todo_id: uuid.UUID,
+        phase_id: uuid.UUID | None,
+        *,
+        build_target: str,
+        artifact_path: str,
+        build_status: str,
+        build_log: str | None = None,
+        signature_status: str | None = None,
+        distribution_status: str | None = None,
+        product_path: str | None = None,
+    ) -> Artifact:
+        """v6.9: builder 产出构建产物后写入 BUILD artifact(锚点)。
+
+        DEVELOPMENT 阶段构建完成 → 创建/更新 BUILD artifact, 记录 build_target/
+        产物路径/构建状态。签名/分发状态预留 None, ④接入时 update_build_status
+        回写。构建产物 per todo 唯一(一个 BUILD artifact), 已存在则增量更新。
+        """
+        content: dict = {
+            "build_target": build_target,
+            "artifact_path": artifact_path,
+            "build_status": build_status,
+        }
+        if build_log is not None:
+            content["build_log"] = build_log
+        if signature_status is not None:
+            content["signature_status"] = signature_status
+        if distribution_status is not None:
+            content["distribution_status"] = distribution_status
+        if product_path is not None:
+            content["product_path"] = product_path
+
+        existing = await self._find_build_artifact(todo_id)
+        if existing:
+            existing.update_content(content)
+            return await self.artifact_repo.update(existing)
+        artifact = Artifact(
+            todo_id=todo_id,
+            phase_id=phase_id,
+            artifact_type=ArtifactType.BUILD,
+            content=content,
+        )
+        return await self.artifact_repo.create(artifact)
+
+    async def update_build_status(
+        self,
+        artifact_id: uuid.UUID,
+        *,
+        build_status: str | None = None,
+        signature_status: str | None = None,
+        distribution_status: str | None = None,
+        product_path: str | None = None,
+    ) -> Artifact | None:
+        """v6.9: 回写构建产物状态(构建/签名/分发), ④接入点调用。
+
+        增量合并到 BUILD content(不覆盖未提供字段)。直接走 entity.update_content
+        (绕过 filter_editable_fields — BUILD 是工程产物 UI 只读, 但此处是 service
+        内部回写, 非 UI 编辑)。
+        """
+        artifact = await self.artifact_repo.get_by_id(artifact_id)
+        if not artifact:
+            return None
+        if artifact.artifact_type != ArtifactType.BUILD:
+            raise ValueError(
+                "update_build_status 仅适用 BUILD artifact, 实际 "
+                f"{artifact.artifact_type.value}"
+            )
+        updates: dict[str, str] = {}
+        if build_status is not None:
+            updates["build_status"] = build_status
+        if signature_status is not None:
+            updates["signature_status"] = signature_status
+        if distribution_status is not None:
+            updates["distribution_status"] = distribution_status
+        if product_path is not None:
+            updates["product_path"] = product_path
+        if updates:
+            merged = {**artifact.content, **updates}
+            artifact.update_content(merged)
+            return await self.artifact_repo.update(artifact)
+        return artifact
+
+    async def _find_build_artifact(self, todo_id: uuid.UUID) -> Artifact | None:
+        """查找 todo 的 BUILD artifact(构建产物 per todo 唯一)。"""
+        arts = await self.artifact_repo.list_by_todo_id(todo_id)
+        return next(
+            (a for a in arts if a.artifact_type == ArtifactType.BUILD), None
+        )

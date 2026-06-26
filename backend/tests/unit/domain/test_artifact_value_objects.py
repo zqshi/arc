@@ -24,6 +24,7 @@ class TestArtifactType:
         assert ArtifactType.UI_DESIGN == "ui_design"
         assert ArtifactType.APP_CODE == "app_code"
         assert ArtifactType.SERVICE_SPEC == "service_spec"
+        assert ArtifactType.BUILD == "build"
 
     def test_enum_completeness(self):
         expected = {
@@ -39,6 +40,7 @@ class TestArtifactType:
             "ui_design",
             "app_code",
             "service_spec",
+            "build",
         }
         assert {a.value for a in ArtifactType} == expected
 
@@ -98,6 +100,12 @@ class TestPhaseArtifactMap:
         targets = mapped if isinstance(mapped, list) else [mapped]
         assert ArtifactType.APP_CODE in targets
 
+    def test_development_also_maps_to_build(self):
+        """v6.9: DEVELOPMENT 同时产出 BUILD 作为构建产物锚点(build_target/产物路径/构建状态)。"""
+        mapped = PHASE_ARTIFACT_MAP[PhaseType.DEVELOPMENT]
+        targets = mapped if isinstance(mapped, list) else [mapped]
+        assert ArtifactType.BUILD in targets
+
     def test_testing_maps_to_test_report(self):
         mapped = PHASE_ARTIFACT_MAP[PhaseType.TESTING]
         targets = mapped if isinstance(mapped, list) else [mapped]
@@ -146,6 +154,7 @@ class TestArtifactLabels:
         assert ARTIFACT_LABELS[ArtifactType.UI_DESIGN] == "UI设计(旧)"
         assert ARTIFACT_LABELS[ArtifactType.APP_CODE] == "应用代码"
         assert ARTIFACT_LABELS[ArtifactType.SERVICE_SPEC] == "服务契约"
+        assert ARTIFACT_LABELS[ArtifactType.BUILD] == "构建产物"
 
 
 class TestPhasePrimaryArtifact:
@@ -182,3 +191,10 @@ class TestDeliverableRequiredFields:
         assert "data_persistence" in required
         assert "endpoints" in required
         assert "auth_strategy" in required
+
+    def test_build_required_fields(self):
+        """v6.9: BUILD 构建产物必填字段 — build_target/产物路径/构建状态。"""
+        required = DELIVERABLE_REQUIRED_FIELDS["build"]
+        assert "build_target" in required
+        assert "artifact_path" in required
+        assert "build_status" in required

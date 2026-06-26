@@ -19,6 +19,8 @@ class ArtifactType(StrEnum):
     APP_CODE = "app_code"
     # v5.5.0 — ARCHITECTURE 阶段的服务契约（BaaS 接入锚点）
     SERVICE_SPEC = "service_spec"
+    # v6.9 — DEVELOPMENT 阶段的构建产物（builder runtime / 签名 / 分发锚点）
+    BUILD = "build"
     # Legacy — kept for backward compat with existing DB records
     UI_DESIGN = "ui_design"
 
@@ -31,7 +33,7 @@ PHASE_ARTIFACT_MAP: dict[PhaseType, list[ArtifactType]] = {
         ArtifactType.PROTOTYPE,
     ],
     PhaseType.ARCHITECTURE: [ArtifactType.TECH_ARCHITECTURE, ArtifactType.SERVICE_SPEC],
-    PhaseType.DEVELOPMENT: [ArtifactType.DEV_REPORT, ArtifactType.APP_CODE],
+    PhaseType.DEVELOPMENT: [ArtifactType.DEV_REPORT, ArtifactType.APP_CODE, ArtifactType.BUILD],
     PhaseType.TESTING: [ArtifactType.TEST_REPORT],
     PhaseType.DEPLOYMENT: [ArtifactType.DEPLOY_REPORT],
     PhaseType.EXTRACTION: [ArtifactType.EXPERIENCE_CARD],
@@ -54,6 +56,7 @@ ARTIFACT_LABELS: dict[ArtifactType, str] = {
     ArtifactType.EXPERIENCE_CARD: "经验卡片",
     ArtifactType.APP_CODE: "应用代码",
     ArtifactType.SERVICE_SPEC: "服务契约",
+    ArtifactType.BUILD: "构建产物",
     # Legacy
     ArtifactType.UI_DESIGN: "UI设计(旧)",
 }
@@ -73,4 +76,8 @@ DELIVERABLE_REQUIRED_FIELDS: dict[str, list[str]] = {
     "app_code": ["project_dir", "tech_stack", "build_command", "run_command", "entry_points"],
     # v5.5.0 — SERVICE_SPEC: 服务契约 (v5.6.0 BaaS 接入锚点)
     "service_spec": ["data_model_ref", "data_persistence", "endpoints", "auth_strategy"],
+    # v6.9 — BUILD: 构建产物 (builder/签名/分发锚点)
+    # build_target=BuildTarget值, artifact_path=产物相对路径, build_status=success/failed
+    # signature_status/distribution_status/product_path 预留 None (④接入时填)
+    "build": ["build_target", "artifact_path", "build_status"],
 }

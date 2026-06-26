@@ -28,6 +28,8 @@ class TestIsFieldEditable:
         assert not is_field_editable(ArtifactType.APP_CODE, "tech_stack")
         assert not is_field_editable(ArtifactType.PROTOTYPE, "routes")
         assert not is_field_editable(ArtifactType.PROTOTYPE, "build_status")
+        assert not is_field_editable(ArtifactType.BUILD, "build_target")
+        assert not is_field_editable(ArtifactType.BUILD, "artifact_path")
 
     def test_specific_field_whitelist(self):
         """SERVICE_SPEC 只允许 notes, 其他结构字段拒绝。"""
