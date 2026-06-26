@@ -76,3 +76,39 @@ class TestSkillLoader:
         section = loader.load(_skill({"directory": str(skill_dir)}))
         # 无闭合 --- → 降级为纯 body (全文)
         assert section == "skill\n---\nname: x\ndescription: 缺闭合\nbody 未结束"
+
+
+class TestSkillLoaderInline:
+    """v6.9: skill 内联来源(config.source=inline, 直接填内容, 无需 SKILL.md 文件)。"""
+
+    def test_inline_with_frontmatter(self):
+        cap = _skill({
+            "source": "inline",
+            "content": "---\nname: inline-skill\ndescription: 内联\n---\n内联body\n",
+        })
+        section = SkillLoader().load(cap)
+        assert section == "inline-skill: 内联\n内联body"
+
+    def test_inline_plain(self):
+        cap = _skill({"source": "inline", "content": "纯内联prompt"})
+        section = SkillLoader().load(cap)
+        assert section == "skill\n纯内联prompt"
+
+    def test_inline_empty_returns_none(self):
+        cap = _skill({"source": "inline", "content": ""})
+        assert SkillLoader().load(cap) is None
+
+    def test_inline_missing_content_returns_none(self):
+        cap = _skill({"source": "inline"})
+        assert SkillLoader().load(cap) is None
+
+    def test_directory_source_still_works(self, tmp_path):
+        """source=directory 显式声明, 走目录加载(向后兼容)。"""
+        skill_dir = tmp_path / "explicit"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: explicit\ndescription: 显式\n---\nbody\n", encoding="utf-8"
+        )
+        cap = _skill({"source": "directory", "directory": str(skill_dir)})
+        section = SkillLoader().load(cap)
+        assert section == "explicit: 显式\nbody"

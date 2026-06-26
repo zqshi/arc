@@ -99,6 +99,15 @@ ARTIFACT_SCHEMAS: dict[str, str] = {
   "build_command": "npm run build",
   "artifact_path": "dist"
 }""",
+    "build": """{
+  "build_target": "tauri_linux",
+  "artifact_path": "dist",
+  "build_status": "success",
+  "build_log": "构建日志摘要(可选)",
+  "signature_status": null,
+  "distribution_status": null,
+  "product_path": null
+}""",
     "tech_architecture": """{
   "architecture_overview": "整体架构描述",
   "domain_design": {

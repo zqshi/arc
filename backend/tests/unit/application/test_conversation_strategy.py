@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -112,3 +113,78 @@ class TestBuildContextAwareGreeting:
              patch.object(service, "_get_analysis_insight_for_greeting", return_value=""):
             greeting = await service._build_context_aware_greeting(todo)
         assert "解决什么问题" in greeting
+
+
+class TestFilterVisibleDeliverables:
+    """v6.9: tracker.required 按项目类型裁剪可见交付物。"""
+
+    @pytest.mark.asyncio
+    async def test_static_site_filters_app_code_and_build(self):
+        from arc.application.execution.conversation_strategy import (
+            ConversationExecutionService,
+        )
+        from arc.domain.project.value_objects import ProjectType
+
+        svc = ConversationExecutionService.__new__(ConversationExecutionService)
+        svc.db = AsyncMock()
+        svc.todo_repo = MagicMock()
+        svc.todo_repo.get_by_id = AsyncMock(
+            return_value=SimpleNamespace(project_id=uuid.uuid4())
+        )
+        with patch(
+            "arc.infrastructure.repositories.project.ProjectRepository"
+        ) as proj_repo:
+            proj_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_type=ProjectType.STATIC_SITE)
+            )
+            result = await svc._filter_visible_deliverables(
+                uuid.uuid4(),
+                ["requirement_spec", "app_code", "build", "test_report"],
+            )
+        assert "app_code" not in result
+        assert "build" not in result
+        assert "requirement_spec" in result
+        assert "test_report" in result
+
+    @pytest.mark.asyncio
+    async def test_binary_app_keeps_app_code_and_build(self):
+        from arc.application.execution.conversation_strategy import (
+            ConversationExecutionService,
+        )
+        from arc.domain.project.value_objects import ProjectType
+
+        svc = ConversationExecutionService.__new__(ConversationExecutionService)
+        svc.db = AsyncMock()
+        svc.todo_repo = MagicMock()
+        svc.todo_repo.get_by_id = AsyncMock(
+            return_value=SimpleNamespace(project_id=uuid.uuid4())
+        )
+        with patch(
+            "arc.infrastructure.repositories.project.ProjectRepository"
+        ) as proj_repo:
+            proj_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_type=ProjectType.BINARY_APP)
+            )
+            result = await svc._filter_visible_deliverables(
+                uuid.uuid4(),
+                ["requirement_spec", "app_code", "build"],
+            )
+        assert "app_code" in result
+        assert "build" in result
+        assert "requirement_spec" in result
+
+    @pytest.mark.asyncio
+    async def test_no_project_returns_unchanged(self):
+        """无 project 关联 → 原样返回(不阻断)。"""
+        from arc.application.execution.conversation_strategy import (
+            ConversationExecutionService,
+        )
+
+        svc = ConversationExecutionService.__new__(ConversationExecutionService)
+        svc.db = AsyncMock()
+        svc.todo_repo = MagicMock()
+        svc.todo_repo.get_by_id = AsyncMock(return_value=None)
+
+        deliverables = ["requirement_spec", "app_code"]
+        result = await svc._filter_visible_deliverables(uuid.uuid4(), deliverables)
+        assert result == deliverables

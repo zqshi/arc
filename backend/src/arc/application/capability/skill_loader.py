@@ -23,13 +23,30 @@ _FRONTMATTER_DELIM = "---"
 
 class SkillLoader:
     def load(self, capability: Capability) -> str | None:
-        """从 skill 能力加载 prompt section (SKILL.md 解析)。
+        """从 skill 能力加载 prompt section (多来源, v6.9)。
 
-        非 skill 类型 / 无 directory / 文件缺失 → None。
+        config.source 决定加载方式:
+        - "inline": 内联文本, 直接用 config.content (无需 SKILL.md 文件)
+        - "directory"/缺省: 读 {directory}/SKILL.md (向后兼容)
+
+        非 skill 类型 / 无内容 / 文件缺失 → None (调用方 graceful skip)。
         """
         if not capability.is_skill:
             return None
         config = capability.config or {}
+        if config.get("source") == "inline":
+            return self._load_inline(config)
+        return self._load_directory(config)
+
+    def _load_inline(self, config: dict) -> str | None:
+        """v6.9: 内联来源 — 直接用 config.content (SKILL.md 文本), 无需文件。"""
+        content = config.get("content")
+        if not content:
+            return None
+        return self._to_section(content)
+
+    def _load_directory(self, config: dict) -> str | None:
+        """目录来源 — 读 {directory}/SKILL.md (向后兼容, source 缺省走此)。"""
         directory = config.get("directory")
         if not directory:
             return None

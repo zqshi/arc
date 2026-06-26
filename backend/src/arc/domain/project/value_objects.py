@@ -147,6 +147,34 @@ DELIVERABLES_BY_CONSTRAINT: dict[str, list[str]] = {
     "free": REQUIRED_DELIVERABLES,
 }
 
+# v6.9: 按项目类型裁剪可见交付物 — 非app类不应显示 app_code/构建产物。
+# 复用 charter/get_deployer 类型驱动注册表模式, 新增类型在此注册可见交付物。
+# STATIC_SITE(静态站点): 无原生构建产物, 去掉 app_code(build 本不在 REQUIRED)
+# BINARY_APP(原生客户端): 全量 + 构建产物 build(签名/分发锚点)
+_BUILD_ONLY: frozenset[str] = frozenset({"build"})
+DELIVERABLES_BY_TYPE: dict[ProjectType, frozenset[str]] = {
+    ProjectType.STATIC_SITE: frozenset(REQUIRED_DELIVERABLES) - frozenset({"app_code"}),
+    ProjectType.BINARY_APP: frozenset(REQUIRED_DELIVERABLES) | _BUILD_ONLY,
+}
+
+
+def deliverables_for_type(project_type: ProjectType) -> frozenset[str]:
+    """返回该项目类型的可见交付物集合(未注册类型 fallback 全量)。"""
+    return DELIVERABLES_BY_TYPE.get(project_type, frozenset(REQUIRED_DELIVERABLES))
+
+
+def is_deliverable_visible(project_type: ProjectType, artifact_type: str) -> bool:
+    """判断某交付物对该项目类型是否可见(环节显示/产出过滤用)。"""
+    return artifact_type in deliverables_for_type(project_type)
+
+
+# v6.9: 按项目类型裁剪可见阶段 — 当前两类型都全7阶段(差异在交付物, 非阶段),
+# 为后续类型裁剪预留(如纯文档项目可裁剪 DEVELOPMENT)。新增类型在此注册。
+PHASES_BY_TYPE: dict[ProjectType, frozenset[str]] = {
+    ProjectType.STATIC_SITE: frozenset(DEFAULT_PIPELINE_CONFIG["enabled_phases"]),
+    ProjectType.BINARY_APP: frozenset(DEFAULT_PIPELINE_CONFIG["enabled_phases"]),
+}
+
 DEFAULT_CONVERSATION_CONFIG: dict = {
     "required_deliverables": REQUIRED_DELIVERABLES,
     "agent_autonomy": "supervised",

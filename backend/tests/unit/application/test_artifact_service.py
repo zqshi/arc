@@ -208,3 +208,120 @@ class TestGetExtractionPrompt:
 
         prompt = ArtifactService._get_extraction_prompt("nonexistent")
         assert prompt is None
+
+
+class TestArtifactServiceBuild:
+    """v6.9: BUILD artifact 构建产物锚点操作。"""
+
+    @pytest.mark.asyncio
+    async def test_create_or_update_build_creates_when_absent(self):
+        from arc.application.artifact.service import ArtifactService
+
+        todo_id = uuid.uuid4()
+        svc = ArtifactService.__new__(ArtifactService)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.list_by_todo_id = AsyncMock(return_value=[])
+
+        def _capture(art):
+            return art
+
+        svc.artifact_repo.create = AsyncMock(side_effect=_capture)
+        svc.artifact_repo.update = AsyncMock()  # create 路径不应调 update
+
+        result = await svc.create_or_update_build(
+            todo_id,
+            phase_id=None,
+            build_target="tauri_linux",
+            artifact_path="dist",
+            build_status="success",
+        )
+        svc.artifact_repo.create.assert_awaited_once()
+        svc.artifact_repo.update.assert_not_awaited()
+        assert result.artifact_type == ArtifactType.BUILD
+        assert result.content["build_target"] == "tauri_linux"
+        assert result.content["artifact_path"] == "dist"
+        assert result.content["build_status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_create_or_update_build_updates_when_exists(self):
+        from arc.application.artifact.service import ArtifactService
+
+        todo_id = uuid.uuid4()
+        existing = Artifact(
+            todo_id=todo_id,
+            artifact_type=ArtifactType.BUILD,
+            content={
+                "build_target": "tauri_linux",
+                "artifact_path": "dist",
+                "build_status": "pending",
+            },
+        )
+        svc = ArtifactService.__new__(ArtifactService)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.list_by_todo_id = AsyncMock(return_value=[existing])
+        svc.artifact_repo.update = AsyncMock(side_effect=lambda a: a)
+        svc.artifact_repo.create = AsyncMock()  # update 路径不应调 create
+
+        result = await svc.create_or_update_build(
+            todo_id,
+            phase_id=None,
+            build_target="tauri_linux",
+            artifact_path="dist",
+            build_status="success",
+        )
+        svc.artifact_repo.create.assert_not_awaited()
+        svc.artifact_repo.update.assert_awaited_once()
+        assert result.content["build_status"] == "success"
+        assert result.version == 2
+
+    @pytest.mark.asyncio
+    async def test_update_build_status_merges_incrementally(self):
+        """④接入点: 签名/分发状态增量回写, 不覆盖已有字段。"""
+        from arc.application.artifact.service import ArtifactService
+
+        art = Artifact(
+            todo_id=uuid.uuid4(),
+            artifact_type=ArtifactType.BUILD,
+            content={
+                "build_target": "web",
+                "artifact_path": "dist",
+                "build_status": "success",
+            },
+        )
+        svc = ArtifactService.__new__(ArtifactService)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.get_by_id = AsyncMock(return_value=art)
+        svc.artifact_repo.update = AsyncMock(side_effect=lambda a: a)
+
+        result = await svc.update_build_status(
+            art.id, signature_status="signed", product_path="/path/app.app"
+        )
+        assert result.content["build_status"] == "success"  # 保留
+        assert result.content["signature_status"] == "signed"  # 新增
+        assert result.content["product_path"] == "/path/app.app"
+
+    @pytest.mark.asyncio
+    async def test_update_build_status_rejects_non_build(self):
+        from arc.application.artifact.service import ArtifactService
+
+        art = Artifact(
+            todo_id=uuid.uuid4(),
+            artifact_type=ArtifactType.PROTOTYPE,
+            content={"project_dir": "x"},
+        )
+        svc = ArtifactService.__new__(ArtifactService)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.get_by_id = AsyncMock(return_value=art)
+
+        with pytest.raises(ValueError, match="仅适用 BUILD"):
+            await svc.update_build_status(art.id, build_status="success")
+
+    @pytest.mark.asyncio
+    async def test_update_build_status_not_found(self):
+        from arc.application.artifact.service import ArtifactService
+
+        svc = ArtifactService.__new__(ArtifactService)
+        svc.artifact_repo = MagicMock()
+        svc.artifact_repo.get_by_id = AsyncMock(return_value=None)
+
+        assert await svc.update_build_status(uuid.uuid4(), build_status="success") is None

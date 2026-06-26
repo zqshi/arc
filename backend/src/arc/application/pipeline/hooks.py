@@ -144,17 +144,28 @@ async def trigger_deployment(db, todo_repo, todo_id: uuid.UUID, deploy_content: 
 
 
 async def _resolve_build_status(db, todo_id: uuid.UUID, deploy_content: dict) -> str | None:
-    """解析 build_status: deploy_report.build_evidence 优先，
-    fallback app_code/prototype artifact。"""
-    evidence = deploy_content.get("build_evidence")
-    if isinstance(evidence, dict) and evidence.get("build_status"):
-        return evidence["build_status"]
-
+    """解析 build_status: v6.9 BUILD artifact 优先, fallback deploy_report.build_evidence
+    / app_code / prototype(双读兼容, 存量无 BUILD 走 fallback)。"""
     from arc.domain.artifact.value_objects import ArtifactType
     from arc.infrastructure.repositories.artifact import ArtifactRepository
 
     try:
         arts = await ArtifactRepository(db).list_by_todo_id(todo_id)
+        # v6.9: 优先读 BUILD artifact.build_status(构建产物锚点, ③产出)
+        build_art = next(
+            (a for a in arts if a.artifact_type == ArtifactType.BUILD), None
+        )
+        if (
+            build_art
+            and isinstance(build_art.content, dict)
+            and build_art.content.get("build_status")
+        ):
+            return build_art.content["build_status"]
+        # fallback: deploy_report.build_evidence
+        evidence = deploy_content.get("build_evidence")
+        if isinstance(evidence, dict) and evidence.get("build_status"):
+            return evidence["build_status"]
+        # fallback: app_code / prototype
         for atype in (ArtifactType.APP_CODE, ArtifactType.PROTOTYPE):
             a = next((x for x in arts if x.artifact_type == atype), None)
             if a and isinstance(a.content, dict) and a.content.get("build_status"):

@@ -28,6 +28,7 @@ EDITABLE_FIELDS: dict[ArtifactType, frozenset[str]] = {
     # 工程产物 — Agent 写入，UI 只读
     ArtifactType.PROTOTYPE: frozenset(),
     ArtifactType.APP_CODE: frozenset(),
+    ArtifactType.BUILD: frozenset(),
     # 结构只读，备注可改
     ArtifactType.SERVICE_SPEC: frozenset({"notes"}),
     # Legacy

@@ -14,6 +14,7 @@ from arc.application.ai.json_extract import extract_json
 from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.value_objects import ArtifactType
 from arc.domain.planning.entity import DeliverableTracker
+from arc.domain.project.value_objects import ProjectType, is_deliverable_visible
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.planning import DeliverableTrackerRepository
 
@@ -50,12 +51,25 @@ class ArtifactExtractor:
         extracted: list[Artifact] = []
         tracker = await self.tracker_repo.get_by_todo_id(todo_id)
         constraint = await self._get_constraint(todo_id)
+        project_type = await self._get_project_type(todo_id)
 
         for artifact_type_str, json_str in matches:
             try:
                 artifact_type = ArtifactType(artifact_type_str)
             except ValueError:
                 logger.warning("Unknown artifact type in DELIVERABLE marker: %s", artifact_type_str)
+                continue
+
+            # v6.9: 按项目类型过滤 — 非app类不产出 app_code(无原生构建产物)
+            if (
+                artifact_type == ArtifactType.APP_CODE
+                and project_type is not None
+                and not is_deliverable_visible(project_type, ArtifactType.APP_CODE.value)
+            ):
+                logger.info(
+                    "Skip app_code for non-app project %s (type=%s)",
+                    todo_id, project_type.value,
+                )
                 continue
 
             parsed = extract_json(json_str.strip())
@@ -108,8 +122,70 @@ class ArtifactExtractor:
             from arc.application.execution.artifact_deployer import PrototypeDeployer
             deployer = PrototypeDeployer(self.db)
             await deployer.auto_deploy(todo_id)
+            # v6.9: 从 prototype content 抽构建产物信息产出 BUILD artifact
+            # (BINARY_APP 构建链路锚点, 供④消费侧 deployer/hooks/签名/分发读)
+            prototype_art = next(
+                (a for a in extracted if a.artifact_type == ArtifactType.PROTOTYPE), None
+            )
+            if prototype_art:
+                await self._try_produce_build_artifact(todo_id, prototype_art)
 
         return extracted
+
+    async def _get_project_type(self, todo_id: uuid.UUID) -> ProjectType | None:
+        """v6.9: 取项目类型(交付物可见性过滤用)。graceful: 失败→None。"""
+        try:
+            from arc.infrastructure.repositories.project import ProjectRepository
+            from arc.infrastructure.repositories.todo import TodoRepository
+
+            todo = await TodoRepository(self.db).get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return None
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            return project.project_type if project else None
+        except Exception:
+            return None
+
+    async def _try_produce_build_artifact(
+        self, todo_id: uuid.UUID, prototype: Artifact
+    ) -> None:
+        """v6.9: prototype 提取后, 从 content 抽构建产物信息产出 BUILD artifact。
+
+        仅 BINARY_APP(原生客户端构建链路激活, build_target=tauri_linux)。STATIC_SITE
+        走 dist 静态站点部署, 无 build_target/签名/分发, 不产出 BUILD。双读兼容:
+        prototype content 仍保留 build_status/artifact_path(④消费改造后废弃)。
+        graceful: 取 todo/project 失败或无 build_status → 跳过, 不阻断提取主流程。
+        """
+        try:
+            from arc.application.artifact.service import ArtifactService
+            from arc.domain.project.value_objects import ProjectType
+            from arc.domain.sandbox.value_objects import BuildTarget
+            from arc.infrastructure.repositories.project import ProjectRepository
+            from arc.infrastructure.repositories.todo import TodoRepository
+
+            todo = await TodoRepository(self.db).get_by_id(todo_id)
+            if not todo or not todo.project_id:
+                return
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if not project or project.project_type != ProjectType.BINARY_APP:
+                return  # 仅 BINARY_APP 构建链路产出 BUILD
+
+            content = prototype.content or {}
+            build_status = content.get("build_status")
+            if not build_status:
+                return  # 无构建状态信息
+
+            await ArtifactService(self.db).create_or_update_build(
+                todo_id=todo_id,
+                phase_id=prototype.phase_id,
+                build_target=BuildTarget.TAURI_LINUX.value,
+                artifact_path=content.get("artifact_path", "dist"),
+                build_status=build_status,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Produce BUILD artifact failed for todo %s: %s", todo_id, exc
+            )
 
     async def _infer_deliverable_scope(
         self, tracker: DeliverableTracker, req_spec: dict,
