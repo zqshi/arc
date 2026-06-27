@@ -6,14 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Planned — v6.11.0 投产就绪 + 质量加固
+### Planned — v6.10.0 B 流程引擎内容编排
 
-- **版本结构**: v6.10(B流程内容编排)降级为 next, 新开 v6.11 承接投产就绪与质量加固(质量检测驱动)
-- **T1 k8s 部署完整性**: 补 db(pgvector)/minio/opensandbox/openhands manifests, 对齐 docker-compose 6 服务, configmap 对齐 config.py 全字段
-- **T2 前端补入口**: organization/template 共 17 端点补 webui 操作入口(页面+路由+导航)
-- **T5 测试补全**: deployment/billing service + domain errors 单元测试
-- **T6 清理收尾**: TODO 评估 + 死代码检测 + config 漂移修正 + 质量检测 6.1-6.7
-- **T3/T4(第二会话)**: 领域错误规范化(application 层 71 处) + 6 个超限文件拆分
+- methodology/prompt/gate 内容显性化可配置(DB 持久化或配置驱动), 不推翻 Provider 管道与7阶段骨架
+- 复用 v6.8 capability 注册表 / v6.9 类型驱动注册表模式
+
+## [6.11.0] - 2026-06-27 — 投产就绪 + 质量加固
+
+### Added — 投产硬缺口消除 + 质量加固
+
+- **T1 k8s 部署完整性**: 补 db(pgvector)/minio/opensandbox/openhands manifests, 对齐 docker-compose 6 服务, configmap 对齐 config.py 57 字段, kustomize build 通过
+- **T2 前端补入口**: organization/template 共 17 端点补 webui 操作入口(client 工厂+页面+路由+导航+index spread)
+- **T5 测试补全**: test_deployment_service(13) + test_errors(15); billing(test_quota_service) 已充分
+- **T3 领域错误规范化(3 波 49 处)**: 46 ValueError/HTTPException→domain/errors(AppError/NotFoundError/ConflictError), route 删 except ValueError 全局 handler 接管, 状态码精确化(NotFound 404/业务约束 400); 3 系统 RuntimeError 保留(走全局 500 不泄露 detail)
+- **T4 超限文件拆分**: 6 文件全拆 <500 行(tools/useConversationSocket/tool_loop/execution_engine/conversation_strategy/artifact_extractor), 公开 API 不变(模块级 re-export 或组合类)
+- **T6 清理收尾**: 86 TODO 评估(81 seeds 数据占位+~4 代码 TODO, 无安全/数据丢失阻断) + 质量检测 6.1-6.7 必修项通过
+
+### 遗留 (技术债)
+
+- tool_loop.py ToolAwareLoop.run() 方法 225 行超 80 行(预存, 非本版本引入, 下版本补分支测试再拆)
+- opensandbox SDK 本地未装(test_opensandbox_runtime collection 失败, CI 环境有依赖)
+- tests 目录 246 处预存 ruff 问题(CI 不跑 tests ruff, 可独立 `ruff --fix tests` 清理)
 
 ## [6.9.0] - 2026-06-27 — test_health修复 + artifact显式建模 + 按类型编排流程 + 能力升级 + 前端体验
 
