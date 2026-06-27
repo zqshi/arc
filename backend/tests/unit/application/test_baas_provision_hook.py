@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from arc.application.execution.artifact_post_process import ArtifactPostProcessHooks
 from arc.domain.project.value_objects import DomainModelSnapshot
 
 
@@ -38,6 +39,7 @@ class TestTryProvisionBaasAfterExtract:
 
         extractor = ArtifactExtractor.__new__(ArtifactExtractor)
         extractor.db = MagicMock()
+        extractor._hooks = ArtifactPostProcessHooks(extractor.db, None)
 
         with patch(
             "arc.infrastructure.repositories.todo.TodoRepository"
@@ -54,7 +56,7 @@ class TestTryProvisionBaasAfterExtract:
             mock_applier.apply_snapshot = AsyncMock()
             MockApplier.return_value = mock_applier
 
-            await extractor._try_provision_baas_after_extract(uuid.uuid4())
+            await extractor._hooks.try_provision_baas_after_extract(uuid.uuid4())
 
             mock_applier.apply_snapshot.assert_awaited_once()
             call_kwargs = mock_applier.apply_snapshot.call_args.kwargs
@@ -72,6 +74,7 @@ class TestTryProvisionBaasAfterExtract:
 
         extractor = ArtifactExtractor.__new__(ArtifactExtractor)
         extractor.db = MagicMock()
+        extractor._hooks = ArtifactPostProcessHooks(extractor.db, None)
 
         with patch(
             "arc.infrastructure.repositories.todo.TodoRepository"
@@ -86,7 +89,7 @@ class TestTryProvisionBaasAfterExtract:
             mock_applier.apply_snapshot = AsyncMock()
             MockApplier.return_value = mock_applier
 
-            await extractor._try_provision_baas_after_extract(uuid.uuid4())
+            await extractor._hooks.try_provision_baas_after_extract(uuid.uuid4())
 
             mock_applier.apply_snapshot.assert_not_called()
 
@@ -99,6 +102,7 @@ class TestTryProvisionBaasAfterExtract:
 
         extractor = ArtifactExtractor.__new__(ArtifactExtractor)
         extractor.db = MagicMock()
+        extractor._hooks = ArtifactPostProcessHooks(extractor.db, None)
 
         with patch(
             "arc.infrastructure.repositories.todo.TodoRepository"
@@ -109,7 +113,7 @@ class TestTryProvisionBaasAfterExtract:
             mock_applier = MagicMock()
             MockApplier.return_value = mock_applier
 
-            await extractor._try_provision_baas_after_extract(uuid.uuid4())
+            await extractor._hooks.try_provision_baas_after_extract(uuid.uuid4())
 
             mock_applier.apply_snapshot.assert_not_called()
 
@@ -124,6 +128,7 @@ class TestTryProvisionBaasAfterExtract:
 
         extractor = ArtifactExtractor.__new__(ArtifactExtractor)
         extractor.db = MagicMock()
+        extractor._hooks = ArtifactPostProcessHooks(extractor.db, None)
 
         with patch(
             "arc.infrastructure.repositories.todo.TodoRepository"
@@ -143,7 +148,7 @@ class TestTryProvisionBaasAfterExtract:
             MockApplier.return_value = mock_applier
 
             # 不应抛错
-            await extractor._try_provision_baas_after_extract(uuid.uuid4())
+            await extractor._hooks.try_provision_baas_after_extract(uuid.uuid4())
 
 
 class TestHookIntegrationWithExtract:
@@ -156,19 +161,20 @@ class TestHookIntegrationWithExtract:
 
         extractor = ArtifactExtractor.__new__(ArtifactExtractor)
         extractor.db = MagicMock()
+        extractor._hooks = ArtifactPostProcessHooks(extractor.db, None)
 
         with patch(
             "arc.application.execution.domain_model_extractor.DomainModelExtractor"
         ) as MockExtractor, patch.object(
-            extractor, "_try_review_after_extract", new=AsyncMock()
+            extractor._hooks, "try_review_after_extract", new=AsyncMock()
         ) as mock_review, patch.object(
-            extractor, "_try_provision_baas_after_extract", new=AsyncMock()
+            extractor._hooks, "try_provision_baas_after_extract", new=AsyncMock()
         ) as mock_baas:
             mock_extractor_instance = MagicMock()
             mock_extractor_instance.extract_and_merge = AsyncMock(return_value=True)
             MockExtractor.return_value = mock_extractor_instance
 
-            await extractor._try_extract_domain_model(uuid.uuid4(), {})
+            await extractor._hooks.try_extract_domain_model(uuid.uuid4(), {})
 
             mock_review.assert_awaited_once()
             mock_baas.assert_awaited_once()
