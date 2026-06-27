@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.9.0] - 2026-06-27 — test_health修复 + artifact显式建模 + 按类型编排流程 + 能力升级 + 前端体验
+
+### Added — 构建产物显式建模 + 按类型编排 + 前端体验
+
+- **test_health 时序污染修复**: 方案E conftest monkeypatch 全局 factory 隔离(全量连跑不再时序污染)
+- **artifact BUILD 显式建模**: BUILD artifact domain+service 锚点 + extractor 自动抽(仅 BINARY_APP) + _resolve_build_status 双读(BUILD优先→build_evidence→app_code/prototype→deploy_content, 双读兼容存量)
+- **按类型编排流程(A)**: DELIVERABLES_BY_TYPE(STATIC_SITE去app_code, BINARY_APP加build) + PHASES_BY_TYPE(两类型全7阶段, 预留) + is_deliverable_visible + tracker.required 按类型裁剪 + app_code 类型过滤
+- **skill 多来源(C1)**: SkillLoader source=inline(内联文本, 无需SKILL.md)/directory
+- **前端体验**: CapabilityEditorModal skill source 结构化(directory/inline) + CapabilityManager 按 type 分组(agent/skill/mcp) + Build renderer(构建状态徽章, 只app类由后端 tracker.required 裁剪保证) + ArtifactType 类型补全
+- **_resolve_build_status 双读单元测试**(7个, 补④核心 94169c5 遗漏) + CapabilityEditorModal(7) + Build(3) 测试
+
+### 决策
+
+- A 类型级流程模板(保7阶段骨架, 按 ProjectType 裁剪交付物, 非完全自定义阶段)
+- artifact 双读兼容(prototype content 保留 build_status, ④消费改造后废弃)
+- ④消费点分流核查: 四消费点(build_gate/_deploy_project/_detect_sign_targets/Signer.sign)已由双读兼容+类型路由+隐式skip覆盖, 无需新代码
+- B(流程引擎内容编排 methodology/prompt/gate 可配置)分离 v6.10
+
 ## [6.8.0] - 2026-06-26 — 能力注册表: Agent/Skill 声明管理 + 环节级配置
 
 ### Added — 能力运行时入口补全
