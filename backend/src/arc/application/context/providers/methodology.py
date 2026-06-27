@@ -83,7 +83,7 @@ class MethodologyProvider:
             and request.phase in ("ui_design", "development")
             and project is not None
         ):
-            from arc.application.context.content.methodology import get_prototype_guide
+            from arc.application.context.content.registry import get_prototype_guide
             guide = get_prototype_guide(project.project_type)
             if guide:
                 methodology = f"{methodology}\n\n{guide}" if methodology else guide

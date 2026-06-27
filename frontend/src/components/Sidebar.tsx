@@ -10,9 +10,12 @@ import { useBreakpoint } from '../hooks/useMediaQuery';
 const navItems = [
   { to: '/', icon: FolderOpen, label: '项目' },
   { to: '/experience', icon: Lightbulb, label: '经验' },
-  { to: '/templates', icon: LayoutTemplate, label: '模板' },
-  { to: '/organizations', icon: Building2, label: '组织' },
+  { to: '/templates', icon: LayoutTemplate, label: '模板', hidden: true },
+  { to: '/organizations', icon: Building2, label: '组织', hidden: true },
 ];
+
+// 仅显示未隐藏的 nav 项 (模板/组织入口屏蔽, 路由保留, hidden:false 即可恢复)
+const visibleNavItems = navItems.filter((item) => !item.hidden);
 
 function UserPopover({ user, onLogout }: { user: { display_name: string; username: string | null }; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
@@ -115,7 +118,7 @@ export default function Sidebar() {
           <>
             <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setDrawerOpen(false)} />
             <nav className="fixed right-0 top-11 z-50 w-48 rounded-bl-lg border-b border-l border-border bg-bg-sidebar p-2 shadow-xl">
-              {navItems.map(({ to, icon: Icon, label }) => (
+              {visibleNavItems.map(({ to, icon: Icon, label }) => (
                 <Link
                   key={to}
                   to={to}
@@ -173,7 +176,7 @@ export default function Sidebar() {
       </Link>
 
       <nav className="flex flex-1 flex-col items-center gap-1">
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {visibleNavItems.map(({ to, icon: Icon, label }) => (
           <Link
             key={to}
             to={to}
