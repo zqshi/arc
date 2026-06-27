@@ -49,7 +49,7 @@ class TestTryProvisionBaasAfterExtract:
             "arc.application.baas.domain_model_applier.DomainModelApplier"
         ) as MockApplier, patch(
             "arc.application.baas.service.BaasService"
-        ) as MockBaasService:
+        ):
             MockTodoRepo.return_value.get_by_id = AsyncMock(return_value=todo)
             MockProjRepo.return_value.get_by_id = AsyncMock(return_value=project)
             mock_applier = MagicMock()
@@ -138,7 +138,7 @@ class TestTryProvisionBaasAfterExtract:
             "arc.application.baas.domain_model_applier.DomainModelApplier"
         ) as MockApplier, patch(
             "arc.application.baas.service.BaasService"
-        ) as MockBaasService:
+        ):
             MockTodoRepo.return_value.get_by_id = AsyncMock(return_value=todo)
             MockProjRepo.return_value.get_by_id = AsyncMock(return_value=project)
             mock_applier = MagicMock()

@@ -15,7 +15,6 @@ class TestScanTaskManager:
     @pytest.mark.asyncio
     async def test_is_running_after_start(self) -> None:
         mgr = ScanTaskManager()
-        original = mgr._run_scan
 
         async def fake_scan(pid, path, tid):
             await asyncio.sleep(10)

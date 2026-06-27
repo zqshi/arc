@@ -82,7 +82,7 @@ class TestOrchestrationPlan:
     def test_circular_deps_fallback(self):
         plan = OrchestrationPlan(conversation_id=uuid.uuid4(), parent_message_id="msg-1")
         s1 = plan.add_subtask("a", SubtaskType.READ_ANALYSIS, WorkerRole.EXPLORER, depends_on=[uuid.uuid4()])
-        s2 = plan.add_subtask("b", SubtaskType.READ_ANALYSIS, WorkerRole.EXPLORER, depends_on=[s1.id])
+        plan.add_subtask("b", SubtaskType.READ_ANALYSIS, WorkerRole.EXPLORER, depends_on=[s1.id])
         # s1 depends on nonexistent → can't resolve, forced into single layer
         layers = plan.execution_layers()
         assert len(layers) >= 1

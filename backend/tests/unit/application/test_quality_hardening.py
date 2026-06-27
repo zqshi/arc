@@ -104,7 +104,6 @@ class TestAutopilotWallTimeout:
     @pytest.mark.asyncio
     async def test_wall_timeout_emits_event(self):
         """模拟 time.monotonic 使其超过 wall_timeout。"""
-        import time as _time
 
         from arc.application.execution.execution_engine import ExecutionEngine
 
@@ -126,7 +125,6 @@ class TestAutopilotWallTimeout:
 
         # 让 time.monotonic 第一次返回 0，第二次返回 > 600（超时）
         call_count = 0
-        original_monotonic = _time.monotonic
 
         def fake_monotonic():
             nonlocal call_count

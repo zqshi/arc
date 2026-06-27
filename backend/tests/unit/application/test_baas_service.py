@@ -47,7 +47,7 @@ def _make_service(
     baas_repo: MagicMock | None = None,
     provisioner: MagicMock | None = None,
     client: MagicMock | None = None,
-) -> "BaasService":
+) -> "BaasService":  # noqa: F821  前向引用
     from arc.application.baas.service import BaasService
 
     svc = BaasService.__new__(BaasService)

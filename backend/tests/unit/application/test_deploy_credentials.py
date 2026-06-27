@@ -20,7 +20,7 @@ from arc.domain.errors import NotFoundError
 from arc.domain.project.entity import Project
 
 
-def _svc_with_mock_repo(project: Project | None) -> "DeployService":
+def _svc_with_mock_repo(project: Project | None) -> "DeployService":  # noqa: F821  前向引用
     """构造绕过 __init__ 的 DeployService, mock 掉 project_repo。"""
     from arc.application.deployment.service import DeployService
 

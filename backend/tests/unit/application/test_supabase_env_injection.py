@@ -162,7 +162,7 @@ class TestInjectSupabaseConfig:
             "arc.infrastructure.repositories.project.ProjectRepository"
         ) as MockProjRepo, patch(
             "arc.infrastructure.repositories.baas.BaasRepository"
-        ) as MockBaasRepo:
+        ):
             MockProjRepo.return_value.get_by_id = AsyncMock(
                 side_effect=Exception("db error")
             )

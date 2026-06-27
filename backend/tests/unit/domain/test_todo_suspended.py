@@ -54,7 +54,6 @@ class TestResumeAfterUpgrade:
             todo.resume_after_upgrade()
 
     def test_cannot_resume_from_pending(self):
-        todo = Todo(title="Test")
         # PENDING→ACTIVE 本身合法(start_pipeline)，但 resume 应该只从 SUSPENDED 使用
         # 功能上 resume 会成功（PENDING→ACTIVE 在转换表中），但语义上不应该调用
         # 这里验证 DONE 状态不能 resume

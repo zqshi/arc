@@ -81,7 +81,7 @@ class TestTemplateCRUD:
         repo = TemplateRepository(db_session)
         await repo.create(_make_template(title="draft", status=TemplateStatus.DRAFT))
         pub = _make_template(title="published", status=TemplateStatus.PUBLISHED)
-        pub.confirm  # noqa: 已是 published, 跳过状态机
+        pub.confirm  # 已是 published, 跳过状态机
         await repo.create(pub)
 
         published = await repo.list_published()
