@@ -5,6 +5,7 @@ import { ConfirmProvider } from './ConfirmProvider';
 import { AuthProvider } from '../contexts/AuthContext';
 import { CapabilityManager } from './CapabilityManager';
 import { api } from '../api/client';
+import type { Capability } from '../types/api';
 
 vi.mock('../api/client', () => ({
   api: {
@@ -25,7 +26,7 @@ vi.mock('../api/client', () => ({
   },
 }));
 
-const mockCaps = [
+const mockCaps: Capability[] = [
   { id: 'c1', name: 'code-reviewer', type: 'agent', config: {}, status: 'active', scope: 'global' },
   { id: 'c2', name: 'prd-writer', type: 'skill', config: {}, status: 'disabled', scope: 'global' },
 ];

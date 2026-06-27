@@ -79,7 +79,7 @@ describe('CapabilityApi', () => {
     const { api } = await import('./client');
     const res = await api.deleteCapability('c1');
     expect(res.status).toBe('deleted');
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [, opts] = mockFetch.mock.calls[0];
     expect(opts.method).toBe('DELETE');
   });
 });
