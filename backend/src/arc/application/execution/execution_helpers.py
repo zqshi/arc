@@ -4,6 +4,9 @@
 - _summarize_tool_input: 工具调用摘要生成
 - _needs_user_input: 检测 AI 是否需要用户确认
 - _map_tool_event: ToolLoopEvent → 前端 SSE dict 映射
+- build_loop_config / extract_experience / collect_qualified_types / find_gate_stuck:
+  execution_engine 尾部辅助查询 (v6.11 T4 迁入), 转 db 参数模块级函数,
+  由 ExecutionEngine 调用 (原为实例方法, 迁出依赖 db/prompt_builder 显式传入)。
 """
 
 from __future__ import annotations
@@ -97,3 +100,149 @@ def map_tool_event(event) -> list[dict]:
             },
         })
     return results
+
+
+# ---------------------------------------------------------------------------
+# ExecutionEngine 尾部辅助查询 (v6.11 T4 从 execution_engine.py 迁入)
+# ---------------------------------------------------------------------------
+
+
+async def trigger_pre_llm_hooks(
+    hooks, conversation_id: str, message_count: int, project_path: str | None,
+) -> None:
+    """触发 pre_input / pre_llm 两个 Hook (Harness §12)。
+
+    execution_engine.generate_response_stream 开头机械触发, v6.11 T4 迁入。
+    """
+    from arc.application.hooks.manager import HookPoint
+
+    await hooks.trigger(HookPoint.PRE_INPUT, {
+        "conversation_id": conversation_id,
+        "message_count": message_count,
+    })
+    await hooks.trigger(HookPoint.PRE_LLM, {
+        "conversation_id": conversation_id,
+        "project_path": project_path,
+    })
+
+
+async def build_loop_config(db, todo_id: uuid.UUID):
+    """构建 text-only AgentLoop 配置 (从项目 conversation_config 读取)。"""
+    from arc.application.execution.agent_loop import LoopConfig
+    from arc.infrastructure.repositories.project import ProjectRepository
+    from arc.infrastructure.repositories.todo import TodoRepository
+
+    todo_repo = TodoRepository(db)
+    todo = await todo_repo.get_by_id(todo_id)
+    if not todo or not todo.project_id:
+        return LoopConfig()
+
+    project = await ProjectRepository(db).get_by_id(todo.project_id)
+    if not project or not project.conversation_config:
+        return LoopConfig()
+
+    loop_cfg = project.conversation_config.get("loop_config", {})
+    return LoopConfig(
+        token_budget=loop_cfg.get("token_budget", 120000),
+        wall_timeout_seconds=loop_cfg.get("wall_timeout_seconds", 300.0),
+        max_tokens_per_call=loop_cfg.get("max_tokens_per_call", 16384),
+    )
+
+
+async def extract_experience(db, todo_id: uuid.UUID, prompt_builder) -> None:
+    """从质量达标交付物提炼经验并反馈注入。"""
+    from arc.application.execution.experience_feedback import extract_and_feedback
+
+    await extract_and_feedback(db, todo_id, prompt_builder)
+
+
+async def collect_qualified_types(db, todo_id: uuid.UUID) -> set[str]:
+    """收集 todo 下已过质量门禁的交付物类型 (content._quality.passed=True)。"""
+    from arc.infrastructure.repositories.artifact import ArtifactRepository
+
+    try:
+        arts = await ArtifactRepository(db).list_by_todo_id(todo_id)
+    except Exception:
+        return set()
+    result: set[str] = set()
+    for a in arts:
+        if isinstance(a.content, dict):
+            q = a.content.get("_quality")
+            if isinstance(q, dict) and q.get("passed") is True:
+                result.add(a.artifact_type.value)
+    return result
+
+
+async def find_gate_stuck(db, todo_id: uuid.UUID) -> dict | None:
+    """找最该修复的未通过门禁产出物 (score 最低者优先)。"""
+    from arc.domain.artifact.value_objects import ARTIFACT_LABELS
+    from arc.infrastructure.repositories.artifact import ArtifactRepository
+
+    try:
+        arts = await ArtifactRepository(db).list_by_todo_id(todo_id)
+    except Exception:
+        return None
+    stuck: list[tuple] = []
+    for a in arts:
+        if isinstance(a.content, dict):
+            q = a.content.get("_quality")
+            if isinstance(q, dict) and q.get("passed") is False:
+                stuck.append((a, q))
+    if not stuck:
+        return None
+    stuck.sort(key=lambda x: x[1].get("score", 5))
+    a, q = stuck[0]
+    return {
+        "type": a.artifact_type.value,
+        "label": ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value),
+        "gaps": list(q.get("gaps", [])),
+    }
+
+
+async def map_agent_loop_events(event_iter) -> "object":
+    """AgentLoop 事件流 → 前端 SSE dict (v6.11 T4 从 execution_engine 迁入)。
+
+    与 map_tool_event (ToolLoopEvent→SSE) 同构, 维护 message_id 累积状态,
+    yield {"message_id", "content"} 文本块 与 {"event":"complete_metrics", "metrics"} 完成事件。
+    其余事件类型 (continuation/validation_retry/budget_warning/error) 仅记日志不产出。
+    """
+    message_id: str | None = None
+    async for event in event_iter:
+        if event.type == "chunk":
+            if message_id is None:
+                message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+            yield {"message_id": message_id, "content": event.content}
+
+        elif event.type == "continuation":
+            logger.info(
+                "Agent loop continuation #%d",
+                event.metadata.get("iteration", 0),
+            )
+
+        elif event.type == "validation_retry":
+            logger.info(
+                "Agent loop validation retry #%d",
+                event.metadata.get("retry", 0),
+            )
+
+        elif event.type == "budget_warning":
+            logger.warning(
+                "Agent loop budget: %s/%s tokens",
+                event.metadata.get("total_tokens"),
+                event.metadata.get("budget"),
+            )
+
+        elif event.type == "error":
+            logger.error("Agent loop error: %s", event.content)
+
+        elif event.type == "complete":
+            metrics = event.metadata.get("metrics", {})
+            if message_id is None:
+                message_id = event.metadata.get("message_id", str(uuid.uuid4()))
+            logger.info(
+                "Agent loop complete: %d iters, %dms, by=%s",
+                metrics.get("iterations", 0),
+                metrics.get("elapsed_ms", 0),
+                event.metadata.get("terminated_by", "unknown"),
+            )
+            yield {"event": "complete_metrics", "metrics": metrics}

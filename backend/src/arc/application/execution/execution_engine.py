@@ -15,6 +15,21 @@ import uuid
 from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.execution.execution_helpers import (
+    build_loop_config as _build_loop_config,
+)
+from arc.application.execution.execution_helpers import (
+    collect_qualified_types as _collect_qualified_types,
+)
+from arc.application.execution.execution_helpers import (
+    extract_experience as _extract_experience,
+)
+from arc.application.execution.execution_helpers import (
+    find_gate_stuck as _find_gate_stuck,
+)
+from arc.application.execution.execution_helpers import (
+    map_agent_loop_events as _map_agent_loop_events,
+)
+from arc.application.execution.execution_helpers import (
     map_tool_event as _map_tool_event,
 )
 from arc.application.execution.execution_helpers import (
@@ -22,6 +37,9 @@ from arc.application.execution.execution_helpers import (
 )
 from arc.application.execution.execution_helpers import (
     summarize_tool_input as _summarize_tool_input,
+)
+from arc.application.execution.execution_helpers import (
+    trigger_pre_llm_hooks as _trigger_pre_llm_hooks,
 )
 from arc.domain.artifact.value_objects import ARTIFACT_LABELS
 from arc.domain.todo.value_objects import MessageRole
@@ -79,19 +97,9 @@ class ExecutionEngine:
         llm_config: dict | None = None,
     ) -> AsyncIterator[dict]:
         """生成 AI 流式回复。"""
-        from arc.application.hooks.manager import HookPoint
-
-        # Hook: pre_input
-        await self._hooks.trigger(HookPoint.PRE_INPUT, {
-            "conversation_id": str(conversation.id),
-            "message_count": len(conversation.messages),
-        })
-
-        # Hook: pre_llm
-        await self._hooks.trigger(HookPoint.PRE_LLM, {
-            "conversation_id": str(conversation.id),
-            "project_path": project_path,
-        })
+        await _trigger_pre_llm_hooks(
+            self._hooks, str(conversation.id), len(conversation.messages), project_path,
+        )
 
         llm_messages = await self._prompt_builder.build_llm_messages(conversation)
 
@@ -191,7 +199,7 @@ class ExecutionEngine:
                 "tracker": tracker_snapshot,
             }
             if tracker and tracker.is_complete:
-                await self._extract_experience(conversation.todo_id)
+                await _extract_experience(self._db, conversation.todo_id, self._prompt_builder)
 
     async def run_autopilot(
         self,
@@ -266,7 +274,7 @@ class ExecutionEngine:
                 yield chunk
 
             tracker = await self._tracker_repo.get_by_todo_id(conversation.todo_id)
-            qualified = await self._collect_qualified_types(conversation.todo_id)
+            qualified = await _collect_qualified_types(self._db, conversation.todo_id)
 
             # Checkpoint: 每轮结束创建状态快照 (基于质量达标，非虚假 produced)
             try:
@@ -284,7 +292,7 @@ class ExecutionEngine:
 
             # 质量达标完成 (非虚假完成——杜绝从劣质产出提炼经验)
             if tracker and tracker.is_quality_complete(qualified):
-                await self._extract_experience(conversation.todo_id)
+                await _extract_experience(self._db, conversation.todo_id, self._prompt_builder)
                 yield {
                     "event": "autopilot_complete",
                     "reason": "all_deliverables_quality_qualified",
@@ -297,7 +305,7 @@ class ExecutionEngine:
                 return
 
             # 门禁卡点检查: 有未通过质量门禁的产出物 → 反馈 gaps 让 LLM 修复 (而非盲目推进)
-            stuck = await self._find_gate_stuck(conversation.todo_id)
+            stuck = await _find_gate_stuck(self._db, conversation.todo_id)
             if stuck:
                 if stuck["type"] == last_stuck:
                     stuck_rounds += 1
@@ -443,128 +451,9 @@ class ExecutionEngine:
         )
 
         validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)
-        config = await self._build_loop_config(todo_id)
-
-        message_id: str | None = None
+        config = await _build_loop_config(self._db, todo_id)
 
         async with adapter_pool.acquire() as adapter:
             loop = AgentLoop(adapter, config)
-            async for event in loop.run(llm_messages, validator=validator):
-                if event.type == "chunk":
-                    if message_id is None:
-                        message_id = event.metadata.get(
-                            "message_id", str(uuid.uuid4())
-                        )
-                    yield {"message_id": message_id, "content": event.content}
-
-                elif event.type == "continuation":
-                    logger.info(
-                        "Agent loop continuation #%d",
-                        event.metadata.get("iteration", 0),
-                    )
-
-                elif event.type == "validation_retry":
-                    logger.info(
-                        "Agent loop validation retry #%d",
-                        event.metadata.get("retry", 0),
-                    )
-
-                elif event.type == "budget_warning":
-                    logger.warning(
-                        "Agent loop budget: %s/%s tokens",
-                        event.metadata.get("total_tokens"),
-                        event.metadata.get("budget"),
-                    )
-
-                elif event.type == "error":
-                    logger.error("Agent loop error: %s", event.content)
-
-                elif event.type == "complete":
-                    metrics = event.metadata.get("metrics", {})
-                    if message_id is None:
-                        message_id = event.metadata.get(
-                            "message_id", str(uuid.uuid4())
-                        )
-                    logger.info(
-                        "Agent loop complete: %d iters, %dms, by=%s",
-                        metrics.get("iterations", 0),
-                        metrics.get("elapsed_ms", 0),
-                        event.metadata.get("terminated_by", "unknown"),
-                    )
-                    yield {
-                        "event": "complete_metrics",
-                        "metrics": metrics,
-                    }
-
-    async def _build_loop_config(self, todo_id: uuid.UUID):
-        from arc.application.execution.agent_loop import LoopConfig
-        from arc.infrastructure.repositories.project import ProjectRepository
-        from arc.infrastructure.repositories.todo import TodoRepository
-
-        todo_repo = TodoRepository(self._db)
-        todo = await todo_repo.get_by_id(todo_id)
-        if not todo or not todo.project_id:
-            return LoopConfig()
-
-        project = await ProjectRepository(self._db).get_by_id(todo.project_id)
-        if not project or not project.conversation_config:
-            return LoopConfig()
-
-        loop_cfg = project.conversation_config.get("loop_config", {})
-        return LoopConfig(
-            token_budget=loop_cfg.get("token_budget", 120000),
-            wall_timeout_seconds=loop_cfg.get("wall_timeout_seconds", 300.0),
-            max_tokens_per_call=loop_cfg.get("max_tokens_per_call", 16384),
-        )
-
-    async def _extract_experience(self, todo_id: uuid.UUID) -> None:
-        from arc.application.execution.experience_feedback import extract_and_feedback
-
-        await extract_and_feedback(self._db, todo_id, self._prompt_builder)
-
-    async def _collect_qualified_types(self, todo_id: uuid.UUID) -> set[str]:
-        """收集 todo 下已过质量门禁的交付物类型 (content._quality.passed=True)。"""
-        from arc.infrastructure.repositories.artifact import ArtifactRepository
-
-        try:
-            arts = await ArtifactRepository(self._db).list_by_todo_id(todo_id)
-        except Exception:
-            return set()
-        result: set[str] = set()
-        for a in arts:
-            if isinstance(a.content, dict):
-                q = a.content.get("_quality")
-                if isinstance(q, dict) and q.get("passed") is True:
-                    result.add(a.artifact_type.value)
-        return result
-
-    async def _find_gate_stuck(self, todo_id: uuid.UUID) -> dict | None:
-        """找最该修复的未通过门禁产出物 (score 最低者优先)。"""
-        from arc.domain.artifact.value_objects import ARTIFACT_LABELS
-        from arc.infrastructure.repositories.artifact import ArtifactRepository
-
-        try:
-            arts = await ArtifactRepository(self._db).list_by_todo_id(todo_id)
-        except Exception:
-            return None
-        stuck: list[tuple] = []
-        for a in arts:
-            if isinstance(a.content, dict):
-                q = a.content.get("_quality")
-                if isinstance(q, dict) and q.get("passed") is False:
-                    stuck.append((a, q))
-        if not stuck:
-            return None
-        stuck.sort(key=lambda x: x[1].get("score", 5))
-        a, q = stuck[0]
-        return {
-            "type": a.artifact_type.value,
-            "label": ARTIFACT_LABELS.get(a.artifact_type, a.artifact_type.value),
-            "gaps": list(q.get("gaps", [])),
-        }
-
-
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
+            async for mapped in _map_agent_loop_events(loop.run(llm_messages, validator=validator)):
+                yield mapped
