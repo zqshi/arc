@@ -18,8 +18,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-from arc.application.ai.llm_adapter import LLMMessage
-from arc.application.execution.tools import ToolCall
+from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
+from arc.application.execution.tool_helpers import build_anthropic_messages_with_tools
+from arc.application.execution.tools import ToolCall, ToolRegistry
 
 
 def build_openai_messages(
@@ -111,6 +112,81 @@ def extract_usage_tokens(result: dict) -> int:
     """从 adapter.chat_with_tools 结果提取 token 用量 (input+output)。"""
     usage = result.get("usage", {})
     return usage.get("input", 0) + usage.get("output", 0)
+
+
+# ---------------------------------------------------------------------------
+# LLM 调用分发 (v6.10 TD-1 从 tool_loop.py 迁入)
+# ---------------------------------------------------------------------------
+
+
+async def call_anthropic(
+    adapter: LLMAdapter,
+    registry: ToolRegistry,
+    max_tokens: int,
+    base_messages: list[LLMMessage],
+    tool_history: list[dict],
+) -> tuple[dict, int]:
+    """调 Anthropic API (native tool_use); 返回 (response_dict, usage_tokens)。"""
+    system_text, chat_msgs = build_anthropic_messages_with_tools(
+        base_messages, tool_history
+    )
+    result = await adapter.chat_with_tools(
+        messages=chat_msgs,
+        tools=registry.to_anthropic_format(),
+        system=system_text,
+        max_tokens=max_tokens,
+    )
+    return {
+        "type": "anthropic",
+        "content": result["content"],
+        "stop_reason": result.get("stop_reason"),
+    }, extract_usage_tokens(result)
+
+
+async def call_openai(
+    adapter: LLMAdapter,
+    registry: ToolRegistry,
+    max_tokens: int,
+    base_messages: list[LLMMessage],
+    tool_history: list[dict],
+) -> tuple[dict, int]:
+    """调 OpenAI API (function calling); 返回 (response_dict, usage_tokens)。"""
+    formatted = build_openai_messages(base_messages, tool_history)
+    result = await adapter.chat_with_tools(
+        messages=formatted,
+        tools=registry.to_openai_format(),
+        max_tokens=max_tokens,
+    )
+    choice = result["response"].choices[0]
+    return {
+        "type": "openai",
+        "message": choice.message,
+        "finish_reason": choice.finish_reason,
+    }, extract_usage_tokens(result)
+
+
+async def call_with_tools(
+    adapter: LLMAdapter,
+    registry: ToolRegistry,
+    max_tokens: int,
+    base_messages: list[LLMMessage],
+    tool_history: list[dict],
+) -> tuple[dict, int]:
+    """按 provider 类型分发 LLM 调用; 返回 (response_dict, usage_tokens)。"""
+    if adapter.provider_type == "anthropic":
+        return await call_anthropic(
+            adapter, registry, max_tokens, base_messages, tool_history
+        )
+    return await call_openai(
+        adapter, registry, max_tokens, base_messages, tool_history
+    )
+
+
+def parse_response(response: dict) -> tuple[str, list[ToolCall]]:
+    """按 response type 分发解析 → (text, tool_calls)。"""
+    if response["type"] == "anthropic":
+        return parse_anthropic(response)
+    return parse_openai(response)
 
 
 # ---------------------------------------------------------------------------

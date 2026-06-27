@@ -20,9 +20,6 @@ from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
 from arc.application.execution.tool_helpers import (
-    build_anthropic_messages_with_tools as _build_anthropic_messages_with_tools,
-)
-from arc.application.execution.tool_helpers import (
     build_output_preview as _build_output_preview,
 )
 from arc.application.execution.tool_loop_adapters import (
@@ -30,16 +27,10 @@ from arc.application.execution.tool_loop_adapters import (
     ToolErrorDiagnosis,
 )
 from arc.application.execution.tool_loop_adapters import (
-    build_openai_messages as _build_openai_messages,
+    call_with_tools as _call_with_tools_fn,
 )
 from arc.application.execution.tool_loop_adapters import (
-    extract_usage_tokens as _extract_usage_tokens,
-)
-from arc.application.execution.tool_loop_adapters import (
-    parse_anthropic as _parse_anthropic,
-)
-from arc.application.execution.tool_loop_adapters import (
-    parse_openai as _parse_openai,
+    parse_response as _parse_response_fn,
 )
 from arc.application.execution.tool_loop_metrics import (
     MAX_TOOL_ROUNDS,
@@ -130,13 +121,9 @@ class ToolAwareLoop:
                     )
                     break
 
-                # Call LLM with tools
                 response = await self._call_with_tools(messages, tool_history)
-
-                # Parse response
                 text_content, tool_calls = self._parse_response(response)
 
-                # Emit text if any
                 if text_content:
                     yield ToolLoopEvent(
                         type="text_delta",
@@ -144,190 +131,43 @@ class ToolAwareLoop:
                         metadata={"message_id": message_id},
                     )
 
-                # If no tool calls, we're done
                 if not tool_calls:
                     break
 
-                # Execute tools
                 self._tool_rounds += 1
+                self._record_assistant_turn(tool_history, text_content, tool_calls)
 
-                # Build assistant message with tool_use blocks
-                assistant_content = []
-                if text_content:
-                    assistant_content.append({"type": "text", "text": text_content})
-                for tc in tool_calls:
-                    assistant_content.append({
-                        "type": "tool_use",
-                        "id": tc.id,
-                        "name": tc.name,
-                        "input": tc.input,
-                    })
-                tool_history.append({"role": "assistant", "content": assistant_content})
-
-                # Split into read-only (parallelizable) and mutation (serial) groups
                 readonly_calls = [tc for tc in tool_calls if tc.name in READONLY_TOOLS]
                 mutation_calls = [tc for tc in tool_calls if tc.name not in READONLY_TOOLS]
 
                 tool_results_content: list[dict] = []
+                async for event in self._run_parallel_batch(
+                    readonly_calls, tool_results_content
+                ):
+                    yield event
+                async for event in self._run_serial_batch(
+                    mutation_calls, tool_results_content
+                ):
+                    yield event
 
-                # --- Parallel batch: read-only tools via asyncio.gather ---
-                if readonly_calls:
-                    # Emit all tool_call events upfront so frontend shows them together
-                    for tc in readonly_calls:
-                        yield ToolLoopEvent(
-                            type="tool_call",
-                            content=tc.name,
-                            metadata={
-                                "tool_id": tc.id,
-                                "input": tc.input,
-                                "round": self._tool_rounds,
-                                "parallel": True,
-                            },
-                        )
+                self._record_tool_results(tool_history, tool_calls, tool_results_content)
+                await self._check_drift(tool_calls, tool_history)
 
-                    results = await asyncio.gather(
-                        *[self._execute_tool_with_retry(tc) for tc in readonly_calls],
-                    )
-
-                    for tc, result in zip(readonly_calls, results):
-                        # L1 compression: shrink large non-error tool results
-                        if (
-                            self._compression
-                            and not result.is_error
-                            and len(result.content) > 10000
-                        ):
-                            compressed = (
-                                await self._compression.compress_tool_result(result.content)
-                            )
-                            result = ToolResult(
-                                tool_use_id=result.tool_use_id,
-                                content=compressed,
-                                is_error=result.is_error,
-                            )
-                        yield ToolLoopEvent(
-                            type="tool_result",
-                            content=_build_output_preview(tc.name, tc.input, result),
-                            metadata={
-                                "tool_id": tc.id,
-                                "tool_name": tc.name,
-                                "is_error": result.is_error,
-                                "full_length": len(result.content),
-                                "parallel": True,
-                            },
-                        )
-                        tool_results_content.append({
-                            "type": "tool_result",
-                            "tool_use_id": tc.id,
-                            "content": result.content,
-                            **({"is_error": True} if result.is_error else {}),
-                        })
-
-                # --- Serial: mutation tools (write_file, run_command) ---
-                for tc in mutation_calls:
-                    yield ToolLoopEvent(
-                        type="tool_call",
-                        content=tc.name,
-                        metadata={
-                            "tool_id": tc.id,
-                            "input": tc.input,
-                            "round": self._tool_rounds,
-                        },
-                    )
-
-                    result = await self._execute_tool_with_retry(tc)
-
-                    # L1 compression: shrink large non-error tool results
-                    if self._compression and not result.is_error and len(result.content) > 10000:
-                        compressed = await self._compression.compress_tool_result(result.content)
-                        result = ToolResult(
-                            tool_use_id=result.tool_use_id,
-                            content=compressed,
-                            is_error=result.is_error,
-                        )
-
-                    yield ToolLoopEvent(
-                        type="tool_result",
-                        content=_build_output_preview(tc.name, tc.input, result),
-                        metadata={
-                            "tool_id": tc.id,
-                            "tool_name": tc.name,
-                            "is_error": result.is_error,
-                            "full_length": len(result.content),
-                        },
-                    )
-
-                    tool_results_content.append({
-                        "type": "tool_result",
-                        "tool_use_id": tc.id,
-                        "content": result.content,
-                        **({"is_error": True} if result.is_error else {}),
-                    })
-
-                # Add tool results to history (preserve original call order for LLM)
-                ordered_results = []
-                result_map = {r["tool_use_id"]: r for r in tool_results_content}
-                for tc in tool_calls:
-                    if tc.id in result_map:
-                        ordered_results.append(result_map[tc.id])
-                tool_history.append({"role": "user", "content": ordered_results})
-
-                # --- Drift detection (Harness §2.3) ---
-                if self._drift_detector:
-                    action_desc = ", ".join(tc.name for tc in tool_calls)
-                    from arc.application.execution.drift_detector import DriftLevel
-                    drift = await self._drift_detector.check_drift(action_desc)
-                    if drift >= DriftLevel.MODERATE:
-                        refocus = self._drift_detector.get_refocus_prompt(drift)
-                        tool_history.append({
-                            "role": "user",
-                            "content": [{"type": "text", "text": refocus}],
-                        })
-
-                # --- Error loop detection (Harness §5.4) ---
-                if self._error_loop_detector:
-                    sig = "|".join(
-                        f"{tc.name}:{tc.input.get('path', tc.input.get('command', ''))}"
-                        for tc in tool_calls
-                    )
-                    err_parts = [
-                        f"{tc.name}: {str(result_map.get(tc.id, {}).get('content', ''))[:80]}"
-                        for tc in tool_calls
-                        if result_map.get(tc.id, {}).get("is_error")
-                    ]
-                    error_summary = "; ".join(err_parts) if err_parts else None
-                    if await self._error_loop_detector.record_and_check(
-                        sig, error_summary=error_summary
-                    ):
-                        break_prompt = self._error_loop_detector.get_break_prompt()
-                        if self._error_loop_detector.loop_count >= 2:
-                            yield ToolLoopEvent(
-                                type="error",
-                                content="检测到持续死循环，终止工具调用",
-                            )
-                            break
-                        tool_history.append({
-                            "role": "user",
-                            "content": [{"type": "text", "text": break_prompt}],
-                        })
-
-                logger.info(
-                    "tool_loop.round=%d tools=%s parallel=%d serial=%d tokens=%d",
-                    self._tool_rounds,
-                    [tc.name for tc in tool_calls],
-                    len(readonly_calls),
-                    len(mutation_calls),
-                    self._total_tokens,
+                error_events, should_break = await self._detect_error_loop(
+                    tool_calls, tool_results_content, tool_history
                 )
+                for event in error_events:
+                    yield event
+                if should_break:
+                    break
+
+                self._log_round(tool_calls, readonly_calls, mutation_calls)
 
         except Exception as exc:
             logger.error("tool_loop.error: %s", exc, exc_info=True)
             yield ToolLoopEvent(type="error", content=f"工具循环异常: {exc}")
 
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-        self._metrics.tool_rounds = self._tool_rounds
-        self._metrics.total_tokens = self._total_tokens
-        self._metrics.elapsed_ms = elapsed_ms
-        self._metrics.final_state = "complete"
+        elapsed_ms = self._finalize_metrics(start)
         yield ToolLoopEvent(
             type="complete",
             metadata={
@@ -337,6 +177,215 @@ class ToolAwareLoop:
                 "elapsed_ms": elapsed_ms,
             },
         )
+
+    async def _run_parallel_batch(
+        self, readonly_calls: list[ToolCall], results_out: list[dict]
+    ) -> AsyncIterator[ToolLoopEvent]:
+        """并行执行 read-only 工具: 先 emit 全部 tool_call, 再 gather 执行, 再 emit tool_result。
+
+        结果 dict append 到 results_out (供 tool_history 按原序回填)。
+        """
+        if not readonly_calls:
+            return
+
+        for tc in readonly_calls:
+            yield ToolLoopEvent(
+                type="tool_call",
+                content=tc.name,
+                metadata={
+                    "tool_id": tc.id,
+                    "input": tc.input,
+                    "round": self._tool_rounds,
+                    "parallel": True,
+                },
+            )
+
+        results = await asyncio.gather(
+            *[self._execute_tool_with_retry(tc) for tc in readonly_calls],
+        )
+
+        for tc, result in zip(readonly_calls, results):
+            result = await self._maybe_compress(result)
+            yield ToolLoopEvent(
+                type="tool_result",
+                content=_build_output_preview(tc.name, tc.input, result),
+                metadata={
+                    "tool_id": tc.id,
+                    "tool_name": tc.name,
+                    "is_error": result.is_error,
+                    "full_length": len(result.content),
+                    "parallel": True,
+                },
+            )
+            results_out.append(self._tool_result_entry(tc, result))
+
+    async def _run_serial_batch(
+        self, mutation_calls: list[ToolCall], results_out: list[dict]
+    ) -> AsyncIterator[ToolLoopEvent]:
+        """串行执行 mutation 工具: 逐个 emit tool_call → 执行 → emit tool_result。"""
+        for tc in mutation_calls:
+            yield ToolLoopEvent(
+                type="tool_call",
+                content=tc.name,
+                metadata={
+                    "tool_id": tc.id,
+                    "input": tc.input,
+                    "round": self._tool_rounds,
+                },
+            )
+
+            result = await self._execute_tool_with_retry(tc)
+            result = await self._maybe_compress(result)
+            yield ToolLoopEvent(
+                type="tool_result",
+                content=_build_output_preview(tc.name, tc.input, result),
+                metadata={
+                    "tool_id": tc.id,
+                    "tool_name": tc.name,
+                    "is_error": result.is_error,
+                    "full_length": len(result.content),
+                },
+            )
+            results_out.append(self._tool_result_entry(tc, result))
+
+    async def _maybe_compress(self, result: ToolResult) -> ToolResult:
+        """L1 压缩: 缩减 >10000 字符的非错误工具结果; 错误/小结果原样返回。"""
+        if (
+            self._compression
+            and not result.is_error
+            and len(result.content) > 10000
+        ):
+            compressed = await self._compression.compress_tool_result(result.content)
+            return ToolResult(
+                tool_use_id=result.tool_use_id,
+                content=compressed,
+                is_error=result.is_error,
+            )
+        return result
+
+    @staticmethod
+    def _tool_result_entry(tc: ToolCall, result: ToolResult) -> dict:
+        """构造 tool_history 用的 tool_result dict (仅 is_error 时带标记)。"""
+        entry: dict = {
+            "type": "tool_result",
+            "tool_use_id": tc.id,
+            "content": result.content,
+        }
+        if result.is_error:
+            entry["is_error"] = True
+        return entry
+
+    @staticmethod
+    def _record_assistant_turn(
+        tool_history: list[dict],
+        text_content: str,
+        tool_calls: list[ToolCall],
+    ) -> None:
+        """记录本轮 assistant 消息 (text + tool_use blocks) 到 tool_history。"""
+        assistant_content: list[dict] = []
+        if text_content:
+            assistant_content.append({"type": "text", "text": text_content})
+        for tc in tool_calls:
+            assistant_content.append({
+                "type": "tool_use",
+                "id": tc.id,
+                "name": tc.name,
+                "input": tc.input,
+            })
+        tool_history.append({"role": "assistant", "content": assistant_content})
+
+    @staticmethod
+    def _record_tool_results(
+        tool_history: list[dict],
+        tool_calls: list[ToolCall],
+        tool_results_content: list[dict],
+    ) -> None:
+        """按原始调用顺序回填 tool_result 到 tool_history (user 角色)。"""
+        result_map = {r["tool_use_id"]: r for r in tool_results_content}
+        ordered_results = [
+            result_map[tc.id] for tc in tool_calls if tc.id in result_map
+        ]
+        tool_history.append({"role": "user", "content": ordered_results})
+
+    async def _check_drift(
+        self, tool_calls: list[ToolCall], tool_history: list[dict]
+    ) -> None:
+        """漂移检测 (Harness §2.3): MODERATE 及以上注入 refocus prompt。"""
+        if not self._drift_detector:
+            return
+        from arc.application.execution.drift_detector import DriftLevel
+
+        action_desc = ", ".join(tc.name for tc in tool_calls)
+        drift = await self._drift_detector.check_drift(action_desc)
+        if drift >= DriftLevel.MODERATE:
+            refocus = self._drift_detector.get_refocus_prompt(drift)
+            tool_history.append({
+                "role": "user",
+                "content": [{"type": "text", "text": refocus}],
+            })
+
+    async def _detect_error_loop(
+        self,
+        tool_calls: list[ToolCall],
+        tool_results_content: list[dict],
+        tool_history: list[dict],
+    ) -> tuple[list[ToolLoopEvent], bool]:
+        """死循环检测 (Harness §5.4): 返回 (待 emit 事件, 是否终止循环)。"""
+        if not self._error_loop_detector:
+            return [], False
+
+        sig = "|".join(
+            f"{tc.name}:{tc.input.get('path', tc.input.get('command', ''))}"
+            for tc in tool_calls
+        )
+        result_map = {r["tool_use_id"]: r for r in tool_results_content}
+        err_parts = [
+            f"{tc.name}: {str(result_map.get(tc.id, {}).get('content', ''))[:80]}"
+            for tc in tool_calls
+            if result_map.get(tc.id, {}).get("is_error")
+        ]
+        error_summary = "; ".join(err_parts) if err_parts else None
+
+        if not await self._error_loop_detector.record_and_check(
+            sig, error_summary=error_summary
+        ):
+            return [], False
+
+        break_prompt = self._error_loop_detector.get_break_prompt()
+        if self._error_loop_detector.loop_count >= 2:
+            return [
+                ToolLoopEvent(type="error", content="检测到持续死循环，终止工具调用")
+            ], True
+
+        tool_history.append({
+            "role": "user",
+            "content": [{"type": "text", "text": break_prompt}],
+        })
+        return [], False
+
+    def _log_round(
+        self,
+        tool_calls: list[ToolCall],
+        readonly_calls: list[ToolCall],
+        mutation_calls: list[ToolCall],
+    ) -> None:
+        logger.info(
+            "tool_loop.round=%d tools=%s parallel=%d serial=%d tokens=%d",
+            self._tool_rounds,
+            [tc.name for tc in tool_calls],
+            len(readonly_calls),
+            len(mutation_calls),
+            self._total_tokens,
+        )
+
+    def _finalize_metrics(self, start: float) -> int:
+        """收尾 metrics 并返回 elapsed_ms (供 complete 事件复用)。"""
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        self._metrics.tool_rounds = self._tool_rounds
+        self._metrics.total_tokens = self._total_tokens
+        self._metrics.elapsed_ms = elapsed_ms
+        self._metrics.final_state = "complete"
+        return elapsed_ms
 
     async def _execute_tool_with_retry(self, tc: ToolCall) -> ToolResult:
         """Execute a tool call with timeout and retry.
@@ -417,64 +466,13 @@ class ToolAwareLoop:
         tool_history: list[dict],
     ) -> dict:
         """Call the LLM with tools via adapter.chat_with_tools()."""
-        provider = self._adapter.provider_type
-
-        if provider == "anthropic":
-            return await self._call_anthropic(base_messages, tool_history)
-        else:
-            return await self._call_openai(base_messages, tool_history)
-
-    async def _call_anthropic(
-        self,
-        base_messages: list[LLMMessage],
-        tool_history: list[dict],
-    ) -> dict:
-        """Call Anthropic API with tools via adapter."""
-        system_text, chat_msgs = _build_anthropic_messages_with_tools(
-            base_messages, tool_history
+        response, tokens = await _call_with_tools_fn(
+            self._adapter, self._registry, self._max_tokens,
+            base_messages, tool_history,
         )
-
-        result = await self._adapter.chat_with_tools(
-            messages=chat_msgs,
-            tools=self._registry.to_anthropic_format(),
-            system=system_text,
-            max_tokens=self._max_tokens,
-        )
-
-        self._total_tokens += _extract_usage_tokens(result)
-
-        return {
-            "type": "anthropic",
-            "content": result["content"],
-            "stop_reason": result.get("stop_reason"),
-        }
-
-    async def _call_openai(
-        self,
-        base_messages: list[LLMMessage],
-        tool_history: list[dict],
-    ) -> dict:
-        """Call OpenAI API with tools (function calling)."""
-        formatted = _build_openai_messages(base_messages, tool_history)
-
-        result = await self._adapter.chat_with_tools(
-            messages=formatted,
-            tools=self._registry.to_openai_format(),
-            max_tokens=self._max_tokens,
-        )
-
-        self._total_tokens += _extract_usage_tokens(result)
-
-        response = result["response"]
-        choice = response.choices[0]
-        return {
-            "type": "openai",
-            "message": choice.message,
-            "finish_reason": choice.finish_reason,
-        }
+        self._total_tokens += tokens
+        return response
 
     def _parse_response(self, response: dict) -> tuple[str, list[ToolCall]]:
         """Parse LLM response into text content and tool calls."""
-        if response["type"] == "anthropic":
-            return _parse_anthropic(response)
-        return _parse_openai(response)
+        return _parse_response_fn(response)
