@@ -6,6 +6,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.ai.json_extract import extract_json
+from arc.domain.errors import ConflictError, NotFoundError
 from arc.domain.experience.entity import Experience
 from arc.domain.todo.entity import Todo
 from arc.domain.todo.value_objects import (
@@ -309,9 +310,9 @@ class ExperienceService:
     ) -> Experience:
         exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
         if not exp:
-            raise ValueError("Experience not found")
+            raise NotFoundError("Experience not found")
         if exp.scope == ExperienceScope.PERSONAL:
-            raise ValueError("Already a personal experience")
+            raise ConflictError("Already a personal experience")
 
         from arc.application.ai.llm_adapter import LLMMessage
         from arc.application.ai.resilience import create_resilient_adapter
@@ -420,7 +421,7 @@ class ExperienceService:
         """更新经验字段 (枚举转换 + tags 重建) 并重新生成 embedding。"""
         exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
         if not exp:
-            raise ValueError("Experience not found")
+            raise NotFoundError("Experience not found")
         self._apply_updates(exp, updates)
         exp.embedding = await self._generate_embedding(exp)
         return await self.exp_repo.update(exp)
@@ -465,21 +466,21 @@ class ExperienceService:
     async def confirm(self, experience_id: uuid.UUID, user_id: uuid.UUID) -> Experience:
         exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
         if not exp:
-            raise ValueError("Experience not found")
+            raise NotFoundError("Experience not found")
         exp.confirm()
         return await self.exp_repo.update(exp)
 
     async def archive(self, experience_id: uuid.UUID, user_id: uuid.UUID) -> Experience:
         exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
         if not exp:
-            raise ValueError("Experience not found")
+            raise NotFoundError("Experience not found")
         exp.archive()
         return await self.exp_repo.update(exp)
 
     async def promote(self, experience_id: uuid.UUID, user_id: uuid.UUID) -> Experience:
         exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
         if not exp:
-            raise ValueError("Experience not found")
+            raise NotFoundError("Experience not found")
         exp.promote_to_personal()
         return await self.exp_repo.update(exp)
 
@@ -488,9 +489,9 @@ class ExperienceService:
     ) -> None:
         exp = await self.exp_repo.get_by_id(experience_id, user_id=user_id)
         if not exp:
-            raise ValueError("Experience not found")
+            raise NotFoundError("Experience not found")
         if await self.exp_repo.has_feedback(exp.id, todo_id):
-            raise ValueError("Feedback already submitted")
+            raise ConflictError("Feedback already submitted")
         exp.apply_feedback(helpful)
         await self.exp_repo.update(exp)
         await self.exp_repo.add_feedback(exp.id, todo_id, helpful)

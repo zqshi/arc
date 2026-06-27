@@ -288,10 +288,7 @@ async def rollback_deployment(
         raise HTTPException(404, "Project not found")
 
     svc = DeployService(db)
-    try:
-        deployment = await svc.rollback_deployment(deployment_id)
-    except ValueError as e:
-        raise HTTPException(404, str(e))
+    deployment = await svc.rollback_deployment(deployment_id)
     return _deployment_resp(deployment)
 
 

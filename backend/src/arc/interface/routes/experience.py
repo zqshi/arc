@@ -126,12 +126,9 @@ async def update_experience(
     from arc.application.experience.service import ExperienceService
 
     svc = ExperienceService(db)
-    try:
-        updated = await svc.update(
-            UUID(experience_id), req.model_dump(exclude_unset=True), user_id=user.id,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    updated = await svc.update(
+        UUID(experience_id), req.model_dump(exclude_unset=True), user_id=user.id,
+    )
     return _to_response(updated)
 
 
@@ -140,10 +137,7 @@ async def confirm_experience(experience_id: str, db: DbSession, user: CurrentUse
     from arc.application.experience.service import ExperienceService
 
     svc = ExperienceService(db)
-    try:
-        exp = await svc.confirm(UUID(experience_id), user_id=user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    exp = await svc.confirm(UUID(experience_id), user_id=user.id)
     return _to_response(exp)
 
 
@@ -152,10 +146,7 @@ async def archive_experience(experience_id: str, db: DbSession, user: CurrentUse
     from arc.application.experience.service import ExperienceService
 
     svc = ExperienceService(db)
-    try:
-        exp = await svc.archive(UUID(experience_id), user_id=user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    exp = await svc.archive(UUID(experience_id), user_id=user.id)
     return _to_response(exp)
 
 
@@ -164,10 +155,7 @@ async def promote_experience(experience_id: str, db: DbSession, user: CurrentUse
     from arc.application.experience.service import ExperienceService
 
     svc = ExperienceService(db)
-    try:
-        exp = await svc.promote(UUID(experience_id), user_id=user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    exp = await svc.promote(UUID(experience_id), user_id=user.id)
     return _to_response(exp)
 
 
@@ -176,10 +164,7 @@ async def distill_experience(experience_id: str, db: DbSession, user: CurrentUse
     from arc.application.experience.service import ExperienceService
 
     svc = ExperienceService(db)
-    try:
-        personal = await svc.distill_to_personal(UUID(experience_id), user_id=user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    personal = await svc.distill_to_personal(UUID(experience_id), user_id=user.id)
     return _to_response(personal)
 
 
@@ -190,14 +175,9 @@ async def feedback_experience(
     from arc.application.experience.service import ExperienceService
 
     svc = ExperienceService(db)
-    try:
-        await svc.submit_feedback(
-            UUID(experience_id), UUID(req.todo_id), req.helpful, user_id=user.id,
-        )
-    except ValueError as e:
-        detail = str(e)
-        code = 409 if "already" in detail.lower() else 404
-        raise HTTPException(status_code=code, detail=detail)
+    await svc.submit_feedback(
+        UUID(experience_id), UUID(req.todo_id), req.helpful, user_id=user.id,
+    )
 
 
 @router.post("/{experience_id}/promote-global")

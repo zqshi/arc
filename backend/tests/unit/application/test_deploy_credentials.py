@@ -16,6 +16,7 @@ from cryptography.fernet import Fernet
 
 from arc.domain.deployment.distributor import DistributorType
 from arc.domain.deployment.signer import SignerType
+from arc.domain.errors import NotFoundError
 from arc.domain.project.entity import Project
 
 
@@ -93,10 +94,10 @@ class TestConfigureSigningCreds:
 
     @pytest.mark.asyncio
     async def test_project_not_found_raises(self, real_encryption):
-        """project 不存在 (无权/不存在) → ValueError。"""
+        """project 不存在 (无权/不存在) → NotFoundError。"""
         svc = _svc_with_mock_repo(None)
 
-        with pytest.raises(ValueError, match="not found|不存在|无权"):
+        with pytest.raises(NotFoundError, match="not found|不存在|无权"):
             await svc.configure_signing_creds(
                 uuid.uuid4(), SignerType.APPLE, {"apple_dev_id": "x"},
                 user_id=uuid.uuid4(),

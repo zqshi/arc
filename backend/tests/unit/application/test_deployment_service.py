@@ -17,6 +17,7 @@ from arc.application.deployment.service import DeployService
 from arc.domain.deployment.entity import Deployment
 from arc.domain.deployment.signer import SignerType
 from arc.domain.deployment.value_objects import DeploymentStatus, DeployType
+from arc.domain.errors import NotFoundError
 from arc.domain.project.value_objects import ProjectType
 
 
@@ -97,7 +98,7 @@ class TestRollbackDeployment:
         svc, db = _make_service()
         svc._deploy_repo.get_by_id = AsyncMock(return_value=None)
 
-        with pytest.raises(ValueError, match="不存在"):
+        with pytest.raises(NotFoundError, match="不存在"):
             await svc.rollback_deployment(uuid.uuid4())
 
 

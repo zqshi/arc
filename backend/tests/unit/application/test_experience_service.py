@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from arc.domain.errors import NotFoundError
 from arc.domain.experience.entity import Experience
 from arc.domain.todo.entity import Todo
 from arc.domain.todo.value_objects import ExperienceStatus, TodoStatus
@@ -41,7 +42,7 @@ class TestExperienceServiceConfirm:
         svc.conv_repo = MagicMock()
         svc.exp_repo.get_by_id = AsyncMock(return_value=None)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(NotFoundError):
             await svc.confirm(uuid.uuid4(), uuid.uuid4())
 
 
@@ -136,7 +137,7 @@ class TestExperienceServiceUpdate:
         svc.exp_repo.get_by_id = AsyncMock(return_value=None)
         svc._generate_embedding = AsyncMock()
 
-        with pytest.raises(ValueError):
+        with pytest.raises(NotFoundError):
             await svc.update(uuid.uuid4(), {"title": "x"}, user_id=uuid.uuid4())
 
     @pytest.mark.asyncio

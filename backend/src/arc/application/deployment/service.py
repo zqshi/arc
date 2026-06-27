@@ -17,6 +17,7 @@ from arc.domain.deployment.distributor import DistributorType
 from arc.domain.deployment.entity import Deployment
 from arc.domain.deployment.signer import SignerType
 from arc.domain.deployment.value_objects import DeployConfig, DeploymentStatus, DeployType
+from arc.domain.errors import NotFoundError
 from arc.domain.project.value_objects import ProjectType
 from arc.infrastructure.deployer import get_deployer
 from arc.infrastructure.repositories.deployment import DeploymentRepository
@@ -360,21 +361,21 @@ class DeployService:
         }
 
     async def _get_project(self, project_id: uuid.UUID, user_id: uuid.UUID):
-        """取项目 (带 user_id 作用域, 非成员/不存在 → ValueError)。
+        """取项目 (带 user_id 作用域, 非成员/不存在 → NotFoundError)。
 
         route 层 require_project_role(ADMIN) 已做角色校验; 此处 user_id 作用域为
         双重保险, 确保只能操作自己有权项目。
         """
         project = await self._project_repo.get_by_id(project_id, user_id=user_id)
         if not project:
-            raise ValueError(f"Project {project_id} not found or access denied")
+            raise NotFoundError(f"Project {project_id} not found or access denied")
         return project
 
     async def rollback_deployment(self, deployment_id: uuid.UUID) -> Deployment:
         """回滚指定部署（标记状态，不删除文件）。"""
         deployment = await self._deploy_repo.get_by_id(deployment_id)
         if not deployment:
-            raise ValueError(f"部署记录不存在: {deployment_id}")
+            raise NotFoundError(f"部署记录不存在: {deployment_id}")
         deployment.rollback()
         await self._deploy_repo.update(deployment)
         await self._db.commit()
