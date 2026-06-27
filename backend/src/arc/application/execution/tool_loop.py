@@ -16,7 +16,6 @@ import asyncio
 import logging
 import time
 import uuid
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, AsyncIterator
 
 from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage
@@ -25,6 +24,10 @@ from arc.application.execution.tool_helpers import (
 )
 from arc.application.execution.tool_helpers import (
     build_output_preview as _build_output_preview,
+)
+from arc.application.execution.tool_loop_adapters import (
+    TOOL_ERROR_DIAGNOSIS_PROMPT,
+    ToolErrorDiagnosis,
 )
 from arc.application.execution.tool_loop_adapters import (
     build_openai_messages as _build_openai_messages,
@@ -49,9 +52,10 @@ from arc.application.execution.tool_loop_metrics import (
 )
 from arc.application.execution.tools import ToolCall, ToolRegistry, ToolResult
 
-# re-export 保持向后兼容 (execution_engine 等从 tool_loop 导入)
+# re-export 保持向后兼容 (execution_engine / orchestration / 测试从 tool_loop 导入)
 __all__ = [
     "ToolAwareLoop",
+    "ToolErrorDiagnosis",
     "ToolLoopMetrics",
     "ToolLoopEvent",
     "MAX_TOOL_ROUNDS",
@@ -72,39 +76,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Main tool loop
 # ---------------------------------------------------------------------------
-
-TOOL_ERROR_DIAGNOSIS_PROMPT = """诊断工具调用失败原因, 决定是否值得重试。
-
-[上下文]
-工具: {tool_name}
-输入: {tool_input}
-错误: {error}
-
-[输出契约] 仅输出 JSON, 不要其他内容:
-{{"should_retry": <bool>, "error_type": <str>, "reason": <str>}}
-
-瞬时错误(超时/网络/限流)→should_retry=true; 永久错误(权限/参数/逻辑)→should_retry=false。
-"""
-
-
-@dataclass(frozen=True)
-class ToolErrorDiagnosis:
-    """LLM 工具错误诊断结果。"""
-
-    should_retry: bool
-    error_type: str
-    reason: str = ""
-
-    @classmethod
-    def from_llm(cls, data: object) -> "ToolErrorDiagnosis | None":
-        """从 LLM 输出构造。缺 should_retry 或非 dict → None (降级信号)。"""
-        if not isinstance(data, dict) or "should_retry" not in data:
-            return None
-        return cls(
-            should_retry=bool(data["should_retry"]),
-            error_type=str(data.get("error_type", "unknown")),
-            reason=str(data.get("reason", "")),
-        )
 
 
 class ToolAwareLoop:

@@ -5,11 +5,18 @@ Anthropic (native tool_use) 与 OpenAI (function calling) 的:
 - 响应解析 (parse_anthropic / parse_openai → ToolCall)
 - usage token 提取
 
-无状态纯函数, 由 ToolAwareLoop 调用。
+以及工具错误诊断 (v6.11 T4 从 tool_loop.py 迁入):
+- ToolErrorDiagnosis 值对象 + from_llm 构造
+- TOOL_ERROR_DIAGNOSIS_PROMPT 诊断 prompt 常量
+
+无状态纯函数/值对象, 由 ToolAwareLoop 调用。
+ToolErrorDiagnosis / TOOL_ERROR_DIAGNOSIS_PROMPT 经 tool_loop re-export 保持
+`from arc.application.execution.tool_loop import ToolErrorDiagnosis` 路径可达。
 """
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 
 from arc.application.ai.llm_adapter import LLMMessage
 from arc.application.execution.tools import ToolCall
@@ -104,3 +111,41 @@ def extract_usage_tokens(result: dict) -> int:
     """从 adapter.chat_with_tools 结果提取 token 用量 (input+output)。"""
     usage = result.get("usage", {})
     return usage.get("input", 0) + usage.get("output", 0)
+
+
+# ---------------------------------------------------------------------------
+# Tool error diagnosis (v6.11 T4 从 tool_loop.py 迁入)
+# ---------------------------------------------------------------------------
+
+TOOL_ERROR_DIAGNOSIS_PROMPT = """诊断工具调用失败原因, 决定是否值得重试。
+
+[上下文]
+工具: {tool_name}
+输入: {tool_input}
+错误: {error}
+
+[输出契约] 仅输出 JSON, 不要其他内容:
+{{"should_retry": <bool>, "error_type": <str>, "reason": <str>}}
+
+瞬时错误(超时/网络/限流)→should_retry=true; 永久错误(权限/参数/逻辑)→should_retry=false。
+"""
+
+
+@dataclass(frozen=True)
+class ToolErrorDiagnosis:
+    """LLM 工具错误诊断结果。"""
+
+    should_retry: bool
+    error_type: str
+    reason: str = ""
+
+    @classmethod
+    def from_llm(cls, data: object) -> "ToolErrorDiagnosis | None":
+        """从 LLM 输出构造。缺 should_retry 或非 dict → None (降级信号)。"""
+        if not isinstance(data, dict) or "should_retry" not in data:
+            return None
+        return cls(
+            should_retry=bool(data["should_retry"]),
+            error_type=str(data.get("error_type", "unknown")),
+            reason=str(data.get("reason", "")),
+        )
