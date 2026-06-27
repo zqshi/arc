@@ -791,3 +791,84 @@ export const PIPELINE_PHASES: { key: PhaseType; label: string }[] = [
   { key: 'extraction', label: '经验抽取' },
 ];
 
+// ── Organization (v6.11: 组织管理入口, 对齐 backend schemas/organization.py) ──
+export type OrgPlan = 'free' | 'pro' | 'team';
+export type OrgRole = 'admin' | 'member';
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  role: string;
+}
+
+export interface OrgDetail {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  is_active: boolean;
+}
+
+export interface OrgMember {
+  id: string;
+  user_id: string;
+  display_name: string;
+  role: string;
+}
+
+export interface CreateOrgRequest {
+  name: string;
+  slug?: string;
+}
+
+export interface InviteMemberRequest {
+  user_id: string;
+  role?: OrgRole;
+}
+
+export interface SwitchOrgResult {
+  access_token: string;
+  org_id: string;
+}
+
+// ── Template (v6.11: 模板市场入口, 对齐 backend schemas/template.py) ──
+export type TemplateStatus = 'draft' | 'confirmed' | 'published' | 'deprecated';
+export type TemplateScope = 'personal' | 'team';
+
+export interface Template {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  source_project_id: string | null;
+  source_version_id: string | null;
+  source_user_id: string;
+  schema_template: Record<string, unknown>;
+  entity_patterns: string[];
+  state_machine_patterns: string[];
+  permission_patterns: string[];
+  tags: string[];
+  status: TemplateStatus;
+  scope: TemplateScope;
+  usage_count: number;
+  success_count: number;
+  success_rate: number;
+  confidence: number;
+  created_at: string | null;
+  last_used_at: string | null;
+}
+
+export interface TemplateUpdateRequest {
+  title?: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+}
+
+export interface TemplateApplyResult {
+  status: string;
+  template_id: string;
+}
+

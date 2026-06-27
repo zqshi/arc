@@ -12,6 +12,8 @@ const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const TodoDetail = lazy(() => import('./pages/TodoDetail'));
 const ExperienceList = lazy(() => import('./pages/ExperienceList'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const Organizations = lazy(() => import('./pages/Organizations'));
+const Templates = lazy(() => import('./pages/Templates'));
 
 function PageLoading() {
   return (
@@ -63,6 +65,8 @@ export default function App() {
                     <Route path="/todo/:id" element={<ErrorBoundary><TodoDetail /></ErrorBoundary>} />
                     <Route path="/project/:id" element={<ErrorBoundary><ProjectDetail /></ErrorBoundary>} />
                     <Route path="/experience" element={<ErrorBoundary><ExperienceList /></ErrorBoundary>} />
+                    <Route path="/organizations" element={<ErrorBoundary><Organizations /></ErrorBoundary>} />
+                    <Route path="/templates" element={<ErrorBoundary><Templates /></ErrorBoundary>} />
                     <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Route>

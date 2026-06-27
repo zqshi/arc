@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FolderOpen, Lightbulb, Settings, Menu, X, LogOut, Sun, Moon, Monitor } from 'lucide-react';
+import { FolderOpen, Lightbulb, Settings, Menu, X, LogOut, Sun, Moon, Monitor, Building2, LayoutTemplate } from 'lucide-react';
 import { useCurrentProject } from '../contexts/CurrentProjectContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../hooks/useTheme';
@@ -10,6 +10,8 @@ import { useBreakpoint } from '../hooks/useMediaQuery';
 const navItems = [
   { to: '/', icon: FolderOpen, label: '项目' },
   { to: '/experience', icon: Lightbulb, label: '经验' },
+  { to: '/templates', icon: LayoutTemplate, label: '模板' },
+  { to: '/organizations', icon: Building2, label: '组织' },
 ];
 
 function UserPopover({ user, onLogout }: { user: { display_name: string; username: string | null }; onLogout: () => void }) {

@@ -6,6 +6,8 @@ import { createConversationMethods, createExperienceMethods } from './experience
 import { createAgentMethods, createPlanningMethods } from './planning';
 import { createSystemMethods } from './system';
 import { createCapabilityMethods } from './capabilities';
+import { createOrganizationMethods } from './organizations';
+import { createTemplateMethods } from './templates';
 
 const request = createRequestFn(API_BASE);
 
@@ -18,6 +20,8 @@ export const api = {
   ...createPlanningMethods(request),
   ...createSystemMethods(request, API_BASE),
   ...createCapabilityMethods(request),
+  ...createOrganizationMethods(request),
+  ...createTemplateMethods(request),
 };
 
 export { ApiError };
