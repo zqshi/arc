@@ -22,6 +22,8 @@ const STATUS_OPTIONS: { value: CapabilityStatus; label: string }[] = [
   { value: 'disabled', label: '禁用' },
 ];
 
+type SkillSource = 'directory' | 'inline';
+
 export function CapabilityEditorModal({ open, onClose, onSaved, capability }: CapabilityEditorModalProps) {
   const { toast } = useToast();
   const isEdit = !!capability;
@@ -29,6 +31,11 @@ export function CapabilityEditorModal({ open, onClose, onSaved, capability }: Ca
   const [name, setName] = useState('');
   const [type, setType] = useState<CapabilityType>('agent');
   const [status, setStatus] = useState<CapabilityStatus>('active');
+  // skill 结构化 config (C3: 对接 C1 SkillLoader 多来源 directory/inline)
+  const [skillSource, setSkillSource] = useState<SkillSource>('directory');
+  const [skillDirectory, setSkillDirectory] = useState('');
+  const [skillContent, setSkillContent] = useState('');
+  // agent/mcp 仍用 JSON textarea (C2 schema 缓做)
   const [configText, setConfigText] = useState('{}');
   const [saving, setSaving] = useState(false);
 
@@ -38,11 +45,25 @@ export function CapabilityEditorModal({ open, onClose, onSaved, capability }: Ca
       setName(capability.name);
       setType(capability.type);
       setStatus(capability.status);
-      setConfigText(JSON.stringify(capability.config ?? {}, null, 2));
+      const cfg = capability.config ?? {};
+      if (capability.type === 'skill') {
+        setSkillSource(cfg.source === 'inline' ? 'inline' : 'directory');
+        setSkillDirectory(typeof cfg.directory === 'string' ? cfg.directory : '');
+        setSkillContent(typeof cfg.content === 'string' ? cfg.content : '');
+        setConfigText('{}');
+      } else {
+        setConfigText(JSON.stringify(cfg, null, 2));
+        setSkillSource('directory');
+        setSkillDirectory('');
+        setSkillContent('');
+      }
     } else {
       setName('');
       setType('agent');
       setStatus('active');
+      setSkillSource('directory');
+      setSkillDirectory('');
+      setSkillContent('');
       setConfigText('{}');
     }
   }, [open, capability]);
@@ -56,17 +77,33 @@ export function CapabilityEditorModal({ open, onClose, onSaved, capability }: Ca
 
   if (!open) return null;
 
+  const buildConfig = (): Record<string, unknown> | null => {
+    if (type === 'skill') {
+      if (skillSource === 'inline') {
+        if (!skillContent.trim()) {
+          toast('inline skill 需填写 SKILL.md 内容', 'error');
+          return null;
+        }
+        return { source: 'inline', content: skillContent };
+      }
+      return skillDirectory.trim()
+        ? { source: 'directory', directory: skillDirectory.trim() }
+        : {};
+    }
+    try {
+      return configText.trim() ? JSON.parse(configText) : {};
+    } catch {
+      toast('config 不是合法 JSON', 'error');
+      return null;
+    }
+  };
+
   const handleSubmit = async () => {
     const trimmed = name.trim();
     if (!trimmed) { toast('请填写能力名称', 'error'); return; }
 
-    let config: Record<string, unknown> = {};
-    try {
-      config = configText.trim() ? JSON.parse(configText) : {};
-    } catch {
-      toast('config 不是合法 JSON', 'error');
-      return;
-    }
+    const config = buildConfig();
+    if (config === null) return;
 
     setSaving(true);
     try {
@@ -145,17 +182,61 @@ export function CapabilityEditorModal({ open, onClose, onSaved, capability }: Ca
             </div>
           </div>
 
-          <div>
-            <label className="mb-1 block text-[11px] font-medium text-text-tertiary">配置 (JSON)</label>
-            <textarea
-              value={configText}
-              onChange={(e) => setConfigText(e.target.value)}
-              rows={6}
-              placeholder='{}'
-              className="w-full rounded-md border border-border bg-bg-input px-3 py-2 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent/50 focus:outline-none"
-            />
-            <p className="mt-1 text-[10px] text-text-muted">agent: {'{ agent_key, ... }'}；skill: {'{ skill_path, ... }'}。留空或 {'{}'} = 使用默认配置。</p>
-          </div>
+          {type === 'skill' ? (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-text-tertiary">Skill 来源</label>
+                <div className="flex gap-2">
+                  {(['directory', 'inline'] as SkillSource[]).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSkillSource(s)}
+                      className={`rounded-md border px-3 py-1.5 text-xs transition-all ${skillSource === s ? 'border-accent/50 bg-accent/5 text-accent' : 'border-border text-text-secondary hover:border-border-active'}`}
+                    >
+                      {s === 'directory' ? '目录 (SKILL.md)' : '内联文本'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {skillSource === 'directory' ? (
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-text-tertiary">Skill 目录路径</label>
+                  <input
+                    value={skillDirectory}
+                    onChange={(e) => setSkillDirectory(e.target.value)}
+                    placeholder="例如：~/.claude/skills/code-reviewer"
+                    className="h-9 w-full rounded-md border border-border bg-bg-input px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent/50 focus:outline-none"
+                  />
+                  <p className="mt-1 text-[10px] text-text-muted">读取该目录下的 SKILL.md。留空 = 使用默认配置。</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-text-tertiary">SKILL.md 内容</label>
+                  <textarea
+                    value={skillContent}
+                    onChange={(e) => setSkillContent(e.target.value)}
+                    rows={8}
+                    placeholder={'---\nname: code-reviewer\ndescription: ...\n---\n\n# 内容...'}
+                    className="w-full rounded-md border border-border bg-bg-input px-3 py-2 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent/50 focus:outline-none"
+                  />
+                  <p className="mt-1 text-[10px] text-text-muted">直接填写 SKILL.md 文本，无需文件。可用 skill-creator 生成后粘贴。</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-text-tertiary">配置 (JSON)</label>
+              <textarea
+                value={configText}
+                onChange={(e) => setConfigText(e.target.value)}
+                rows={6}
+                placeholder='{}'
+                className="w-full rounded-md border border-border bg-bg-input px-3 py-2 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent/50 focus:outline-none"
+              />
+              <p className="mt-1 text-[10px] text-text-muted">agent: {'{ agent_key, ... }'}。留空或 {'{}'} = 使用默认配置。</p>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">

@@ -84,6 +84,16 @@ export function CapabilityManager() {
     }
   };
 
+  // D2: 分组后副标题显示配置摘要 (skill→source, agent→agent_key), 提升信息密度
+  const subInfo = (cap: Capability): string => {
+    const cfg = (cap.config ?? {}) as Record<string, unknown>;
+    if (cap.type === 'skill') return cfg.source === 'inline' ? '内联文本' : '目录来源';
+    if (cap.type === 'agent' && typeof cfg.agent_key === 'string' && cfg.agent_key) {
+      return String(cfg.agent_key);
+    }
+    return cap.scope;
+  };
+
   return (
     <section className="rounded-lg border border-border bg-bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -106,38 +116,51 @@ export function CapabilityManager() {
           暂无能力声明。{isAdmin ? '点击「新增能力」创建。' : ''}
         </p>
       ) : (
-        <div className="space-y-2">
-          {capabilities.map((cap) => {
-            const Icon = TYPE_ICON[cap.type] ?? Plug;
-            const isActive = cap.status === 'active';
+        <div className="space-y-4">
+          {(['agent', 'skill', 'mcp'] as CapabilityType[]).map((t) => {
+            const items = capabilities.filter((c) => c.type === t);
+            if (items.length === 0) return null;
             return (
-              <div key={cap.id} className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2">
-                <div className={`flex h-7 w-7 items-center justify-center rounded-md ${isActive ? 'bg-accent/10 text-accent' : 'bg-bg-elevated text-text-muted'}`}>
-                  <Icon size={13} />
+              <div key={t}>
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                  {TYPE_LABEL[t]} <span className="font-normal opacity-70">· {items.length}</span>
+                </p>
+                <div className="space-y-2">
+                  {items.map((cap) => {
+                    const Icon = TYPE_ICON[cap.type] ?? Plug;
+                    const isActive = cap.status === 'active';
+                    return (
+                      <div key={cap.id} className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2">
+                        <div className={`flex h-7 w-7 items-center justify-center rounded-md ${isActive ? 'bg-accent/10 text-accent' : 'bg-bg-elevated text-text-muted'}`}>
+                          <Icon size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium text-text-primary">{cap.name}</p>
+                          <p className="truncate text-[10px] text-text-muted">{subInfo(cap)}</p>
+                        </div>
+                        {isAdmin && (
+                          <>
+                            <button
+                              onClick={() => toggleStatus(cap)}
+                              disabled={togglingId === cap.id}
+                              className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors ${isActive ? 'bg-accent' : 'bg-border'} disabled:opacity-50`}
+                              title={isActive ? '点击禁用' : '点击启用'}
+                              aria-label={isActive ? '禁用能力' : '启用能力'}
+                            >
+                              <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4' : ''}`} />
+                            </button>
+                            <button onClick={() => openEdit(cap)} className="rounded p-1 text-text-muted hover:bg-bg-elevated hover:text-text-secondary" aria-label="编辑能力">
+                              <Pencil size={12} />
+                            </button>
+                            <button onClick={() => handleDelete(cap)} className="rounded p-1 text-text-muted hover:bg-bg-elevated hover:text-status-error" aria-label="删除能力">
+                              <Trash2 size={12} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-text-primary">{cap.name}</p>
-                  <p className="text-[10px] text-text-muted">{TYPE_LABEL[cap.type]} · {cap.scope}</p>
-                </div>
-                {isAdmin && (
-                  <>
-                    <button
-                      onClick={() => toggleStatus(cap)}
-                      disabled={togglingId === cap.id}
-                      className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors ${isActive ? 'bg-accent' : 'bg-border'} disabled:opacity-50`}
-                      title={isActive ? '点击禁用' : '点击启用'}
-                      aria-label={isActive ? '禁用能力' : '启用能力'}
-                    >
-                      <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4' : ''}`} />
-                    </button>
-                    <button onClick={() => openEdit(cap)} className="rounded p-1 text-text-muted hover:bg-bg-elevated hover:text-text-secondary" aria-label="编辑能力">
-                      <Pencil size={12} />
-                    </button>
-                    <button onClick={() => handleDelete(cap)} className="rounded p-1 text-text-muted hover:bg-bg-elevated hover:text-status-error" aria-label="删除能力">
-                      <Trash2 size={12} />
-                    </button>
-                  </>
-                )}
               </div>
             );
           })}

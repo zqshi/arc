@@ -3,7 +3,7 @@
 export type TodoStatus = 'pending' | 'active' | 'suspended' | 'done' | 'error' | 'abandoned';
 export type PhaseType = 'clarification' | 'ui_design' | 'architecture' | 'development' | 'testing' | 'deployment' | 'extraction';
 export type PhaseStatus = 'pending' | 'active' | 'awaiting_confirm' | 'confirmed' | 'skipped';
-export type ArtifactType = 'requirement_spec' | 'ui_design' | 'tech_architecture' | 'dev_report' | 'test_report' | 'deploy_report' | 'experience_card' | 'interaction_design' | 'ui_spec' | 'prototype';
+export type ArtifactType = 'requirement_spec' | 'ui_design' | 'tech_architecture' | 'dev_report' | 'test_report' | 'deploy_report' | 'experience_card' | 'interaction_design' | 'ui_spec' | 'prototype' | 'app_code' | 'service_spec' | 'build';
 
 // ─── Artifact Content Types (discriminated union) ────────
 

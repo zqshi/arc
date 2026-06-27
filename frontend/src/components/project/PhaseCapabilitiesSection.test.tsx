@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ToastProvider } from '../Toast';
 import { PhaseCapabilitiesSection } from './PhaseCapabilitiesSection';
 import { api } from '../../api/client';
+import type { Capability } from '../../types/api';
 
 vi.mock('../../api/client', () => ({
   api: {
@@ -21,7 +22,7 @@ vi.mock('../../api/client', () => ({
   },
 }));
 
-const mockCaps = [
+const mockCaps: Capability[] = [
   { id: 'c1', name: 'code-reviewer', type: 'agent', config: {}, status: 'active', scope: 'global' },
 ];
 
