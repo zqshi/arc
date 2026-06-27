@@ -16,6 +16,7 @@ const DeployReport = lazy(() => import('./DeployReport'));
 const ExperienceCard = lazy(() => import('./ExperienceCard'));
 const AppCode = lazy(() => import('./AppCode'));
 const ServiceSpec = lazy(() => import('./ServiceSpec'));
+const Build = lazy(() => import('./Build'));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyContent = any;
@@ -38,6 +39,7 @@ const RENDERERS: Record<string, React.ComponentType<{ content: AnyContent }>> = 
   ui_design: UIDesign,
   app_code: AppCode,
   service_spec: ServiceSpec,
+  build: Build,
 };
 
 function RendererFallback() {

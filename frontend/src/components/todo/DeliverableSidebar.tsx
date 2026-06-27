@@ -26,6 +26,9 @@ const DELIVERABLE_LABELS: Record<string, string> = {
   deploy_report: '部署报告',
   experience_card: '经验卡片',
   ui_design: 'UI设计(旧)',
+  app_code: '工程元数据',
+  service_spec: '服务规格',
+  build: '构建产物',
 };
 
 interface DeliverableSidebarProps {
