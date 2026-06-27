@@ -15,6 +15,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import AsyncIterator
 
+from arc.domain.errors import AppError
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,9 +34,9 @@ class LLMMessage:
 
     def __post_init__(self) -> None:
         if self.role not in ("system", "user", "assistant"):
-            raise ValueError(f"Invalid role: {self.role!r}")
+            raise AppError(f"Invalid role: {self.role!r}")
         if not self.content or not self.content.strip():
-            raise ValueError("Message content cannot be empty")
+            raise AppError("Message content cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,7 +189,7 @@ def create_llm_adapter() -> LLMAdapter:
             base_url=settings.deepseek_base_url,
         )
 
-    raise ValueError(f"Unsupported LLM provider: {provider!r}")
+    raise AppError(f"Unsupported LLM provider: {provider!r}")
 
 
 def create_llm_adapter_from_config(llm_config: dict) -> LLMAdapter:

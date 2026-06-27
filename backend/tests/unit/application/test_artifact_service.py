@@ -7,6 +7,7 @@ import pytest
 
 from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.value_objects import ArtifactType
+from arc.domain.errors import AppError
 from arc.domain.pipeline.value_objects import PhaseType
 
 
@@ -57,7 +58,7 @@ class TestArtifactServiceUpdateContent:
         svc.artifact_repo.get_by_id = AsyncMock(return_value=art)
         svc.artifact_repo.update = AsyncMock(side_effect=lambda a: a)
 
-        with pytest.raises(ValueError, match="不可编辑字段"):
+        with pytest.raises(AppError, match="不可编辑字段"):
             await svc.update_content(
                 art.id, {"project_dir": "hacked/path", "tech_stack": ["vue"]}
             )
@@ -82,7 +83,7 @@ class TestArtifactServiceUpdateContent:
         svc.artifact_repo.get_by_id = AsyncMock(return_value=art)
         svc.artifact_repo.update = AsyncMock(side_effect=lambda a: a)
 
-        with pytest.raises(ValueError, match="不可编辑字段"):
+        with pytest.raises(AppError, match="不可编辑字段"):
             await svc.update_content(
                 art.id, {"notes": "new note", "data_persistence": "supabase"},
                 partial=True,
@@ -313,7 +314,7 @@ class TestArtifactServiceBuild:
         svc.artifact_repo = MagicMock()
         svc.artifact_repo.get_by_id = AsyncMock(return_value=art)
 
-        with pytest.raises(ValueError, match="仅适用 BUILD"):
+        with pytest.raises(AppError, match="仅适用 BUILD"):
             await svc.update_build_status(art.id, build_status="success")
 
     @pytest.mark.asyncio

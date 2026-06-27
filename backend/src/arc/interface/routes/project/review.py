@@ -64,10 +64,7 @@ async def resolve_review_feedback(
 ):
     repo = ReviewFeedbackRepository(db)
     svc = ReviewService(repo)
-    try:
-        fb = await svc.resolve_feedback(feedback_id, body.action, body.note)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    fb = await svc.resolve_feedback(feedback_id, body.action, body.note)
     return _feedback_resp(fb)
 
 

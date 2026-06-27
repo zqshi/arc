@@ -11,6 +11,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.errors import AppError
 from arc.domain.project.entity import Project
 from arc.domain.todo.entity import Todo
 from arc.domain.todo.value_objects import TodoStatus
@@ -82,7 +83,7 @@ class GitHubService:
         """
         parsed = parse_repo_url(project.repo_url)
         if not parsed:
-            raise RuntimeError("无法解析仓库地址")
+            raise AppError("无法解析仓库地址")
 
         owner, repo_name = parsed
 
@@ -115,7 +116,7 @@ class GitHubService:
                 timeout=300,
             )
             if result.returncode != 0:
-                raise RuntimeError(result.stderr or "git clone failed")
+                raise AppError(result.stderr or "git clone failed")
             return "cloned"
 
         action = await asyncio.to_thread(_clone_or_pull)

@@ -14,6 +14,7 @@ from arc.application.ai.llm_adapter import (
     create_llm_adapter,
 )
 from arc.application.ai.openai_adapter import OpenAIAdapter
+from arc.domain.errors import AppError
 
 
 class TestLLMMessage:
@@ -23,15 +24,15 @@ class TestLLMMessage:
             assert msg.role == role
 
     def test_invalid_role_raises(self) -> None:
-        with pytest.raises(ValueError, match="Invalid role"):
+        with pytest.raises(AppError, match="Invalid role"):
             LLMMessage(role="tool", content="hello")
 
     def test_empty_content_raises(self) -> None:
-        with pytest.raises(ValueError, match="cannot be empty"):
+        with pytest.raises(AppError, match="cannot be empty"):
             LLMMessage(role="user", content="")
 
     def test_whitespace_content_raises(self) -> None:
-        with pytest.raises(ValueError, match="cannot be empty"):
+        with pytest.raises(AppError, match="cannot be empty"):
             LLMMessage(role="user", content="   ")
 
     def test_frozen(self) -> None:
@@ -261,5 +262,5 @@ class TestCreateLLMAdapter:
         mock_s.llm_provider = "gemini"
 
         with patch("arc.config.settings", mock_s):
-            with pytest.raises(ValueError, match="Unsupported LLM provider"):
+            with pytest.raises(AppError, match="Unsupported LLM provider"):
                 create_llm_adapter()

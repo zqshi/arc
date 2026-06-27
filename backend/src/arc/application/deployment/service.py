@@ -17,7 +17,7 @@ from arc.domain.deployment.distributor import DistributorType
 from arc.domain.deployment.entity import Deployment
 from arc.domain.deployment.signer import SignerType
 from arc.domain.deployment.value_objects import DeployConfig, DeploymentStatus, DeployType
-from arc.domain.errors import NotFoundError
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.project.value_objects import ProjectType
 from arc.infrastructure.deployer import get_deployer
 from arc.infrastructure.repositories.deployment import DeploymentRepository
@@ -287,7 +287,7 @@ class DeployService:
             return DeployType.STATIC_SITE
         if project_type == ProjectType.BINARY_APP:
             return DeployType.BINARY_ARTIFACT
-        raise ValueError(f"暂不支持的项目类型: {project_type}")
+        raise AppError(f"暂不支持的项目类型: {project_type}")
 
     async def get_latest_deployment(self, version_id: uuid.UUID) -> Deployment | None:
         """获取版本最新一次部署记录。"""

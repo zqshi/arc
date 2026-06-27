@@ -240,10 +240,7 @@ async def publish_artifact(todo_id: str, artifact_id: str, db: DbSession, user: 
     from arc.application.artifact.publish_service import PublishService
 
     svc = PublishService(db)
-    try:
-        url = await svc.publish_prototype(UUID(artifact_id))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    url = await svc.publish_prototype(UUID(artifact_id))
     return {"preview_url": url}
 
 

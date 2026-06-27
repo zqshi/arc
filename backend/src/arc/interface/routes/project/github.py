@@ -6,6 +6,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException
 
+from arc.domain.errors import AppError
 from arc.infrastructure.repositories.project import ProjectRepository
 from arc.interface.deps import CurrentUser, DbSession
 
@@ -98,7 +99,7 @@ async def clone_github_repo(
         result = await svc.clone_repo(project, target_path)
     except subprocess.TimeoutExpired:
         raise HTTPException(504, "Git clone 超时，仓库可能过大")
-    except RuntimeError as e:
+    except AppError as e:
         raise HTTPException(400, f"Clone 失败: {e}")
     except Exception as e:
         raise HTTPException(500, f"Clone 异常: {e}")

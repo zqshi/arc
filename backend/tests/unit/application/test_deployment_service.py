@@ -17,7 +17,7 @@ from arc.application.deployment.service import DeployService
 from arc.domain.deployment.entity import Deployment
 from arc.domain.deployment.signer import SignerType
 from arc.domain.deployment.value_objects import DeploymentStatus, DeployType
-from arc.domain.errors import NotFoundError
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.project.value_objects import ProjectType
 
 
@@ -49,7 +49,7 @@ class TestDeployTypeFor:
         assert DeployService._deploy_type_for(ProjectType.BINARY_APP) == DeployType.BINARY_ARTIFACT
 
     def test_unsupported_raises(self):
-        with pytest.raises(ValueError, match="暂不支持"):
+        with pytest.raises(AppError, match="暂不支持"):
             DeployService._deploy_type_for("unknown_type")
 
 

@@ -11,6 +11,7 @@ from arc.application.pipeline.prompts import PHASE_EXTRACTION_PROMPTS
 from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.policy import filter_editable_fields
 from arc.domain.artifact.value_objects import PHASE_PRIMARY_ARTIFACT, ArtifactType
+from arc.domain.errors import AppError
 from arc.domain.pipeline.value_objects import PhaseType
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.conversation import ConversationRepository
@@ -119,7 +120,7 @@ class ArtifactService:
 
         _, rejected = filter_editable_fields(artifact.artifact_type, new_content.keys())
         if rejected:
-            raise ValueError(
+            raise AppError(
                 f"不可编辑字段: {', '.join(sorted(rejected))} "
                 f"(artifact_type={artifact.artifact_type.value})"
             )
@@ -180,10 +181,10 @@ class ArtifactService:
                 questions = result.follow_up_questions or [
                     "请补充目标用户、核心问题、功能方向"
                 ]
-                raise ValueError(
+                raise AppError(
                     f"需求信息尚不充分, 暂无法确认需求规格: {'; '.join(questions)}"
                 )
-        except ValueError:
+        except (ValueError, AppError):
             raise  # 阻断信号向上透传
         except Exception as exc:
             logger.warning(
@@ -269,7 +270,7 @@ class ArtifactService:
         if not artifact:
             return None
         if artifact.artifact_type != ArtifactType.BUILD:
-            raise ValueError(
+            raise AppError(
                 "update_build_status 仅适用 BUILD artifact, 实际 "
                 f"{artifact.artifact_type.value}"
             )

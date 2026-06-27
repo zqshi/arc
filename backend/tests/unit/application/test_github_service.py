@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from arc.application.integration.github_service import GitHubService, parse_repo_url
+from arc.domain.errors import AppError
 from arc.domain.project.entity import Project
 
 
@@ -107,7 +108,7 @@ class TestCloneRepo:
     async def test_clone_invalid_repo_url_raises(self, svc):
         """If repo_url can't be parsed, raises RuntimeError."""
         bad_project = Project(name="bad", repo_url="not-a-url")
-        with pytest.raises(RuntimeError, match="无法解析仓库地址"):
+        with pytest.raises(AppError, match="无法解析仓库地址"):
             await svc.clone_repo(bad_project)
 
     async def test_clone_scan_failure_does_not_propagate(self, svc, project):

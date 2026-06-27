@@ -10,6 +10,7 @@ from arc.application.agent.context_builder import TaskContextBuilder
 from arc.application.agent.registry import agent_registry
 from arc.domain.agent.entity import AgentSession
 from arc.domain.agent.value_objects import AgentType, SessionStatus
+from arc.domain.errors import NotFoundError
 from arc.domain.pipeline.value_objects import PhaseType
 from arc.domain.todo.value_objects import MessageRole
 from arc.infrastructure.repositories.agent import AgentSessionRepository
@@ -48,7 +49,7 @@ class AgentSessionManager:
 
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase:
-            raise ValueError(f"Phase {phase_type.value} not found for todo {todo_id}")
+            raise NotFoundError(f"Phase {phase_type.value} not found for todo {todo_id}")
 
         existing = await self.session_repo.get_by_phase_id(phase.id)
         if existing and not existing.is_terminal:
@@ -86,7 +87,7 @@ class AgentSessionManager:
     async def cancel_session(self, session_id: uuid.UUID) -> AgentSession:
         session = await self.session_repo.get_by_id(session_id)
         if not session:
-            raise ValueError(f"Session {session_id} not found")
+            raise NotFoundError(f"Session {session_id} not found")
 
         if session.is_terminal:
             return session

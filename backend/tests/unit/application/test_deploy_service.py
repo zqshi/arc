@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from arc.domain.errors import AppError
 from arc.infrastructure.storage import StorageAdapter
 
 
@@ -156,7 +157,7 @@ class TestDeployTypeRouting:
     def test_deploy_type_for_unsupported_raises(self) -> None:
         from arc.application.deployment.service import DeployService
 
-        with pytest.raises(ValueError, match="暂不支持的项目类型"):
+        with pytest.raises(AppError, match="暂不支持的项目类型"):
             DeployService._deploy_type_for("library")  # type: ignore[arg-type]
 
     def test_get_deployer_returns_static_site_deployer(self) -> None:

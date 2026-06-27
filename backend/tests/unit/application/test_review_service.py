@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from arc.application.review.service import ReviewService, _parse_issue
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.review.entity import InvalidFeedbackTransitionError, ReviewFeedback
 from arc.domain.review.value_objects import (
     ModelChangeScope,
@@ -161,7 +162,7 @@ class TestReviewServiceResolveFeedback:
         mock_repo.get_by_id = AsyncMock(return_value=None)
         svc = ReviewService(mock_repo)
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await svc.resolve_feedback(uuid.uuid4(), "accept")
 
     @pytest.mark.asyncio
@@ -170,5 +171,5 @@ class TestReviewServiceResolveFeedback:
         mock_repo.get_by_id = AsyncMock(return_value=fb)
         svc = ReviewService(mock_repo)
 
-        with pytest.raises(ValueError, match="Invalid action"):
+        with pytest.raises(AppError, match="Invalid action"):
             await svc.resolve_feedback(fb.id, "bogus")

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from arc.application.capability.service import CapabilityService
 from arc.application.project.convention_templates import ConventionTemplateRegistry
 from arc.application.project.governance_writer import GovernanceArtifactWriter
-from arc.domain.errors import ConflictError, NotFoundError
+from arc.domain.errors import AppError, ConflictError, NotFoundError
 from arc.domain.project.charter import ConventionTemplateProvider
 from arc.domain.project.entity import Project
 from arc.domain.project.value_objects import (
@@ -135,7 +135,7 @@ class ProjectWorkspaceService:
         if workspace_type == "local" and local_path:
             resolved = Path(local_path).expanduser().resolve()
             if not resolved.is_dir():
-                raise ValueError(f"目录不存在: {local_path}")
+                raise NotFoundError(f"目录不存在: {local_path}")
             project.local_path = str(resolved)
         elif workspace_type == "temporary":
             workspace_dir = Path.home() / ".arc" / "workspaces" / str(project.id)
@@ -215,7 +215,7 @@ class ProjectWorkspaceService:
 
         arc_workspace_prefix = str(Path.home() / ".arc" / "workspaces")
         if not project.local_path or not project.local_path.startswith(arc_workspace_prefix):
-            raise ValueError("当前项目不是临时工作区，无需迁移")
+            raise AppError("当前项目不是临时工作区，无需迁移")
 
         source = Path(project.local_path)
         target = Path(target_path).expanduser().resolve()

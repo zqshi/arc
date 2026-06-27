@@ -231,9 +231,6 @@ async def migrate_workspace(
         raise HTTPException(404, "Project not found")
 
     svc = ProjectWorkspaceService(db)
-    try:
-        project = await svc.migrate_workspace(project, target_path)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+    project = await svc.migrate_workspace(project, target_path)
 
     return _project_resp(project)

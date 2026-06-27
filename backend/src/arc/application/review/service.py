@@ -11,6 +11,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from arc.application.review.classifier import classify_change_scope
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.review.entity import ReviewFeedback
 from arc.domain.review.repository import IReviewFeedbackRepository
 from arc.domain.review.value_objects import (
@@ -88,7 +89,7 @@ class ReviewService:
         """
         feedback = await self._feedback_repo.get_by_id(feedback_id)
         if feedback is None:
-            raise ValueError(f"Feedback {feedback_id} not found")
+            raise NotFoundError(f"Feedback {feedback_id} not found")
 
         if action == "accept":
             feedback.accept(note)
@@ -97,7 +98,7 @@ class ReviewService:
         elif action == "reject":
             feedback.reject(note)
         else:
-            raise ValueError(f"Invalid action: {action!r}, expected accept/defer/reject")
+            raise AppError(f"Invalid action: {action!r}, expected accept/defer/reject")
 
         await self._feedback_repo.update(feedback)
         return feedback

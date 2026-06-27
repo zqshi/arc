@@ -8,6 +8,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.artifact.value_objects import ArtifactType
+from arc.domain.errors import AppError, NotFoundError
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.storage import get_storage
 
@@ -136,13 +137,13 @@ class PublishService:
     async def publish_prototype(self, artifact_id: uuid.UUID) -> str:
         artifact = await self.repo.get_by_id(artifact_id)
         if not artifact:
-            raise ValueError("Artifact not found")
+            raise NotFoundError("Artifact not found")
         if artifact.artifact_type != ArtifactType.PROTOTYPE:
-            raise ValueError("Only prototype artifacts can be published")
+            raise AppError("Only prototype artifacts can be published")
 
         pages = artifact.content.get("pages", [])
         if not pages:
-            raise ValueError("Prototype has no pages")
+            raise AppError("Prototype has no pages")
 
         storage = get_storage()
         prefix = f"previews/{artifact.todo_id}/{artifact.id}"
