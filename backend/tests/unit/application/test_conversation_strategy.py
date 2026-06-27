@@ -58,18 +58,18 @@ class TestBuildContextAwareGreeting:
     async def test_greeting_contains_title(self, service):
         from arc.domain.todo.entity import Todo
         todo = Todo(title="实现登录功能")
-        with patch.object(service, "_get_project_constraint", return_value="free"), \
-             patch.object(service, "_get_analysis_insight_for_greeting", return_value=""):
-            greeting = await service._build_context_aware_greeting(todo)
+        with patch.object(service._context, "get_project_constraint", return_value="free"), \
+             patch.object(service._context, "get_analysis_insight_for_greeting", return_value=""):
+            greeting = await service._context.build_context_aware_greeting(todo)
         assert "实现登录功能" in greeting
 
     @pytest.mark.asyncio
     async def test_greeting_shows_constraint_strict(self, service):
         from arc.domain.todo.entity import Todo
         todo = Todo(title="测试")
-        with patch.object(service, "_get_project_constraint", return_value="strict"), \
-             patch.object(service, "_get_analysis_insight_for_greeting", return_value=""):
-            greeting = await service._build_context_aware_greeting(todo)
+        with patch.object(service._context, "get_project_constraint", return_value="strict"), \
+             patch.object(service._context, "get_analysis_insight_for_greeting", return_value=""):
+            greeting = await service._context.build_context_aware_greeting(todo)
         assert "标准研发流程" in greeting
 
     @pytest.mark.asyncio
@@ -77,9 +77,11 @@ class TestBuildContextAwareGreeting:
         from arc.domain.todo.entity import Todo
         todo = Todo(title="测试")
         insight = "版本分析中对此需求的定位：**[P0]** 核心功能"
-        with patch.object(service, "_get_project_constraint", return_value="free"), \
-             patch.object(service, "_get_analysis_insight_for_greeting", return_value=insight):
-            greeting = await service._build_context_aware_greeting(todo)
+        with patch.object(service._context, "get_project_constraint", return_value="free"), \
+             patch.object(
+                 service._context, "get_analysis_insight_for_greeting", return_value=insight
+             ):
+            greeting = await service._context.build_context_aware_greeting(todo)
         assert "P0" in greeting
         assert "核心功能" in greeting
 
@@ -87,9 +89,9 @@ class TestBuildContextAwareGreeting:
     async def test_greeting_source_awareness(self, service):
         from arc.domain.todo.entity import Todo
         todo = Todo(title="AI推荐需求", source_session_id=uuid.uuid4())
-        with patch.object(service, "_get_project_constraint", return_value="free"), \
-             patch.object(service, "_get_analysis_insight_for_greeting", return_value=""):
-            greeting = await service._build_context_aware_greeting(todo)
+        with patch.object(service._context, "get_project_constraint", return_value="free"), \
+             patch.object(service._context, "get_analysis_insight_for_greeting", return_value=""):
+            greeting = await service._context.build_context_aware_greeting(todo)
         assert "版本分析建议" in greeting
 
     @pytest.mark.asyncio
@@ -99,9 +101,9 @@ class TestBuildContextAwareGreeting:
             title="重构登录",
             description="[P0] 来源：AI 迭代分析建议。需要将现有 session 改为 JWT。"
         )
-        with patch.object(service, "_get_project_constraint", return_value="free"), \
-             patch.object(service, "_get_analysis_insight_for_greeting", return_value=""):
-            greeting = await service._build_context_aware_greeting(todo)
+        with patch.object(service._context, "get_project_constraint", return_value="free"), \
+             patch.object(service._context, "get_analysis_insight_for_greeting", return_value=""):
+            greeting = await service._context.build_context_aware_greeting(todo)
         assert "直接开始推进" in greeting
         assert "解决什么问题" not in greeting
 
@@ -109,9 +111,9 @@ class TestBuildContextAwareGreeting:
     async def test_greeting_no_description_asks(self, service):
         from arc.domain.todo.entity import Todo
         todo = Todo(title="新功能")
-        with patch.object(service, "_get_project_constraint", return_value="free"), \
-             patch.object(service, "_get_analysis_insight_for_greeting", return_value=""):
-            greeting = await service._build_context_aware_greeting(todo)
+        with patch.object(service._context, "get_project_constraint", return_value="free"), \
+             patch.object(service._context, "get_analysis_insight_for_greeting", return_value=""):
+            greeting = await service._context.build_context_aware_greeting(todo)
         assert "解决什么问题" in greeting
 
 
