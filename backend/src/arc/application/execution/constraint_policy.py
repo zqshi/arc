@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from arc.application.context.content.methodology import FREE_BASELINES, MODERATE_PROMPTS
 from arc.domain.project.value_objects import ProcessConstraint
 
 
@@ -86,65 +87,7 @@ def get_methodology_prompt_for_constraint(
 
 def _quality_baseline_prompt(phase: str) -> str:
     """自由模式的质量底线 — 不约束怎么做，但明确做到什么标准才算完。"""
-    baselines = {
-        "clarification": """\
-## 质量底线
-产出 requirement_spec 时，以下字段不得为空或占位：
-- target_users（至少 1 个具体角色）
-- user_stories（至少覆盖核心场景）
-- acceptance_criteria（每个 P0 story 至少 1 条 AC）
-- boundaries.in_scope + out_of_scope""",
-
-        "ui_design": """\
-## 质量底线
-产出 interaction_design 时：
-- user_flows 每个流程有完整 mermaid 流程图
-- page_map 标注页面间跳转关系
-- 至少定义空状态和加载态
-
-产出 ui_spec 时：
-- design_tokens 必须包含 colors + typography + spacing
-- component_specs 每个组件有 states 描述和尺寸规范
-
-产出 prototype 时：
-- pages 每页有完整可渲染 HTML（含 Tailwind）
-- 标注对应用户场景
-- 核心操作路径 ≤ 3 步可达""",
-
-        "architecture": """\
-## 质量底线
-产出 tech_architecture 时：
-- tech_decisions 每个决策必须有 ≥2 个候选方案
-- data_model.entities 与 user_stories 对齐
-- 不得有上下文间循环依赖""",
-
-        "development": """\
-## 质量底线
-产出 dev_report 时：
-- test_results 不得包含 FAIL/ERROR
-- code_changes 不得为空""",
-
-        "testing": """\
-## 质量底线
-产出 test_report 时：
-- criteria_verification 逐条覆盖 P0 验收标准
-- 每个 pass 必须有 evidence（不接受无证据的自述）""",
-
-        "deployment": """\
-## 质量底线
-产出 deploy_report 时：
-- deploy_log.steps_executed 每步有明确 status
-- health_check_result 至少检查一个关键端点
-- rollback_plan 不得为空""",
-
-        "extraction": """\
-## 质量底线
-产出 experience_card 时：
-- problem + solution 不得为占位文本
-- decisions 至少包含 1 个有 options_considered 的决策点
-- pitfalls 记录至少 1 个实际遇到的问题""",
-    }
-    return baselines.get(phase, "")
+    return FREE_BASELINES.get(phase, "")
 
 
 def _clarification_prompt(
@@ -160,18 +103,7 @@ def _clarification_prompt(
         return build_clarification_prompt(strategy, round)
     else:
         # moderate: 直接给六维框架，不做策略路由
-        return """\
-## 需求澄清（精简模式）
-
-快速确认以下六项，有答案即可产出：
-1. **目标用户** — 谁在用？
-2. **使用场景** — 什么情境触发？
-3. **核心痛点** — 当前怎么解决的？为什么不够好？
-4. **功能方向** — 大致做什么？
-5. **边界** — 明确不做什么？
-6. **成功标准** — 做到什么程度算完？
-
-信息足够时直接产出交付物，不必追问到完美。"""
+        return MODERATE_PROMPTS["clarification"]
 
 
 def _ui_design_prompt(policy: ConstraintPolicy, round: int) -> str:
@@ -179,13 +111,7 @@ def _ui_design_prompt(policy: ConstraintPolicy, round: int) -> str:
         from arc.application.execution.ui_design_methodology import get_ui_design_prompt
         return get_ui_design_prompt(round)
     else:
-        return """\
-## 交互设计（精简模式）
-
-产出 wireframe 时注意：
-- 每页标注对应的用户场景
-- 定义空状态和加载态
-- 核心操作路径 ≤ 3 步"""
+        return MODERATE_PROMPTS["ui_design"]
 
 
 def _architecture_prompt(policy: ConstraintPolicy, round: int) -> str:
@@ -196,13 +122,7 @@ def _architecture_prompt(policy: ConstraintPolicy, round: int) -> str:
         )
         return f"{get_methodology_overview()}\n\n{get_sub_phase_prompt(round)}"
     else:
-        return """\
-## 技术架构（精简模式）
-
-产出时确保：
-- 每个技术决策有 ≥2 个候选方案 + 选择理由
-- 数据模型与需求中的用户故事对齐
-- API 设计覆盖核心场景"""
+        return MODERATE_PROMPTS["architecture"]
 
 
 def _development_prompt(policy: ConstraintPolicy) -> str:
@@ -210,10 +130,7 @@ def _development_prompt(policy: ConstraintPolicy) -> str:
         from arc.application.execution.dev_test_methodology import get_development_prompt
         return get_development_prompt(0)
     else:
-        return """\
-## 开发（精简模式）
-
-建议测试优先，但不强制 TDD 循环。完成前确认测试通过。"""
+        return MODERATE_PROMPTS["development"]
 
 
 def _testing_prompt(policy: ConstraintPolicy) -> str:
@@ -221,7 +138,4 @@ def _testing_prompt(policy: ConstraintPolicy) -> str:
         from arc.application.execution.dev_test_methodology import get_testing_prompt
         return get_testing_prompt(0)
     else:
-        return """\
-## 测试（精简模式）
-
-逐条对照验收标准，每条 pass/fail 需有证据。"""
+        return MODERATE_PROMPTS["testing"]

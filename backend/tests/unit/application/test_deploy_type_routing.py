@@ -63,7 +63,7 @@ class TestDeployTypeRouting:
         assert cfg.artifact_path == "src-tauri/target/release/bundle"
 
     def test_get_prototype_guide_for_static_site(self) -> None:
-        from arc.application.context.prompts import get_prototype_guide
+        from arc.application.context.content.methodology import get_prototype_guide
         from arc.domain.project.value_objects import ProjectType
 
         guide = get_prototype_guide(ProjectType.STATIC_SITE)
@@ -71,7 +71,7 @@ class TestDeployTypeRouting:
         assert "前端工程" in guide  # 原型工程化指导关键文案
 
     def test_get_prototype_guide_for_binary_app(self) -> None:
-        from arc.application.context.prompts import get_prototype_guide
+        from arc.application.context.content.methodology import get_prototype_guide
         from arc.domain.project.value_objects import ProjectType
 
         guide = get_prototype_guide(ProjectType.BINARY_APP)
@@ -79,7 +79,7 @@ class TestDeployTypeRouting:
         assert "原生客户端" in guide or "tauri" in guide.lower()
 
     def test_get_prototype_guide_unregistered_returns_empty(self) -> None:
-        from arc.application.context.prompts import get_prototype_guide
+        from arc.application.context.content.methodology import get_prototype_guide
 
         # 未注册类型返回空串, 不抛异常
         assert get_prototype_guide("library") == ""  # type: ignore[arg-type]
