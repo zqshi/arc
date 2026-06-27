@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from arc.domain.todo.entity import Todo
-from arc.domain.todo.value_objects import Tag
 
 
 class TestTodoServiceExtractTags:

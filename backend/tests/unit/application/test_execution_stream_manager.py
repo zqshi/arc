@@ -5,12 +5,10 @@ from __future__ import annotations
 import asyncio
 import time
 
-import pytest
-
 from arc.application.execution.stream_manager import (
+    _RETENTION_SECONDS,
     StreamManager,
     StreamSession,
-    _RETENTION_SECONDS,
 )
 
 

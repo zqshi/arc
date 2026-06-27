@@ -11,7 +11,6 @@ from arc.domain.project.value_objects import (
     DEFAULT_PIPELINE_CONFIG,
     ExecutionMode,
     ProjectStatus,
-    VALID_PHASES,
     VersionStatus,
 )
 

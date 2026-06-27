@@ -11,7 +11,6 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 
-from arc.config import settings
 from arc.domain.baas.value_objects import (
     BaasSchema,
     ColumnDef,
@@ -133,7 +132,7 @@ class TestBaasProvisionE2E:
 
             # 验证 RLS 启用
             rls_enabled = await check_client.fetchval(
-                f"SELECT relrowsecurity FROM pg_class WHERE relname='posts'",
+                "SELECT relrowsecurity FROM pg_class WHERE relname='posts'",
                 schema=unique
             )
             assert rls_enabled is True

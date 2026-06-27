@@ -11,7 +11,6 @@ import pytest
 from arc.domain.template.entity import DomainTemplate
 from arc.domain.template.value_objects import (
     TemplateCategory,
-    TemplateScope,
     TemplateStatus,
 )
 

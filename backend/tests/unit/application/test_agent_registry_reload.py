@@ -6,8 +6,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from arc.application.agent.registry import AgentRegistry, create_agent_registry
 from arc.domain.agent.value_objects import AgentType
 

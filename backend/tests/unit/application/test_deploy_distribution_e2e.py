@@ -18,7 +18,7 @@ from arc.domain.deployment.distribution import (
     DistributionOutcome,
 )
 from arc.domain.deployment.distributor import DistributorType
-from arc.domain.deployment.signer import SignResult, SignerType
+from arc.domain.deployment.signer import SignerType, SignResult
 from arc.domain.project.entity import Version
 from arc.domain.project.value_objects import ProjectType
 from arc.infrastructure.deployer.base import DeployResult

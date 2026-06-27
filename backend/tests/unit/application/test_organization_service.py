@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from arc.application.organization.service import OrganizationService
-from arc.domain.errors import ConflictError, ForbiddenError, NotFoundError
+from arc.domain.errors import ConflictError, ForbiddenError
 from arc.domain.organization.entity import Organization, OrganizationMember
 from arc.domain.organization.value_objects import OrgPlan, OrgRole
 

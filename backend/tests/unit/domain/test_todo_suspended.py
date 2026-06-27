@@ -6,7 +6,6 @@ import pytest
 
 from arc.domain.todo.entity import InvalidStatusTransitionError, Todo
 from arc.domain.todo.value_objects import TodoStatus
-from arc.domain.pipeline.value_objects import PhaseType
 
 
 def _make_active_todo() -> Todo:

@@ -12,7 +12,7 @@ from arc.application.sandbox.runtime import (
     ApprovalGateSandboxRuntime,
     DockerSandboxRuntime,
 )
-from arc.domain.sandbox.value_objects import SandboxPolicy, SandboxMode
+from arc.domain.sandbox.value_objects import SandboxMode, SandboxPolicy
 
 
 def _docker_available() -> bool:

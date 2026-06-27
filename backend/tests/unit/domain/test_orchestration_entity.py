@@ -2,8 +2,6 @@
 
 import uuid
 
-import pytest
-
 from arc.domain.orchestration.entity import OrchestrationPlan, Subtask
 from arc.domain.orchestration.value_objects import SubtaskType, WorkerRole, WorkerStatus
 

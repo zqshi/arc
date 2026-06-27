@@ -7,14 +7,13 @@ Play Developer API v3 (httpx + jose RS256 JWT)。mock httpx.AsyncClient + jose.j
 import json
 
 import pytest
+from cryptography.fernet import Fernet
 
 from arc.domain.deployment.distributor import DistributorType
 from arc.domain.project.entity import Project
 from arc.infrastructure.crypto import encrypt
 from arc.infrastructure.distributor import load_distribution_creds_for_project
 from arc.infrastructure.distributor.playstore import PlayStoreDistributor
-
-from cryptography.fernet import Fernet
 
 _TEST_KEY = Fernet.generate_key().decode()
 

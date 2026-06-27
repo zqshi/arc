@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from unittest.mock import MagicMock
 
 from arc.application.execution.execution_engine import _map_tool_event, _needs_user_input

@@ -5,9 +5,9 @@ T2 后: AppleSigner 已注册, Windows/Android 未实现。
 
 from cryptography.fernet import Fernet
 
-from arc.domain.deployment.signer import SigningCredentials, SignerType
+from arc.domain.deployment.signer import SignerType, SigningCredentials
 from arc.domain.project.entity import Project
-from arc.infrastructure.crypto import decrypt, encrypt
+from arc.infrastructure.crypto import encrypt
 from arc.infrastructure.signer import SIGNERS, get_signer, load_credentials_for_project
 from arc.infrastructure.signer.apple import AppleSigner
 

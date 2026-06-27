@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
-import pytest
-
 from arc.domain.project.entity import Project
 from arc.domain.project.value_objects import ProjectStatus
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch

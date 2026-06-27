@@ -6,19 +6,17 @@ mock storage (build_manifest 的 get_public_url + publish 的 storage) + distrib
 
 import pytest
 
+from arc.application.deployment.distribution import DistributionService
 from arc.domain.deployment.distribution import (
     ArtifactEntry,
     DistributionManifest,
-    DistributionOutcome,
 )
 from arc.domain.deployment.distributor import (
-    DistributionCredentials,
     DistributeResult,
+    DistributionCredentials,
     DistributorType,
 )
-from arc.domain.deployment.signer import SignResult, SignerType
-from arc.application.deployment.distribution import DistributionService
-
+from arc.domain.deployment.signer import SignerType, SignResult
 
 # -- 测试用 fixture ----------------------------------------------------
 

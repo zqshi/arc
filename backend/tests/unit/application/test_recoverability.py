@@ -43,7 +43,6 @@ class TestCheckpointRestore:
         mock_repo_cls = MagicMock()
         mock_repo_cls.return_value.get_by_id = AsyncMock(return_value=conv)
 
-        import arc.application.execution.checkpoint as ckpt_mod
         import arc.infrastructure.repositories.conversation as conv_mod
         original = conv_mod.ConversationRepository
         conv_mod.ConversationRepository = mock_repo_cls

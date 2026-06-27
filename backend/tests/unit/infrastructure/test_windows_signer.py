@@ -4,14 +4,13 @@ mock subprocess (signtool 非 macOS 原生, 真实验证需 Windows)。
 """
 
 import pytest
+from cryptography.fernet import Fernet
 
 from arc.domain.deployment.signer import SignerType
 from arc.domain.project.entity import Project
 from arc.infrastructure.crypto import encrypt
 from arc.infrastructure.signer import load_credentials_for_project
 from arc.infrastructure.signer.windows import WindowsSigner
-
-from cryptography.fernet import Fernet
 
 _TEST_KEY = Fernet.generate_key().decode()
 

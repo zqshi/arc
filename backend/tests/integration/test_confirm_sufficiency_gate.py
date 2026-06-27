@@ -43,8 +43,8 @@ async def _make_todo_with_artifact(
 
     from arc.domain.artifact.entity import Artifact
     from arc.domain.artifact.value_objects import ArtifactType
-    from arc.infrastructure.repositories.artifact import ArtifactRepository
     from arc.domain.todo.entity import Todo
+    from arc.infrastructure.repositories.artifact import ArtifactRepository
     from arc.infrastructure.repositories.todo import TodoRepository
 
     todo = await TodoRepository(db_session).create(

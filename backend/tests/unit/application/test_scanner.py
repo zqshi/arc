@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
-
-from arc.application.project.scanner import CodebaseScanner, IGNORE_DIRS
+from arc.application.project.scanner import CodebaseScanner
 
 
 class TestCodebaseScannerTree:

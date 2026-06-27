@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from arc.infrastructure.storage import StorageAdapter, DEFAULT_MAX_UPLOAD_SIZE as MAX_UPLOAD_SIZE
+from arc.infrastructure.storage import DEFAULT_MAX_UPLOAD_SIZE as MAX_UPLOAD_SIZE
+from arc.infrastructure.storage import StorageAdapter
 
 
 @pytest.fixture

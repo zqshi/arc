@@ -5,11 +5,10 @@ asyncpg 直连 + schema 隔离执行。测试用 mock pool 验证 SQL 执行逻�
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from arc.domain.baas.value_objects import SCHEMA_NAME_PREFIX
 from arc.infrastructure.baas.supabase_client import SupabaseClient
 
 

@@ -22,8 +22,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from opensandbox import Sandbox
-from opensandbox.models import WriteEntry
+try:
+    from opensandbox import Sandbox
+    from opensandbox.models import WriteEntry
+except ImportError:  # SDK 可选: 本地无 opensandbox 时模块仍可加载, 测试 mock 注入 (TD-4)
+    Sandbox = None  # type: ignore[assignment,misc]
+    WriteEntry = None  # type: ignore[assignment,misc]
 
 from arc.application.sandbox.registry import sandbox_registry
 from arc.application.sandbox.runtime import SandboxRuntime

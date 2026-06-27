@@ -7,7 +7,7 @@ import pytest
 
 from arc.application.review.service import ReviewService, _parse_issue
 from arc.domain.errors import AppError, NotFoundError
-from arc.domain.review.entity import InvalidFeedbackTransitionError, ReviewFeedback
+from arc.domain.review.entity import ReviewFeedback
 from arc.domain.review.value_objects import (
     ModelChangeScope,
     ReviewFeedbackStatus,

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from arc.application.review.orchestrator import ModelUpgradeOrchestrator, UpgradeResult
+from arc.application.review.orchestrator import ModelUpgradeOrchestrator
 from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.value_objects import ArtifactType
 from arc.domain.pipeline.value_objects import PhaseType

@@ -6,7 +6,6 @@ PrototypeDeployer 在部署前端工程时, 若项目已 provision BaaS,
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

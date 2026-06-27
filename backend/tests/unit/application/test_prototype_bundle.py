@@ -12,7 +12,6 @@ from arc.application.artifact.prototype_bundle import (
     PrototypeBundleService,
 )
 
-
 # -- Fake domain objects for mocking ------------------------------------------
 
 

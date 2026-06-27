@@ -2,7 +2,7 @@
 
 from cryptography.fernet import Fernet
 
-from arc.infrastructure.crypto import decrypt, encrypt, _fernet
+from arc.infrastructure.crypto import _fernet, decrypt, encrypt
 
 # 测试用固定密钥 (不依赖 env 是否配 signing_secret_key)
 _TEST_KEY = Fernet.generate_key().decode()

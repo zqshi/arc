@@ -1,6 +1,5 @@
 """变更分级分类器单元测试。"""
 
-import pytest
 
 from arc.application.review.classifier import classify_change_scope
 from arc.domain.review.value_objects import (

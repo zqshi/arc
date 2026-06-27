@@ -6,8 +6,6 @@ LLM 三维评估(target_users/core_problem/feature_direction), 降级放行(不�
 
 from __future__ import annotations
 
-import pytest
-
 from arc.application.execution.sufficiency_gate import (
     SufficiencyResult,
     evaluate_sufficiency,

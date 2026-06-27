@@ -1,7 +1,7 @@
 """VersionService 单元测试。"""
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

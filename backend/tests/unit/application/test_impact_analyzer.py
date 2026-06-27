@@ -17,7 +17,6 @@ from arc.domain.review.value_objects import ModelChangeScope, RiskLevel
 from arc.domain.todo.entity import Todo
 from arc.domain.todo.value_objects import TodoStatus
 
-
 # ── Risk Matrix Tests ────────────────────────────────────
 
 

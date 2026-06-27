@@ -9,7 +9,7 @@ import pytest
 from arc.domain.errors import NotFoundError
 from arc.domain.experience.entity import Experience
 from arc.domain.todo.entity import Todo
-from arc.domain.todo.value_objects import ExperienceStatus, TodoStatus
+from arc.domain.todo.value_objects import ExperienceStatus
 
 
 class TestExperienceServiceConfirm:
@@ -242,7 +242,6 @@ class TestExperienceServiceExtractFromTodo:
 
     @pytest.mark.asyncio
     async def test_skips_when_experience_already_exists(self):
-        from arc.application.experience.service import ExperienceService
 
         todo = Todo(title="t", description="d", id=uuid.uuid4())
         svc = self._make_svc(existing=True)

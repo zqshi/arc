@@ -1,7 +1,5 @@
 """Project 领域模型快照机制单元测试。"""
 
-import copy
-import uuid
 
 import pytest
 

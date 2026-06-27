@@ -7,12 +7,11 @@ graceful skip 原则: 凭证未配 → skipped=True, 构建不阻断 (仅 warnin
 """
 
 from arc.domain.deployment.signer import (
-    SignResult,
-    SigningCredentials,
     Signer,
     SignerType,
+    SigningCredentials,
+    SignResult,
 )
-from arc.domain.sandbox.value_objects import BuildTarget
 
 
 class TestSignerType:

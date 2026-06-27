@@ -1,4 +1,8 @@
-"""StorageAdapter.upload_dir + StaticSiteDeployer 集成测试（local filesystem mode）。"""
+"""StorageAdapter.upload_dir + StaticSiteDeployer local filesystem 集成测试。
+
+v6.10 TD-2: 从 test_deploy_service.py 迁出。原文件混合 StorageAdapter/Deployer/
+类型路由注册点, 职责不清; 此处聚焦 infrastructure 层 local mode 部署链路。
+"""
 from __future__ import annotations
 
 import uuid
@@ -6,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from arc.domain.errors import AppError
 from arc.infrastructure.storage import StorageAdapter
 
 
@@ -125,101 +128,3 @@ class TestStaticSiteDeployer:
         assert result.success is False
         assert "index.html" in result.error
         mod._adapter = None
-
-
-class TestDeployTypeRouting:
-    """v5.9.0: DeployService.deploy() 按 project_type 路由部署器。
-
-    验证三处注册点一致: ProjectType → DeployType → Deployer → DeployConfig。
-    新增类型时在此扩展断言。纯逻辑, 不依赖 db。
-    """
-
-    def test_deploy_type_for_static_site(self) -> None:
-        from arc.application.deployment.service import DeployService
-        from arc.domain.deployment.value_objects import DeployType
-        from arc.domain.project.value_objects import ProjectType
-
-        assert (
-            DeployService._deploy_type_for(ProjectType.STATIC_SITE)
-            == DeployType.STATIC_SITE
-        )
-
-    def test_deploy_type_for_binary_app(self) -> None:
-        from arc.application.deployment.service import DeployService
-        from arc.domain.deployment.value_objects import DeployType
-        from arc.domain.project.value_objects import ProjectType
-
-        assert (
-            DeployService._deploy_type_for(ProjectType.BINARY_APP)
-            == DeployType.BINARY_ARTIFACT
-        )
-
-    def test_deploy_type_for_unsupported_raises(self) -> None:
-        from arc.application.deployment.service import DeployService
-
-        with pytest.raises(AppError, match="暂不支持的项目类型"):
-            DeployService._deploy_type_for("library")  # type: ignore[arg-type]
-
-    def test_get_deployer_returns_static_site_deployer(self) -> None:
-        from arc.domain.deployment.value_objects import DeployType
-        from arc.infrastructure.deployer import Deployer, get_deployer
-        from arc.infrastructure.deployer.static_site import StaticSiteDeployer
-
-        deployer = get_deployer(DeployType.STATIC_SITE)
-        assert isinstance(deployer, StaticSiteDeployer)
-        assert isinstance(deployer, Deployer)
-
-    def test_get_deployer_returns_binary_artifact_deployer(self) -> None:
-        from arc.domain.deployment.value_objects import DeployType
-        from arc.infrastructure.deployer import Deployer, get_deployer
-        from arc.infrastructure.deployer.binary_artifact import (
-            BinaryArtifactDeployer,
-        )
-
-        deployer = get_deployer(DeployType.BINARY_ARTIFACT)
-        assert isinstance(deployer, BinaryArtifactDeployer)
-        assert isinstance(deployer, Deployer)
-
-    def test_get_deployer_unsupported_raises(self) -> None:
-        from arc.infrastructure.deployer import get_deployer
-
-        with pytest.raises(ValueError, match="暂不支持的部署类型"):
-            get_deployer("library")  # type: ignore[arg-type]
-
-    def test_deploy_config_for_static_site(self) -> None:
-        from arc.domain.deployment.value_objects import DeployConfig
-        from arc.domain.project.value_objects import ProjectType
-
-        cfg = DeployConfig.for_type(ProjectType.STATIC_SITE)
-        assert cfg.build_command == "npm run build"
-        assert cfg.artifact_path == "dist"
-
-    def test_deploy_config_for_binary_app(self) -> None:
-        from arc.domain.deployment.value_objects import DeployConfig
-        from arc.domain.project.value_objects import ProjectType
-
-        cfg = DeployConfig.for_type(ProjectType.BINARY_APP)
-        assert cfg.build_command == "cargo tauri build"
-        assert cfg.artifact_path == "src-tauri/target/release/bundle"
-
-    def test_get_prototype_guide_for_static_site(self) -> None:
-        from arc.application.context.prompts import get_prototype_guide
-        from arc.domain.project.value_objects import ProjectType
-
-        guide = get_prototype_guide(ProjectType.STATIC_SITE)
-        assert guide  # 非空
-        assert "前端工程" in guide  # 原型工程化指导关键文案
-
-    def test_get_prototype_guide_for_binary_app(self) -> None:
-        from arc.application.context.prompts import get_prototype_guide
-        from arc.domain.project.value_objects import ProjectType
-
-        guide = get_prototype_guide(ProjectType.BINARY_APP)
-        assert guide  # 非空
-        assert "原生客户端" in guide or "tauri" in guide.lower()
-
-    def test_get_prototype_guide_unregistered_returns_empty(self) -> None:
-        from arc.application.context.prompts import get_prototype_guide
-
-        # 未注册类型返回空串, 不抛异常
-        assert get_prototype_guide("library") == ""  # type: ignore[arg-type]

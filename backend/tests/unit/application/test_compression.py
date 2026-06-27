@@ -5,8 +5,6 @@ from __future__ import annotations
 import pytest
 
 from arc.application.context.compression import (
-    L1_HEAD_CHARS,
-    L1_TAIL_CHARS,
     L1_TRIGGER_CHARS,
     CompressionManager,
 )

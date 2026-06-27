@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from arc.application.context.providers.capability import CapabilityProvider
 from arc.application.context.protocol import ContextRequest
+from arc.application.context.providers.capability import CapabilityProvider
 from arc.domain.capability.value_objects import (
     Capability,
     CapabilityStatus,

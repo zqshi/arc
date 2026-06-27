@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from arc.application.execution.checkpoint import (
-    HandoffPackage,
-    _extract_file_paths,
-    _extract_patterns,
     _COMPLETED_PATTERNS,
     _DECISION_PATTERNS,
     _FAILURE_PATTERNS,
     _PENDING_PATTERNS,
+    HandoffPackage,
+    _extract_file_paths,
+    _extract_patterns,
 )
 
 

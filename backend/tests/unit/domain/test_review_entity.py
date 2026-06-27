@@ -1,7 +1,7 @@
 """ReviewFeedback 实体单元测试。"""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 

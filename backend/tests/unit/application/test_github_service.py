@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from arc.application.integration.github_service import GitHubService, parse_repo_url
 from arc.domain.errors import AppError
 from arc.domain.project.entity import Project
-
 
 # ── parse_repo_url ──────────────────────────────────────────
 

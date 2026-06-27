@@ -6,14 +6,13 @@ mock 依赖 (SupabaseClient/Provisioner/repositories), 验证编排逻辑。
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.baas.entity import BaasInstance
 from arc.domain.baas.value_objects import (
-    ActionDef,
     BaasSchema,
     BaasStatus,
     ColumnDef,

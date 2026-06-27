@@ -5,13 +5,13 @@
 """
 from __future__ import annotations
 
+from arc.application.baas.rls_validator import validate_rls
 from arc.domain.baas.value_objects import (
     BaasSchema,
     ColumnDef,
     RlsPolicy,
     TableDef,
 )
-from arc.application.baas.rls_validator import RlsWarning, validate_rls
 
 
 def _make_schema(

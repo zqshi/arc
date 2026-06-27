@@ -28,7 +28,7 @@ def _mock_execution(stdout: str = "", stderr: str = "", exit_code: int = 0):
 
 @pytest.fixture
 def mock_sandbox():
-    """mock opensandbox.Sandbox + sandbox_registry (首建路径: get 返回 None)。"""
+    """mock opensandbox.Sandbox + sandbox_registry + WriteEntry (首建路径: get 返回 None)。"""
     sb = AsyncMock()
     sb.sandbox_id = "sb-id-123"
     sb.commands = AsyncMock()
@@ -41,6 +41,7 @@ def mock_sandbox():
     with (
         patch("arc.application.sandbox.opensandbox_runtime.Sandbox") as sandbox_cls,
         patch("arc.application.sandbox.opensandbox_runtime.sandbox_registry") as reg,
+        patch("arc.application.sandbox.opensandbox_runtime.WriteEntry"),
     ):
         sandbox_cls.create = AsyncMock(return_value=sb)
         sandbox_cls.connect = AsyncMock(return_value=sb)

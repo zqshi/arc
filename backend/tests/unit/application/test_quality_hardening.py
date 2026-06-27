@@ -13,14 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from arc.application.execution.tools import ToolCall, ToolResult
-
 
 # =====================================================================
 # A1: Tool 执行超时 + 重试
@@ -256,7 +253,7 @@ class TestExperienceSearchQualityGate:
     @pytest.mark.asyncio
     async def test_filters_below_threshold(self):
         """低于 SIMILARITY_THRESHOLD 的结果被过滤。"""
-        from arc.application.experience.service import ExperienceService, SIMILARITY_THRESHOLD
+        from arc.application.experience.service import ExperienceService
 
         service = ExperienceService.__new__(ExperienceService)
         service.db = AsyncMock()
@@ -286,8 +283,8 @@ class TestExperienceSearchQualityGate:
     async def test_diversity_limits_same_category(self):
         """同一 category 最多返回 MAX_SAME_CATEGORY 条。"""
         from arc.application.experience.service import (
-            ExperienceService,
             MAX_SAME_CATEGORY,
+            ExperienceService,
         )
 
         service = ExperienceService.__new__(ExperienceService)
