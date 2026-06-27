@@ -12,6 +12,8 @@ import logging
 import uuid
 from typing import TYPE_CHECKING
 
+from arc.application.context.content.phase_prompts import _PHASE_INFERENCE_PROMPT
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -289,17 +291,3 @@ PHASE_SEQUENCE = [
     "clarification", "ui_design", "architecture",
     "development", "testing", "deployment",
 ]
-
-_PHASE_INFERENCE_PROMPT = """\
-根据已完成的交付物, 推断当前应聚焦的开发阶段。
-
-已完成交付物: {completed}
-标准流程预筛: {prefilter}
-
-阶段序列(参考): clarification → ui_design → architecture → development → testing → deployment
-
-输出 JSON 契约:
-{{"phase": "当前阶段名"}}
-
-若实际进度与预筛一致则返回预筛值; 若需推进或回退(如某阶段产出有问题需返工),\
-返回调整后的阶段名(必须是上述阶段序列之一)。"""

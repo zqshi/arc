@@ -11,7 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from arc.application.pipeline.prompts import (
+from arc.application.context.content.phase_prompts import (
     PHASE_EXTRACTION_PROMPTS,
     PHASE_SYSTEM_PROMPTS,
 )

@@ -6,8 +6,8 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.ai.json_extract import extract_json
+from arc.application.context.content.phase_prompts import PHASE_EXTRACTION_PROMPTS
 from arc.application.pipeline.prompt_registry import prompt_registry
-from arc.application.pipeline.prompts import PHASE_EXTRACTION_PROMPTS
 from arc.domain.artifact.entity import Artifact
 from arc.domain.artifact.policy import filter_editable_fields
 from arc.domain.artifact.value_objects import PHASE_PRIMARY_ARTIFACT, ArtifactType
