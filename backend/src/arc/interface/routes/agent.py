@@ -47,10 +47,7 @@ async def execute_agent(
             raise HTTPException(status_code=400, detail=f"Invalid agent type: {req.agent_type}")
 
     svc = PipelineService(db)
-    try:
-        session = await svc.execute_with_agent(UUID(todo_id), pt, agent_type)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    session = await svc.execute_with_agent(UUID(todo_id), pt, agent_type)
     return _session_response(session)
 
 

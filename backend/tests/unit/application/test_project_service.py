@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.project.entity import Version
 from arc.domain.project.value_objects import VersionStatus
 
@@ -92,7 +93,7 @@ class TestDeleteVersion:
         v.release()
         svc.version_repo.get_by_id = AsyncMock(return_value=v)
 
-        with pytest.raises(ValueError, match="已发布版本不可删除"):
+        with pytest.raises(AppError, match="已发布版本不可删除"):
             await svc.delete_version(project_id, version_id)
 
     async def test_delete_with_todos_raises(self) -> None:
@@ -106,7 +107,7 @@ class TestDeleteVersion:
             return_value={"pending": 2, "done": 1}
         )
 
-        with pytest.raises(ValueError, match="请先删除版本下的需求"):
+        with pytest.raises(AppError, match="请先删除版本下的需求"):
             await svc.delete_version(project_id, version_id)
 
     async def test_delete_empty_planning_version_succeeds(self) -> None:
@@ -149,7 +150,7 @@ class TestActivateVersion:
         svc.version_repo.get_by_id = AsyncMock(return_value=v)
         svc.version_repo.count_todos_by_status = AsyncMock(return_value={})
 
-        with pytest.raises(ValueError, match="版本下没有需求"):
+        with pytest.raises(AppError, match="版本下没有需求"):
             await svc.activate_version(project_id, version_id)
 
 
@@ -166,7 +167,7 @@ class TestReleaseVersion:
             return_value={"pending": 2, "active": 1, "done": 5}
         )
 
-        with pytest.raises(ValueError, match="未完成需求"):
+        with pytest.raises(AppError, match="未完成需求"):
             await svc.release_version(project_id, version_id)
 
 
@@ -178,7 +179,7 @@ class TestGetVersion:
 
         svc.version_repo.get_by_id = AsyncMock(return_value=None)
 
-        with pytest.raises(ValueError, match="版本不存在"):
+        with pytest.raises(NotFoundError, match="版本不存在"):
             await svc._get_version(project_id, version_id)
 
     async def test_version_wrong_project_raises(self) -> None:
@@ -189,7 +190,7 @@ class TestGetVersion:
         v = Version(project_id=uuid.uuid4(), name="v1.0", id=version_id)
         svc.version_repo.get_by_id = AsyncMock(return_value=v)
 
-        with pytest.raises(ValueError, match="版本不存在"):
+        with pytest.raises(NotFoundError, match="版本不存在"):
             await svc._get_version(project_id, version_id)
 
 

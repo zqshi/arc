@@ -65,10 +65,7 @@ async def start_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
     from arc.application.pipeline.service import PipelineService
 
     svc = PipelineService(db)
-    try:
-        phases = await svc.initialize_pipeline(UUID(todo_id))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    phases = await svc.initialize_pipeline(UUID(todo_id))
     return [_phase_response(p) for p in phases]
 
 
@@ -86,10 +83,7 @@ async def start_phase(todo_id: str, phase_type: str, db: DbSession, user: Curren
 
     pt = _parse_phase_type(phase_type)
     svc = PipelineService(db)
-    try:
-        phase = await svc.start_phase(UUID(todo_id), pt)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    phase = await svc.start_phase(UUID(todo_id), pt)
     return _phase_response(phase)
 
 
@@ -142,10 +136,7 @@ async def skip_phase(todo_id: str, phase_type: str, db: DbSession, user: Current
 
     pt = _parse_phase_type(phase_type)
     svc = PipelineService(db)
-    try:
-        phase = await svc.skip_phase(UUID(todo_id), pt)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    phase = await svc.skip_phase(UUID(todo_id), pt)
     if not phase:
         raise HTTPException(status_code=404, detail="Phase not found")
     return _phase_response(phase)

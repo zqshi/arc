@@ -159,10 +159,7 @@ async def activate_version(
     user: CurrentUser,
 ):
     svc = VersionService(db)
-    try:
-        version = await svc.activate_version(project_id, version_id)
-    except ValueError as e:
-        raise HTTPException(409, str(e))
+    version = await svc.activate_version(project_id, version_id)
     stats = await svc.version_repo.count_todos_by_status(version_id)
     return _version_resp(version, stats)
 
@@ -178,10 +175,7 @@ async def release_version(
     user: CurrentUser,
 ):
     svc = VersionService(db)
-    try:
-        version, carry_over = await svc.release_version(project_id, version_id)
-    except ValueError as e:
-        raise HTTPException(409, str(e))
+    version, carry_over = await svc.release_version(project_id, version_id)
 
     try:
         from arc.application.planning.planning_service import PlanningService
@@ -206,7 +200,4 @@ async def delete_version(
     user: CurrentUser,
 ):
     svc = VersionService(db)
-    try:
-        await svc.delete_version(project_id, version_id)
-    except ValueError as e:
-        raise HTTPException(409, str(e))
+    await svc.delete_version(project_id, version_id)

@@ -224,10 +224,7 @@ async def preview_apply_diff(
     from arc.application.planning.planning_service import PlanningService
 
     svc = PlanningService(db)
-    try:
-        diff = await svc.preview_apply_diff(session_id)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+    diff = await svc.preview_apply_diff(session_id)
     return diff
 
 
@@ -245,12 +242,10 @@ async def apply_with_diff(
 
     svc = PlanningService(db)
     try:
-        result = await svc.apply_with_diff(
-            session_id,
-            [uuid.UUID(tid) for tid in body.abandon_todo_ids],
-        )
+        todo_ids = [uuid.UUID(tid) for tid in body.abandon_todo_ids]
     except ValueError as e:
         raise HTTPException(400, str(e))
+    result = await svc.apply_with_diff(session_id, todo_ids)
     return result
 
 

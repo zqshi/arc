@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from arc.application.project.service import VersionService, _next_version_name
+from arc.domain.errors import AppError
 from arc.domain.project.entity import Version
 from arc.domain.project.value_objects import VersionStatus
 
@@ -96,7 +97,7 @@ class TestDeleteVersion:
         svc.version_repo.get_by_id = AsyncMock(return_value=v)
         svc.version_repo.count_todos_by_status = AsyncMock(return_value={})
 
-        with pytest.raises(ValueError, match="已发布"):
+        with pytest.raises(AppError, match="已发布"):
             await svc.delete_version(v.project_id, v.id)
 
     @pytest.mark.asyncio
@@ -106,7 +107,7 @@ class TestDeleteVersion:
         svc.version_repo.get_by_id = AsyncMock(return_value=v)
         svc.version_repo.count_todos_by_status = AsyncMock(return_value={"pending": 2})
 
-        with pytest.raises(ValueError, match="需求"):
+        with pytest.raises(AppError, match="需求"):
             await svc.delete_version(v.project_id, v.id)
 
     @pytest.mark.asyncio
@@ -129,7 +130,7 @@ class TestActivateVersion:
         svc.version_repo.get_by_id = AsyncMock(return_value=v)
         svc.version_repo.count_todos_by_status = AsyncMock(return_value={})
 
-        with pytest.raises(ValueError, match="没有需求"):
+        with pytest.raises(AppError, match="没有需求"):
             await svc.activate_version(v.project_id, v.id)
 
 

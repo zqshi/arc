@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.application.ai.json_extract import extract_json
 from arc.domain.conversation.entity import Conversation
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.planning.entity import PlanningSession
 from arc.domain.planning.value_objects import PlanningStatus
 from arc.domain.project.entity import Version
@@ -128,7 +129,7 @@ class PlanningService:
         """根据文档和约束条件生成版本路线图。"""
         session = await self.session_repo.get_by_id(session_id)
         if not session:
-            raise ValueError("Planning session not found")
+            raise NotFoundError("Planning session not found")
 
         features = await self._collect_features(session)
         constraints_text = self._format_constraints(session.constraints)
@@ -185,9 +186,9 @@ class PlanningService:
         """将确认的路线图转化为实际的Version和Todo。"""
         session = await self.session_repo.get_by_id(session_id)
         if not session:
-            raise ValueError("Planning session not found")
+            raise NotFoundError("Planning session not found")
         if session.status != PlanningStatus.CONFIRMED:
-            raise ValueError("路线图尚未确认，无法应用")
+            raise AppError("路线图尚未确认，无法应用")
 
         roadmap = session.roadmap
         versions_data = roadmap.get("versions", [])
@@ -204,7 +205,7 @@ class PlanningService:
         """版本级规划：在指定Version下创建Todos。"""
         version = await self.version_repo.get_by_id(session.version_id)
         if not version:
-            raise ValueError("目标版本不存在")
+            raise NotFoundError("目标版本不存在")
 
         features = self._extract_all_features_from_data(versions_data)
 
@@ -234,7 +235,7 @@ class PlanningService:
     ) -> list[Version]:
         """全局规划：创建多个Version + Todos。"""
         if not versions_data:
-            raise ValueError("路线图中没有版本数据")
+            raise AppError("路线图中没有版本数据")
 
         created_versions = []
         for i, v_data in enumerate(versions_data):
@@ -285,9 +286,9 @@ class PlanningService:
         """计算 re-apply 时的范围变更 diff。"""
         session = await self.session_repo.get_by_id(session_id)
         if not session:
-            raise ValueError("Session not found")
+            raise NotFoundError("Session not found")
         if session.status != PlanningStatus.CONFIRMED:
-            raise ValueError("路线图尚未确认")
+            raise AppError("路线图尚未确认")
 
         existing_todos = await self.todo_repo.list_by_session(session_id)
         if not existing_todos:
@@ -333,9 +334,9 @@ class PlanningService:
         """带 diff 的 re-apply：废弃指定 Todos，只创建新增的。"""
         session = await self.session_repo.get_by_id(session_id)
         if not session:
-            raise ValueError("Session not found")
+            raise NotFoundError("Session not found")
         if session.status != PlanningStatus.CONFIRMED:
-            raise ValueError("路线图尚未确认")
+            raise AppError("路线图尚未确认")
 
         for tid in abandon_todo_ids:
             todo = await self.todo_repo.get_by_id(tid)

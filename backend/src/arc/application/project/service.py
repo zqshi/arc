@@ -6,6 +6,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.project.entity import Version
 from arc.infrastructure.repositories.project import VersionRepository
 from arc.infrastructure.repositories.todo import TodoRepository
@@ -70,10 +71,10 @@ class VersionService:
     async def delete_version(self, project_id: uuid.UUID, version_id: uuid.UUID) -> None:
         version = await self._get_version(project_id, version_id)
         if version.status.value == "released":
-            raise ValueError("已发布版本不可删除")
+            raise AppError("已发布版本不可删除")
         stats = await self.version_repo.count_todos_by_status(version_id)
         if sum(stats.values()) > 0:
-            raise ValueError("请先删除版本下的需求后再删除版本")
+            raise AppError("请先删除版本下的需求后再删除版本")
         await self.version_repo.delete(version_id)
 
     async def activate_version(self, project_id: uuid.UUID, version_id: uuid.UUID) -> Version:
@@ -82,7 +83,7 @@ class VersionService:
         stats = await self.version_repo.count_todos_by_status(version_id)
         total = sum(stats.values())
         if total == 0:
-            raise ValueError("版本下没有需求，无法激活")
+            raise AppError("版本下没有需求，无法激活")
 
         version.activate()
         await self.version_repo.update(version)
@@ -96,7 +97,7 @@ class VersionService:
         stats = await self.version_repo.count_todos_by_status(version_id)
         incomplete = stats.get("pending", 0) + stats.get("active", 0) + stats.get("error", 0)
         if incomplete > 0:
-            raise ValueError(f"还有 {incomplete} 条未完成需求，无法发布")
+            raise AppError(f"还有 {incomplete} 条未完成需求，无法发布")
 
         version.release()
 
@@ -284,5 +285,5 @@ class VersionService:
     async def _get_version(self, project_id: uuid.UUID, version_id: uuid.UUID) -> Version:
         version = await self.version_repo.get_by_id(version_id)
         if not version or version.project_id != project_id:
-            raise ValueError("版本不存在")
+            raise NotFoundError("版本不存在")
         return version

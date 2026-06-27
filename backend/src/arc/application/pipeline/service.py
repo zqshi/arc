@@ -13,6 +13,7 @@ from arc.domain.agent.entity import AgentSession
 from arc.domain.agent.value_objects import AgentType
 from arc.domain.artifact.entity import Artifact
 from arc.domain.conversation.entity import Conversation
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.pipeline.entity import PipelinePhase
 from arc.domain.pipeline.value_objects import (
     PHASE_LABELS,
@@ -54,7 +55,7 @@ class PipelineService:
         """Create all 7 phase instances for a todo and activate the first one."""
         todo = await self.todo_repo.get_by_id(todo_id)
         if not todo:
-            raise ValueError(f"Todo {todo_id} not found")
+            raise NotFoundError(f"Todo {todo_id} not found")
 
         existing = await self.phase_repo.list_by_todo_id(todo_id)
         if existing:
@@ -87,7 +88,7 @@ class PipelineService:
         """Activate a phase and create its conversation."""
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase:
-            raise ValueError(f"Phase {phase_type} not found for todo {todo_id}")
+            raise NotFoundError(f"Phase {phase_type} not found for todo {todo_id}")
 
         if phase.status == PhaseStatus.ACTIVE and phase.conversation_id:
             return phase
@@ -101,7 +102,7 @@ class PipelineService:
                     PhaseStatus.CONFIRMED,
                     PhaseStatus.SKIPPED,
                 ):
-                    raise ValueError(
+                    raise AppError(
                         f"请先完成「{PHASE_LABELS[p.phase_type]}」阶段后再开始「{PHASE_LABELS[phase_type]}」"
                     )
             phase.activate()
@@ -282,7 +283,7 @@ class PipelineService:
         from arc.application.pipeline.gate import can_skip
 
         if not can_skip(phase_type):
-            raise ValueError(f"{phase_type.value}阶段不可跳过，请完成后再推进")
+            raise AppError(f"{phase_type.value}阶段不可跳过，请完成后再推进")
 
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase:
@@ -349,11 +350,11 @@ class PipelineService:
     ) -> AgentSession:
         """Trigger coding agent execution for an execution phase."""
         if phase_type not in AGENT_EXECUTION_PHASES:
-            raise ValueError(f"{phase_type.value}阶段不支持Agent执行")
+            raise AppError(f"{phase_type.value}阶段不支持Agent执行")
 
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase:
-            raise ValueError(f"Phase {phase_type} not found for todo {todo_id}")
+            raise NotFoundError(f"Phase {phase_type} not found for todo {todo_id}")
 
         if phase.status == PhaseStatus.PENDING:
             await self.start_phase(todo_id, phase_type)
