@@ -121,25 +121,3 @@ PHASES_NO_SKIP: set[PhaseType] = {
     PhaseType.DEPLOYMENT,
     PhaseType.EXTRACTION,
 }
-
-GATE_EVALUATION_PROMPT = """\
-评估这个阶段的产出物质量是否足以推进。
-
-阶段: {phase_label}
-产出物:
-```json
-{artifact_content}
-```
-{charter_section}
-{conventions_section}
-{capabilities_section}
-
-输出 JSON:
-```json
-{{
-  "passed": true/false,
-  "score": 1-10,
-  "gaps": ["具体缺失或不足"],
-  "suggestion": "一句话建议"
-}}
-```"""

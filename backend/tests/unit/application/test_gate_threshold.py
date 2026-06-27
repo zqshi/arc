@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from arc.application.execution.gate_threshold import PROFILES, get_profile
+from arc.application.context.content.gate import PROFILES, get_profile
 from arc.domain.project.value_objects import ProcessConstraint
 
 

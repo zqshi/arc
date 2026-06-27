@@ -1,7 +1,7 @@
 """Tests for execution/constraint_policy — ConstraintPolicy 精简后行为 (T8)。
 
 T8 清理: ConstraintPolicy 原有 11 字段中 10 个零引用 (门禁职责已由
-gate_threshold.GateProfile 接管)。精简为仅保留 methodology_depth
+content.gate.GateProfile 接管)。精简为仅保留 methodology_depth
 (get_methodology_prompt_for_constraint 的唯一消费字段)。
 """
 
@@ -30,7 +30,7 @@ class TestConstraintPolicySlimmed:
         assert p.methodology_depth == "minimal"
 
     def test_unknown_falls_back_to_free(self):
-        """未知 constraint 降级到 free (与 gate_threshold.get_profile 一致)。"""
+        """未知 constraint 降级到 free (与 content.gate.get_profile 一致)。"""
         # ProcessConstraint 无额外成员, 用 FREE 验证 fallback 逻辑存在
         p = get_policy(ProcessConstraint.FREE)
         assert p.methodology_depth == "minimal"
@@ -45,7 +45,7 @@ class TestConstraintPolicySlimmed:
         import dataclasses
 
         field_names = {f.name for f in dataclasses.fields(ConstraintPolicy)}
-        # 这些字段已由 gate_threshold.GateProfile 接管, 不应残留
+        # 这些字段已由 content.gate.GateProfile 接管, 不应残留
         dead = {
             "clarification_max_rounds", "ddd_sub_phases", "tdd_enforced",
             "gate_block_on_warnings", "cross_check_enabled", "cross_check_scope",

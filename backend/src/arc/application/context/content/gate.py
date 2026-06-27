@@ -1,10 +1,11 @@
-"""门禁阈值注册表 — 按 ProcessConstraint 分级的门禁参数。
+"""gate 内容显性化 (B方案/T4) — 门禁检查项集中声明。
 
-集中 score 阈值 / 方法论开关 / 交叉检查 / 依赖阻断模式，按 constraint 查询，
-不在 service 里写 if constraint 分支 (满足 CLAUDE.md 分层约束)。
+纯内容 (GateProfile 阈值 profile + gate 评估 prompt) 从 execution/gate_threshold.py
++ pipeline/prompts.py 迁入此模块, 消费方 (conversation_gate / pipeline/gate /
+artifact_extractor) 改读本模块。4 层评估流程 (结构→方法论→一致性→LLM) 是编排逻辑, 保留原模块。
+DELIVERABLE_REQUIRED_FIELDS 留 domain (artifact 字段约束 = domain 知识, 不跨层)。
 
-元原则: 质量底线门禁——所有模式都过门禁，只是严格度分级。
-free/moderate/strict 的差异在"门禁严格度"，不在"是否过门禁"。
+复用 v6.9 dict + .get(key, default) fallback 模式。
 """
 
 from __future__ import annotations
@@ -62,3 +63,26 @@ PROFILES: dict[ProcessConstraint, GateProfile] = {
 def get_profile(constraint: ProcessConstraint) -> GateProfile:
     """查询 constraint 对应的门禁参数，未知值降级到 free。"""
     return PROFILES.get(constraint, PROFILES[ProcessConstraint.FREE])
+
+
+GATE_EVALUATION_PROMPT = """\
+评估这个阶段的产出物质量是否足以推进。
+
+阶段: {phase_label}
+产出物:
+```json
+{artifact_content}
+```
+{charter_section}
+{conventions_section}
+{capabilities_section}
+
+输出 JSON:
+```json
+{{
+  "passed": true/false,
+  "score": 1-10,
+  "gaps": ["具体缺失或不足"],
+  "suggestion": "一句话建议"
+}}
+```"""

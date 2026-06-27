@@ -21,7 +21,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 
-from arc.application.execution.gate_threshold import get_profile
+from arc.application.context.content.gate import get_profile
 from arc.domain.artifact.value_objects import (
     DELIVERABLE_REQUIRED_FIELDS,
     PHASE_ARTIFACT_MAP,
@@ -195,8 +195,8 @@ async def _run_llm_review(phase_type, content, conventions, charter, capabilitie
     均注入, 评判产出是否符合项目宪章治理意图、用户规范与环节能力约束。为空则对应
     section 省略 (不污染 prompt)。
     """
+    from arc.application.context.content.gate import GATE_EVALUATION_PROMPT
     from arc.application.pipeline.gate import PHASE_LABELS
-    from arc.application.pipeline.prompts import GATE_EVALUATION_PROMPT
 
     phase_label = PHASE_LABELS.get(phase_type, phase_type.value)
     conventions_section = (

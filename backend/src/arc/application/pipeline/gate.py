@@ -7,8 +7,8 @@ import logging
 from dataclasses import dataclass
 
 from arc.application.ai.json_extract import extract_json
+from arc.application.context.content.gate import GATE_EVALUATION_PROMPT
 from arc.application.pipeline.prompts import (
-    GATE_EVALUATION_PROMPT,
     PHASE_REQUIRED_FIELDS,
     PHASES_NO_SKIP,
 )

@@ -9,9 +9,9 @@
 from __future__ import annotations
 
 from arc.application.context.content.phase_prompts import (
+    _PHASE_INFERENCE_PROMPT,
     PHASE_EXTRACTION_PROMPTS,
     PHASE_SYSTEM_PROMPTS,
-    _PHASE_INFERENCE_PROMPT,
 )
 from arc.domain.pipeline.value_objects import PhaseType
 

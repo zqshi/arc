@@ -204,11 +204,11 @@ class ArtifactExtractor:
 
         这是对话/自驾模式的质量护栏——修复原先"产出即完成"的虚假状态。
         """
+        from arc.application.context.content.gate import get_profile
         from arc.application.execution.conversation_gate import (
             ConversationGateResult,
             evaluate_conversation_gate,
         )
-        from arc.application.execution.gate_threshold import get_profile
         from arc.domain.planning.dependency_graph import missing_prerequisites
         from arc.domain.project.value_objects import ProcessConstraint
 

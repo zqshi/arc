@@ -1,13 +1,13 @@
 """过程约束策略分发器 — 根据 ProcessConstraint 决定方法论 prompt 深度。
 
 T8 清理 (v6.0): ConstraintPolicy 原有 11 字段中 10 个零引用——门禁职责
-(阈值/交叉检查/依赖阻断/确认/充分性) 已由 gate_threshold.GateProfile 接管。
+(阈值/交叉检查/依赖阻断/确认/充分性) 已由 content.gate.GateProfile 接管。
 本模块精简为仅保留 methodology_depth, 驱动 get_methodology_prompt_for_constraint。
 
 | 维度 | strict | moderate | free |
 |------|--------|----------|------|
 | 方法论深度 | 完整流程 (全部子步骤) | 精简流程 (核心步骤) | 最轻量 (质量底线) |
-| 门禁严格度 | (见 gate_threshold.GateProfile, score≥7) | (score≥6) | (score≥5) |
+| 门禁严格度 | (见 content.gate.GateProfile, score≥7) | (score≥6) | (score≥5) |
 
 方法论语料仍按 phase 分发 (clarification/ui_design/architecture/development/testing)。
 """
@@ -25,13 +25,13 @@ class ConstraintPolicy:
     """某个 constraint 级别下的方法论深度策略。
 
     T8 后仅保留 methodology_depth — get_methodology_prompt_for_constraint 的唯一消费字段。
-    门禁/交叉检查/确认等行为参数见 gate_threshold.GateProfile。
+    门禁/交叉检查/确认等行为参数见 content.gate.GateProfile。
     """
 
     methodology_depth: str  # "full" | "core" | "minimal"
 
 
-# 三级策略定义 (门禁参数已移至 gate_threshold.PROFILES)
+# 三级策略定义 (门禁参数已移至 content.gate.PROFILES)
 CONSTRAINT_POLICIES: dict[ProcessConstraint, ConstraintPolicy] = {
     ProcessConstraint.STRICT: ConstraintPolicy(methodology_depth="full"),
     ProcessConstraint.MODERATE: ConstraintPolicy(methodology_depth="core"),
