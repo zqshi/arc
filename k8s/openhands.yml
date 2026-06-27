@@ -1,0 +1,84 @@
+# 注意: OpenHands 需创建运行时容器, 在 k8s 中需容器运行时 socket (DinD/特权)。
+# 生产建议二选一: (1) 用外部 OpenHands 实例, ARC_OPENHANDS_URL 指向它 (推荐);
+#                (2) 本部署接 sidecar DinD + privileged SecurityContext。
+# 本 manifest 声明服务形态供 (2) 方案落地, 运行时 socket 挂载按集群实际补。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arc-openhands
+  namespace: arc
+  labels:
+    app.kubernetes.io/name: arc-openhands
+    app.kubernetes.io/part-of: arc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: arc-openhands
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: arc-openhands
+    spec:
+      containers:
+        - name: openhands
+          image: docker.all-hands.dev/all-hands-ai/openhands:latest
+          env:
+            - name: SANDBOX_RUNTIME_CONTAINER_IMAGE
+              value: docker.all-hands.dev/all-hands-ai/runtime:latest
+          envFrom:
+            - secretRef:
+                name: arc-secrets
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: openhands-data
+              mountPath: /opt/workspace_base
+      volumes:
+        - name: openhands-data
+          persistentVolumeClaim:
+            claimName: arc-openhands-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arc-openhands-data
+  namespace: arc
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arc-openhands
+  namespace: arc
+spec:
+  selector:
+    app.kubernetes.io/name: arc-openhands
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP

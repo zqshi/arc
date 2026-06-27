@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arc-opensandbox
+  namespace: arc
+  labels:
+    app.kubernetes.io/name: arc-opensandbox
+    app.kubernetes.io/part-of: arc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: arc-opensandbox
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: arc-opensandbox
+    spec:
+      containers:
+        - name: opensandbox
+          image: opensandbox/server:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arc-opensandbox
+  namespace: arc
+spec:
+  selector:
+    app.kubernetes.io/name: arc-opensandbox
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

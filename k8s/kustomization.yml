@@ -4,8 +4,12 @@ kind: Kustomization
 resources:
   - namespace.yml
   - configmap.yml
-  - secrets.yml
+  - secrets.yml          # 部署时: cp secrets.example.yml secrets.yml 后填真实值
+  - db.yml
   - redis.yml
+  - minio.yml
+  - opensandbox.yml
+  - openhands.yml
   - backend.yml
   - frontend.yml
   - ingress.yml

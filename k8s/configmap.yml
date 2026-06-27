@@ -4,26 +4,55 @@ metadata:
   name: arc-config
   namespace: arc
 data:
+  # ── 基础 ──
+  ARC_APP_NAME: "Arc"
   ARC_DEBUG: "false"
-  ARC_SMS_MOCK_MODE: "false"
-  ARC_LLM_PROVIDER: "openai"
-  ARC_OPENAI_BASE_URL: "https://api.openai.com/v1"
-  ARC_OPENAI_MODEL: "gpt-4o"
-  ARC_ANTHROPIC_MODEL: "claude-sonnet-4-20250514"
-  ARC_DEEPSEEK_BASE_URL: "https://api.deepseek.com/v1"
-  ARC_DEEPSEEK_MODEL: "deepseek-chat"
-  ARC_AGENT_DEFAULT: "openhands"
-  ARC_STORAGE_BUCKET: "arc-previews"
+  ARC_DATABASE_ECHO: "false"
   ARC_DB_POOL_SIZE: "10"
   ARC_DB_MAX_OVERFLOW: "20"
   ARC_DB_POOL_RECYCLE: "3600"
-  # v6.7: 跨进程事件总线 (多 worker 前置, 空则退回单 worker InMemory)
-  ARC_REDIS_URL: "redis://arc-redis:6379/0"
+  # ── 认证 ──
+  ARC_SMS_MOCK_MODE: "false"
+  ARC_JWT_ACCESS_EXPIRE_MINUTES: "30"
+  ARC_JWT_REFRESH_EXPIRE_DAYS: "7"
+  # ── LLM ──
+  ARC_LLM_PROVIDER: "openai"
+  ARC_OPENAI_BASE_URL: "https://api.openai.com/v1"
+  ARC_OPENAI_MODEL: "gpt-4o"
+  ARC_ANTHROPIC_BASE_URL: ""
+  ARC_ANTHROPIC_MODEL: "claude-sonnet-4-20250514"
+  ARC_DEEPSEEK_BASE_URL: "https://api.deepseek.com/v1"
+  ARC_DEEPSEEK_MODEL: "deepseek-chat"
+  ARC_CODEX_BASE_URL: "https://api.openai.com/v1"
+  # ── Agent 运行时选配 ──
+  ARC_AGENT_DEFAULT: "openhands"
+  ARC_AGENT_DEVELOPMENT: ""
+  ARC_AGENT_TESTING: ""
+  ARC_AGENT_DEPLOYMENT: ""
+  # ── 并发 worker ──
+  ARC_WORKER_LLM_PROVIDER: ""
+  ARC_WORKER_MODEL: ""
+  ARC_MAX_CONCURRENT_WORKERS: "3"
   ARC_WORKERS: "2"
-  # v6.7: OpenSandbox 云沙箱 (mode=open_sandbox 时启用)
+  # ── 沙箱 ──
+  ARC_SANDBOX_DEFAULT_MODE: "none"
   ARC_OPENSANDBOX_IMAGE: "python:3.12-slim"
+  # dict 类型, JSON 字符串; 形如 {"web":"arc/web-builder:latest"}
+  ARC_SANDBOX_BUILDER_IMAGES: "{}"
+  # ── Claude Code / Cursor CLI (可选) ──
+  ARC_CLAUDE_CODE_PATH: ""
+  ARC_CLAUDE_CODE_WORK_DIR: ""
+  ARC_CLAUDE_CODE_MODEL: ""
+  ARC_CURSOR_CLI_PATH: ""
+  # ── 对象存储 ──
+  ARC_STORAGE_BUCKET: "arc-previews"
+  ARC_DEPLOY_PATH_PREFIX: "deployments"
+  ARC_DEPLOY_CDN_DOMAIN: ""
+  ARC_DEPLOY_MAX_FILE_SIZE: "52428800"
+  # ── Redis 事件总线 (多 worker 前置, 空则退回单 worker InMemory) ──
+  ARC_REDIS_URL: "redis://arc-redis:6379/0"
   # ── BaaS / Supabase (非敏感, 启用 BaaS 功能时填真实值) ──
   ARC_SUPABASE_API_URL: "http://localhost:54321"
   ARC_SUPABASE_SCHEMA_PREFIX: "arc_"
-  # 本地存储模式(无 storage_endpoint)预览目录; 生产建议配 ARC_STORAGE_ENDPOINT 走对象存储, 此为兜底
+  # ── 预览存储 (无 storage_endpoint 时兜底; 生产建议走对象存储) ──
   ARC_PREVIEW_STATIC_DIR: "/app/data/static/previews"
