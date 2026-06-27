@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-27 (v6.9 归档 — test_health+artifact显式建模+按类型编排+前端体验, v6.10 B流程引擎内容编排启动)
+> 最后更新: 2026-06-27 (v6.9 归档; v6.10 B流程降级为 next; v6.11 投产就绪+质量加固启动 — 承接 k8s完整性/前端organization+template入口/deployment+billing测试/错误规范化/6文件拆分)
 
 ---
 

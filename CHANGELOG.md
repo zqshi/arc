@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Planned — v6.11.0 投产就绪 + 质量加固
+
+- **版本结构**: v6.10(B流程内容编排)降级为 next, 新开 v6.11 承接投产就绪与质量加固(质量检测驱动)
+- **T1 k8s 部署完整性**: 补 db(pgvector)/minio/opensandbox/openhands manifests, 对齐 docker-compose 6 服务, configmap 对齐 config.py 全字段
+- **T2 前端补入口**: organization/template 共 17 端点补 webui 操作入口(页面+路由+导航)
+- **T5 测试补全**: deployment/billing service + domain errors 单元测试
+- **T6 清理收尾**: TODO 评估 + 死代码检测 + config 漂移修正 + 质量检测 6.1-6.7
+- **T3/T4(第二会话)**: 领域错误规范化(application 层 71 处) + 6 个超限文件拆分
+
 ## [6.9.0] - 2026-06-27 — test_health修复 + artifact显式建模 + 按类型编排流程 + 能力升级 + 前端体验
 
 ### Added — 构建产物显式建模 + 按类型编排 + 前端体验
