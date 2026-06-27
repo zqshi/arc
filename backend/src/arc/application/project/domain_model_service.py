@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.errors import AppError, NotFoundError
 from arc.domain.project.entity import Project
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.project import ProjectRepository
@@ -125,18 +126,18 @@ class DomainModelService:
         )
 
         if not project.local_path:
-            raise ValueError("请先配置本地工作目录")
+            raise AppError("请先配置本地工作目录")
 
         path = Path(project.local_path).expanduser().resolve()
         if not path.is_dir():
-            raise ValueError(f"目录不存在: {project.local_path}")
+            raise NotFoundError(f"目录不存在: {project.local_path}")
 
         # 扫描并构建 prompt
         scanner = CodebaseScanner(str(path))
         data = scanner.full_scan()
         prompt = build_domain_model_prompt(data)
         if not prompt:
-            raise ValueError("未找到可分析的源码文件")
+            raise NotFoundError("未找到可分析的源码文件")
 
         # LLM 调用
         async with adapter_pool.acquire() as adapter:

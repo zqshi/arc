@@ -8,6 +8,7 @@ from io import BytesIO
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.errors import AppError
 from arc.domain.planning.entity import Document
 from arc.infrastructure.repositories.planning import DocumentRepository
 from arc.infrastructure.storage import get_storage
@@ -27,7 +28,7 @@ def _sanitize_filename(filename: str) -> str:
     from pathlib import PurePosixPath
     name = PurePosixPath(filename).name
     if not name or name in (".", ".."):
-        raise ValueError("Invalid filename")
+        raise AppError("Invalid filename")
     return name
 
 
@@ -49,9 +50,9 @@ class DocumentService:
         data: bytes,
     ) -> Document:
         if content_type not in ALLOWED_CONTENT_TYPES:
-            raise ValueError(f"不支持的文件类型: {content_type}")
+            raise AppError(f"不支持的文件类型: {content_type}")
         if len(data) > MAX_FILE_SIZE:
-            raise ValueError("文件大小超过20MB限制")
+            raise AppError("文件大小超过20MB限制")
 
         doc = Document(
             project_id=project_id,

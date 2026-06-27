@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from arc.domain.errors import AppError
+
 
 @pytest.fixture
 def mock_db():
@@ -49,19 +51,19 @@ class TestSanitizeFilename:
     def test_dot_rejected(self):
         from arc.application.planning.document_service import _sanitize_filename
 
-        with pytest.raises(ValueError, match="Invalid filename"):
+        with pytest.raises(AppError, match="Invalid filename"):
             _sanitize_filename(".")
 
     def test_dotdot_rejected(self):
         from arc.application.planning.document_service import _sanitize_filename
 
-        with pytest.raises(ValueError, match="Invalid filename"):
+        with pytest.raises(AppError, match="Invalid filename"):
             _sanitize_filename("..")
 
     def test_empty_rejected(self):
         from arc.application.planning.document_service import _sanitize_filename
 
-        with pytest.raises(ValueError, match="Invalid filename"):
+        with pytest.raises(AppError, match="Invalid filename"):
             _sanitize_filename("")
 
 
@@ -79,14 +81,14 @@ class TestUploadValidation:
     @pytest.mark.asyncio
     async def test_reject_unsupported_content_type(self, doc_service):
         svc, _ = doc_service
-        with pytest.raises(ValueError, match="不支持的文件类型"):
+        with pytest.raises(AppError, match="不支持的文件类型"):
             await svc.upload(uuid.uuid4(), "test.exe", "application/x-executable", b"data")
 
     @pytest.mark.asyncio
     async def test_reject_oversize_file(self, doc_service):
         svc, _ = doc_service
         big = b"x" * (21 * 1024 * 1024)
-        with pytest.raises(ValueError, match="20MB"):
+        with pytest.raises(AppError, match="20MB"):
             await svc.upload(uuid.uuid4(), "big.pdf", "application/pdf", big)
 
     @pytest.mark.asyncio

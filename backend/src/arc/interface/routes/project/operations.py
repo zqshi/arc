@@ -74,8 +74,6 @@ async def extract_domain_model_from_code(
     svc = DomainModelService(db)
     try:
         dm = await svc.extract_from_code(project)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
     except RuntimeError as e:
         raise HTTPException(500, str(e))
 

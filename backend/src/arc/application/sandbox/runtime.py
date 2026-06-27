@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from arc.domain.errors import AppError
 from arc.domain.sandbox.value_objects import SandboxPolicy
 
 # Type alias for tool implementation functions injected from execution layer.
@@ -253,7 +254,7 @@ class DockerSandboxRuntime(SandboxRuntime):
 
         try:
             target = self._resolve_path(rel_path)
-        except ValueError as e:
+        except AppError as e:
             return f"错误: {e}"
 
         def _write():
@@ -294,7 +295,7 @@ class DockerSandboxRuntime(SandboxRuntime):
         try:
             target.relative_to(base)
         except ValueError:
-            raise ValueError(f"路径逃逸出项目目录: {rel_path}")
+            raise AppError(f"路径逃逸出项目目录: {rel_path}")
         return target
 
     def _exec(self, argv: list[str], timeout: int) -> str:
@@ -383,4 +384,4 @@ def create_sandbox_runtime(
             api_key=settings.opensandbox_api_key,
         )
 
-    raise ValueError(f"Unknown sandbox mode: {policy.mode}")
+    raise AppError(f"Unknown sandbox mode: {policy.mode}")
