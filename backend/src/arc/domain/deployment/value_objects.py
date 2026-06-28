@@ -69,7 +69,13 @@ class DeployConfig:
                     build_command="cargo tauri build",
                     artifact_path="src-tauri/target/release/bundle",
                 )
-            # 波次2: target == WEB → npm run build (复用 static_site dist)
+            if target == BuildTarget.WEB:
+                # v6.12 波次2: web 资源构建 (npm run build → dist), 不打包原生客户端。
+                # BINARY_APP 项目的 web 形态构建 (区别于 STATIC_SITE 宿主直跑)。
+                return DeployConfig(
+                    build_command="npm run build",
+                    artifact_path="dist",
+                )
             # 波次3: target == CAPACITOR_APK → npx cap build android → android/app/build/outputs
         # 未识别类型走默认
         return DeployConfig()

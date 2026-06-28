@@ -51,3 +51,13 @@ class TestResolveSandboxPolicy:
         policy = resolve_sandbox_policy(p)
         assert policy.build_target == BuildTarget.TAURI_LINUX
         assert policy.docker_image == "arc/tauri-builder:linux"
+
+    def test_binary_app_web_target_routed(self):
+        """v6.12 波次2: 显式 target=web → 推导 web-builder 镜像 (BINARY_APP web 资源构建)。"""
+        p = _project(
+            ProjectType.BINARY_APP,
+            sandbox={"mode": "docker", "target": "web"},
+        )
+        policy = resolve_sandbox_policy(p)
+        assert policy.build_target == BuildTarget.WEB
+        assert policy.docker_image == "arc/web-builder:latest"

@@ -19,6 +19,11 @@ class TestResolveBuildImage:
         img = resolve_build_image(ProjectType.BINARY_APP, BuildTarget.TAURI_LINUX)
         assert img == "arc/tauri-builder:linux"
 
+    def test_binary_app_web_default(self):
+        """BINARY_APP + WEB → arc/web-builder:latest (v6.12 波次2)。"""
+        img = resolve_build_image(ProjectType.BINARY_APP, BuildTarget.WEB)
+        assert img == "arc/web-builder:latest"
+
     def test_overrides_takes_precedence(self):
         """config 覆盖值优先于默认注册表。"""
         overrides = {"binary_app:tauri_linux": "registry.example.com/tauri:v2"}
@@ -51,6 +56,17 @@ class TestDefaultBuildImages:
         key = (ProjectType.BINARY_APP, BuildTarget.TAURI_LINUX)
         assert key in DEFAULT_BUILD_IMAGES
         assert DEFAULT_BUILD_IMAGES[key] == "arc/tauri-builder:linux"
+
+    def test_registry_contains_web(self):
+        """v6.12 波次2 注册表含 BINARY_APP/WEB。"""
+        key = (ProjectType.BINARY_APP, BuildTarget.WEB)
+        assert key in DEFAULT_BUILD_IMAGES
+        assert DEFAULT_BUILD_IMAGES[key] == "arc/web-builder:latest"
+
+    def test_static_site_web_not_registered(self):
+        """STATIC_SITE + WEB 不注册 — web target 绑 BINARY_APP (化解 v6.0 重复矛盾)。"""
+        img = resolve_build_image(ProjectType.STATIC_SITE, BuildTarget.WEB)
+        assert img == ""
 
 
 class TestDefaultSandboxConfig:

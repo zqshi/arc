@@ -25,13 +25,12 @@ class BuildTarget(StrEnum):
     与 ProjectType 正交: ProjectType 决定"构建什么形态", BuildTarget 决定
     "容器内构建到哪个目标"。镜像推导见 domain/sandbox/build_images.py。
 
-    v6.0 波次1 仅激活 TAURI_LINUX; WEB/CAPACITOR_APK 在波次2/3 激活时
-    取消注释 (避免触发死代码检测)。
+    v6.0 波次1 激活 TAURI_LINUX; v6.12 波次2 激活 WEB, 波次3 激活 CAPACITOR_APK。
     """
 
     TAURI_LINUX = "tauri_linux"  # v6.0 波次1: tauri linux bundle (deb/AppImage)
-    # 预留 (波次2/3 激活):
-    # WEB = "web"  # 波次2: web 资源 (npm run build → dist)
+    WEB = "web"  # v6.12 波次2: BINARY_APP web 资源构建 (npm run build → dist, 不打包原生客户端)
+    # 预留 (波次3 激活):
     # CAPACITOR_APK = "capacitor_apk"  # 波次3: android apk (capacitor)
 
 

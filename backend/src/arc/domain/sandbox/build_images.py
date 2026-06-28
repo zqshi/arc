@@ -17,11 +17,12 @@ from arc.domain.project.value_objects import ProjectType
 from arc.domain.sandbox.value_objects import BuildTarget
 
 # (ProjectType, BuildTarget) → 默认镜像名。
-# v6.0 波次1: 仅 BINARY_APP/TAURI_LINUX 主线。
-# 波次2: 加 (BINARY_APP, WEB) / (STATIC_SITE, WEB)
+# v6.0 波次1: BINARY_APP/TAURI_LINUX 主线。
+# v6.12 波次2: BINARY_APP/WEB (web 资源构建, 不打包原生客户端)
 # 波次3: 加 (BINARY_APP, CAPACITOR_APK)
 DEFAULT_BUILD_IMAGES: dict[tuple[ProjectType, BuildTarget], str] = {
     (ProjectType.BINARY_APP, BuildTarget.TAURI_LINUX): "arc/tauri-builder:linux",
+    (ProjectType.BINARY_APP, BuildTarget.WEB): "arc/web-builder:latest",
 }
 
 

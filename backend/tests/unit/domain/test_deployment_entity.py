@@ -189,6 +189,16 @@ class TestDeployConfigForType:
         cfg = DeployConfig.for_type(ProjectType.BINARY_APP, BuildTarget.TAURI_LINUX)
         assert cfg.build_command == "cargo tauri build"
 
+    def test_binary_app_web_target(self) -> None:
+        """v6.12 波次2: BINARY_APP + WEB → npm run build + dist (web 资源构建, 不打包原生客户端)。"""
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+        from arc.domain.sandbox.value_objects import BuildTarget
+
+        cfg = DeployConfig.for_type(ProjectType.BINARY_APP, BuildTarget.WEB)
+        assert cfg.build_command == "npm run build"
+        assert cfg.artifact_path == "dist"
+
     def test_static_site_ignores_target(self) -> None:
         """STATIC_SITE 不受 build_target 影响 (正交维度)。"""
         from arc.domain.deployment.value_objects import DeployConfig
