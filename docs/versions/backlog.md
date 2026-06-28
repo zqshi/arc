@@ -60,11 +60,13 @@
 | v6.1 真实产物签名验证 | P2 | v6.1 遗留 | android apk 真实验证 ✅ v6.13 (apksigner sign/verify v2 通过); mac/win 待 Apple Developer ID 证书 / Windows runner |
 | v6.1 notarytool --apple-id 用 team_id 兼用 | P3 | v6.1 遗留 | ✅ v6.13 T1 (SigningCredentials.apple_id, notarytool --apple-id 用 apple_id 非 team_id) |
 | T4 project_member repository 接口(聚合边界未定) | P2 | v6.6 遗留 | 需先定 project_member 归 project 还是 organization 聚合, 再补 AbstractRepository+实现 |
-| ProcessConfig 4 死字段 + create/update 双构造路径 | P1 | v6.15 审计 | 🔴 待修: `gate_strictness`/`auto_extract`/`require_explicit_confirm`/`show_phase_ui` 前后端零业务消费; create 用 `from_execution_mode`, update 用 `ProcessConfig(constraint=...)` 构造路径不一致。建议 ProcessConfig 退化为 constraint 持有或直接用 ProcessConstraint |
-| 后端无模式守卫 | P1 | v6.15 审计 | 🔴 待修: pipeline/conversation 路由不校验当前项目 process_constraint, 跨模式调用不拦。建议入口加守卫 |
+| ProcessConfig 4 死字段 + create/update 双构造路径 | P1 | v6.15 审计 | ✅ v6.15 T4: 删 4 死字段, ProcessConfig 退化为 constraint 容器, from_execution_mode 单一映射点, 构造路径收敛 |
+| 后端无模式守卫 | P1 | v6.15 审计 | ✅ v6.15 T5: pipeline 5 写操作接入 _require_pipeline_mode, FREE/MODERATE→409 mode_mismatch; 真相源 todo.project→project.process_constraint |
 | strict 阈值双存 | P2 | v6.15 审计 | 🔴 待修: `pipeline/gate.py:147` 硬编码 `score < 7` 绕过 GateProfile; 应改读 `get_profile(constraint).score_threshold` |
 | DELIVERABLES_BY_CONSTRAINT 死结构 + reorder 空操作 | P2 | v6.15 审计 | 🔴 待修: 三档 key 指向同一列表, conversation_strategy reorder 实为空操作。建议删 dict 直接用 REQUIRED_DELIVERABLES |
 | 测试 DB 隔离缺陷 (capability 三文件合跑 409) | P2 | v6.15 质检发现 | 🔴 待修: `conftest.py:39` db_session setup 阶段 commit() user 注入, teardown 只 rollback() 救不回已提交数据。真实共享 PG 跨 run 残留导致 test_capability_api 三文件合跑偶发 409 (清表后全绿)。同 v5.10 test_health 时序污染类。建议事务回滚隔离或测试前 truncate |
+| 历史数据 process_constraint 为 free | P1 | v6.15 T5 发现 | 🔴 待修: ProjectRepository.create 漏写 process_constraint 的 bug 潜伏已久 (修复前创建的 strict 项目 DB 实际是 free)。新项目已修复, 但存量数据需 migration 回填 (按 execution_mode 推: pipeline→strict, conversation→free) |
+| execution_mode deprecated 字段下线 | P2 | v6.15 审计 | 🔴 待修: 前后端契约仍用 execution_mode (UnifiedWorkspaceView 读 todo.execution_mode==='pipeline'), 与 process_constraint 双源真值未收敛。需独立迁移: 前端改读 process_constraint + 后端删 entity.execution_mode |
 
 ---
 
