@@ -43,6 +43,10 @@ function firstCapButton() {
   return screen.getAllByText('code-reviewer')[0];
 }
 
+function expand() {
+  fireEvent.click(screen.getByRole('button', { name: /环节能力配置/ }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.listCapabilities).mockResolvedValue(mockCaps);
@@ -52,6 +56,7 @@ beforeEach(() => {
 describe('PhaseCapabilitiesSection', () => {
   it('renders all 7 phases with capability repeated per phase', async () => {
     renderSection();
+    expand();
     await waitFor(() => expect(screen.getAllByText('code-reviewer')).toHaveLength(7));
     expect(screen.getByText('需求澄清')).toBeInTheDocument();
     expect(screen.getByText('经验抽取')).toBeInTheDocument();
@@ -60,11 +65,13 @@ describe('PhaseCapabilitiesSection', () => {
   it('shows empty hint when no capabilities available', async () => {
     vi.mocked(api.listCapabilities).mockResolvedValue([]);
     renderSection();
+    expand();
     await waitFor(() => expect(screen.getByText(/暂无可用能力/)).toBeInTheDocument());
   });
 
   it('toggles capability on and calls updatePhaseCapabilities', async () => {
     renderSection();
+    expand();
     await waitFor(() => expect(screen.getAllByText('code-reviewer')).toHaveLength(7));
     fireEvent.click(firstCapButton());
     await waitFor(() =>
@@ -74,6 +81,7 @@ describe('PhaseCapabilitiesSection', () => {
 
   it('toggles capability off when already selected', async () => {
     renderSection({ clarification: ['c1'] });
+    expand();
     await waitFor(() => expect(screen.getAllByText('code-reviewer')).toHaveLength(7));
     fireEvent.click(firstCapButton());
     await waitFor(() =>
@@ -84,6 +92,7 @@ describe('PhaseCapabilitiesSection', () => {
   it('shows error toast and rolls back on failure', async () => {
     vi.mocked(api.updatePhaseCapabilities).mockRejectedValue(new Error('boom'));
     renderSection();
+    expand();
     await waitFor(() => expect(screen.getAllByText('code-reviewer')).toHaveLength(7));
     fireEvent.click(firstCapButton());
     await waitFor(() => expect(screen.getByText('保存失败')).toBeInTheDocument());
@@ -92,5 +101,12 @@ describe('PhaseCapabilitiesSection', () => {
     await waitFor(() =>
       expect(api.updatePhaseCapabilities).toHaveBeenLastCalledWith('p1', 'clarification', ['c1']),
     );
+  });
+
+  it('is collapsed by default and expands on toggle click', async () => {
+    renderSection();
+    expect(screen.queryByText('需求澄清')).not.toBeInTheDocument();
+    expand();
+    await waitFor(() => expect(screen.getAllByText('code-reviewer')).toHaveLength(7));
   });
 });

@@ -277,12 +277,6 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
           }}
         />
 
-        <PhaseCapabilitiesSection
-          projectId={projectId}
-          phaseCapabilities={(form.pipeline_config?.phase_capabilities as PhaseCapabilities) ?? {}}
-          onRefresh={onRefresh}
-        />
-
         <GitSyncSection
           gitSync={gitSync}
           onChange={(gs) => setForm({
@@ -295,6 +289,12 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
           <p className="mb-3 text-[11px] font-medium text-text-tertiary uppercase tracking-wide">项目规范</p>
           <Field label="规范内容" value={form.conventions} onChange={(v) => setForm({ ...form, conventions: v })} multiline placeholder="AI在生成方案和代码时会遵守这些规范" />
         </div>
+
+        <PhaseCapabilitiesSection
+          projectId={projectId}
+          phaseCapabilities={(form.pipeline_config?.phase_capabilities as PhaseCapabilities) ?? {}}
+          onRefresh={onRefresh}
+        />
 
         {insights.length > 0 && (
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 lg:col-span-2">
