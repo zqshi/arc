@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-28 (v6.13 签名链路真实化+凭证预留归档 — A 限定版; v6.14 激活 — 项目设置 UX 整理)
+> 最后更新: 2026-06-28 (v6.14 项目设置 UX 整理归档; v6.15 激活 — 过程约束依赖守卫治理)
 
 ---
 
@@ -10,7 +10,7 @@
 - [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
 - [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md) · [v2.9.0](v2.9.0-snapshot.md) · [v3.0.0](v3.0.0-snapshot.md) · [v3.1.0](v3.1.0-snapshot.md) · [v3.2.0](v3.2.0-snapshot.md) · [v3.3.0](v3.3.0-snapshot.md) · [v3.4.0](v3.4.0-snapshot.md) · [v3.5.0](v3.5.0-snapshot.md) · [v3.6.0](v3.6.0-snapshot.md) · [v3.7.0](v3.7.0-snapshot.md) · [v3.8.0](v3.8.0-snapshot.md) · [v3.9.0](v3.9.0-snapshot.md) · [v3.10.0](v3.10.0-snapshot.md)
-- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md) · [v6.0.0](v6.0.0-snapshot.md) · [v6.1.0](v6.1.0-snapshot.md) · [v6.2.0](v6.2.0-snapshot.md) · [v6.3.0](v6.3.0-snapshot.md) · [v6.4.0](v6.4.0-snapshot.md) · [v6.5.0](v6.5.0-snapshot.md) · [v6.6.0](v6.6.0-snapshot.md) · [v6.7.0](v6.7.0-snapshot.md) · [v6.8.0](v6.8.0-snapshot.md) · [v6.9.0](v6.9.0-snapshot.md) · [v6.10.0](v6.10.0-snapshot.md) · [v6.11.0](v6.11.0-snapshot.md) · [v6.12.0](v6.12.0-snapshot.md) · [v6.13.0](v6.13.0-snapshot.md)
+- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md) · [v6.0.0](v6.0.0-snapshot.md) · [v6.1.0](v6.1.0-snapshot.md) · [v6.2.0](v6.2.0-snapshot.md) · [v6.3.0](v6.3.0-snapshot.md) · [v6.4.0](v6.4.0-snapshot.md) · [v6.5.0](v6.5.0-snapshot.md) · [v6.6.0](v6.6.0-snapshot.md) · [v6.7.0](v6.7.0-snapshot.md) · [v6.8.0](v6.8.0-snapshot.md) · [v6.9.0](v6.9.0-snapshot.md) · [v6.10.0](v6.10.0-snapshot.md) · [v6.11.0](v6.11.0-snapshot.md) · [v6.12.0](v6.12.0-snapshot.md) · [v6.13.0](v6.13.0-snapshot.md) · [v6.14.0](v6.14.0-snapshot.md)
 
 ---
 
@@ -60,6 +60,11 @@
 | v6.1 真实产物签名验证 | P2 | v6.1 遗留 | android apk 真实验证 ✅ v6.13 (apksigner sign/verify v2 通过); mac/win 待 Apple Developer ID 证书 / Windows runner |
 | v6.1 notarytool --apple-id 用 team_id 兼用 | P3 | v6.1 遗留 | ✅ v6.13 T1 (SigningCredentials.apple_id, notarytool --apple-id 用 apple_id 非 team_id) |
 | T4 project_member repository 接口(聚合边界未定) | P2 | v6.6 遗留 | 需先定 project_member 归 project 还是 organization 聚合, 再补 AbstractRepository+实现 |
+| ProcessConfig 4 死字段 + create/update 双构造路径 | P1 | v6.15 审计 | 🔴 待修: `gate_strictness`/`auto_extract`/`require_explicit_confirm`/`show_phase_ui` 前后端零业务消费; create 用 `from_execution_mode`, update 用 `ProcessConfig(constraint=...)` 构造路径不一致。建议 ProcessConfig 退化为 constraint 持有或直接用 ProcessConstraint |
+| 后端无模式守卫 | P1 | v6.15 审计 | 🔴 待修: pipeline/conversation 路由不校验当前项目 process_constraint, 跨模式调用不拦。建议入口加守卫 |
+| strict 阈值双存 | P2 | v6.15 审计 | 🔴 待修: `pipeline/gate.py:147` 硬编码 `score < 7` 绕过 GateProfile; 应改读 `get_profile(constraint).score_threshold` |
+| DELIVERABLES_BY_CONSTRAINT 死结构 + reorder 空操作 | P2 | v6.15 审计 | 🔴 待修: 三档 key 指向同一列表, conversation_strategy reorder 实为空操作。建议删 dict 直接用 REQUIRED_DELIVERABLES |
+| 测试 DB 隔离缺陷 (capability 三文件合跑 409) | P2 | v6.15 质检发现 | 🔴 待修: `conftest.py:39` db_session setup 阶段 commit() user 注入, teardown 只 rollback() 救不回已提交数据。真实共享 PG 跨 run 残留导致 test_capability_api 三文件合跑偶发 409 (清表后全绿)。同 v5.10 test_health 时序污染类。建议事务回滚隔离或测试前 truncate |
 
 ---
 
