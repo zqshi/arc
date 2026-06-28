@@ -6,9 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Planned — v6.12.0 方向待规划
+### Planned — v6.13.0 方向待规划
 
-> v6.10 归档后激活, 范围待定。候选: 构建链路扩展 / 测试债务清理 / 聚合边界重构 / oss-evaluator。
+> v6.12 归档后激活, 范围待定。候选: 真实产物签名验证 / 测试债务清理 / 聚合边界重构 / mac/win 原生构建 / runtime 防御加固。
+
+## [6.12.0] - 2026-06-28 — 容器构建链路扩展（web + android capacitor 镜像）
+
+### Added — BINARY_APP 全平台容器化构建
+
+- **T1 波次2 web-builder**: BuildTarget.WEB 激活 + 注册 (BINARY_APP, WEB)→arc/web-builder:latest + for_type WEB 分支 + web-builder.Dockerfile (node:20-alpine+构建工具链) + smoke (vite build 产 dist)
+- **T2 波次3 android-builder**: BuildTarget.CAPACITOR_APK 激活 + 注册 + for_type CAPACITOR_APK 分支 (npm build+cap copy+cap build) + android-builder.Dockerfile (JDK21+SDK+NDK r26+Gradle8.7+cap7.6.7, 强制 amd64) + smoke (gradlew assembleDebug 产 app-debug.apk 3.9MB)
+- **T3 build_target 端到端**: ProjectCreate schema 加 build_target + route 透传 + service 注入 sandbox config (capacitor_apk 额外 memory 4096) + 前端 CreateProjectModal 三 target 选择器 + types BuildTarget
+- **T4 质量检测**: 6.1-6.7 必修项通过, 归档
+
+### 决策
+
+- WEB target 绑 BINARY_APP (化解 v6.0 "接近 STATIC_SITE 重复" 矛盾) — BINARY_APP 三构建形态: tauri_linux/web/capacitor_apk
+- android 镜像强制 amd64 (aapt2 x86_64 ELF, arm64 Rosetta 缺 x86 ld-linux; x86 CI 原生, Apple Silicon 经 Rosetta)
+- JDK 21 (capacitor 7 要求 source 21, JDK17 不够)
+- capacitor kotlin 版本统一归项目配置 (非镜像缺陷)
+- capacitor_apk 注入 memory_limit_mb=4096 (构建重)
+
+### 遗留 (技术债)
+
+- capacitor kotlin 项目配置 (stdlib 1.8.22 vs jdk8 1.6.21 重复类) — 用户项目配置, BUILD_GUIDE 提示
+- android release build checkReleaseDuplicateClasses — 同上, smoke 用 debug apk 验证工具链
+- runtime --shm-size 未验证 (本地 --shm-size=2g 通过, 默认 64m 待 x86 CI 确认)
+- mac/win 原生构建需原生 OS runner (v6.0 决策)
 
 ## [6.10.0] - 2026-06-28 — B 流程引擎内容编排（methodology/prompt/gate 可配置）
 

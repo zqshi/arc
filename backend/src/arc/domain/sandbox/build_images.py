@@ -20,6 +20,7 @@ from arc.domain.sandbox.value_objects import BuildTarget
 # v6.0 波次1: BINARY_APP/TAURI_LINUX 主线。
 # v6.12 波次2: BINARY_APP/WEB (web 资源构建, 不打包原生客户端)
 # v6.12 波次3: BINARY_APP/CAPACITOR_APK (android apk, capacitor)
+# 激活新 target 时只需在 DEFAULT_BUILD_IMAGES 加条目, 零架构改动。
 DEFAULT_BUILD_IMAGES: dict[tuple[ProjectType, BuildTarget], str] = {
     (ProjectType.BINARY_APP, BuildTarget.TAURI_LINUX): "arc/tauri-builder:linux",
     (ProjectType.BINARY_APP, BuildTarget.WEB): "arc/web-builder:latest",
