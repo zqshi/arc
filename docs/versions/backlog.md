@@ -65,7 +65,7 @@
 | strict 阈值双存 | P2 | v6.15 审计 | 🔴 待修: `pipeline/gate.py:147` 硬编码 `score < 7` 绕过 GateProfile; 应改读 `get_profile(constraint).score_threshold` |
 | DELIVERABLES_BY_CONSTRAINT 死结构 + reorder 空操作 | P2 | v6.15 审计 | 🔴 待修: 三档 key 指向同一列表, conversation_strategy reorder 实为空操作。建议删 dict 直接用 REQUIRED_DELIVERABLES |
 | 测试 DB 隔离缺陷 (capability 三文件合跑 409) | P2 | v6.15 质检发现 | 🔴 待修: `conftest.py:39` db_session setup 阶段 commit() user 注入, teardown 只 rollback() 救不回已提交数据。真实共享 PG 跨 run 残留导致 test_capability_api 三文件合跑偶发 409 (清表后全绿)。同 v5.10 test_health 时序污染类。建议事务回滚隔离或测试前 truncate |
-| 历史数据 process_constraint 为 free | P1 | v6.15 T5 发现 | 🔴 待修: ProjectRepository.create 漏写 process_constraint 的 bug 潜伏已久 (修复前创建的 strict 项目 DB 实际是 free)。新项目已修复, 但存量数据需 migration 回填 (按 execution_mode 推: pipeline→strict, conversation→free) |
+| 历史数据 process_constraint 为 free | P1 | v6.15 T5 发现 | ✅ v6.15 T6: z18_backfill_process_constraint 回填 959 个 pipeline→free 为 strict, process_config 规整为 {constraint} 格式 |
 | execution_mode deprecated 字段下线 | P2 | v6.15 审计 | 🔴 待修: 前后端契约仍用 execution_mode (UnifiedWorkspaceView 读 todo.execution_mode==='pipeline'), 与 process_constraint 双源真值未收敛。需独立迁移: 前端改读 process_constraint + 后端删 entity.execution_mode |
 
 ---
