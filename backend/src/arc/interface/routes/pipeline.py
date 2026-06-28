@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.pipeline.value_objects import PhaseType
+from arc.domain.todo.entity import Todo
 from arc.infrastructure.repositories.todo import TodoRepository
 from arc.interface.deps import CurrentUser, DbSession
 from arc.interface.schemas.pipeline import (
@@ -22,10 +23,55 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _verify_todo_ownership(db: AsyncSession, todo_id: str, user_id) -> None:
+async def _verify_todo_ownership(db: AsyncSession, todo_id: str, user_id) -> "Todo":
+    """校验 todo 归属并返回 todo 实体 (供守卫复用, 避免重复查询)。"""
     todo = await TodoRepository(db).get_by_id(UUID(todo_id), user_id=user_id)
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
+    return todo
+
+
+async def _require_pipeline_mode(
+    db: AsyncSession, todo: "Todo", user_id
+) -> None:
+    """v6.15 模式守卫: pipeline 写操作仅 strict 模式可用。
+
+    真相源: todo.project_id → project.process_constraint (单一源);
+    todo 无 project 时回退 todo.execution_mode (PIPELINE→strict)。
+    FREE/MODERATE 模式的 todo 调 pipeline 写操作 = 跨模式错配, 返回 409。
+    (conversation send_message 不守: 两档共用对话; 读/artifact 操作不守: 跨模式共享。)
+    """
+    from arc.domain.project.value_objects import ProcessConstraint
+
+    constraint: ProcessConstraint
+    if todo.project_id:
+        from arc.infrastructure.repositories.project import ProjectRepository
+
+        project = await ProjectRepository(db).get_by_id(todo.project_id, user_id=user_id)
+        if project:
+            constraint = project.process_constraint
+        else:
+            # project 不存在 (理论上前置 ownership 已拦), 回退免费档更安全
+            constraint = ProcessConstraint.FREE
+    else:
+        # 无 project 的独立 todo: 回退 deprecated execution_mode
+        constraint = (
+            ProcessConstraint.STRICT
+            if todo.execution_mode.value == "pipeline"
+            else ProcessConstraint.FREE
+        )
+
+    if constraint != ProcessConstraint.STRICT:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "type": "mode_mismatch",
+                "message": (
+                    "该需求为非严格管线模式, 不支持阶段编排操作。"
+                    f"当前模式: {constraint.value}"
+                ),
+            },
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +106,8 @@ async def get_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
 @router.post("/{todo_id}/pipeline/start", response_model=list[PhaseResponse])
 async def start_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
     """Initialize pipeline with all 7 phases and activate the first one."""
-    await _verify_todo_ownership(db, todo_id, user.id)
+    todo = await _verify_todo_ownership(db, todo_id, user.id)
+    await _require_pipeline_mode(db, todo, user.id)
 
     from arc.application.pipeline.service import PipelineService
 
@@ -77,7 +124,8 @@ async def start_pipeline(todo_id: str, db: DbSession, user: CurrentUser):
 @router.post("/{todo_id}/phases/{phase_type}/start", response_model=PhaseResponse)
 async def start_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Start a specific phase (create conversation)."""
-    await _verify_todo_ownership(db, todo_id, user.id)
+    todo = await _verify_todo_ownership(db, todo_id, user.id)
+    await _require_pipeline_mode(db, todo, user.id)
 
     from arc.application.pipeline.service import PipelineService
 
@@ -105,7 +153,8 @@ async def generate_artifact(todo_id: str, phase_type: str, db: DbSession, user: 
 @router.post("/{todo_id}/phases/{phase_type}/confirm", response_model=PhaseResponse)
 async def confirm_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Confirm phase artifact and advance to next phase."""
-    await _verify_todo_ownership(db, todo_id, user.id)
+    todo = await _verify_todo_ownership(db, todo_id, user.id)
+    await _require_pipeline_mode(db, todo, user.id)
 
     from arc.application.pipeline.gate import PhaseGateError
     from arc.application.pipeline.service import PipelineService
@@ -130,7 +179,8 @@ async def confirm_phase(todo_id: str, phase_type: str, db: DbSession, user: Curr
 @router.post("/{todo_id}/phases/{phase_type}/skip", response_model=PhaseResponse)
 async def skip_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
     """Skip a phase."""
-    await _verify_todo_ownership(db, todo_id, user.id)
+    todo = await _verify_todo_ownership(db, todo_id, user.id)
+    await _require_pipeline_mode(db, todo, user.id)
 
     from arc.application.pipeline.service import PipelineService
 
@@ -145,7 +195,8 @@ async def skip_phase(todo_id: str, phase_type: str, db: DbSession, user: Current
 @router.post("/{todo_id}/pipeline/rollback")
 async def rollback_pipeline(todo_id: str, req: RollbackRequest, db: DbSession, user: CurrentUser):
     """Rollback to a previous phase."""
-    await _verify_todo_ownership(db, todo_id, user.id)
+    todo = await _verify_todo_ownership(db, todo_id, user.id)
+    await _require_pipeline_mode(db, todo, user.id)
 
     from arc.application.pipeline.service import PipelineService
 

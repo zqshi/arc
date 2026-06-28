@@ -44,6 +44,8 @@ class ProjectRepository(AbstractProjectRepository):
             scan_fingerprint=project.scan_fingerprint,
             status=project.status.value,
             execution_mode=project.execution_mode.value,
+            process_constraint=project.process_constraint.value,
+            process_config=project.process_config.to_dict() if project.process_config else None,
             pipeline_config=project.pipeline_config,
             conversation_config=project.conversation_config,
             domain_model=project.domain_model or None,

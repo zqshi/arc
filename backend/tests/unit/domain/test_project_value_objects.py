@@ -7,6 +7,8 @@ from arc.domain.project.value_objects import (
     DEFAULT_PIPELINE_CONFIG,
     DELIVERABLES_BY_TYPE,
     PHASES_BY_TYPE,
+    ProcessConfig,
+    ProcessConstraint,
     REQUIRED_DELIVERABLES,
     VALID_VERSION_TRANSITIONS,
     AgentAutonomy,
@@ -310,3 +312,45 @@ class TestPhasesByType:
         all_phases = frozenset(pt.value for pt in PhaseType)
         for pt in ProjectType:
             assert PHASES_BY_TYPE[pt] == all_phases
+
+
+class TestProcessConfig:
+    """v6.15: ProcessConfig 死字段清理后, 退化为 constraint 序列化容器。"""
+
+    def test_only_constraint_field(self):
+        """原 gate_strictness/auto_extract/require_explicit_confirm/show_phase_ui
+        四字段前后端零业务消费, 已删除 — 仅 constraint 残留。"""
+        import dataclasses
+
+        field_names = {f.name for f in dataclasses.fields(ProcessConfig)}
+        dead = {
+            "gate_strictness", "auto_extract",
+            "require_explicit_confirm", "show_phase_ui",
+        }
+        assert dead.isdisjoint(field_names), f"死字段残留: {dead & field_names}"
+        assert field_names == {"constraint"}
+
+    def test_to_dict_only_constraint(self):
+        """to_dict 仅输出 constraint 单键 (防 4 字段回归)。"""
+        cfg = ProcessConfig(constraint=ProcessConstraint.STRICT)
+        assert cfg.to_dict() == {"constraint": "strict"}
+
+    def test_from_dict_ignores_legacy_keys(self):
+        """旧数据含已删字段时, from_dict 只取 constraint, 其余忽略不报错。"""
+        legacy = {
+            "constraint": "free",
+            "gate_strictness": "moderate",  # legacy, 已删
+            "auto_extract": False,          # legacy, 已删
+        }
+        cfg = ProcessConfig.from_dict(legacy)
+        assert cfg.constraint == ProcessConstraint.FREE
+
+    def test_from_execution_mode_single_mapping_point(self):
+        """from_execution_mode 是旧 ExecutionMode 的单一映射点:
+        PIPELINE→STRICT, 否则→FREE。create/update 构造路径由此收敛一致。"""
+        assert ProcessConfig.from_execution_mode(
+            ExecutionMode.PIPELINE
+        ).constraint == ProcessConstraint.STRICT
+        assert ProcessConfig.from_execution_mode(
+            ExecutionMode.CONVERSATION
+        ).constraint == ProcessConstraint.FREE

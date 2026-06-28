@@ -204,44 +204,26 @@ class ModelChangeTrigger(StrEnum):
 
 @dataclass(frozen=True)
 class ProcessConfig:
-    """过程配置 — 与 ProcessConstraint 配合使用。
+    """过程配置 — constraint 的序列化容器。
 
-    控制项目执行过程中的 gate 行为、交付物管理方式和前端展示。
+    v6.15: 原 gate_strictness/auto_extract/require_explicit_confirm/show_phase_ui
+    四字段前后端零业务消费 (gate 行为由 content.gate.GateProfile 接管, 提取/确认/
+    UI 展示由 constraint + 链路决定), 已删除。容器保留以稳定 process_config 的
+    DB/前后端契约, 仅持有 constraint。from_execution_mode 为旧 ExecutionMode 的
+    单一映射点 (PIPELINE→STRICT, 否则→FREE)。
     """
 
     constraint: ProcessConstraint = ProcessConstraint.FREE
-    gate_strictness: GateStrictness = GateStrictness.MODERATE
-    auto_extract: bool = True  # AI 回复后自动提取 deliverable
-    require_explicit_confirm: bool = False  # 用户必须手动确认 deliverable
-    show_phase_ui: bool = False  # 前端是否展示阶梯 UI
 
     @staticmethod
     def from_execution_mode(mode: ExecutionMode) -> "ProcessConfig":
-        """从旧 ExecutionMode 迁移到新 ProcessConfig。"""
+        """从旧 ExecutionMode 迁移到 ProcessConfig (单一映射点)。"""
         if mode == ExecutionMode.PIPELINE:
-            return ProcessConfig(
-                constraint=ProcessConstraint.STRICT,
-                gate_strictness=GateStrictness.STRICT,
-                auto_extract=False,
-                require_explicit_confirm=True,
-                show_phase_ui=True,
-            )
-        return ProcessConfig(
-            constraint=ProcessConstraint.FREE,
-            gate_strictness=GateStrictness.MODERATE,
-            auto_extract=True,
-            require_explicit_confirm=False,
-            show_phase_ui=False,
-        )
+            return ProcessConfig(constraint=ProcessConstraint.STRICT)
+        return ProcessConfig(constraint=ProcessConstraint.FREE)
 
     def to_dict(self) -> dict:
-        return {
-            "constraint": self.constraint.value,
-            "gate_strictness": self.gate_strictness.value,
-            "auto_extract": self.auto_extract,
-            "require_explicit_confirm": self.require_explicit_confirm,
-            "show_phase_ui": self.show_phase_ui,
-        }
+        return {"constraint": self.constraint.value}
 
     @staticmethod
     def from_dict(data: dict) -> "ProcessConfig":
@@ -249,10 +231,6 @@ class ProcessConfig:
             return ProcessConfig()
         return ProcessConfig(
             constraint=ProcessConstraint(data.get("constraint", "free")),
-            gate_strictness=GateStrictness(data.get("gate_strictness", "moderate")),
-            auto_extract=data.get("auto_extract", True),
-            require_explicit_confirm=data.get("require_explicit_confirm", False),
-            show_phase_ui=data.get("show_phase_ui", False),
         )
 
 

@@ -109,10 +109,6 @@ export type ProcessConstraint = 'strict' | 'moderate' | 'free';
 
 export interface ProcessConfig {
   constraint: ProcessConstraint;
-  gate_strictness: string;
-  auto_extract: boolean;
-  require_explicit_confirm: boolean;
-  show_phase_ui: boolean;
 }
 export type UserRole = 'admin' | 'member' | 'viewer';
 
