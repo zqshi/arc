@@ -6,9 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Planned — v6.13.0 方向待规划
+### Planned — v6.14.0 — 项目设置 UX 整理
 
-> v6.12 归档后激活, 范围待定。候选: 真实产物签名验证 / 测试债务清理 / 聚合边界重构 / mac/win 原生构建 / runtime 防御加固。
+> v6.13 归档后激活。T1: 环节能力配置作为高级配置项默认收起到项目规范下 (纯前端, 复用 LLMConfigSection 折叠模式, 后端零改动)。
+
+## [6.13.0] - 2026-06-28 — 签名链路真实化 + 凭证预留 (A 限定版)
+
+### Added — 签名链路真实化 + 凭证配置项预留
+
+- **T1 P3 修复 + 凭证预留**: SigningCredentials 加 `apple_id` (Apple ID 邮箱), has_apple() 含之; AppleSigner notarytool --apple-id 用 apple_id (非 team_id, 修 v6.1 P3), --team-id 保持 team_id; 注释去 mock 措辞 (命令构造真实, L3 已证 android 同理); 测试级联补 apple_id + test_apple_missing_id_not_complete (P3 回归) + notarytool --apple-id 断言
+- **T2 L3 固化测试**: test_android_build_real.py (slow) 真实 capacitor 7 → assembleRelease → apksigner sign/verify v2 通过; android 工具链 smoke; pyproject addopts `-m "not slow"` 让 slow 默认 skip
+- **T3 文档收尾**: current.md 方向落定 A 限定版 + 任务表/依赖图/验证标准
+
+### 决策
+
+- 方向 A 限定版 (签名链路真实化 + 凭证预留) — 候选中选 A: 接 v6.12 闭环的 android 构建链路上真实签名验证 + 修 v6.1 P3 凭证配置遗留; mac/win 真实签名卡凭证/环境, 本版只做凭证预留配置项
+- notarytool --apple-id 用 apple_id (Apple ID 邮箱) 非 team_id — 修 v6.1 P3 误用; 用户配齐 apple_id+developer_id+team_id+app_password 即可真实签名
+- L3 证伪 "AndroidSigner 是 mock" — 真实端到端 (assembleRelease → apksigner sign SIGN_OK → verify v1/v2/v3 全 true), 真调 apksigner
+- slow 测试默认 skip (addopts -m "not slow") — 5min 级真实构建测试不污染日常 pytest
+
+### 遗留 (技术债)
+
+- mac 真实签名验证 — 需 Apple Developer ID 证书 (用户私有), 待凭证
+- win 真实签名验证 — 需 Windows runner (本机 macOS 跑不了 signtool)
+- runtime.py:107 application→infrastructure.eventbus 惰性 import — v6.7 既有, 非本版本引入
 
 ## [6.12.0] - 2026-06-28 — 容器构建链路扩展（web + android capacitor 镜像）
 
