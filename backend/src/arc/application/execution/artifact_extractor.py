@@ -220,16 +220,14 @@ class ArtifactExtractor:
             if qualified is None:
                 qualified = await self._collect_qualified(todo_id)
 
-            # 依赖前置门
+            # 依赖前置门 — 三档共享硬不变量 (与 constraint 无关)。
+            # 依赖满足是产出下游的前提: 缺前置一律硬阻断, 不存在"软放行"。
+            # 堵"没需求就开发/没原型就写代码/没代码就测试报告"的空中楼阁。
             missing = missing_prerequisites(
                 artifact.artifact_type.value, set(qualified.keys())
             )
-            hard_block = (
-                profile.dependency_block_mode == "hard"
-                or artifact.artifact_type.value in profile.dependency_hard_block
-            )
 
-            if missing and hard_block:
+            if missing:
                 result = ConversationGateResult(
                     passed=False, score=0, threshold=profile.score_threshold,
                     gaps=[
@@ -256,15 +254,10 @@ class ArtifactExtractor:
                 capabilities=capabilities,
             )
 
-            # 软模式前置警告 (不阻断，记录供 LLM 后续修正)
-            if missing and not hard_block:
-                result.dependency_warning = list(missing)
-
             await self._write_quality(artifact, result)
             logger.info(
-                "Conversation artifact %s gate: passed=%s score=%s%s",
+                "Conversation artifact %s gate: passed=%s score=%s",
                 artifact.artifact_type.value, result.passed, result.score,
-                f" dep_warning={missing}" if missing else "",
             )
             return result
         except Exception as exc:

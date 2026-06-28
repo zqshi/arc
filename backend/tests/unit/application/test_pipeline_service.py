@@ -63,7 +63,22 @@ def pipeline_mocks():
         p = patch(v, new=new)
         patches[k] = p
         mocks[k] = p.start()
-    mocks["collect_prior_artifacts"].return_value = {}
+    # v6.15: 默认 prior_artifacts 覆盖 app_code 全部前置 (tech_architecture+
+    # service_spec+prototype), 使 characterization 测试不被 DAG 守卫干扰。
+    # 专门测 DAG 守卫的用例再覆盖为空 (见 TestPipelineServiceDAGGuard)。
+    mocks["collect_prior_artifacts"].return_value = {
+        "requirement_spec": {"x": 1},
+        "prototype": {"x": 1},
+        "tech_architecture": {"x": 1},
+        "service_spec": {"x": 1},
+        "app_code": {"x": 1},
+        "dev_report": {"x": 1},
+        "test_report": {"x": 1},
+        "deploy_report": {"x": 1},
+        "interaction_design": {"x": 1},
+        "ui_spec": {"x": 1},
+        "experience_card": {"x": 1},
+    }
     mocks["evaluate_gate"].return_value = MagicMock(passed=True, score=8)
     ctx = MagicMock()
     ctx.has_project = False
@@ -223,4 +238,82 @@ class TestPipelineServiceConfirmPhase:
         assert todo.status == TodoStatus.DONE
         pipeline_mocks["extract_experience"].assert_awaited_once()
         pipeline_mocks["notify_github"].assert_awaited_once()
+
+
+class TestPipelineServiceDAGGuard:
+    """STRICT 链路 DAG 依赖守卫 (v6.15) — 与 FREE 链路同一真相源, 硬阻断。
+
+    覆盖 phase 顺序检查管不到的缺口: skip 掉 UI_DESIGN 后 confirm ARCHITECTURE,
+    phase 顺序放行 (skipped 算完成) 但 prototype 依赖未满足 → DAG 在此硬阻断。
+    """
+
+    @pytest.mark.asyncio
+    async def test_blocks_when_prerequisite_missing(self, pipeline_mocks):
+        # app_code 依赖 [tech_architecture, service_spec, prototype], 全缺 → DAG 阻断
+        from arc.application.pipeline.gate import PhaseGateError
+
+        pipeline_mocks["collect_prior_artifacts"].return_value = {}
+        phase = _make_phase(PhaseType.DEVELOPMENT)
+        svc = _make_svc(current_phase=phase, artifact=_make_artifact())
+        with pytest.raises(PhaseGateError) as exc_info:
+            await svc.confirm_phase(uuid.uuid4(), PhaseType.DEVELOPMENT)
+        result = exc_info.value.result
+        assert result.passed is False
+        assert result.score == 0
+        assert "前置交付物未达标" in result.gaps[0]
+        # DAG 短路, 不再调 evaluate_gate (省 LLM 成本)
+        pipeline_mocks["evaluate_gate"].assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_blocks_on_partial_missing(self, pipeline_mocks):
+        # skip UI_DESIGN 后 confirm ARCHITECTURE: 有 requirement_spec 缺 prototype → 阻断
+        from arc.application.pipeline.gate import PhaseGateError
+
+        pipeline_mocks["collect_prior_artifacts"].return_value = {
+            "requirement_spec": {"x": 1},  # 缺 prototype
+        }
+        arch_artifact = Artifact(
+            todo_id=uuid.uuid4(), artifact_type=ArtifactType.TECH_ARCHITECTURE,
+            content={"data_model": {}, "api_design": [], "tech_decisions": []},
+        )
+        phase = _make_phase(PhaseType.ARCHITECTURE)
+        svc = _make_svc(current_phase=phase, artifact=arch_artifact)
+        with pytest.raises(PhaseGateError) as exc_info:
+            await svc.confirm_phase(uuid.uuid4(), PhaseType.ARCHITECTURE)
+        assert "prototype" in exc_info.value.result.gaps[0]
+        pipeline_mocks["evaluate_gate"].assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_passes_when_prerequisites_satisfied(self, pipeline_mocks):
+        # 前置全满足 → DAG 放行, 走正常 evaluate_gate
+        pipeline_mocks["collect_prior_artifacts"].return_value = {
+            "requirement_spec": {"x": 1},
+            "prototype": {"x": 1},
+        }
+        arch_artifact = Artifact(
+            todo_id=uuid.uuid4(), artifact_type=ArtifactType.TECH_ARCHITECTURE,
+            content={"data_model": {}, "api_design": [], "tech_decisions": []},
+        )
+        phase = _make_phase(PhaseType.ARCHITECTURE)
+        svc = _make_svc(
+            current_phase=phase, artifact=arch_artifact, todo=_make_todo(),
+            next_phase=_make_phase(PhaseType.DEVELOPMENT, status=PhaseStatus.PENDING),
+        )
+        result = await svc.confirm_phase(uuid.uuid4(), PhaseType.ARCHITECTURE)
+        assert result is phase
+        pipeline_mocks["evaluate_gate"].assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_root_artifact_never_blocked(self, pipeline_mocks):
+        # requirement_spec 是 DAG 根节点 (无前置), 永不被依赖守卫拦
+        pipeline_mocks["collect_prior_artifacts"].return_value = {}
+        req_artifact = Artifact(
+            todo_id=uuid.uuid4(), artifact_type=ArtifactType.REQUIREMENT_SPEC,
+            content={"background": "b", "user_stories": [], "acceptance_criteria": [],
+                     "boundaries": "x"},
+        )
+        phase = _make_phase(PhaseType.CLARIFICATION)
+        svc = _make_svc(current_phase=phase, artifact=req_artifact, todo=_make_todo())
+        await svc.confirm_phase(uuid.uuid4(), PhaseType.CLARIFICATION)
+        pipeline_mocks["evaluate_gate"].assert_awaited_once()
 

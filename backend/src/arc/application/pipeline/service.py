@@ -187,17 +187,41 @@ class PipelineService:
     async def _evaluate_phase_gate(
         self, phase_type: PhaseType, artifact: Artifact, todo_id: uuid.UUID
     ):
-        """收集项目规范 + 前置产出物, 评估阶段质量 gate。"""
+        """收集项目规范 + 前置产出物, 评估阶段质量 gate。
+
+        v6.15: 先过 DAG 依赖守卫 (三档共享硬不变量), 再走 evaluate_gate。
+        覆盖 skip 阶段后产出依赖未满足 artifact 的缺口——phase 顺序检查只拦
+        "前置 phase 是否完成", 不拦 "前置交付物是否达标"; skip 掉 UI_DESIGN
+        直接 confirm ARCHITECTURE 时, phase 顺序放行但 prototype 依赖未满足,
+        DAG 在此硬阻断。
+        """
         from arc.application.context.provider import ProjectContextProvider
-        from arc.application.pipeline.gate import evaluate_gate
+        from arc.application.pipeline.gate import GateResult, evaluate_gate
+        from arc.domain.planning.dependency_graph import missing_prerequisites
 
         project_ctx = await ProjectContextProvider(self.db).get_context(todo_id)
         conventions = project_ctx.conventions if project_ctx.has_project else ""
 
-        # 收集前置已确认产出物 — 用于交叉一致性检查
+        # 收集前置已确认产出物 — DAG 依赖守卫 + 交叉一致性检查共用
         prior_artifacts = await pipeline_hooks.collect_prior_artifacts(
             self.artifact_repo, todo_id, phase_type
         )
+
+        # DAG 依赖守卫 — 与 FREE 链路 (artifact_extractor) 同一真相源, 硬阻断
+        missing = missing_prerequisites(
+            artifact.artifact_type.value, set(prior_artifacts.keys())
+        )
+        if missing:
+            return GateResult(
+                passed=False,
+                score=0,
+                gaps=[
+                    f"前置交付物未达标: {', '.join(missing)}；"
+                    f"请先完成并达标后再确认 {artifact.artifact_type.value}"
+                ],
+                suggestion="先产出并完善前置交付物。",
+            )
+
         return await evaluate_gate(
             phase_type, artifact.content, conventions,
             prior_artifacts=prior_artifacts,

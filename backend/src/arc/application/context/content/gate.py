@@ -17,16 +17,17 @@ from arc.domain.project.value_objects import ProcessConstraint
 
 @dataclass(frozen=True)
 class GateProfile:
-    """某个 constraint 级别下的门禁行为参数。"""
+    """某个 constraint 级别下的门禁行为参数。
+
+    依赖约束 (DAG 前置满足) 不在此 profile — 它是三档共享的硬不变量,
+    由 dependency_graph + artifact_extractor 统一硬阻断, 与 constraint 无关。
+    """
 
     score_threshold: int  # LLM 质量评审通过分数 (free≥5 / moderate≥6 / strict≥7)
     enable_methodology: bool  # 是否跑方法论校验 (free=False，轻量)
     enable_cross_check: bool  # 是否跑交叉一致性 (三模式都 True)
     enable_llm_review: bool  # 是否跑 LLM 质量评审 (三模式都 True)
     structural_short_circuit: int  # 结构缺口≥N 直接判失败不调 LLM (省成本)
-    dependency_block_mode: str  # "hard" 硬阻断 | "soft" 软警告
-    # 即便 soft 模式也硬阻断的交付物 (没需求没法提炼经验 / 没代码没法部署)
-    dependency_hard_block: tuple[str, ...]
 
 
 PROFILES: dict[ProcessConstraint, GateProfile] = {
@@ -36,8 +37,6 @@ PROFILES: dict[ProcessConstraint, GateProfile] = {
         enable_cross_check=True,
         enable_llm_review=True,
         structural_short_circuit=5,
-        dependency_block_mode="soft",
-        dependency_hard_block=("experience_card", "deploy_report"),
     ),
     ProcessConstraint.MODERATE: GateProfile(
         score_threshold=6,
@@ -45,8 +44,6 @@ PROFILES: dict[ProcessConstraint, GateProfile] = {
         enable_cross_check=True,
         enable_llm_review=True,
         structural_short_circuit=4,
-        dependency_block_mode="hard",
-        dependency_hard_block=(),
     ),
     ProcessConstraint.STRICT: GateProfile(
         score_threshold=7,
@@ -54,8 +51,6 @@ PROFILES: dict[ProcessConstraint, GateProfile] = {
         enable_cross_check=True,
         enable_llm_review=True,
         structural_short_circuit=3,
-        dependency_block_mode="hard",
-        dependency_hard_block=(),
     ),
 }
 

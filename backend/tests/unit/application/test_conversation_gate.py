@@ -127,7 +127,7 @@ class TestEvaluateConversationGate:
         quality = result.to_quality()
         assert set(quality.keys()) == {
             "passed", "score", "gaps", "suggestion", "threshold",
-            "blocked_by_dependency", "dependency_warning", "checked_layers",
+            "blocked_by_dependency", "checked_layers",
         }
         assert quality["passed"] is True
         assert quality["threshold"] == 5

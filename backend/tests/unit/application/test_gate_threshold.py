@@ -26,16 +26,14 @@ class TestGateProfileGrading:
         assert strict.enable_cross_check is True
         assert strict.enable_llm_review is True
 
-    def test_free_uses_soft_dependency_block(self) -> None:
-        free = get_profile(ProcessConstraint.FREE)
-        assert free.dependency_block_mode == "soft"
-        # free 也硬阻断 experience_card / deploy_report (兜底)
-        assert "experience_card" in free.dependency_hard_block
-        assert "deploy_report" in free.dependency_hard_block
-
-    def test_moderate_and_strict_use_hard_dependency_block(self) -> None:
-        assert get_profile(ProcessConstraint.MODERATE).dependency_block_mode == "hard"
-        assert get_profile(ProcessConstraint.STRICT).dependency_block_mode == "hard"
+    def test_dependency_constraint_is_mode_independent(self) -> None:
+        # v6.15: 依赖约束 (DAG 前置满足) 是三档共享硬不变量, 不在 GateProfile 内。
+        # profile 只承载校验严格度 (score_threshold/短路阈值/methodology/cross/llm),
+        # 依赖硬阻断由 dependency_graph + artifact_extractor 统一处理, 与 constraint 无关。
+        for constraint in ProcessConstraint:
+            profile = get_profile(constraint)
+            assert not hasattr(profile, "dependency_block_mode")
+            assert not hasattr(profile, "dependency_hard_block")
 
     def test_structural_short_circuit_decreases_with_strictness(self) -> None:
         # 越严格越早短路 (更不容忍结构缺口)

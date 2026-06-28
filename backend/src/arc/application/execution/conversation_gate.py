@@ -47,7 +47,6 @@ class ConversationGateResult:
     suggestion: str = ""
     threshold: int = 0
     blocked_by_dependency: bool = False
-    dependency_warning: list[str] = field(default_factory=list)
     checked_layers: list[str] = field(default_factory=list)
 
     def to_quality(self) -> dict:
@@ -59,7 +58,6 @@ class ConversationGateResult:
             "suggestion": self.suggestion,
             "threshold": self.threshold,
             "blocked_by_dependency": self.blocked_by_dependency,
-            "dependency_warning": self.dependency_warning,
             "checked_layers": self.checked_layers,
         }
 
