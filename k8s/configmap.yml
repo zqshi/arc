@@ -37,7 +37,8 @@ data:
   # ── 沙箱 ──
   ARC_SANDBOX_DEFAULT_MODE: "none"
   ARC_OPENSANDBOX_IMAGE: "python:3.12-slim"
-  # dict 类型, JSON 字符串; 形如 {"web":"arc/web-builder:latest"}
+  # dict 类型, JSON 字符串; key 格式 "{project_type}:{build_target}"。
+  # 例: {"binary_app:web":"arc/web-builder:latest","binary_app:capacitor_apk":"arc/android-builder:linux"}
   ARC_SANDBOX_BUILDER_IMAGES: "{}"
   # ── Claude Code / Cursor CLI (可选) ──
   ARC_CLAUDE_CODE_PATH: ""

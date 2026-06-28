@@ -47,3 +47,46 @@ class TestProjectType:
             json={"name": "PT Bad", "project_type": "library"},
         )
         assert resp.status_code == 422
+
+    async def test_create_binary_app_web_target_injects_sandbox(self, client: AsyncClient):
+        """v6.12: binary_app + build_target=web → conversation_config.sandbox 注入 target。"""
+        resp = await client.post(
+            "/api/projects",
+            json={"name": "PT Web", "project_type": "binary_app", "build_target": "web"},
+        )
+        assert resp.status_code in (200, 201)
+        sandbox = resp.json()["conversation_config"]["sandbox"]
+        assert sandbox["mode"] == "docker"
+        assert sandbox["target"] == "web"
+
+    async def test_create_binary_app_capacitor_apk_injects_memory(self, client: AsyncClient):
+        """v6.12: capacitor_apk 注入 sandbox + memory_limit_mb=4096 (android 构建重)。"""
+        resp = await client.post(
+            "/api/projects",
+            json={
+                "name": "PT Apk",
+                "project_type": "binary_app",
+                "build_target": "capacitor_apk",
+            },
+        )
+        assert resp.status_code in (200, 201)
+        sandbox = resp.json()["conversation_config"]["sandbox"]
+        assert sandbox["target"] == "capacitor_apk"
+        assert sandbox["memory_limit_mb"] == 4096
+
+    async def test_create_binary_app_default_target_no_sandbox(self, client: AsyncClient):
+        """v6.12: binary_app 不传 build_target → 不注入 sandbox (tauri_linux 走运行时默认推导)。"""
+        resp = await client.post(
+            "/api/projects",
+            json={"name": "PT Default T", "project_type": "binary_app"},
+        )
+        assert resp.status_code in (200, 201)
+        assert "sandbox" not in resp.json()["conversation_config"]
+
+    async def test_create_rejects_invalid_build_target(self, client: AsyncClient):
+        """v6.12: 非法 build_target schema Literal 约束 → 422。"""
+        resp = await client.post(
+            "/api/projects",
+            json={"name": "PT BadT", "project_type": "binary_app", "build_target": "ios"},
+        )
+        assert resp.status_code == 422

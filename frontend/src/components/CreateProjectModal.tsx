@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { FolderOpen, GitBranch, Zap, ChevronRight, ChevronLeft, Loader2, Monitor, Globe } from 'lucide-react';
+import { FolderOpen, GitBranch, Zap, ChevronRight, ChevronLeft, Loader2, Monitor, Globe, Smartphone, FileCode } from 'lucide-react';
 import FolderPicker from './FolderPicker';
-import type { ProjectType, WorkspaceType } from '../types/api';
+import type { ProjectType, WorkspaceType, BuildTarget } from '../types/api';
 
 type Step = 'info' | 'workspace';
 
@@ -38,7 +38,19 @@ const PROJECT_TYPE_OPTIONS: Array<{
   requiresDocker?: boolean;
 }> = [
   { type: 'static_site', icon: Globe, title: '静态站点', desc: '官网 / SPA / 落地页，构建为可托管静态资源' },
-  { type: 'binary_app', icon: Monitor, title: '原生客户端', desc: 'Tauri 桌面应用，构建为 Linux 二进制', requiresDocker: true },
+  { type: 'binary_app', icon: Monitor, title: '原生客户端', desc: '桌面 / Web / Android 原生客户端，容器化构建', requiresDocker: true },
+];
+
+// v6.12: BINARY_APP 构建目标选择 (决定容器内构建形态 + 镜像)
+const BUILD_TARGET_OPTIONS: Array<{
+  target: BuildTarget;
+  icon: typeof Globe;
+  title: string;
+  desc: string;
+}> = [
+  { target: 'tauri_linux', icon: Monitor, title: 'Linux 桌面', desc: 'Tauri 打包 deb/AppImage（默认）' },
+  { target: 'web', icon: FileCode, title: 'Web 资源', desc: 'npm run build 产 dist，不打包原生客户端' },
+  { target: 'capacitor_apk', icon: Smartphone, title: 'Android APK', desc: 'Capacitor 构建 android apk' },
 ];
 
 export default function CreateProjectModal({ onClose, onCreate }: Props) {
@@ -46,6 +58,7 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('static_site');
+  const [buildTarget, setBuildTarget] = useState<BuildTarget>('tauri_linux');
   const [workspaceType, setWorkspaceType] = useState<WorkspaceType>('temporary');
   const [localPath, setLocalPath] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
@@ -67,6 +80,7 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
         name: name.trim(),
         description: desc.trim(),
         project_type: projectType,
+        ...(projectType === 'binary_app' ? { build_target: buildTarget } : {}),
         workspace_type: workspaceType,
         ...(workspaceType === 'local' && localPath ? { local_path: localPath } : {}),
         ...(workspaceType === 'github' && repoUrl ? { repo_url: repoUrl.trim(), github_token: githubToken.trim() || undefined } : {}),
@@ -162,6 +176,39 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
                   })}
                 </div>
               </div>
+              {projectType === 'binary_app' && (
+                <div className="mt-3">
+                  <label className="mb-1.5 block text-[11px] font-medium text-text-tertiary">
+                    构建目标 <span className="text-text-muted">（决定容器内构建形态）</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {BUILD_TARGET_OPTIONS.map((opt) => {
+                      const Icon = opt.icon;
+                      const active = buildTarget === opt.target;
+                      return (
+                        <button
+                          key={opt.target}
+                          type="button"
+                          onClick={() => setBuildTarget(opt.target)}
+                          className={`flex flex-col items-start gap-1 rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                            active
+                              ? 'border-accent bg-accent/5'
+                              : 'border-border hover:border-border-active hover:bg-bg-elevated/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1">
+                            <Icon size={12} className={active ? 'text-accent' : 'text-text-muted'} />
+                            <span className={`text-[11px] font-medium ${active ? 'text-accent' : 'text-text-primary'}`}>
+                              {opt.title}
+                            </span>
+                          </div>
+                          <span className="text-[10px] leading-tight text-text-muted">{opt.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             // ──── Step 2: Workspace Selection ────

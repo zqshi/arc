@@ -76,6 +76,13 @@ class DeployConfig:
                     build_command="npm run build",
                     artifact_path="dist",
                 )
-            # 波次3: target == CAPACITOR_APK → npx cap build android → android/app/build/outputs
+            if target == BuildTarget.CAPACITOR_APK:
+                # v6.12 波次3: android apk (capacitor)。
+                # 多步串联: web dist → cap copy (拷入 native) → cap build android (产 apk)。
+                # artifact_path 指 capacitor 默认 release apk 输出目录。
+                return DeployConfig(
+                    build_command="npm run build && npx cap copy android && npx cap build android",
+                    artifact_path="android/app/build/outputs/apk/release",
+                )
         # 未识别类型走默认
         return DeployConfig()

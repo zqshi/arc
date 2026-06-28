@@ -61,3 +61,13 @@ class TestResolveSandboxPolicy:
         policy = resolve_sandbox_policy(p)
         assert policy.build_target == BuildTarget.WEB
         assert policy.docker_image == "arc/web-builder:latest"
+
+    def test_binary_app_capacitor_apk_target_routed(self):
+        """v6.12 波次3: 显式 target=capacitor_apk → 推导 android-builder 镜像。"""
+        p = _project(
+            ProjectType.BINARY_APP,
+            sandbox={"mode": "docker", "target": "capacitor_apk"},
+        )
+        policy = resolve_sandbox_policy(p)
+        assert policy.build_target == BuildTarget.CAPACITOR_APK
+        assert policy.docker_image == "arc/android-builder:linux"

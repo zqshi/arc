@@ -6,6 +6,7 @@
 
 TAURI_BUILDER_IMAGE := arc/tauri-builder:linux
 WEB_BUILDER_IMAGE := arc/web-builder:latest
+ANDROID_BUILDER_IMAGE := arc/android-builder:linux
 
 .PHONY: tauri-builder web-builder android-builder clean
 
@@ -16,9 +17,10 @@ tauri-builder:
 web-builder:
 	docker build -t $(WEB_BUILDER_IMAGE) -f web-builder.Dockerfile .
 
-# 波次3 预留 (激活时取消注释):
-# android-builder:
-# 	docker build -t arc/android-builder:linux -f android-builder.Dockerfile .
+# 波次3 (v6.12): android apk (capacitor, BINARY_APP + CAPACITOR_APK target)
+# 镜像大 (JDK+SDK+NDK ~3GB), 构建慢 (~10-20min, NDK 下载占大头)
+android-builder:
+	docker build -t $(ANDROID_BUILDER_IMAGE) -f android-builder.Dockerfile .
 
 clean:
-	docker rmi $(TAURI_BUILDER_IMAGE) $(WEB_BUILDER_IMAGE) 2>/dev/null || true
+	docker rmi $(TAURI_BUILDER_IMAGE) $(WEB_BUILDER_IMAGE) $(ANDROID_BUILDER_IMAGE) 2>/dev/null || true

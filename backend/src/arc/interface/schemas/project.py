@@ -16,6 +16,8 @@ class ProjectCreate(BaseModel):
     execution_mode: str = "pipeline"  # deprecated, kept for compat
     process_constraint: str = "free"
     project_type: Literal["static_site", "binary_app"] = "static_site"
+    # v6.12: BINARY_APP 构建目标 (web/capacitor_apk 需显式选; tauri_linux 为默认, 不传即走默认推导)
+    build_target: Literal["tauri_linux", "web", "capacitor_apk"] | None = None
     # 工作区策略
     workspace_type: Literal["local", "github", "temporary"] = "temporary"
     github_token: str = ""  # workspace_type=github 时可选传入

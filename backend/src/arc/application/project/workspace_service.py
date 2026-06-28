@@ -55,6 +55,7 @@ class ProjectWorkspaceService:
         execution_mode: str = "conversation",
         process_constraint: str | None = None,
         project_type: str | None = None,
+        build_target: str | None = None,
         workspace_type: str | None = None,
         local_path: str | None = None,
         github_token: str | None = None,
@@ -90,6 +91,22 @@ class ProjectWorkspaceService:
             project_type=ProjectType(project_type) if project_type else ProjectType.STATIC_SITE,
             process_config=ProcessConfig.from_execution_mode(exec_mode),
         )
+
+        # v6.12: BINARY_APP 非 tauri_linux 构建目标显式注入 sandbox config。
+        # tauri_linux 为默认, 由 policy_resolver.default_sandbox_config 运行时推导, 不需存;
+        # web/capacitor_apk 需显式存 sandbox.target 供 policy_resolver 推导对应镜像。
+        is_non_default_target = (
+            project.project_type == ProjectType.BINARY_APP
+            and build_target
+            and build_target != "tauri_linux"
+        )
+        if is_non_default_target:
+            # capacitor_apk 构建重 (gradle+jvm+aapt2+dex), 默认 512MB 不足, 需 4GB;
+            # web (vite) 走默认内存即可。
+            sandbox_cfg: dict = {"mode": "docker", "target": build_target}
+            if build_target == "capacitor_apk":
+                sandbox_cfg["memory_limit_mb"] = 4096
+            project.update_conversation_config({"sandbox": sandbox_cfg})
 
         # 工作区策略处理
         self._apply_workspace_strategy(

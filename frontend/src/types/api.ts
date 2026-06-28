@@ -150,6 +150,8 @@ export interface Project {
 
 export type WorkspaceType = 'local' | 'github' | 'temporary';
 export type ProjectType = 'static_site' | 'binary_app'; // v5.9.0 静态站点; v6.0.0 binary_app(原生客户端, 聚焦容器可构建目标)
+// v6.12: BINARY_APP 构建目标 — 决定容器内构建形态 (桌面包/web dist/android apk)
+export type BuildTarget = 'tauri_linux' | 'web' | 'capacitor_apk';
 
 export interface CreateProjectRequest {
   name: string;
@@ -160,6 +162,7 @@ export interface CreateProjectRequest {
   conventions?: string;
   execution_mode?: ExecutionMode;
   project_type?: ProjectType;
+  build_target?: BuildTarget; // v6.12: BINARY_APP 构建目标 (web/capacitor_apk 需显式选; tauri_linux 默认)
   workspace_type?: WorkspaceType;
   github_token?: string;
 }

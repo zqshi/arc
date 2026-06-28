@@ -55,6 +55,7 @@ async def create_project(
             execution_mode=body.execution_mode,
             process_constraint=body.process_constraint,
             project_type=body.project_type,
+            build_target=body.build_target,
             workspace_type=body.workspace_type,
             local_path=body.local_path,
             github_token=body.github_token,

@@ -24,6 +24,11 @@ class TestResolveBuildImage:
         img = resolve_build_image(ProjectType.BINARY_APP, BuildTarget.WEB)
         assert img == "arc/web-builder:latest"
 
+    def test_binary_app_capacitor_apk_default(self):
+        """BINARY_APP + CAPACITOR_APK → arc/android-builder:linux (v6.12 波次3)。"""
+        img = resolve_build_image(ProjectType.BINARY_APP, BuildTarget.CAPACITOR_APK)
+        assert img == "arc/android-builder:linux"
+
     def test_overrides_takes_precedence(self):
         """config 覆盖值优先于默认注册表。"""
         overrides = {"binary_app:tauri_linux": "registry.example.com/tauri:v2"}
@@ -62,6 +67,12 @@ class TestDefaultBuildImages:
         key = (ProjectType.BINARY_APP, BuildTarget.WEB)
         assert key in DEFAULT_BUILD_IMAGES
         assert DEFAULT_BUILD_IMAGES[key] == "arc/web-builder:latest"
+
+    def test_registry_contains_capacitor_apk(self):
+        """v6.12 波次3 注册表含 BINARY_APP/CAPACITOR_APK。"""
+        key = (ProjectType.BINARY_APP, BuildTarget.CAPACITOR_APK)
+        assert key in DEFAULT_BUILD_IMAGES
+        assert DEFAULT_BUILD_IMAGES[key] == "arc/android-builder:linux"
 
     def test_static_site_web_not_registered(self):
         """STATIC_SITE + WEB 不注册 — web target 绑 BINARY_APP (化解 v6.0 重复矛盾)。"""

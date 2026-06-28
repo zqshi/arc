@@ -30,8 +30,7 @@ class BuildTarget(StrEnum):
 
     TAURI_LINUX = "tauri_linux"  # v6.0 波次1: tauri linux bundle (deb/AppImage)
     WEB = "web"  # v6.12 波次2: BINARY_APP web 资源构建 (npm run build → dist, 不打包原生客户端)
-    # 预留 (波次3 激活):
-    # CAPACITOR_APK = "capacitor_apk"  # 波次3: android apk (capacitor)
+    CAPACITOR_APK = "capacitor_apk"  # v6.12 波次3: android apk (capacitor)
 
 
 @dataclass(frozen=True)

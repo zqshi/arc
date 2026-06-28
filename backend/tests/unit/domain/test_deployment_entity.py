@@ -199,6 +199,16 @@ class TestDeployConfigForType:
         assert cfg.build_command == "npm run build"
         assert cfg.artifact_path == "dist"
 
+    def test_binary_app_capacitor_apk_target(self) -> None:
+        """v6.12 波次3: BINARY_APP + CAPACITOR_APK → capacitor 多步构建产 apk。"""
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+        from arc.domain.sandbox.value_objects import BuildTarget
+
+        cfg = DeployConfig.for_type(ProjectType.BINARY_APP, BuildTarget.CAPACITOR_APK)
+        assert "npx cap build android" in cfg.build_command
+        assert cfg.artifact_path == "android/app/build/outputs/apk/release"
+
     def test_static_site_ignores_target(self) -> None:
         """STATIC_SITE 不受 build_target 影响 (正交维度)。"""
         from arc.domain.deployment.value_objects import DeployConfig
