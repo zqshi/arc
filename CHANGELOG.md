@@ -6,9 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Planned — v6.14.0 — 项目设置 UX 整理
+_下一版本方向待定 (见 backlog.md)。_
 
-> v6.13 归档后激活。T1: 环节能力配置作为高级配置项默认收起到项目规范下 (纯前端, 复用 LLMConfigSection 折叠模式, 后端零改动)。
+## [6.15.0] - 2026-06-28 — 过程约束依赖守卫治理
+
+### Changed — 三模式依赖约束统一为硬不变量
+
+- **T1 DAG 补全**: 补 5 条依赖边 (prototype→tech_architecture/app_code、app_code→dev_report/test_report、experience_card→dev_report), 堵"没原型写代码/没代码报告测试"的空中楼阁; 加无环校验
+- **T2 废除 soft 放行**: 删 GateProfile 的 dependency_block_mode/dependency_hard_block + ConversationGateResult.dependency_warning; 依赖约束三档 (strict/moderate/free) 统一硬阻断, 与 constraint 无关
+- **T3 STRICT 补 DAG 守卫**: `_evaluate_phase_gate` 先过 DAG 再 evaluate_gate, 覆盖 skip 阶段后产出依赖未满足 artifact 的缺口 (phase 顺序检查只拦"前置 phase 完成", 不拦"前置交付物达标")
+
+### Changed — ProcessConfig 死字段清理 + 模式守卫
+
+- **T4 ProcessConfig 死字段清理**: 删 gate_strictness/auto_extract/require_explicit_confirm/show_phase_ui 四字段 (前后端零业务消费, gate 行为由 GateProfile 接管); 退化为 constraint 容器; create/update 双构造路径收敛, from_execution_mode 成为单一映射点
+- **T5 后端模式守卫**: pipeline 5 写操作 (start_pipeline/start_phase/confirm/skip/rollback) 接入 `_require_pipeline_mode`, FREE/MODERATE → 409 mode_mismatch; 真相源 todo.project→project.process_constraint, 无 project 回退 execution_mode。conversation send_message + 读/artifact 操作不守 (跨模式共享)
+- **T5 附带修复 create 持久化 bug**: `ProjectRepository.create` 漏写 process_constraint/process_config (DB 用 ORM default "free" 覆盖)。潜伏已久, 守卫依赖 process_constraint 时暴露
+- **T6 历史数据回填**: z18_backfill_process_constraint migration 实测修正 959 个 pipeline→free 为 strict
+
+### 决策
+
+- 依赖约束 (DAG) 是三档共享硬不变量, 不该由模式开关决定 — dependency_block_mode 是设计错误
+- FREE 的"自由"= 在可推进集合 (入度为0节点) 里自由选下一个, ≠ 无视依赖强行跳
+- DAG 是交付物顺序唯一真相源; STRICT phase 顺序检查 (编排) 与 DAG 守卫 (依赖) 职责不同, 共存不合并
+- ProcessConfig 退化为 constraint 容器, gate 行为由 GateProfile 接管
+- 模式守卫真相源 = project.process_constraint (单一源), 不往 todo 加 constraint 字段 (避免第三处重复存同值)
+
+### 遗留 (技术债)
+
+- execution_mode deprecated 下线 (P2): 前后端契约仍用, 与 process_constraint 双源未收敛
+- strict 阈值双存 (P2): pipeline/gate.py:147 硬编码 score<7 绕过 GateProfile
+- DELIVERABLES_BY_CONSTRAINT 死结构 (P2): 三档同列 + reorder 空操作
+- 测试 DB 隔离 (P2): conftest db_session commit 后无法 rollback
+- create bug 教训: repository 新增持久化字段必须同步 create + to_entity 两处
+
+## [6.14.0] - 2026-06-28 — 项目设置 UX 整理
+
+### Changed — 环节能力配置默认收起
+
+- **T1**: PhaseCapabilitiesSection 自带折叠 (复用 LLMConfigSection 模式: showAdvanced + ChevronDown rotate-180), 移到「项目规范」卡片下方默认收起。纯前端, 后端零改动 (默认行为不变: 7 环节始终存在, 每环节默认 0 能力)
 
 ## [6.13.0] - 2026-06-28 — 签名链路真实化 + 凭证预留 (A 限定版)
 
