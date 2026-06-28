@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// 后端地址可经 env 覆盖 (本地端口冲突时, 如 ARC_BACKEND_URL=http://localhost:8001 npm run dev)
+// 默认 8000 保持仓库约定, 不污染代码
+const BACKEND_HTTP = process.env.ARC_BACKEND_URL || 'http://localhost:8000'
+const BACKEND_WS = process.env.ARC_BACKEND_WS || 'ws://localhost:8000'
+
 export default defineConfig(({ mode }) => ({
   // 生产构建剔除 console/debugger (catch 块降级日志不污染生产输出, dev 保留便于调试)
   esbuild: {
@@ -80,7 +85,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: BACKEND_HTTP,
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('proxyRes', (proxyRes) => {
@@ -92,15 +97,15 @@ export default defineConfig(({ mode }) => ({
         },
       },
       '/static/previews': {
-        target: 'http://localhost:8000',
+        target: BACKEND_HTTP,
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://localhost:8000',
+        target: BACKEND_HTTP,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: BACKEND_WS,
         ws: true,
       },
     },
