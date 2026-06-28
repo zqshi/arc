@@ -6,10 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Planned — v6.10.0 B 流程引擎内容编排
+### Planned — v6.12.0 方向待规划
 
-- methodology/prompt/gate 内容显性化可配置(DB 持久化或配置驱动), 不推翻 Provider 管道与7阶段骨架
-- 复用 v6.8 capability 注册表 / v6.9 类型驱动注册表模式
+> v6.10 归档后激活, 范围待定。候选: 构建链路扩展 / 测试债务清理 / 聚合边界重构 / oss-evaluator。
+
+## [6.10.0] - 2026-06-28 — B 流程引擎内容编排（methodology/prompt/gate 可配置）
+
+### Changed — 环节逻辑内容显性化
+
+- **TD-1~4 技术债清完** (v6.11 遗留): tool_loop.run() 拆分+补测试 / 测试文件拆分 / tests ruff F841/F821 清理 / opensandbox 本地处理
+- **T1 方案设计**: 配置文件方案 (Python 常量模块载体, 零新依赖) + 三类内容迁移映射
+- **T2 methodology 显性化**: `application/context/content/methodology.py` — free baselines + moderate prompt + prototype_guide, get_methodology_prompt_for_constraint/MethodologyProvider 改读 content
+- **T3 phase_prompts 显性化**: `content/phase_prompts.py` — PHASE_SYSTEM/EXTRACTION_PROMPTS + _PHASE_INFERENCE_PROMPT, 3 处消费方改读 content
+- **T4 gate 显性化**: `content/gate.py` — DELIVERABLE_REQUIRED_FIELDS + GateProfile 阈值 + GATE_EVALUATION_PROMPT, conversation_gate/gate 改读 content
+- **T5 registry 统一**: `content/registry.py` 统一入口 + .get fallback, 9 处消费方接通; 屏蔽组织/模板前端入口 (hidden 可逆); 全量回归
+
+### 决策
+
+- 配置文件方案 (git 版本控制, 无 DB/migration/管理界面)
+- Python 常量模块载体 (非 YAML, 零新依赖)
+- 内容可编排管道不变; strict 子模块 (clarification_strategy 路由等) 保留代码非内容
+- 复用 v6.9 dict+.get fallback 模式; 一次性迁移无运行期双读
+
+### 遗留 (技术债)
+
+- strict 子模块未显性化 (含编排逻辑, 留 backlog)
+- 配置载体 Python 常量, 非开发人员无法编辑 (需 YAML+管理界面, 留 backlog)
 
 ## [6.11.0] - 2026-06-27 — 投产就绪 + 质量加固
 
