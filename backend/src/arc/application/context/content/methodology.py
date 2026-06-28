@@ -232,6 +232,11 @@ prototype/
 - 前端 web 资源 build_command 与 static_site 一致 (npm run build → dist)，tauri 引用此 dist
 - 构建/签名/分发分离：本阶段只保证构建产物落 bundle 目录；签名在 v6.1 (凭证可配)、分发在 v6.2
 - Android 构建若用 Capacitor (波次3)，需配 capacitor.config.ts + android/ 平台目录
+- Capacitor 7 android 构建须统一 kotlin stdlib 版本：capacitor 7 依赖 kotlin-stdlib 1.8.22，
+  若 androidx 等传递引入旧 kotlin-stdlib-jdk8 (如 1.6.21) 会触发 checkDuplicateClasses 失败
+  (重复类)。在 android/build.gradle 用 configurations.all 的 resolutionStrategy.force
+  统一 kotlin-stdlib 与 kotlin-stdlib-jdk8 到同版本 (1.8.22)，且 ext.kotlin_version 与
+  capacitor 要求对齐——这是 release 构建能否过 checkDuplicateClasses 的关键
 
 ### 设计原则
 

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from arc.domain.errors import AppError
-from arc.domain.sandbox.value_objects import SandboxPolicy
+from arc.domain.sandbox.value_objects import BuildTarget, SandboxPolicy
 
 # Type alias for tool implementation functions injected from execution layer.
 # Signature: (params: dict, *, base_path: Path) -> str
@@ -277,6 +277,10 @@ class DockerSandboxRuntime(SandboxRuntime):
             "-w", "/workspace",
             "--memory", f"{p.memory_limit_mb}m",
         ]
+        # v6.13 L1: capacitor apk 构建需大 shm — aapt2 daemon / gradle 守护进程在
+        # docker 默认 64m 共享内存下易 OOM (v6.12 android smoke 本地 --shm-size=2g 通过)。
+        if p.build_target == BuildTarget.CAPACITOR_APK:
+            argv += ["--shm-size", "2g"]
         if not p.network_enabled:
             argv += ["--network", "none"]
         argv.append(p.docker_image)

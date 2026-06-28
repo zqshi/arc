@@ -61,6 +61,12 @@ class TestGetPrototypeGuide:
         assert guide
         assert "原生客户端" in guide or "tauri" in guide.lower()
 
+    def test_binary_app_guide_has_capacitor_kotlin_hint(self):
+        """L2: capacitor 7 android 构建的 kotlin 版本统一提示存在 (防 checkDuplicateClasses 失败)。"""
+        guide = get_prototype_guide(ProjectType.BINARY_APP)
+        assert "checkDuplicateClasses" in guide
+        assert "resolutionStrategy" in guide
+
     def test_unregistered_type_returns_empty(self):
         assert get_prototype_guide("library") == ""  # type: ignore[arg-type]
 

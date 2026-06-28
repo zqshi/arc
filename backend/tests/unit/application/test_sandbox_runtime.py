@@ -12,7 +12,7 @@ from arc.application.sandbox.runtime import (
     ApprovalGateSandboxRuntime,
     DockerSandboxRuntime,
 )
-from arc.domain.sandbox.value_objects import SandboxMode, SandboxPolicy
+from arc.domain.sandbox.value_objects import BuildTarget, SandboxMode, SandboxPolicy
 
 
 def _docker_available() -> bool:
@@ -152,4 +152,44 @@ class TestDockerSandboxRuntime:
     async def test_close_is_noop(self, tmp_path: Path):
         rt = DockerSandboxRuntime(_docker_policy(str(tmp_path)), str(tmp_path))
         await rt.close()  # 不应抛异常
+
+
+class TestDockerArgvBuild:
+    """_build_docker_argv argv 构造 (零 docker 依赖, 纯函数式验证)。
+
+    v6.13 L1: capacitor apk 构建按 build_target 加 --shm-size, 避免 aapt2 daemon /
+    gradle 守护进程在 docker 默认 64m 共享内存下 OOM (v6.12 android smoke 本地
+    --shm-size=2g 通过)。
+    """
+
+    @staticmethod
+    def _runtime(build_target: BuildTarget, project_path: str = "/tmp/test"):
+        policy = SandboxPolicy(
+            mode=SandboxMode.DOCKER,
+            docker_image="arc/android-builder:linux",
+            build_target=build_target,
+            memory_limit_mb=512,
+            network_enabled=False,
+            timeout_seconds=30,
+        )
+        return DockerSandboxRuntime(policy, project_path)
+
+    def test_capacitor_apk_adds_shm_size(self):
+        """L1: capacitor_apk 构建加 --shm-size 2g (aapt2/gradle 需大 shm)。"""
+        rt = self._runtime(BuildTarget.CAPACITOR_APK)
+        argv = rt._build_docker_argv("cap build android")
+        assert "--shm-size" in argv
+        assert argv[argv.index("--shm-size") + 1] == "2g"
+
+    def test_tauri_linux_no_shm_size(self):
+        """非 capacitor 构建不加 shm-size (默认 64m 足够)。"""
+        rt = self._runtime(BuildTarget.TAURI_LINUX)
+        argv = rt._build_docker_argv("cargo tauri build")
+        assert "--shm-size" not in argv
+
+    def test_web_no_shm_size(self):
+        """web 构建不加 shm-size。"""
+        rt = self._runtime(BuildTarget.WEB)
+        argv = rt._build_docker_argv("npm run build")
+        assert "--shm-size" not in argv
 
