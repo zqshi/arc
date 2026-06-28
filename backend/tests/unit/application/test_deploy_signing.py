@@ -30,6 +30,7 @@ def _project_with_apple_creds(monkeypatch):
     p.set_signing_creds(
         SignerType.APPLE,
         {
+            "apple_id": "dev@example.com",
             "apple_dev_id": "Developer ID Application: Test (TEAM123)",
             "apple_team_id": "TEAM123",
             "apple_app_password": "abcd-1234-5678-efgh",

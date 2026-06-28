@@ -27,6 +27,7 @@ def _creds_with_apple(monkeypatch):
     p.set_signing_creds(
         SignerType.APPLE,
         {
+            "apple_id": "dev@example.com",
             "apple_dev_id": "Developer ID Application: Test (TEAM123)",
             "apple_team_id": "TEAM123",
             "apple_app_password": "abcd-1234-5678-efgh",
@@ -145,6 +146,12 @@ class TestAppleSignerNotarize:
         assert result.signed is True
         notary_calls = [c for c in calls if "notarytool" in c]
         assert len(notary_calls) >= 1
+        # v6.13 P3: notarytool --apple-id 用 Apple ID 邮箱 (非 team_id)
+        notary_argv = notary_calls[0]
+        apple_id_idx = notary_argv.index("--apple-id")
+        assert notary_argv[apple_id_idx + 1] == "dev@example.com"
+        team_idx = notary_argv.index("--team-id")
+        assert notary_argv[team_idx + 1] == "TEAM123"
 
 
 class TestAppleSignerType:

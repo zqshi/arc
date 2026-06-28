@@ -26,6 +26,7 @@ class TestLoadCredentialsForProject:
         p.set_signing_creds(
             SignerType.APPLE,
             {
+                "apple_id": "dev@example.com",
                 "apple_dev_id": "DEV123",
                 "apple_team_id": "TEAM456",
                 "apple_app_password": "abcd-1234-5678-efgh",
@@ -36,6 +37,7 @@ class TestLoadCredentialsForProject:
         assert isinstance(creds, SigningCredentials)
         assert creds.has_apple() is True
         assert creds.apple_dev_id == "DEV123"
+        assert creds.apple_id == "dev@example.com"
 
     def test_unconfigured_project_yields_empty(self):
         """项目未配该平台凭证 → 空 SigningCredentials (is_empty)。"""

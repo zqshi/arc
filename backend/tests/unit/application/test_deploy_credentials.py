@@ -50,7 +50,7 @@ class TestConfigureSigningCreds:
         result = await svc.configure_signing_creds(
             uuid.uuid4(),
             SignerType.APPLE,
-            {"apple_dev_id": "DEV123", "apple_team_id": "TEAM456",
+            {"apple_id": "dev@example.com", "apple_dev_id": "DEV123", "apple_team_id": "TEAM456",
              "apple_app_password": "secret-pass"},
             user_id=uuid.uuid4(),
         )

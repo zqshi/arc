@@ -43,6 +43,7 @@ def load_credentials_for_project(project, platform: SignerType) -> SigningCreden
 
     if platform == SignerType.APPLE:
         return SigningCredentials(
+            apple_id=creds_dict.get("apple_id", ""),
             apple_dev_id=creds_dict.get("apple_dev_id", ""),
             apple_team_id=creds_dict.get("apple_team_id", ""),
             apple_app_password=creds_dict.get("apple_app_password", ""),

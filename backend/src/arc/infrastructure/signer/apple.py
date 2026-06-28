@@ -9,7 +9,9 @@
 
 注意: 真实签名需 macOS + 钥匙串导入 Developer ID 证书。notarytool --wait
 可能数分钟 (Apple 服务器排队), 真实验证标 slow 手动跑。
-此处 mock subprocess 验证命令构造 + graceful skip 逻辑。
+命令构造是真实的 (与 AndroidSigner 同理, v6.12 L3 已验证 apksigner 真实可用);
+凭证未配 → graceful skip。真实签名验证需用户提供 Apple Developer 凭证后可用。
+v6.13 P3 修正: notarytool --apple-id 用 Apple ID (邮箱) 非 team_id (v6.1 误用)。
 """
 from __future__ import annotations
 
@@ -30,7 +32,7 @@ class AppleSigner(Signer):
     async def sign(self, artifact_path: str, credentials: SigningCredentials) -> SignResult:
         if not credentials.has_apple():
             return SignResult.skip(
-                "Apple 凭证未配全 (需 apple_dev_id + apple_team_id + apple_app_password)"
+                "Apple 凭证未配全 (需 apple_id + apple_dev_id + apple_team_id + apple_app_password)"
             )
 
         # 1. codesign 签名
@@ -45,7 +47,7 @@ class AppleSigner(Signer):
         # 2. notarytool 提交公证 (--wait 同步等待)
         notary_argv = [
             "xcrun", "notarytool", "submit", artifact_path,
-            "--apple-id", credentials.apple_team_id,  # Apple ID (Team ID 兼用)
+            "--apple-id", credentials.apple_id,  # Apple ID 邮箱 (v6.13 P3: 非 team_id)
             "--team-id", credentials.apple_team_id,
             "--password", credentials.apple_app_password,
             "--wait",

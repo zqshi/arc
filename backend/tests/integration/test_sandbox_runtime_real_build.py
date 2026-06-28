@@ -15,7 +15,7 @@ import subprocess
 import pytest
 
 from arc.application.sandbox.runtime import DockerSandboxRuntime
-from arc.domain.sandbox.value_objects import SandboxMode, SandboxPolicy
+from arc.domain.sandbox.value_objects import BuildTarget, SandboxMode, SandboxPolicy
 
 
 def _docker_available() -> bool:
@@ -74,4 +74,58 @@ class TestTauriBuilderImage:
         assert "cargo 1." in result, f"cargo 缺失: {result}"
         assert "v20." in result, f"node 缺失: {result}"
         assert "tauri-cli" in result, f"tauri-cli 缺失: {result}"
+        assert "[exit code" not in result, f"命令失败: {result}"
+
+
+def _android_builder_available() -> bool:
+    """arc/android-builder:linux 镜像是否已在本地 daemon 构建。"""
+    if not _docker_available():
+        return False
+    try:
+        r = subprocess.run(
+            ["docker", "image", "inspect", "arc/android-builder:linux"],
+            capture_output=True,
+            timeout=10,
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+ANDROID_BUILDER_AVAILABLE = _android_builder_available()
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not ANDROID_BUILDER_AVAILABLE,
+    reason="arc/android-builder:linux 未构建 (cd src/arc/infrastructure/sandbox/images && make android-builder)",
+)
+class TestAndroidBuilderImage:
+    """v6.12 波次3: android 构建工具链镜像可用性验证 (秒级 smoke)。
+
+    完整 capacitor apk 构建 + apksigner 签名验证见 test_android_build_real.py (slow, 5min+)。
+    """
+
+    @pytest.mark.asyncio
+    async def test_toolchain_available(self, tmp_path):
+        """镜像内 capacitor / gradle / apksigner / keytool 均可用。
+
+        build_target=CAPACITOR_APK 触发 L1 的 --shm-size 2g (argv 构造, 真实容器不报错)。
+        """
+        policy = SandboxPolicy(
+            mode=SandboxMode.DOCKER,
+            docker_image="arc/android-builder:linux",
+            build_target=BuildTarget.CAPACITOR_APK,
+            memory_limit_mb=1024,
+            network_enabled=False,
+            timeout_seconds=60,
+        )
+        rt = DockerSandboxRuntime(policy, str(tmp_path))
+        result = await rt.run_command(
+            {"command": "capacitor --version; gradle --version; ls /opt/android-sdk/build-tools/34.0.0/apksigner; which keytool"}
+        )
+        assert "7." in result, f"capacitor 缺失: {result}"
+        assert "Gradle 8" in result, f"gradle 缺失: {result}"
+        assert "apksigner" in result, f"apksigner 缺失: {result}"
+        assert "keytool" in result, f"keytool 缺失: {result}"
         assert "[exit code" not in result, f"命令失败: {result}"

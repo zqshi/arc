@@ -35,9 +35,10 @@ class SigningCredentials:
     """
 
     # Apple Developer
-    apple_dev_id: str = ""  # Developer ID Application 证书 identity
-    apple_team_id: str = ""  # Apple Team ID (notarize 需要)
-    apple_app_password: str = ""  # App-specific password (notarytool 提交需要)
+    apple_id: str = ""  # Apple ID (邮箱, notarytool --apple-id 提交用, v6.13 P3 修正)
+    apple_dev_id: str = ""  # Developer ID Application 证书 identity (codesign --sign)
+    apple_team_id: str = ""  # Apple Team ID (notarytool --team-id)
+    apple_app_password: str = ""  # App-specific password (notarytool --password)
 
     # Windows EV 证书
     win_ev_cert_path: str = ""  # .pfx 证书文件路径
@@ -57,8 +58,17 @@ class SigningCredentials:
         )
 
     def has_apple(self) -> bool:
-        """Apple 签名+公证完整凭证 (identity + team + app password)。"""
-        return bool(self.apple_dev_id and self.apple_team_id and self.apple_app_password)
+        """Apple 签名+公证完整凭证 (apple_id + identity + team + app password)。
+
+        apple_id (邮箱) 与 team_id 是不同概念: notarytool --apple-id 需 Apple ID 邮箱,
+        --team-id 需 Team ID (v6.13 P3 修正: v6.1 误用 team_id 兼作 apple_id)。
+        """
+        return bool(
+            self.apple_id
+            and self.apple_dev_id
+            and self.apple_team_id
+            and self.apple_app_password
+        )
 
     def has_windows(self) -> bool:
         return bool(self.win_ev_cert_path and self.win_ev_password)
