@@ -24,6 +24,9 @@ class _Session:
     read_task: asyncio.Task | None = None
     finished: bool = False
     return_code: int | None = None
+    # v6.18: 本 session 的 mcp_config 临时文件路径 (None=无 MCP)。进程输出读完 /
+    # close() 时删文件, 避免长期运行累积 arc-mcp-*.json 残留。
+    mcp_config_path: str | None = None
 
 
 class ClaudeCodeAdapter(CodingAgentAdapter):
@@ -74,7 +77,7 @@ class ClaudeCodeAdapter(CodingAgentAdapter):
         process.stdin.write(task_md.encode())
         process.stdin.write_eof()
 
-        session = _Session(process=process)
+        session = _Session(process=process, mcp_config_path=mcp_config_path)
         self._sessions[session_id] = session
 
         session.read_task = asyncio.create_task(
@@ -95,7 +98,7 @@ class ClaudeCodeAdapter(CodingAgentAdapter):
         """构造 Claude Code mcpServers 配置, 写临时文件返回路径 (v6.17)。
 
         无 mcp_servers → None。stdio → {command, args, env}; http/sse → {type, url, headers}。
-        临时文件写系统 tmpdir (OS 定期清理; 完整生命周期清理待后续)。
+        临时文件路径会绑定到 _Session, 进程输出读完 / close() 时删除 (v6.18 生命周期清理)。
         """
         if not mcp_servers:
             return None
@@ -145,6 +148,22 @@ class ClaudeCodeAdapter(CodingAgentAdapter):
         await stderr_task
         session.return_code = await session.process.wait()
         session.finished = True
+        self._cleanup_mcp_config(session)
+
+    @staticmethod
+    def _cleanup_mcp_config(session: _Session) -> None:
+        """删除 session 的 mcp_config 临时文件 (v6.18 生命周期清理)。
+
+        进程输出读完或 close() 时调用。无文件/已删则静默跳过。
+        """
+        path = session.mcp_config_path
+        if not path:
+            return
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        session.mcp_config_path = None
 
     async def get_status(self, session_id: str) -> SessionStatus:
         session = self._sessions.get(session_id)
@@ -260,3 +279,5 @@ class ClaudeCodeAdapter(CodingAgentAdapter):
             session = self._sessions.pop(sid, None)
             if session and session.read_task and not session.read_task.done():
                 session.read_task.cancel()
+            if session:
+                self._cleanup_mcp_config(session)  # v6.18: 兜底删残留临时文件
