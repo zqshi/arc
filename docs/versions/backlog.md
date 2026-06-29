@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-29 (v6.17 已归档: Skill 注入执行链 — 架构统一 + 工具集补全, 见 v6.17.0-snapshot.md; v6.18 方向待定)
+> 最后更新: 2026-06-29 (v6.17 已归档: Skill 注入执行链 — 架构统一 + 工具集补全, 见 v6.17.0-snapshot.md; v6.18 方向待定。本次会话核实回写 5 条 v6.16/v6.9 已修但漏回写的虚假🔴为 ✅: test_health 时序污染 / strict 阈值双存 / DELIVERABLES 死结构 / 测试DB隔离 / execution_mode 下线)
 
 ---
 
@@ -19,7 +19,7 @@
 | 工作项 | 优先级 | 来源 | 状态 |
 |--------|--------|------|------|
 | domain/organization 模块缺少测试 | P2 | v2.2.0 质量检测 6.6 | v2.9.0 T2 |
-| application 层部分 service 缺少测试 (auth/artifact/agent_loop) | P2 | v2.2.0 质量检测 6.6 | pending |
+| application 层部分 service 缺少测试 (auth/artifact/agent_loop) | P2 | v2.2.0 质量检测 6.6 | ⚠️ 2026-06-29 核实过时: test_auth_service / test_artifact_service(+extractor/deployer/binary/gate 5 文件) / test_agent_loop 均已存在 (tests/unit/application 共 111 文件)。原"缺测试"描述不准; 改为评估覆盖度 |
 | 前端测试体系建立 | P3 | v2.2.0 质量检测 6.6 | pending |
 | planning_service.py ~557 行, 需拆分 | P1 | v2.2.0 质量检测 6.5 | ✅ v3.3.0 (557→487) |
 | 值对象建模 — 12 个 dict 字段应显式建模 | P2 | v2.3.0 审计 | v3.0.0 关联 (ReviewFeedback/DomainModelSnapshot 值对象化) |
@@ -53,7 +53,7 @@
 | tool_loop 穿透 adapter 封装 | P2 | v2.3.0 遗留 | v2.4.0 T4+T5 |
 | 扫描状态纯内存不持久化 | P1 | v2.3.0 用户反馈 | v2.4.0 T1 |
 | 项目硬删除无恢复能力 | P1 | v2.3.0 用户反馈 | v2.4.0 T2 |
-| `test_health` 全量连跑时序污染 | P2 | v5.10.0 质检发现 | 🔴 待修复: `tests/integration/test_api.py::test_health` 断言 `status=="ok"`, 但 `/health` 端点用全局 `async_session_factory` 不走 `db_session` fixture, unit 全量跑完后连接池异常终止 → 返回 `degraded`; 单独跑 integration 或单独跑 test_health 均通过。非业务 bug, 是测试基础设施隔离缺陷 |
+| `test_health` 全量连跑时序污染 | P2 | v5.10.0 质量检测 | ✅ v6.9.0 (test_health + `test_health_degraded_when_db_error` 分支覆盖 + conftest monkeypatch async_session_factory); 2026-06-29 复核: `pytest tests/integration -k "capability or health"` 合跑 21 passed |
 | v6.0 波次2 — web 工具链镜像 | P2 | v6.0 遗留 | ✅ v6.12 T1 (arc/web-builder + BuildTarget.WEB 激活) |
 | v6.0 波次3 — android capacitor 镜像 | P2 | v6.0 遗留 | ✅ v6.12 T2 (arc/android-builder JDK21+SDK+NDK + BuildTarget.CAPACITOR_APK 激活, apk smoke 通过) |
 | tauri-builder smoke 手动验证 | P3 | v6.0 遗留 | CI 默认 skip; `make tauri-builder`(~10min) 后 `pytest -m slow` 跑; 完整 cargo tauri build 端到端留作手动 |
@@ -62,11 +62,11 @@
 | T4 project_member repository 接口(聚合边界未定) | P2 | v6.6 遗留 | 需先定 project_member 归 project 还是 organization 聚合, 再补 AbstractRepository+实现 |
 | ProcessConfig 4 死字段 + create/update 双构造路径 | P1 | v6.15 审计 | ✅ v6.15 T4: 删 4 死字段, ProcessConfig 退化为 constraint 容器, from_execution_mode 单一映射点, 构造路径收敛 |
 | 后端无模式守卫 | P1 | v6.15 审计 | ✅ v6.15 T5: pipeline 5 写操作接入 _require_pipeline_mode, FREE/MODERATE→409 mode_mismatch; 真相源 todo.project→project.process_constraint |
-| strict 阈值双存 | P2 | v6.15 审计 | 🔴 待修: `pipeline/gate.py:147` 硬编码 `score < 7` 绕过 GateProfile; 应改读 `get_profile(constraint).score_threshold` |
-| DELIVERABLES_BY_CONSTRAINT 死结构 + reorder 空操作 | P2 | v6.15 审计 | 🔴 待修: 三档 key 指向同一列表, conversation_strategy reorder 实为空操作。建议删 dict 直接用 REQUIRED_DELIVERABLES |
-| 测试 DB 隔离缺陷 (capability 三文件合跑 409) | P2 | v6.15 质检发现 | 🔴 待修: `conftest.py:39` db_session setup 阶段 commit() user 注入, teardown 只 rollback() 救不回已提交数据。真实共享 PG 跨 run 残留导致 test_capability_api 三文件合跑偶发 409 (清表后全绿)。同 v5.10 test_health 时序污染类。建议事务回滚隔离或测试前 truncate |
+| strict 阈值双存 | P2 | v6.15 审计 | ✅ v6.16 (`gate.py:152` `if score < profile.score_threshold`, `get_profile(constraint)` 同源 GateProfile; `:87` 注释明记 v6.16 不再硬编码 score<7) |
+| DELIVERABLES_BY_CONSTRAINT 死结构 + reorder 空操作 | P2 | v6.15 审计 | ✅ v6.16 (2026-06-29 核实: 全库 grep `DELIVERABLES_BY_CONSTRAINT` 零结果 = dict 已删; conversation_strategy 直接用 `REQUIRED_DELIVERABLES`, `_sync_tracker_required` 的 needs_reorder 为真实顺序同步非空操作) |
+| 测试 DB 隔离缺陷 (capability 三文件合跑 409) | P2 | v6.15 质检发现 | ✅ v6.16 (`conftest.py:22-54` savepoint 事务隔离, `join_transaction_mode="create_savepoint"`, 被测代码 commit()/begin_nested() 退化为 savepoint, teardown rollback 外层事务, 不 truncate); 2026-06-29 复核 capability 合跑 21 passed |
 | 历史数据 process_constraint 为 free | P1 | v6.15 T5 发现 | ✅ v6.15 T6: z18_backfill_process_constraint 回填 959 个 pipeline→free 为 strict, process_config 规整为 {constraint} 格式 |
-| execution_mode deprecated 字段下线 | P2 | v6.15 审计 | 🔴 待修: 前后端契约仍用 execution_mode (UnifiedWorkspaceView 读 todo.execution_mode==='pipeline'), 与 process_constraint 双源真值未收敛。需独立迁移: 前端改读 process_constraint + 后端删 entity.execution_mode |
+| execution_mode deprecated 字段下线 | P2 | v6.15 审计 | ✅ v6.16 (2026-06-29 核实: `grep execution_mode backend/src/arc/domain/` 零匹配 = entity 字段已删; 前端 `grep execution_mode frontend/src/` 零结果 = UnifiedWorkspaceView 已不读; 后端仅余 3 处历史注释 `pipeline.py:40/57`+`conversations.py:62`, 真值已收敛到 process_constraint 单源) |
 
 ---
 
