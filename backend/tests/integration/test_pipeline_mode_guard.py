@@ -6,7 +6,7 @@
 - 读操作 (get_pipeline) 与 artifact 操作不守 (跨模式共享)
 
 守卫真相源: todo.project_id → project.process_constraint;
-无 project 的独立 todo 回退 todo.execution_mode (默认 PIPELINE→strict)。
+无 project 的独立 todo 默认 strict (原 execution_mode=PIPELINE 语义)。
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ class TestPipelineModeGuardAllowed:
         assert resp.status_code != 409
 
     async def test_projectless_todo_defaults_strict(self, client: AsyncClient):
-        """无 project 的独立 todo 回退 execution_mode (默认 PIPELINE→strict), 放行。"""
+        """无 project 的独立 todo 默认 strict (原 execution_mode=PIPELINE 语义), 放行。"""
         todo_id = await _create_todo(client, project_id=None)
         resp = await client.post(f"/api/todos/{todo_id}/pipeline/start")
         if resp.status_code == 409:

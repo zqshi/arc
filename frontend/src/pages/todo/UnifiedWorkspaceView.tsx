@@ -44,10 +44,8 @@ export function UnifiedWorkspaceView({ todo, setTodo, isNarrow, isCompact }: Pro
   const [drawerWidth, setDrawerWidth] = useState(480);
   const [codeChanges, setCodeChanges] = useState<CodeChangesInfo | null>(null);
 
-  // 从 todo 或 project 获取 process_constraint
-  const processConstraint: ProcessConstraint =
-    (todo as unknown as Record<string, string>).process_constraint as ProcessConstraint
-    || (todo.execution_mode === 'pipeline' ? 'strict' : 'free');
+  // 从 todo 获取 process_constraint (独立 todo 无 project 时回退 strict, 原 PIPELINE 语义)
+  const processConstraint: ProcessConstraint = todo.process_constraint ?? 'strict';
 
   // sidebar 默认展开状态：strict/moderate 默认展开，free 默认收起
   const [showSidebar, setShowSidebar] = useState(

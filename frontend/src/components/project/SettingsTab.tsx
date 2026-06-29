@@ -9,7 +9,7 @@ import { Field } from './FormFields';
 import { api, ApiError } from '../../api/client';
 import FolderPicker from '../FolderPicker';
 import { useToast } from '../Toast';
-import type { ExecutionMode, ProcessConstraint, PhaseCapabilities } from '../../types/api';
+import type { ProcessConstraint, PhaseCapabilities } from '../../types/api';
 
 interface SettingsTabProps {
   projectId: string;
@@ -21,7 +21,6 @@ interface SettingsTabProps {
     local_path: string;
     conventions: string;
     codebase_summary: string;
-    execution_mode: ExecutionMode;
     process_constraint: ProcessConstraint;
     pipeline_config: Record<string, unknown>;
     conversation_config: Record<string, unknown>;
@@ -265,15 +264,13 @@ export function SettingsTab({ projectId, form, setForm, dirty, onSave, onRefresh
         />
 
         <ExecutionModeSection
-          executionMode={form.execution_mode}
           processConstraint={form.process_constraint || 'free'}
           pipelineConfig={form.pipeline_config}
           conversationConfig={form.conversation_config}
           impact={impact}
           impactLoaded={impactLoaded}
           onChange={(constraint, pc, cc) => {
-            const execMode = constraint === 'strict' ? 'pipeline' : 'conversation';
-            setForm({ ...form, process_constraint: constraint, execution_mode: execMode, pipeline_config: pc, conversation_config: cc });
+            setForm({ ...form, process_constraint: constraint, pipeline_config: pc, conversation_config: cc });
           }}
         />
 

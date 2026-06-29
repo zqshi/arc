@@ -28,7 +28,6 @@ class ProjectModel(TimestampMixin, Base):
     scan_progress: Mapped[str | None] = mapped_column(Text, nullable=True)
     scan_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
-    execution_mode: Mapped[str] = mapped_column(String(20), default="pipeline")
     process_constraint: Mapped[str] = mapped_column(
         String(20), default="free", server_default="free",
     )

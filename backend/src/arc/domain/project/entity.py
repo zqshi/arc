@@ -19,7 +19,6 @@ from arc.domain.project.value_objects import (
     VALID_PHASES,
     VALID_VERSION_TRANSITIONS,
     ContextPolicy,
-    ExecutionMode,
     ModelChangeTrigger,
     ProcessConfig,
     ProcessConstraint,
@@ -49,7 +48,6 @@ class Project:
     scan_progress: str = ""
     scan_error: str = ""
     status: ProjectStatus = ProjectStatus.ACTIVE
-    execution_mode: ExecutionMode = ExecutionMode.PIPELINE  # deprecated
     process_constraint: ProcessConstraint = ProcessConstraint.FREE
     project_type: ProjectType = ProjectType.STATIC_SITE
     process_config: ProcessConfig = field(default_factory=ProcessConfig)
@@ -97,10 +95,6 @@ class Project:
     @property
     def is_deleted(self) -> bool:
         return self.deleted_at is not None
-
-    def set_execution_mode(self, mode: ExecutionMode) -> None:
-        self.execution_mode = mode
-        self.updated_at = datetime.now(UTC)
 
     def update_pipeline_config(self, config: dict) -> None:
         """增量更新 pipeline_config — 以现有配置为 base 深度 merge, 不重置已有自定义。

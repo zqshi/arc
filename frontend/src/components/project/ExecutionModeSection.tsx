@@ -7,7 +7,6 @@ import type { ProcessConstraint } from '../../types/api';
 import { PROCESS_CONSTRAINT_LABELS, PROCESS_CONSTRAINT_DESCRIPTIONS } from '../../types/api';
 
 interface ExecutionModeSectionProps {
-  executionMode: string; // deprecated, kept for compat
   processConstraint: ProcessConstraint;
   pipelineConfig: Record<string, unknown>;
   conversationConfig: Record<string, unknown>;

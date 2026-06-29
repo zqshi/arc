@@ -39,7 +39,7 @@ class TodoResponse(BaseModel):
     version_name: str | None = None
     priority: int = 2
     current_phase: str | None = None
-    execution_mode: str = "pipeline"
+    process_constraint: str | None = None
     needs_attention: bool = False
     tags: list[TagSchema]
     blocked_by: list[str] = Field(default_factory=list)

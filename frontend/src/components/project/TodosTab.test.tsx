@@ -45,7 +45,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     },
     navigate: vi.fn(),
     onRefreshData: vi.fn(),
-    executionMode: 'pipeline' as const,
+    processConstraint: 'strict' as const,
     canWrite: true,
     ...overrides,
   };

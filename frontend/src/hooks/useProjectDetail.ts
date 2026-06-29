@@ -39,7 +39,6 @@ export function useProjectDetail() {
   // ── Settings form ───────────────────────────────────────
   const [form, setForm] = useState({
     name: '', description: '', tech_stack: '', repo_url: '', local_path: '', conventions: '', codebase_summary: '',
-    execution_mode: 'pipeline' as 'pipeline' | 'conversation',
     process_constraint: 'free' as 'strict' | 'moderate' | 'free',
     pipeline_config: {} as Record<string, unknown>,
     conversation_config: {} as Record<string, unknown>,
@@ -63,8 +62,7 @@ export function useProjectDetail() {
         name: p.name, description: p.description, tech_stack: p.tech_stack,
         repo_url: p.repo_url, local_path: p.local_path || '',
         conventions: p.conventions, codebase_summary: p.codebase_summary || '',
-        execution_mode: p.execution_mode || 'pipeline',
-        process_constraint: (p as unknown as Record<string, unknown>).process_constraint as 'strict' | 'moderate' | 'free' || 'free',
+        process_constraint: p.process_constraint || 'free',
         pipeline_config: p.pipeline_config || {},
         conversation_config: p.conversation_config || {},
       });
@@ -100,7 +98,7 @@ export function useProjectDetail() {
   }, [id, versions, expandedVersions]);
 
   // ── Composed hooks ──────────────────────────────────────
-  const isConversationMode = form.execution_mode === 'conversation';
+  const isConversationMode = form.process_constraint !== 'strict';
   const { getTaskState } = useProjectTaskStream(isConversationMode ? id : undefined);
 
   const { experiences, expLoading, expFilter, setExpFilter, expCategoryFilter, setExpCategoryFilter, insights, fetchExperiences } = useExperiences(id, activeTab);

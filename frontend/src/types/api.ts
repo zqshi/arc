@@ -103,8 +103,6 @@ export type ConversationPurpose = 'clarification' | 'ui_design' | 'architecture'
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type ProjectStatus = 'active' | 'archived';
 export type VersionStatus = 'planning' | 'active' | 'released';
-export type ExecutionMode = 'pipeline' | 'conversation'; // deprecated
-
 export type ProcessConstraint = 'strict' | 'moderate' | 'free';
 
 export interface ProcessConfig {
@@ -132,7 +130,6 @@ export interface Project {
   scan_progress?: string;
   scan_error?: string;
   status: ProjectStatus;
-  execution_mode: ExecutionMode; // deprecated
   process_constraint: ProcessConstraint;
   project_type: ProjectType;
   process_config?: ProcessConfig;
@@ -156,7 +153,6 @@ export interface CreateProjectRequest {
   repo_url?: string;
   local_path?: string;
   conventions?: string;
-  execution_mode?: ExecutionMode;
   project_type?: ProjectType;
   build_target?: BuildTarget; // v6.12: BINARY_APP 构建目标 (web/capacitor_apk 需显式选; tauri_linux 默认)
   workspace_type?: WorkspaceType;
@@ -170,7 +166,6 @@ export interface UpdateProjectRequest {
   repo_url?: string;
   local_path?: string;
   conventions?: string;
-  execution_mode?: ExecutionMode;
   pipeline_config?: Record<string, unknown>;
   conversation_config?: Record<string, unknown>;
 }
@@ -241,7 +236,7 @@ export interface Todo {
   version_name: string | null;
   priority: number;
   current_phase: PhaseType | null;
-  execution_mode: ExecutionMode;
+  process_constraint: ProcessConstraint | null;
   needs_attention: boolean;
   tags: Tag[];
   blocked_by: string[];
@@ -674,16 +669,6 @@ export interface UpgradeResult {
   auto_resumed_todo_ids: string[];
   deferred_feedback_ids: string[];
 }
-
-export const EXECUTION_MODE_LABELS: Record<ExecutionMode, string> = {
-  pipeline: 'Pipeline 模式',
-  conversation: '对话模式',
-};
-
-export const EXECUTION_MODE_DESCRIPTIONS: Record<ExecutionMode, string> = {
-  pipeline: '固定七阶段流水线：需求澄清 → UI设计 → 技术架构 → 开发 → 测试 → 部署 → 经验沉淀。适合团队协作、流程规范的场景。',
-  conversation: '自由对话驱动：AI根据需求自动拆解任务并产出交付物，无固定阶段约束。适合强个体、快速迭代的场景。',
-};
 
 export const PROCESS_CONSTRAINT_LABELS: Record<ProcessConstraint, string> = {
   strict: '严格模式',

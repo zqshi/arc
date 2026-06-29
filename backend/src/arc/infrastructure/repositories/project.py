@@ -12,7 +12,6 @@ from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
     ContextPolicy,
-    ExecutionMode,
     ProcessConfig,
     ProcessConstraint,
     ProjectStatus,
@@ -43,7 +42,6 @@ class ProjectRepository(AbstractProjectRepository):
             codebase_summary=project.codebase_summary,
             scan_fingerprint=project.scan_fingerprint,
             status=project.status.value,
-            execution_mode=project.execution_mode.value,
             process_constraint=project.process_constraint.value,
             process_config=project.process_config.to_dict() if project.process_config else None,
             pipeline_config=project.pipeline_config,
@@ -131,7 +129,6 @@ class ProjectRepository(AbstractProjectRepository):
         model.scan_progress = project.scan_progress or None
         model.scan_error = project.scan_error or None
         model.status = project.status.value
-        model.execution_mode = project.execution_mode.value
         model.process_constraint = project.process_constraint.value
         model.process_config = project.process_config.to_dict() if project.process_config else None
         model.pipeline_config = project.pipeline_config
@@ -179,9 +176,6 @@ class ProjectRepository(AbstractProjectRepository):
             scan_progress=model.scan_progress or "",
             scan_error=model.scan_error or "",
             status=ProjectStatus(model.status),
-            execution_mode=ExecutionMode(model.execution_mode)
-            if model.execution_mode
-            else ExecutionMode.PIPELINE,
             process_constraint=ProcessConstraint(model.process_constraint)
             if getattr(model, "process_constraint", None)
             else ProcessConstraint.FREE,

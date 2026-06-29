@@ -88,7 +88,7 @@ export function TodoSidebar({ todos, activeTodoId, projectName, versionName, pro
                       <Lock size={7} /> {todo.blocked_by.length}
                     </span>
                   )}
-                  {todo.execution_mode === 'conversation' ? (
+                  {(todo.process_constraint ?? 'strict') !== 'strict' ? (
                     <MessageSquare size={8} className="text-purple-400" />
                   ) : (
                     <GitBranch size={8} className="text-text-muted" />

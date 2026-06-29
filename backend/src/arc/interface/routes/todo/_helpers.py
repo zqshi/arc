@@ -17,6 +17,7 @@ def to_response(
     *,
     project_name: str | None = None,
     version_name: str | None = None,
+    process_constraint: str | None = None,
     blocked_by: list[uuid.UUID] | None = None,
     blocks: list[uuid.UUID] | None = None,
 ) -> TodoResponse:
@@ -34,7 +35,7 @@ def to_response(
         version_name=version_name,
         priority=todo.priority,
         current_phase=todo.current_phase.value if todo.current_phase else None,
-        execution_mode=todo.execution_mode.value,
+        process_constraint=process_constraint,
         needs_attention=needs_attention,
         tags=[{"label": t.label, "color": t.color} for t in todo.tags],
         blocked_by=[str(uid) for uid in (blocked_by or [])],
@@ -44,18 +45,22 @@ def to_response(
     )
 
 
-async def resolve_names(db: AsyncSession, todos: list[Todo]) -> tuple[dict, dict]:
+async def resolve_names(db: AsyncSession, todos: list[Todo]) -> tuple[dict, dict, dict]:
     proj_ids = {t.project_id for t in todos if t.project_id}
     ver_ids = {t.version_id for t in todos if t.version_id}
 
     proj_names: dict = {}
     ver_names: dict = {}
+    proj_constraints: dict = {}
 
     if proj_ids:
         result = await db.execute(
-            select(ProjectModel.id, ProjectModel.name).where(ProjectModel.id.in_(proj_ids))
+            select(ProjectModel.id, ProjectModel.name, ProjectModel.process_constraint)
+            .where(ProjectModel.id.in_(proj_ids))
         )
-        proj_names = {row[0]: row[1] for row in result.all()}
+        for row in result.all():
+            proj_names[row[0]] = row[1]
+            proj_constraints[row[0]] = row[2]
 
     if ver_ids:
         result = await db.execute(
@@ -63,4 +68,4 @@ async def resolve_names(db: AsyncSession, todos: list[Todo]) -> tuple[dict, dict
         )
         ver_names = {row[0]: row[1] for row in result.all()}
 
-    return proj_names, ver_names
+    return proj_names, ver_names, proj_constraints

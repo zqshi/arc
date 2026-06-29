@@ -49,7 +49,7 @@ async def list_todos(
             project_id=pid, version_id=vid, user_id=user.id, offset=offset, limit=page_size
         )
 
-    proj_names, ver_names = await resolve_names(db, todos)
+    proj_names, ver_names, proj_constraints = await resolve_names(db, todos)
     dep_repo = TodoDependencyRepository(db)
     todo_ids = [t.id for t in todos]
     blocked_by_map = await dep_repo.get_map(todo_ids)
@@ -60,6 +60,7 @@ async def list_todos(
                 t,
                 project_name=proj_names.get(t.project_id),
                 version_name=ver_names.get(t.version_id),
+                process_constraint=proj_constraints.get(t.project_id),
                 blocked_by=blocked_by_map.get(t.id, []),
                 blocks=blocks_map.get(t.id, []),
             )
@@ -83,12 +84,14 @@ async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
 
     project_name = None
     version_name = None
+    process_constraint = None
     if todo.project_id:
         from arc.infrastructure.repositories.project import ProjectRepository
 
         project = await ProjectRepository(db).get_by_id(todo.project_id)
         if project:
             project_name = project.name
+            process_constraint = project.process_constraint.value
     if todo.version_id:
         from arc.infrastructure.repositories.project import VersionRepository
 
@@ -100,6 +103,7 @@ async def get_todo(todo_id: str, db: DbSession, user: CurrentUser):
     blocked_by = await dep_repo.get_blocked_by(UUID(todo_id))
     blocks = await dep_repo.get_blocks(UUID(todo_id))
     return to_response(todo, project_name=project_name, version_name=version_name,
+                       process_constraint=process_constraint,
                        blocked_by=blocked_by, blocks=blocks)
 
 
@@ -129,18 +133,8 @@ async def remove_dependency(todo_id: str, depends_on_id: str, db: DbSession, use
 
 @router.post("", response_model=TodoResponse, status_code=201)
 async def create_todo(req: CreateTodoRequest, db: DbSession, user: CurrentUser):
-    from arc.domain.project.value_objects import ExecutionMode
     from arc.domain.todo.entity import Todo
     from arc.domain.todo.value_objects import Tag
-
-    # 从关联项目继承 execution_mode
-    inherit_mode = ExecutionMode.PIPELINE
-    if req.project_id:
-        from arc.infrastructure.repositories.project import ProjectRepository
-
-        project = await ProjectRepository(db).get_by_id(UUID(req.project_id), user_id=user.id)
-        if project:
-            inherit_mode = project.execution_mode
 
     tags = [Tag(label=t.label, color=t.color) for t in (req.tags or [])]
     todo = Todo(
@@ -149,7 +143,6 @@ async def create_todo(req: CreateTodoRequest, db: DbSession, user: CurrentUser):
         project_id=UUID(req.project_id) if req.project_id else None,
         version_id=UUID(req.version_id) if req.version_id else None,
         priority=req.priority or 2,
-        execution_mode=inherit_mode,
         tags=tags,
     )
     repo = TodoRepository(db)

@@ -36,7 +36,7 @@ export function WorkspaceHeader({ todo, isCompact, hasSidebar, onOpenSidebar }: 
       }`}>
         {STATUS_LABELS[todo.status]}
       </span>
-      {todo.execution_mode === 'conversation' && (
+      {(todo.process_constraint ?? 'strict') !== 'strict' && (
         <span className="rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-medium text-purple-400">
           <MessageSquare size={8} className="mr-0.5 inline" /> 对话
         </span>

@@ -6,7 +6,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.pipeline.value_objects import PhaseType
-from arc.domain.project.value_objects import ExecutionMode
 from arc.domain.todo.entity import Todo as TodoEntity
 from arc.domain.todo.repository import AbstractTodoRepository
 from arc.domain.todo.value_objects import Tag, TodoStatus
@@ -136,7 +135,6 @@ class TodoRepository(AbstractTodoRepository):
             version_id=entity.version_id,
             priority=entity.priority,
             current_phase=entity.current_phase.value if entity.current_phase else None,
-            execution_mode=entity.execution_mode.value,
             tags=[{"label": t.label, "color": t.color} for t in entity.tags],
             source_session_id=entity.source_session_id,
             source_feature_key=entity.source_feature_key or None,
@@ -160,7 +158,6 @@ class TodoRepository(AbstractTodoRepository):
         model.version_id = entity.version_id
         model.priority = entity.priority
         model.current_phase = entity.current_phase.value if entity.current_phase else None
-        model.execution_mode = entity.execution_mode.value
         model.tags = [{"label": t.label, "color": t.color} for t in entity.tags]
         model.source_session_id = entity.source_session_id
         model.source_feature_key = entity.source_feature_key or None
@@ -241,9 +238,6 @@ class TodoRepository(AbstractTodoRepository):
             status=TodoStatus(model.status),
             priority=model.priority if model.priority is not None else 2,
             current_phase=PhaseType(model.current_phase) if model.current_phase else None,
-            execution_mode=ExecutionMode(model.execution_mode)
-            if model.execution_mode
-            else ExecutionMode.PIPELINE,
             tags=tags,
             source_session_id=model.source_session_id,
             source_feature_key=model.source_feature_key or "",

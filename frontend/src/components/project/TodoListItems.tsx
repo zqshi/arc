@@ -74,7 +74,7 @@ export function TodoList({
           <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusBadgeBg[todo.status]}`}>
             {STATUS_LABELS[todo.status]}
           </span>
-          {todo.execution_mode === 'conversation' && (
+          {(todo.process_constraint ?? 'strict') !== 'strict' && (
             <span className="flex-shrink-0 rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-medium text-purple-400">
               对话
             </span>

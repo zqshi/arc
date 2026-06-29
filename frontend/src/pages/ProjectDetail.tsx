@@ -198,7 +198,7 @@ export default function ProjectDetail() {
               navigate={s.navigate}
               onRefreshData={s.fetchData}
               onPreviewRoadmap={(session) => s.setDrawerSession(session)}
-              executionMode={s.form.execution_mode}
+              processConstraint={s.form.process_constraint}
               getTaskState={s.getTaskState}
               onBatchStart={s.batchStart}
               canWrite={s.canWrite}

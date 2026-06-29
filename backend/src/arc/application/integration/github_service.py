@@ -212,7 +212,6 @@ class GitHubService:
                 title=issue.title,
                 description=issue.body,
                 project_id=project.id,
-                execution_mode=project.execution_mode,
                 github_issue_number=issue.number,
             )
             await self.todo_repo.create(todo)
@@ -239,7 +238,6 @@ class GitHubService:
                 title=issue["title"],
                 description=issue.get("body") or "",
                 project_id=project.id,
-                execution_mode=project.execution_mode,
                 github_issue_number=issue_number,
             )
             await self.todo_repo.create(todo)

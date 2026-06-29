@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from arc.domain.pipeline.value_objects import PhaseType
-from arc.domain.project.value_objects import ExecutionMode
 from arc.domain.todo.value_objects import VALID_TRANSITIONS, Tag, TodoStatus
 
 
@@ -26,7 +25,6 @@ class Todo:
     status: TodoStatus = TodoStatus.PENDING
     priority: int = 2
     current_phase: PhaseType | None = None
-    execution_mode: ExecutionMode = ExecutionMode.PIPELINE
     tags: list[Tag] = field(default_factory=list)
     error_reason: str = ""
     suspended_reason: str = ""

@@ -16,7 +16,6 @@ from arc.domain.errors import AppError, ConflictError, NotFoundError
 from arc.domain.project.charter import ConventionTemplateProvider
 from arc.domain.project.entity import Project
 from arc.domain.project.value_objects import (
-    ExecutionMode,
     ProcessConfig,
     ProcessConstraint,
     ProjectType,
@@ -52,7 +51,6 @@ class ProjectWorkspaceService:
         tech_stack: str = "",
         repo_url: str = "",
         conventions: str = "",
-        execution_mode: str = "conversation",
         process_constraint: str | None = None,
         project_type: str | None = None,
         build_target: str | None = None,
@@ -69,15 +67,12 @@ class ProjectWorkspaceService:
             from arc.application.billing.quota_service import QuotaService
             await QuotaService(self._db).check_project_limit(organization_id)
 
-        # 解析约束和执行模式
-        constraint = ProcessConstraint(process_constraint) if process_constraint else None
-        exec_mode = ExecutionMode(execution_mode)
-
-        if not constraint:
-            constraint = (
-                ProcessConstraint.STRICT if exec_mode == ExecutionMode.PIPELINE
-                else ProcessConstraint.FREE
-            )
+        # 解析约束 (v6.16: execution_mode 已下线, process_constraint 为唯一真相源)
+        constraint = (
+            ProcessConstraint(process_constraint)
+            if process_constraint
+            else ProcessConstraint.FREE
+        )
 
         project = Project(
             name=name,
@@ -86,10 +81,9 @@ class ProjectWorkspaceService:
             tech_stack=tech_stack,
             repo_url=repo_url,
             conventions=conventions,
-            execution_mode=exec_mode,
             process_constraint=constraint,
             project_type=ProjectType(project_type) if project_type else ProjectType.STATIC_SITE,
-            process_config=ProcessConfig.from_execution_mode(exec_mode),
+            process_config=ProcessConfig(constraint=constraint),
         )
 
         # v6.12: BINARY_APP 非 tauri_linux 构建目标显式注入 sandbox config。
@@ -257,20 +251,13 @@ class ProjectWorkspaceService:
     ) -> Project:
         """将前端传入的更新字段应用到项目实体。
 
-        处理 execution_mode / process_constraint / process_config 之间的同步协调，
+        处理 process_constraint / process_config 的同步协调，
         以及 pipeline_config / conversation_config 的更新。
         """
-        if "execution_mode" in updates and updates["execution_mode"]:
-            project.set_execution_mode(ExecutionMode(updates.pop("execution_mode")))
-
         if "process_constraint" in updates and updates["process_constraint"]:
             constraint = ProcessConstraint(updates.pop("process_constraint"))
             project.process_constraint = constraint
             project.process_config = ProcessConfig(constraint=constraint)
-            if constraint == ProcessConstraint.STRICT:
-                project.execution_mode = ExecutionMode.PIPELINE
-            else:
-                project.execution_mode = ExecutionMode.CONVERSATION
 
         if "process_config" in updates and updates["process_config"]:
             project.process_config = ProcessConfig.from_dict(updates.pop("process_config"))

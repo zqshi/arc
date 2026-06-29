@@ -52,7 +52,6 @@ async def create_project(
             tech_stack=body.tech_stack,
             repo_url=body.repo_url,
             conventions=body.conventions,
-            execution_mode=body.execution_mode,
             process_constraint=body.process_constraint,
             project_type=body.project_type,
             build_target=body.build_target,

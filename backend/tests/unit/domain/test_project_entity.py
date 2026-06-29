@@ -9,7 +9,7 @@ from arc.domain.project.entity import Project, Version
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
-    ExecutionMode,
+    ProcessConstraint,
     ProjectStatus,
     VersionStatus,
 )
@@ -20,7 +20,7 @@ class TestProjectCreation:
         p = Project(name="My Project")
         assert p.name == "My Project"
         assert p.status == ProjectStatus.ACTIVE
-        assert p.execution_mode == ExecutionMode.PIPELINE
+        assert p.process_constraint == ProcessConstraint.FREE
         assert p.description == ""
         assert p.pipeline_config == DEFAULT_PIPELINE_CONFIG
         assert p.conversation_config == DEFAULT_CONVERSATION_CONFIG
@@ -55,11 +55,6 @@ class TestProjectBehavior:
         p.archive()
         p.activate()
         assert p.status == ProjectStatus.ACTIVE
-
-    def test_set_execution_mode(self) -> None:
-        p = self._make()
-        p.set_execution_mode(ExecutionMode.CONVERSATION)
-        assert p.execution_mode == ExecutionMode.CONVERSATION
 
     def test_update_pipeline_config_merges_defaults(self) -> None:
         p = self._make()

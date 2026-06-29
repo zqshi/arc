@@ -13,7 +13,6 @@ class ProjectCreate(BaseModel):
     repo_url: str = ""
     local_path: str = ""
     conventions: str = ""
-    execution_mode: str = "pipeline"  # deprecated, kept for compat
     process_constraint: str = "free"
     project_type: Literal["static_site", "binary_app"] = "static_site"
     # v6.12: BINARY_APP 构建目标 (web/capacitor_apk 需显式选; tauri_linux 为默认, 不传即走默认推导)
@@ -30,7 +29,6 @@ class ProjectUpdate(BaseModel):
     repo_url: str | None = None
     local_path: str | None = None
     conventions: str | None = None
-    execution_mode: str | None = None  # deprecated
     process_constraint: str | None = None
     project_type: str | None = None
     process_config: dict | None = None
@@ -53,7 +51,6 @@ class ProjectResponse(BaseModel):
     scan_progress: str = ""
     scan_error: str = ""
     status: str
-    execution_mode: str  # deprecated
     process_constraint: str = "free"
     project_type: str = "static_site"
     process_config: dict | None = None

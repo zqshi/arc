@@ -37,7 +37,7 @@ async def _require_pipeline_mode(
     """v6.15 模式守卫: pipeline 写操作仅 strict 模式可用。
 
     真相源: todo.project_id → project.process_constraint (单一源);
-    todo 无 project 时回退 todo.execution_mode (PIPELINE→strict)。
+    todo 无 project 时默认 strict (原 execution_mode=PIPELINE 语义)。
     FREE/MODERATE 模式的 todo 调 pipeline 写操作 = 跨模式错配, 返回 409。
     (conversation send_message 不守: 两档共用对话; 读/artifact 操作不守: 跨模式共享。)
     """
@@ -54,12 +54,8 @@ async def _require_pipeline_mode(
             # project 不存在 (理论上前置 ownership 已拦), 回退免费档更安全
             constraint = ProcessConstraint.FREE
     else:
-        # 无 project 的独立 todo: 回退 deprecated execution_mode
-        constraint = (
-            ProcessConstraint.STRICT
-            if todo.execution_mode.value == "pipeline"
-            else ProcessConstraint.FREE
-        )
+        # 无 project 的独立 todo: 默认严格管线 (原 execution_mode=PIPELINE 语义)
+        constraint = ProcessConstraint.STRICT
 
     if constraint != ProcessConstraint.STRICT:
         raise HTTPException(

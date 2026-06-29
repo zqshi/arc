@@ -11,7 +11,7 @@ import {
   RotateCw,
   Map,
 } from 'lucide-react';
-import type { Version, VersionStatus, VersionType, Todo, PlanningSession } from '../../types/api';
+import type { Version, VersionStatus, VersionType, Todo, PlanningSession, ProcessConstraint } from '../../types/api';
 import ActionMenu from '../ActionMenu';
 import type { ActionMenuItem } from '../ActionMenu';
 import { VersionPlanningPanel } from './VersionPlanningPanel';
@@ -66,7 +66,7 @@ interface TodosTabProps {
   onPreviewRoadmap?: (session: PlanningSession) => void;
   getTaskState?: (todoId: string) => TaskState;
   onBatchStart?: (todoIds: string[]) => Promise<void>;
-  executionMode?: 'pipeline' | 'conversation';
+  processConstraint?: ProcessConstraint;
   canWrite?: boolean;
 }
 
@@ -84,12 +84,12 @@ export function TodosTab({
   onPreviewRoadmap,
   getTaskState,
   onBatchStart,
-  executionMode,
+  processConstraint,
   canWrite = true,
 }: TodosTabProps) {
   const [showGlobalPlanning, setShowGlobalPlanning] = useState(false);
   const [batchStarting, setBatchStarting] = useState(false);
-  const isConversationMode = executionMode === 'conversation';
+  const isConversationMode = processConstraint !== 'strict';
 
   return (
     <section>
