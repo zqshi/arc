@@ -11,6 +11,8 @@ from arc.domain.capability.value_objects import (
     CapabilityScope,
     CapabilityStatus,
     CapabilityType,
+    ToolSource,
+    ToolSpec,
 )
 
 CAP_ID = uuid.UUID("12345678-1234-5678-1234-567812345678")
@@ -115,3 +117,51 @@ class TestErrors:
         err = CapabilityError("能力 name 不能为空")
         assert isinstance(err, DomainError)
         assert err.detail == "能力 name 不能为空"
+
+
+class TestToolSource:
+    def test_values(self):
+        assert ToolSource.INLINE == "inline"
+        assert ToolSource.MCP == "mcp"
+
+    def test_completeness(self):
+        assert {s.value for s in ToolSource} == {"inline", "mcp"}
+
+
+class TestToolSpec:
+    def test_inline_default(self):
+        t = ToolSpec(
+            name="search_docs",
+            description="搜索文档",
+            parameters={"type": "object"},
+        )
+        assert t.source == ToolSource.INLINE
+        assert t.is_inline is True
+        assert t.is_mcp is False
+        assert t.parameters == {"type": "object"}
+        assert t.server_ref == ""
+
+    def test_mcp_source(self):
+        t = ToolSpec(name="mcp_tool", source=ToolSource.MCP, server_ref="mcp-cap-123")
+        assert t.is_mcp is True
+        assert t.is_inline is False
+        assert t.source == ToolSource.MCP
+        assert t.parameters == {}
+
+    def test_immutable(self):
+        t = ToolSpec(name="x")
+        with pytest.raises(AttributeError):
+            t.name = "y"
+
+    def test_empty_name_raises(self):
+        with pytest.raises(CapabilityError):
+            ToolSpec(name="")
+
+    def test_whitespace_name_raises(self):
+        with pytest.raises(CapabilityError):
+            ToolSpec(name="   ")
+
+    def test_equality(self):
+        a = ToolSpec(name="t", description="d")
+        b = ToolSpec(name="t", description="d")
+        assert a == b

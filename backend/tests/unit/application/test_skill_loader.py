@@ -4,7 +4,11 @@ from __future__ import annotations
 import uuid
 
 from arc.application.capability.skill_loader import SkillLoader
-from arc.domain.capability.value_objects import Capability, CapabilityType
+from arc.domain.capability.value_objects import (
+    Capability,
+    CapabilityType,
+    ToolSource,
+)
 
 
 def _skill(config: dict) -> Capability:
@@ -112,3 +116,121 @@ class TestSkillLoaderInline:
         cap = _skill({"source": "directory", "directory": str(skill_dir)})
         section = SkillLoader().load(cap)
         assert section == "explicit: 显式\nbody"
+
+
+class TestSkillLoaderTools:
+    """v6.17: load_full 返回 SkillContent (prompt + tool_specs)。"""
+
+    def test_load_full_with_inline_tools(self, tmp_path):
+        skill_dir = tmp_path / "dev-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: dev-skill\n"
+            "description: 开发规范\n"
+            "tools:\n"
+            "  - name: search_docs\n"
+            "    description: 搜索文档\n"
+            "    parameters:\n"
+            "      type: object\n"
+            "---\n"
+            "body 规范\n",
+            encoding="utf-8",
+        )
+        content = SkillLoader().load_full(_skill({"directory": str(skill_dir)}))
+        assert content is not None
+        assert content.prompt_section == "dev-skill: 开发规范\nbody 规范"
+        assert len(content.tool_specs) == 1
+        tool = content.tool_specs[0]
+        assert tool.name == "search_docs"
+        assert tool.is_inline
+        assert tool.parameters == {"type": "object"}
+
+    def test_load_full_with_mcp_tool(self, tmp_path):
+        skill_dir = tmp_path / "mcp-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: mcp-skill\n"
+            "tools:\n"
+            "  - name: mcp_tool\n"
+            "    source: mcp\n"
+            "    server_ref: mcp-cap-123\n"
+            "---\n"
+            "body\n",
+            encoding="utf-8",
+        )
+        content = SkillLoader().load_full(_skill({"directory": str(skill_dir)}))
+        assert content is not None
+        assert len(content.tool_specs) == 1
+        tool = content.tool_specs[0]
+        assert tool.is_mcp
+        assert tool.server_ref == "mcp-cap-123"
+
+    def test_load_full_no_tools_empty_list(self, tmp_path):
+        skill_dir = tmp_path / "plain"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: plain\ndescription: 无工具\n---\nbody\n", encoding="utf-8"
+        )
+        content = SkillLoader().load_full(_skill({"directory": str(skill_dir)}))
+        assert content is not None
+        assert content.tool_specs == []
+
+    def test_load_full_inline_source_with_tools(self):
+        cap = _skill(
+            {
+                "source": "inline",
+                "content": (
+                    "---\nname: inline-skill\ntools:\n"
+                    "  - name: t1\n    description: 工具1\n"
+                    "---\nbody\n"
+                ),
+            }
+        )
+        content = SkillLoader().load_full(cap)
+        assert content is not None
+        assert len(content.tool_specs) == 1
+        assert content.tool_specs[0].name == "t1"
+
+    def test_load_backwards_compatible_returns_str(self, tmp_path):
+        """load() 仍返回 str (向后兼容, 不含 tool_specs)。"""
+        skill_dir = tmp_path / "compat"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: compat\ndescription: 兼容\n---\nbody\n", encoding="utf-8"
+        )
+        section = SkillLoader().load(_skill({"directory": str(skill_dir)}))
+        assert section == "compat: 兼容\nbody"
+        assert isinstance(section, str)
+
+    def test_load_full_invalid_tool_source_falls_back_inline(self, tmp_path):
+        skill_dir = tmp_path / "bad-source"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: bad\ntools:\n  - name: t\n    source: unknown\n---\nbody\n",
+            encoding="utf-8",
+        )
+        content = SkillLoader().load_full(_skill({"directory": str(skill_dir)}))
+        assert content is not None
+        assert content.tool_specs[0].source == ToolSource.INLINE
+
+    def test_load_full_skips_tool_without_name(self, tmp_path):
+        skill_dir = tmp_path / "no-name"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: nn\ntools:\n  - description: 无名\n---\nbody\n",
+            encoding="utf-8",
+        )
+        content = SkillLoader().load_full(_skill({"directory": str(skill_dir)}))
+        assert content is not None
+        assert content.tool_specs == []
+
+    def test_load_full_non_skill_returns_none(self):
+        cap = Capability(
+            id=uuid.uuid4(),
+            name="agent",
+            type=CapabilityType.AGENT,
+            config={"source": "inline", "content": "x"},
+        )
+        assert SkillLoader().load_full(cap) is None

@@ -23,7 +23,7 @@ class CapabilityType(StrEnum):
 
     AGENT = "agent"  # 外部编码 agent (OpenHands/Codex/Claude Code/Cursor)
     SKILL = "skill"  # SKILL.md 能力封装 (prompt+工具集)
-    MCP = "mcp"  # 预留扩展位, 本期不实现 loader
+    MCP = "mcp"  # MCP server 能力 (v6.17 由 McpLoader 实现)
 
 
 class CapabilityStatus(StrEnum):
@@ -78,3 +78,47 @@ class Capability:
     @property
     def is_skill(self) -> bool:
         return self.type == CapabilityType.SKILL
+
+    @property
+    def is_mcp(self) -> bool:
+        """v6.17: MCP 能力 (由 McpLoader 加载工具列表)。"""
+        return self.type == CapabilityType.MCP
+
+
+class ToolSource(StrEnum):
+    """工具来源 (v6.17)。
+
+    - inline: skill 自带的 function 工具定义 (parameters 为 JSON schema)
+    - mcp: 引用外部 MCP server 提供的工具 (server_ref 指向 MCP capability)
+    """
+
+    INLINE = "inline"
+    MCP = "mcp"
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    """工具规格 — skill 工具集的最小单元 (v6.17)。
+
+    值对象, 不可变。inline 工具用 parameters (JSON schema); mcp 工具用
+    server_ref (指向 MCP capability id 或 server url)。两类来源按 agent
+    能力分发注入 (Codex 注册 function / OpenHands+Claude Code 转指引文本)。
+    """
+
+    name: str
+    description: str = ""
+    source: ToolSource = ToolSource.INLINE
+    parameters: dict[str, Any] = field(default_factory=dict)
+    server_ref: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.name or not self.name.strip():
+            raise CapabilityError("工具 name 不能为空")
+
+    @property
+    def is_inline(self) -> bool:
+        return self.source == ToolSource.INLINE
+
+    @property
+    def is_mcp(self) -> bool:
+        return self.source == ToolSource.MCP

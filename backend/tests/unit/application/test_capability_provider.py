@@ -127,3 +127,107 @@ class TestCapabilityProvider:
             )
             MockSvc.return_value.list_by_ids = AsyncMock(return_value=[cap])
             assert await provider.provide(_request(phase="development")) == []
+
+
+class TestLoadPhaseSkills:
+    """v6.17: 执行侧 load_phase_skills 返回 (prompts, tool_specs)。"""
+
+    @pytest.mark.asyncio
+    async def test_returns_prompts_and_inline_tools(self, tmp_path) -> None:
+        skill_dir = tmp_path / "dev-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: dev-skill\ndescription: 开发规范\n"
+            "tools:\n  - name: search_docs\n    description: 搜索\n"
+            "    parameters: {type: object}\n---\nbody\n",
+            encoding="utf-8",
+        )
+        cap = _cap("dev-skill", CapabilityType.SKILL, config={"directory": str(skill_dir)})
+        provider = CapabilityProvider(db=MagicMock())
+        with patch(_PROJ_REPO) as MockRepo, patch(_CAP_SVC) as MockSvc:
+            MockRepo.return_value.get_by_id = AsyncMock(
+                return_value=_project({"development": [str(cap.id)]})
+            )
+            MockSvc.return_value.list_by_ids = AsyncMock(return_value=[cap])
+            prompts, tools, _ = await provider.load_phase_skills(uuid.uuid4(), "development")
+        assert prompts == ["dev-skill: 开发规范\nbody"]
+        assert len(tools) == 1
+        assert tools[0].name == "search_docs"
+        assert tools[0].is_inline
+
+    @pytest.mark.asyncio
+    async def test_mcp_tool_collected(self, tmp_path) -> None:
+        skill_dir = tmp_path / "mcp-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: mcp-skill\ntools:\n"
+            "  - name: mcp_tool\n    source: mcp\n    server_ref: mcp-1\n---\nbody\n",
+            encoding="utf-8",
+        )
+        cap = _cap("mcp-skill", CapabilityType.SKILL, config={"directory": str(skill_dir)})
+        provider = CapabilityProvider(db=MagicMock())
+        with patch(_PROJ_REPO) as MockRepo, patch(_CAP_SVC) as MockSvc:
+            MockRepo.return_value.get_by_id = AsyncMock(
+                return_value=_project({"development": [str(cap.id)]})
+            )
+            MockSvc.return_value.list_by_ids = AsyncMock(return_value=[cap])
+            prompts, tools, _ = await provider.load_phase_skills(uuid.uuid4(), "development")
+        assert len(tools) == 1
+        assert tools[0].is_mcp
+        assert tools[0].server_ref == "mcp-1"
+
+    @pytest.mark.asyncio
+    async def test_only_skill_not_agent(self) -> None:
+        cap = _cap("openhands", CapabilityType.AGENT)
+        provider = CapabilityProvider(db=MagicMock())
+        with patch(_PROJ_REPO) as MockRepo, patch(_CAP_SVC) as MockSvc:
+            MockRepo.return_value.get_by_id = AsyncMock(
+                return_value=_project({"development": [str(cap.id)]})
+            )
+            MockSvc.return_value.list_by_ids = AsyncMock(return_value=[cap])
+            prompts, tools, _ = await provider.load_phase_skills(uuid.uuid4(), "development")
+        assert prompts == []
+        assert tools == []
+
+    @pytest.mark.asyncio
+    async def test_no_config_returns_empty(self) -> None:
+        provider = CapabilityProvider(db=MagicMock())
+        with patch(_PROJ_REPO) as MockRepo:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=_project())
+            prompts, tools, _ = await provider.load_phase_skills(uuid.uuid4(), "development")
+        assert prompts == []
+        assert tools == []
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_empty(self) -> None:
+        provider = CapabilityProvider(db=MagicMock())
+        with patch(_PROJ_REPO, side_effect=RuntimeError("db down")):
+            prompts, tools, _ = await provider.load_phase_skills(uuid.uuid4(), "development")
+        assert prompts == []
+        assert tools == []
+
+    @pytest.mark.asyncio
+    async def test_mcp_capability_tools_loaded(self) -> None:
+        from arc.domain.capability.value_objects import ToolSource, ToolSpec
+
+        cap = _cap(
+            "mcp-srv", CapabilityType.MCP,
+            config={"transport": "stdio", "command": "node"},
+        )
+        provider = CapabilityProvider(db=MagicMock())
+        with patch(_PROJ_REPO) as MockRepo, patch(_CAP_SVC) as MockSvc, \
+             patch("arc.application.capability.mcp_loader.McpLoader") as MockLoader:
+            MockRepo.return_value.get_by_id = AsyncMock(
+                return_value=_project({"development": [str(cap.id)]})
+            )
+            MockSvc.return_value.list_by_ids = AsyncMock(return_value=[cap])
+            MockLoader.return_value.load = AsyncMock(return_value=[
+                ToolSpec(name="mcp_tool", source=ToolSource.MCP, server_ref="mcp-srv"),
+            ])
+            prompts, tools, mcp_servers = await provider.load_phase_skills(uuid.uuid4(), "development")
+        assert prompts == []
+        assert len(tools) == 1
+        assert tools[0].is_mcp
+        assert len(mcp_servers) == 1
+        assert mcp_servers[0]["name"] == "mcp-srv"
+        assert mcp_servers[0]["transport"] == "stdio"

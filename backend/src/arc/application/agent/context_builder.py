@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.artifact.value_objects import ArtifactType
+from arc.domain.capability.value_objects import ToolSpec
 from arc.infrastructure.repositories.artifact import ArtifactRepository
 from arc.infrastructure.repositories.todo import TodoRepository
 
@@ -28,6 +29,11 @@ class TaskContext:
     dev_report: dict = field(default_factory=dict)
     test_report: dict = field(default_factory=dict)
     related_experiences: list[dict] = field(default_factory=list)
+    # v6.17: 本环节 skill 注入 (规范文本 + 工具集), 由 CapabilityProvider.load_phase_skills 填充
+    skill_specs: list[str] = field(default_factory=list)
+    tool_specs: list[ToolSpec] = field(default_factory=list)
+    # v6.17: MCP server 连接配置 (供 ClaudeCode/OpenHands 注入 --mcp-config/runtime)
+    mcp_servers: list[dict] = field(default_factory=list)
 
     def to_markdown(self) -> str:
         parts = [f"# {self.todo_title}", ""]
@@ -88,6 +94,26 @@ class TaskContext:
                     parts.append(f"**踩坑**: {'; '.join(exp['pitfalls'])}")
                 parts.append("")
 
+        # v6.17: 本环节技能规范 — skill 规范文本 (所有 adapter 经 to_markdown 生效)
+        if self.skill_specs:
+            parts.append("## 本环节技能规范")
+            for spec in self.skill_specs:
+                parts.append(spec)
+                parts.append("")
+
+        # v6.17: 本环节启用工具 — OpenHands/Claude Code 转指引文本;
+        # Codex 额外注册 function (见 CodexAdapter.start, T3)
+        if self.tool_specs:
+            parts.append("## 本环节启用工具")
+            for tool in self.tool_specs:
+                source_tag = "mcp" if tool.is_mcp else "inline"
+                detail = f" → {tool.server_ref}" if tool.is_mcp else ""
+                parts.append(
+                    f"- **{tool.name}** ({source_tag}): {tool.description}{detail}"
+                )
+            parts.append("按上述工具规范执行任务。")
+            parts.append("")
+
         return "\n".join(parts)
 
     def to_dict(self) -> dict:
@@ -101,6 +127,18 @@ class TaskContext:
             "dev_report": self.dev_report,
             "test_report": self.test_report,
             "related_experiences": self.related_experiences,
+            "skill_specs": self.skill_specs,
+            "tool_specs": [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "source": t.source.value,
+                    "parameters": t.parameters,
+                    "server_ref": t.server_ref,
+                }
+                for t in self.tool_specs
+            ],
+            "mcp_servers": self.mcp_servers,
         }
 
 
@@ -112,7 +150,9 @@ class TaskContextBuilder:
         self.todo_repo = TodoRepository(db)
         self.artifact_repo = ArtifactRepository(db)
 
-    async def build(self, todo_id: uuid.UUID) -> TaskContext:
+    async def build(
+        self, todo_id: uuid.UUID, phase_type: str | None = None
+    ) -> TaskContext:
         todo = await self.todo_repo.get_by_id(todo_id)
         if not todo:
             raise ValueError(f"Todo {todo_id} not found")
@@ -139,6 +179,21 @@ class TaskContextBuilder:
             if review_section:
                 agent_section = agent_section + "\n\n" + review_section
 
+        # v6.17: 注入本环节 skill 规范 + 工具集 + MCP server 配置
+        # (CapabilityProvider 单一真相源, 与对话侧 provide 共享 _collect_active_caps)
+        skill_specs: list[str] = []
+        tool_specs: list[ToolSpec] = []
+        mcp_servers: list[dict] = []
+        if phase_type and todo.project_id:
+            from arc.application.context.providers.capability import CapabilityProvider
+
+            prompts, tools, servers = await CapabilityProvider(self.db).load_phase_skills(
+                todo.project_id, phase_type
+            )
+            skill_specs = prompts
+            tool_specs = tools
+            mcp_servers = servers
+
         return TaskContext(
             todo_id=str(todo_id),
             todo_title=todo.title,
@@ -150,6 +205,9 @@ class TaskContextBuilder:
             dev_report=artifact_map.get(ArtifactType.DEV_REPORT, {}),
             test_report=artifact_map.get(ArtifactType.TEST_REPORT, {}),
             related_experiences=experiences,
+            skill_specs=skill_specs,
+            tool_specs=tool_specs,
+            mcp_servers=mcp_servers,
         )
 
     async def _fetch_related_experiences(self, todo) -> list[dict]:

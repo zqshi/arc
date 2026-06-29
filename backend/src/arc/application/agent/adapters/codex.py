@@ -10,6 +10,7 @@ from arc.application.agent.adapter import CodingAgentAdapter
 from arc.application.agent.context_builder import TaskContext
 from arc.application.agent.events import AgentEvent, EventType
 from arc.domain.agent.value_objects import AgentType, SessionStatus
+from arc.domain.capability.value_objects import ToolSpec
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ class CodexAdapter(CodingAgentAdapter):
                 "instructions": "You are a coding agent. Complete the task described below. "
                 "Write production-quality code following the project conventions.",
                 "input": task_md,
-                "tools": [{"type": "code_interpreter"}],
+                "tools": self._build_tools(context.tool_specs),
             },
         )
         resp.raise_for_status()
@@ -73,6 +74,26 @@ class CodexAdapter(CodingAgentAdapter):
             data.get("id"),
         )
         return session_id
+
+    def _build_tools(self, tool_specs: list[ToolSpec]) -> list[dict]:
+        """构造 /responses tools: code_interpreter (兼容) + inline function 工具。
+
+        v6.17: skill 声明的 inline function 工具注册为真 function tool (Responses API
+        顶层 name/description/parameters 格式)。mcp 工具不注册 function (Codex
+        fire-and-forget 不支持 function call 路由), 靠 TaskContext.to_markdown 的工具
+        指引段降级 (agent 自主遵循)。
+        """
+        tools: list[dict] = [{"type": "code_interpreter"}]
+        for spec in tool_specs:
+            if not spec.is_inline:
+                continue
+            tools.append({
+                "type": "function",
+                "name": spec.name,
+                "description": spec.description,
+                "parameters": spec.parameters or {"type": "object", "properties": {}},
+            })
+        return tools
 
     async def get_status(self, session_id: str) -> SessionStatus:
         session = self._sessions.get(session_id)

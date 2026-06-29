@@ -56,7 +56,7 @@ class AgentSessionManager:
             return existing
 
         context_builder = TaskContextBuilder(self.db)
-        context = await context_builder.build(todo_id)
+        context = await context_builder.build(todo_id, phase_type.value)
 
         session = AgentSession(
             todo_id=todo_id,
