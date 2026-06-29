@@ -39,6 +39,66 @@ class TestTaskContext:
         md = ctx.to_markdown()
         assert "Test" in md
 
+    def test_skill_specs_in_markdown(self) -> None:
+        ctx = TaskContext(
+            todo_id="t-1",
+            todo_title="T",
+            todo_description="",
+            skill_specs=["遵循 TDD", "提交前跑测试"],
+        )
+        md = ctx.to_markdown()
+        assert "## 本环节技能规范" in md
+        assert "遵循 TDD" in md
+        assert "提交前跑测试" in md
+
+    def test_tool_specs_in_markdown_inline(self) -> None:
+        from arc.domain.capability.value_objects import ToolSource, ToolSpec
+
+        ctx = TaskContext(
+            todo_id="t-1",
+            todo_title="T",
+            todo_description="",
+            tool_specs=[ToolSpec(name="search_docs", description="搜索", source=ToolSource.INLINE)],
+        )
+        md = ctx.to_markdown()
+        assert "## 本环节启用工具" in md
+        assert "search_docs" in md
+        assert "(inline)" in md
+
+    def test_tool_specs_in_markdown_mcp(self) -> None:
+        from arc.domain.capability.value_objects import ToolSource, ToolSpec
+
+        ctx = TaskContext(
+            todo_id="t-1",
+            todo_title="T",
+            todo_description="",
+            tool_specs=[ToolSpec(name="mcp_tool", source=ToolSource.MCP, server_ref="mcp-1")],
+        )
+        md = ctx.to_markdown()
+        assert "(mcp)" in md
+        assert "mcp-1" in md
+
+    def test_to_dict_includes_skill_and_tool_specs(self) -> None:
+        from arc.domain.capability.value_objects import ToolSource, ToolSpec
+
+        ctx = TaskContext(
+            todo_id="t-1",
+            todo_title="T",
+            todo_description="",
+            skill_specs=["spec"],
+            tool_specs=[ToolSpec(name="t", source=ToolSource.INLINE)],
+        )
+        d = ctx.to_dict()
+        assert d["skill_specs"] == ["spec"]
+        assert d["tool_specs"][0]["name"] == "t"
+        assert d["tool_specs"][0]["source"] == "inline"
+
+    def test_empty_skill_tool_specs_omit_section(self) -> None:
+        ctx = TaskContext(todo_id="t-1", todo_title="T", todo_description="")
+        md = ctx.to_markdown()
+        assert "本环节技能规范" not in md
+        assert "本环节启用工具" not in md
+
 
 class TestAgentEvent:
     def test_event_creation(self) -> None:
