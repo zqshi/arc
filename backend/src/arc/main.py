@@ -235,6 +235,65 @@ async def health():
     return checks
 
 
+@app.get("/ready")
+async def ready():
+    """Readiness 探针 — 依赖可用才接流量 (k8s readinessProbe)。
+
+    与 /health (liveness, 进程存活恒 200) 区分: /ready 探 DB + 可选 Redis + 可选 S3。
+    未配置的可选依赖记 skipped (不算失败); 配置但不可达 → status=not_ready + 503 摘流量。
+    """
+    from sqlalchemy import text
+
+    from arc.config import settings
+    from arc.infrastructure.database import async_session_factory
+
+    checks: dict = {"status": "ready"}
+
+    # DB — 恒探 (核心依赖)
+    try:
+        async with async_session_factory() as db:
+            await db.execute(text("SELECT 1"))
+        checks["database"] = "connected"
+    except Exception as exc:
+        checks["database"] = f"error: {type(exc).__name__}"
+        checks["status"] = "not_ready"
+
+    # Redis — 配了才探 (redis_url 空 → InMemory, 不探)
+    if settings.redis_url:
+        try:
+            import redis.asyncio as aioredis
+
+            client = aioredis.from_url(settings.redis_url, decode_responses=True)
+            try:
+                await client.ping()
+            finally:
+                await client.aclose()
+            checks["redis"] = "connected"
+        except Exception as exc:
+            checks["redis"] = f"error: {type(exc).__name__}"
+            checks["status"] = "not_ready"
+    else:
+        checks["redis"] = "skipped"
+
+    # S3 — 配了才探 (storage_endpoint 空 → 本地存储, 不探)
+    if settings.storage_endpoint:
+        try:
+            from arc.infrastructure.storage import get_storage
+
+            ok = await get_storage().async_verify()
+            checks["storage"] = "connected" if ok else "error: verify_failed"
+            if not ok:
+                checks["status"] = "not_ready"
+        except Exception as exc:
+            checks["storage"] = f"error: {type(exc).__name__}"
+            checks["status"] = "not_ready"
+    else:
+        checks["storage"] = "skipped"
+
+    status_code = 200 if checks["status"] == "ready" else 503
+    return JSONResponse(content=checks, status_code=status_code)
+
+
 def register_routes():
     from arc.interface.routes.agent import router as agent_router
     from arc.interface.routes.auth import router as auth_router
