@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-29 (v6.17 已归档: Skill 注入执行链 — 架构统一 + 工具集补全, 见 v6.17.0-snapshot.md; v6.18 方向待定。本次会话核实回写 5 条 v6.16/v6.9 已修但漏回写的虚假🔴为 ✅: test_health 时序污染 / strict 阈值双存 / DELIVERABLES 死结构 / 测试DB隔离 / execution_mode 下线)
+> 最后更新: 2026-06-29 (v6.18 已归档: 投产治理升级 — lint/import环/配置对齐/仓库卫生/镜像验证阻断项消除 + 验证闭环, 见 v6.18.0-snapshot.md; v6.19 方向待定。v6.18 归档质检修复 T4 模板 bug: ARC_SANDBOX_BUILDER_IMAGES 空值回归 + ARC_WORKERS infra 混入 backend 模板)
 
 ---
 
@@ -10,7 +10,7 @@
 - [v0.1.0](v0.1.0-snapshot.md) · [v0.2.0](v0.2.0-snapshot.md) · [v0.3.0](v0.3.0-snapshot.md) · [v0.4.0](v0.4.0-snapshot.md) · [v0.5.0](v0.5.0-snapshot.md)
 - [v1.0.0](v1.0.0-snapshot.md) · [v1.1.0](v1.1.0-snapshot.md) · [v1.2.0](v1.2.0-snapshot.md)
 - [v2.0.0](v2.0.0-snapshot.md) · [v2.1.0](v2.1.0-snapshot.md) · [v2.2.0](v2.2.0-snapshot.md) · [v2.3.0](v2.3.0-snapshot.md) · [v2.4.0](v2.4.0-snapshot.md) · [v2.5.0](v2.5.0-snapshot.md) · [v2.6.0](v2.6.0-snapshot.md) · [v2.7.0](v2.7.0-snapshot.md) · [v2.8.0](v2.8.0-snapshot.md) · [v2.9.0](v2.9.0-snapshot.md) · [v3.0.0](v3.0.0-snapshot.md) · [v3.1.0](v3.1.0-snapshot.md) · [v3.2.0](v3.2.0-snapshot.md) · [v3.3.0](v3.3.0-snapshot.md) · [v3.4.0](v3.4.0-snapshot.md) · [v3.5.0](v3.5.0-snapshot.md) · [v3.6.0](v3.6.0-snapshot.md) · [v3.7.0](v3.7.0-snapshot.md) · [v3.8.0](v3.8.0-snapshot.md) · [v3.9.0](v3.9.0-snapshot.md) · [v3.10.0](v3.10.0-snapshot.md)
-- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md) · [v6.0.0](v6.0.0-snapshot.md) · [v6.1.0](v6.1.0-snapshot.md) · [v6.2.0](v6.2.0-snapshot.md) · [v6.3.0](v6.3.0-snapshot.md) · [v6.4.0](v6.4.0-snapshot.md) · [v6.5.0](v6.5.0-snapshot.md) · [v6.6.0](v6.6.0-snapshot.md) · [v6.7.0](v6.7.0-snapshot.md) · [v6.8.0](v6.8.0-snapshot.md) · [v6.9.0](v6.9.0-snapshot.md) · [v6.10.0](v6.10.0-snapshot.md) · [v6.11.0](v6.11.0-snapshot.md) · [v6.12.0](v6.12.0-snapshot.md) · [v6.13.0](v6.13.0-snapshot.md) · [v6.14.0](v6.14.0-snapshot.md) · [v6.15.0](v6.15.0-snapshot.md) · [v6.16.0](v6.16.0-snapshot.md)
+- [v4.0.0](v4.0.0-snapshot.md) · [v4.1.0](v4.1.0-snapshot.md) · [v4.2.0](v4.2.0-snapshot.md) · [v4.3.0](v4.3.0-snapshot.md) · [v4.4.0](v4.4.0-snapshot.md) · [v4.5.0](v4.5.0-snapshot.md) · [v4.6.0](v4.6.0-snapshot.md) · [v4.7.0](v4.7.0-snapshot.md) · [v4.8.0](v4.8.0-snapshot.md) · [v4.9.0](v4.9.0-snapshot.md) · [v5.0.0](v5.0.0-snapshot.md) · [v5.1.0](v5.1.0-snapshot.md) · [v5.2.0](v5.2.0-snapshot.md) · [v5.3.0](v5.3.0-snapshot.md) · [v5.4.0](v5.4.0-snapshot.md) · [v5.5.0](v5.5.0-snapshot.md) · [v5.6.0](v5.6.0-snapshot.md) · [v5.7.0](v5.7.0-snapshot.md) · [v5.8.0](v5.8.0-snapshot.md) · [v5.9.0](v5.9.0-snapshot.md) · [v5.10.0](v5.10.0-snapshot.md) · [v6.0.0](v6.0.0-snapshot.md) · [v6.1.0](v6.1.0-snapshot.md) · [v6.2.0](v6.2.0-snapshot.md) · [v6.3.0](v6.3.0-snapshot.md) · [v6.4.0](v6.4.0-snapshot.md) · [v6.5.0](v6.5.0-snapshot.md) · [v6.6.0](v6.6.0-snapshot.md) · [v6.7.0](v6.7.0-snapshot.md) · [v6.8.0](v6.8.0-snapshot.md) · [v6.9.0](v6.9.0-snapshot.md) · [v6.10.0](v6.10.0-snapshot.md) · [v6.11.0](v6.11.0-snapshot.md) · [v6.12.0](v6.12.0-snapshot.md) · [v6.13.0](v6.13.0-snapshot.md) · [v6.14.0](v6.14.0-snapshot.md) · [v6.15.0](v6.15.0-snapshot.md) · [v6.16.0](v6.16.0-snapshot.md) · [v6.17.0](v6.17.0-snapshot.md) · [v6.18.0](v6.18.0-snapshot.md)
 
 ---
 
@@ -67,6 +67,7 @@
 | 测试 DB 隔离缺陷 (capability 三文件合跑 409) | P2 | v6.15 质检发现 | ✅ v6.16 (`conftest.py:22-54` savepoint 事务隔离, `join_transaction_mode="create_savepoint"`, 被测代码 commit()/begin_nested() 退化为 savepoint, teardown rollback 外层事务, 不 truncate); 2026-06-29 复核 capability 合跑 21 passed |
 | 历史数据 process_constraint 为 free | P1 | v6.15 T5 发现 | ✅ v6.15 T6: z18_backfill_process_constraint 回填 959 个 pipeline→free 为 strict, process_config 规整为 {constraint} 格式 |
 | execution_mode deprecated 字段下线 | P2 | v6.15 审计 | ✅ v6.16 (2026-06-29 核实: `grep execution_mode backend/src/arc/domain/` 零匹配 = entity 字段已删; 前端 `grep execution_mode frontend/src/` 零结果 = UnifiedWorkspaceView 已不读; 后端仅余 3 处历史注释 `pipeline.py:40/57`+`conversations.py:62`, 真值已收敛到 process_constraint 单源) |
+| infra 变量前缀设计债务 (root .env.example 混合 arc 配置 + compose infra, ARC_DB_PORT/ARC_WORKERS/ARC_PORT/ARC_*_IMAGE 用 ARC_ 前缀, cwd=root 读 .env 跑 arc 触发 pydantic forbid) | P2 | v6.18 归档质检 | pending |
 
 ---
 

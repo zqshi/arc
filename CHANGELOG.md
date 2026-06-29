@@ -6,7 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.18 方向待定 (见 backlog.md)。_
+_v6.19 方向待定 (见 backlog.md)。_
+
+## [6.18.0] - 2026-06-29 — 投产治理升级
+
+### Changed — 投产阻断项消除 + 验证闭环
+- **CI builder 镜像发布**: `docker-publish.yml` 新增 `build-builder-images` matrix job (tauri/web/android-builder → ghcr, release tag 触发); config + .env.example 补生产覆盖映射 (`ARC_SANDBOX_BUILDER_IMAGES`)
+- **MCP 执行链收尾**: `HttpMcpTransport` 支持 `text/event-stream` 流式响应解析 (兼容 `application/json`, 修 transport=sse 配通但不支持的契约 bug); ClaudeCode `_Session` 绑定 mcp_config path + `close()` 删临时文件 (不靠 OS tmpdir 兜底)
+- **T3 import 环治理**: LLM/EventBus/Sandbox/Context 拆出契约/工厂/工具模块 (`llm_types`/`llm_factory`/`eventbus_contract`/`eventbus_factory`/`runtime_base`/`token_utils`), import 环 5→0; `llm_adapter` 保留 re-export 向后兼容, 旧调用方零改
+- **T2 alembic lint**: 历史迁移 import 顺序规整 + `pyproject` per-file-ignores 豁免长行 (`alembic/versions/*.py`)
+- **T4 配置对齐 + 模板 bug 修复**: .env.example 双向对齐 Settings 字段; 修复 `ARC_SANDBOX_BUILDER_IMAGES` 空值回归 (dict 字段空值 pydantic 解析失败, 改回注释留空用默认注册表); `ARC_WORKERS` (uvicorn 启动参数, 非 arc Settings) 改注释说明, 消除 .env 文件源 forbid 炸点
+
+### 决策
+- import 环用契约/工厂分离 + re-export (旧调用方零改, 避免大面积改 import)
+- v6.18 定位投产治理升级, 不新增产品功能 (上线前阻断项优先, 产品演进与治理解耦)
+- `.env.example` dict 类型字段留空用注释而非裸空值 (`=`), 符合 pydantic-settings 解析约束
+
+### 遗留
+- OpenHands/Codex MCP 真注入仍 blocked (需 runtime 环境: OpenHands localhost:3000 / Codex api_key 未配); 仅 ClaudeCode --mcp-config 真注入
+- infra 变量前缀设计债务: root `.env.example` 混合 arc 配置 + compose infra (`ARC_DB_PORT`/`ARC_WORKERS`/`ARC_PORT`/`ARC_*_IMAGE` 用 `ARC_` 前缀, cwd=root 读 .env 跑 arc 触发 forbid) → P2
+- 质量检测 6.1-6.7 全过; CI 基线 ruff0 / pytest unit 2051 + integ 149 / tsc-b0 / vitest 89 / build0
 
 ## [6.17.0] - 2026-06-29 — Skill 注入执行链（架构统一 + 工具集补全）
 
