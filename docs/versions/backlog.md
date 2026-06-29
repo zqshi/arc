@@ -18,15 +18,15 @@
 
 | 工作项 | 优先级 | 来源 | 状态 |
 |--------|--------|------|------|
-| domain/organization 模块缺少测试 | P2 | v2.2.0 质量检测 6.6 | v2.9.0 T2 |
+| domain/organization 模块缺少测试 | P2 | v2.2.0 质量检测 6.6 | ✅ 2026-06-29 核实: test_organization_service / test_organization_entity / test_organization_value_objects 均已存在 |
 | application 层部分 service 缺少测试 (auth/artifact/agent_loop) | P2 | v2.2.0 质量检测 6.6 | ⚠️ 2026-06-29 核实过时: test_auth_service / test_artifact_service(+extractor/deployer/binary/gate 5 文件) / test_agent_loop 均已存在 (tests/unit/application 共 111 文件)。原"缺测试"描述不准; 改为评估覆盖度 |
-| 前端测试体系建立 | P3 | v2.2.0 质量检测 6.6 | pending |
+| 前端测试体系建立 | P3 | v2.2.0 质量检测 6.6 | ✅ 2026-06-29 核实: frontend/src 共 17 个 .test.tsx/.ts (vitest 91 passed), 覆盖组件/hook/api client |
 | planning_service.py ~557 行, 需拆分 | P1 | v2.2.0 质量检测 6.5 | ✅ v3.3.0 (557→487) |
 | 值对象建模 — 12 个 dict 字段应显式建模 | P2 | v2.3.0 审计 | v3.0.0 关联 (ReviewFeedback/DomainModelSnapshot 值对象化) |
-| 聚合边界重构 — service 跨聚合直接访问 repo | P2 | v2.3.0 审计 | pending (需 DI 完成后) |
+| 聚合边界重构 — service 跨聚合直接访问 repo | P2 | v2.3.0 审计 | ⚠️ 2026-06-29 核实仍存在: pipeline/hooks.py 直接 ProjectRepository(db)/ArtifactRepository(db); planning_experience.py 直接 ExperienceRepository(db)。pending (需 DI 重构), 真未做 |
 | domain_model 无版本历史/无回滚能力 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
 | Validator 评审结果无闭环流程 | P1 | v2.9.0 升级路径设计 | ✅ v3.0.0 |
-| Pipeline/Conversation 双架构冗余 | P0 | RFC-001 审计 | v4.0.0 |
+| Pipeline/Conversation 双架构冗余 | P0 | RFC-001 审计 | ✅ 2026-06-29 核实已消解: conversation/service.py docstring 明确"委托 ExecutionEngine, 与 ConversationExecutionService(unified) 委托同一引擎"; pipeline/service.py 无 AgentLoop/ToolAwareLoop 引用 (退化为阶段编排器: initialize/start_phase/confirm/gate, 不自跑 AI)。RFC-001 统一执行引擎目标达成, 双架构非冗余 (编排层 vs 执行层正交) |
 | INPUT_SUFFICIENCY_PROMPT 死代码 (sufficiency_gate.py 在 v4.1.0/ef66656 已删回归) | P0 | RFC-001 审计 / v5.10 复核 | ✅ v6.0 #7: 接线为 requirement_spec 产出门禁(`execution/sufficiency_gate.py`), 不再零调用 |
 | Pipeline 无 tool-use 能力 (能力倒挂) | P0 | RFC-001 审计 | ✅ RFC-001 Phase 1 (ConversationService 接入 ToolAwareLoop) |
 | AC ↔ 测试无交叉一致性验证 | P1 | RFC-001 审计 | ✅ RFC-002 (gate.py _check_cross_consistency) |
@@ -34,25 +34,25 @@
 | Conversation 模式零门禁 | P0 | RFC-002 审计 | ✅ RFC-002 (artifact_extractor 补 gate) |
 | UI 设计无质量标准 | P1 | RFC-002 审计 | ✅ RFC-002 (ui_design_methodology.py) |
 | 开发阶段无 TDD 引导 | P1 | RFC-002 审计 | ✅ RFC-002 (dev_test_methodology.py) |
-| oss-evaluator 技术选型评估 | P2 | RFC-002 规划 | ⏳ 待 web search tool |
+| oss-evaluator 技术选型评估 | P2 | RFC-002 规划 | ⏳ 2026-06-29 核实: oss-evaluator.skill 已建 (skill 层面就绪), "待 web search tool" 不再成立; 真未做的是评估工作本身 (待专项执行, 非工具缺失) |
 | Playwright 前端验证结果展示 | P2 | RFC-002 规划 | ⏳ 待前端适配 |
-| 前端 4 个组件超 500 行 | P2 | v2.3.0 质量检测 | v2.9.0 T4 |
-| application 层循环依赖 (2 个环) | P1 | v2.3.0 质量检测 | v2.9.0 T1 (顶层已修复) |
+| 前端 4 个组件超 500 行 | P2 | v2.3.0 质量检测 | ✅ 2026-06-29 核实: 无 .tsx 超 500 行 (全 <500), v2.9.0 T4 已拆 |
+| application 层循环依赖 (2 个环) | P1 | v2.3.0 质量检测 | ✅ 2026-06-29 AST 扫环确认: 89 模块无环 (顶层已修复, 与 v2.9.0 T1 标注一致) |
 | useProjectDetail.ts 超限 (510行) | P2 | v5.1.0 质量检测 | ✅ v5.2.0 T1 |
 | v5.1.0 改动文件缺配套单元测试 (provider/service/strategy) | P2 | v5.1.0 质量检测 6.6 | ✅ v5.2.0 T2 |
-| `tool_loop.py` 511 行 / `pipeline/service.py` 503 行 | P2 | v5.4.0 质量检测 6.5 | v5.6.0 拆分 (pipeline/service 在 v5.5.0 T5/T6 后必然超限需先拆) |
-| `context/prompts.py` 504 行 (v5.5.0 触及) | P3 | v5.5.0 质量检测 6.5 | 已加例外注释；超 800 行必修 |
+| `tool_loop.py` 511 行 / `pipeline/service.py` 503 行 | P2 | v5.4.0 质量检测 6.5 | ✅ 2026-06-29 核实: pipeline/service.py 453 行 (<500); tool_loop.py 已不存在 (改名 execution/tools.py 419 行)。v5.8.0 T1-T3 拆分已落地 |
+| `context/prompts.py` 504 行 (v5.5.0 触及) | P3 | v5.5.0 质量检测 6.5 | ✅ 2026-06-29 核实: 220 行 (<500, v5.8.0 拆分后已达标), 无需例外 |
 | MCP server (v5.5.0 T9/T12 deferred) | P2 | v5.5.0 决策 | ✅ v5.6.0 T18/T19 (原生 endpoint, 非 Higress) |
-| `tool_loop.py` 511 行 / `pipeline/service.py` 503 行 / `prompts.py` 504 行 | P2 | v5.4/5.5 质量检测 6.5 | v5.7.0 拆分 |
-| `execution/tools.py` 567 行 (v5.6.0 触及) | P3 | v5.6.0 质量检测 6.5 | 已加例外注释; 超 800 必修 |
+| `tool_loop.py` 511 行 / `pipeline/service.py` 503 行 / `prompts.py` 504 行 | P2 | v5.4/5.5 质量检测 6.5 | ✅ 2026-06-29 核实: pipeline/service.py 453 / context/prompts.py 220, 均 <500 (与上行重复, v5.8.0 拆分已落地) |
+| `execution/tools.py` 567 行 (v5.6.0 触及) | P3 | v5.6.0 质量检测 6.5 | ✅ 2026-06-29 核实: 419 行 (<500, v5.8.0 拆分后已达标) |
 | docker-compose Supabase 环境 | P2 | v5.6.0 T13 剩余 | 生产部署时补 |
 | Higress MCP 网关接入 | P3 | v5.6.0 部署架构选项 | 待实际部署据官方文档配置 |
 | MCP stdio transport | P3 | v5.6.0 仅 HTTP | Claude Desktop stdio 后续补 |
 | 模板提取 LLM embed 自动生成 | P2 | v5.7.0 release hook 未生成 embedding | ✅ v5.8.0 T4 (extract_template 内自动生成) |
 | `tool_loop.py`/`pipeline/service.py`/`prompts.py` 超 500 行 | P2 | v5.4-5.5 遗留 | ✅ v5.8.0 T1-T3 拆分 (全回归 500 内) |
-| tool_loop 穿透 adapter 封装 | P2 | v2.3.0 遗留 | v2.4.0 T4+T5 |
-| 扫描状态纯内存不持久化 | P1 | v2.3.0 用户反馈 | v2.4.0 T1 |
-| 项目硬删除无恢复能力 | P1 | v2.3.0 用户反馈 | v2.4.0 T2 |
+| tool_loop 穿透 adapter 封装 | P2 | v2.3.0 遗留 | ✅ 2026-06-29 核实: tool_loop.py 已不存在 (改名 execution/tools.py), 穿透问题随重构消解 |
+| 扫描状态纯内存不持久化 | P1 | v2.3.0 用户反馈 | ✅ 2026-06-29 核实: scan_status 在 Project entity (entity.py:47) + repo persist (project.py:128/177) + route 读 DB (scanning.py:34), 非纯内存 |
+| 项目硬删除无恢复能力 | P1 | v2.3.0 用户反馈 | ✅ 2026-06-29 核实: archive() + deleted_at (entity.py:74) + include_archived (repository.py:30), 软删可恢复 |
 | `test_health` 全量连跑时序污染 | P2 | v5.10.0 质量检测 | ✅ v6.9.0 (test_health + `test_health_degraded_when_db_error` 分支覆盖 + conftest monkeypatch async_session_factory); 2026-06-29 复核: `pytest tests/integration -k "capability or health"` 合跑 21 passed |
 | v6.0 波次2 — web 工具链镜像 | P2 | v6.0 遗留 | ✅ v6.12 T1 (arc/web-builder + BuildTarget.WEB 激活) |
 | v6.0 波次3 — android capacitor 镜像 | P2 | v6.0 遗留 | ✅ v6.12 T2 (arc/android-builder JDK21+SDK+NDK + BuildTarget.CAPACITOR_APK 激活, apk smoke 通过) |
