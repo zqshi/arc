@@ -222,8 +222,16 @@ class PipelineService:
                 suggestion="先产出并完善前置交付物。",
             )
 
+        from arc.domain.project.value_objects import ProcessConstraint
+
+        constraint = (
+            project_ctx.process_constraint
+            if project_ctx.has_project and project_ctx.process_constraint
+            else ProcessConstraint.STRICT
+        )
         return await evaluate_gate(
             phase_type, artifact.content, conventions,
+            constraint=constraint,
             prior_artifacts=prior_artifacts,
         )
 

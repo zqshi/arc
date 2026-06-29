@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.domain.project.value_objects import ProcessConstraint
 from arc.infrastructure.repositories.project import ProjectRepository, VersionRepository
 from arc.infrastructure.repositories.todo import TodoRepository
 
@@ -27,6 +28,7 @@ class ProjectContext:
     version_analysis_summary: str = ""
     sibling_requirements: list[dict] = field(default_factory=list)
     project_type: str = ""
+    process_constraint: ProcessConstraint | None = None
 
     @property
     def has_project(self) -> bool:
@@ -133,6 +135,7 @@ class ProjectContextProvider:
             local_path=project.local_path,
             codebase_summary=project.codebase_summary,
             project_type=project.project_type.value if project.project_type else "",
+            process_constraint=project.process_constraint,
         )
 
         if todo.version_id:

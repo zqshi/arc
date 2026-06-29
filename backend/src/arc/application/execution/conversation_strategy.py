@@ -274,15 +274,13 @@ class ConversationExecutionService:
                         required_types = project.conversation_config.get(
                             "required_deliverables"
                         )
-                    # 没有自定义配置时，按 constraint 级别选择
+                    # 没有自定义配置时，用全量交付物 (三档一致)
                     if not required_types:
-                        from arc.domain.project.value_objects import DELIVERABLES_BY_CONSTRAINT
-                        required_types = DELIVERABLES_BY_CONSTRAINT.get(
-                            project.process_constraint.value
-                        )
+                        from arc.domain.project.value_objects import REQUIRED_DELIVERABLES
+                        required_types = REQUIRED_DELIVERABLES
         if not required_types:
-            from arc.domain.project.value_objects import FREE_DELIVERABLES
-            required_types = FREE_DELIVERABLES
+            from arc.domain.project.value_objects import REQUIRED_DELIVERABLES
+            required_types = REQUIRED_DELIVERABLES
 
         # v6.9: 按项目类型裁剪可见交付物 — 非app类不显示 app_code/build 节点
         required_types = await self._filter_visible_deliverables(todo_id, required_types)
@@ -331,13 +329,11 @@ class ConversationExecutionService:
                             "required_deliverables"
                         )
                     if not canonical:
-                        from arc.domain.project.value_objects import DELIVERABLES_BY_CONSTRAINT
-                        canonical = DELIVERABLES_BY_CONSTRAINT.get(
-                            project.process_constraint.value
-                        )
+                        from arc.domain.project.value_objects import REQUIRED_DELIVERABLES
+                        canonical = REQUIRED_DELIVERABLES
         if not canonical:
-            from arc.domain.project.value_objects import FREE_DELIVERABLES
-            canonical = FREE_DELIVERABLES
+            from arc.domain.project.value_objects import REQUIRED_DELIVERABLES
+            canonical = REQUIRED_DELIVERABLES
 
         from arc.domain.planning.value_objects import DeliverableStatus
 

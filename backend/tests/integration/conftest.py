@@ -20,25 +20,38 @@ def anyio_backend():
 
 @pytest.fixture
 async def db_session():
+    """v6.16: savepoint 事务隔离 — 整个测试在一个外层事务内,
+    被测代码的 commit()/begin_nested() 退化为 savepoint, teardown rollback 外层事务
+    全部撤销 (含 test user)。根治 setup-commit 后 rollback 救不回 + 跨 run/同 run 残留
+    (test_capability_api 三文件合跑偶发 409)。
+    共享 dev DB 安全: 不 truncate, 不破坏真实数据。
+    """
     engine = create_async_engine(settings.database_url, echo=False)
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with session_factory() as session:
-        await session.execute(
-            text(
-                "INSERT INTO users (id, username, display_name, is_active, hashed_password) "
-                "VALUES (:id, :username, :display_name, true, :pwd) "
-                "ON CONFLICT (id) DO NOTHING"
-            ),
-            {
-                "id": str(TEST_USER_ID),
-                "username": "test-integration",
-                "display_name": "Integration Test User",
-                "pwd": "$2b$12$dummy",
-            },
+    async with engine.connect() as connection:
+        trans = await connection.begin()
+        session_factory = async_sessionmaker(
+            bind=connection,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
         )
-        await session.commit()
-        yield session
-        await session.rollback()
+        async with session_factory() as session:
+            await session.execute(
+                text(
+                    "INSERT INTO users (id, username, display_name, is_active, hashed_password) "
+                    "VALUES (:id, :username, :display_name, true, :pwd) "
+                    "ON CONFLICT (id) DO NOTHING"
+                ),
+                {
+                    "id": str(TEST_USER_ID),
+                    "username": "test-integration",
+                    "display_name": "Integration Test User",
+                    "pwd": "$2b$12$dummy",
+                },
+            )
+            await session.flush()
+            yield session
+        await trans.rollback()
     await engine.dispose()
 
 

@@ -136,17 +136,6 @@ REQUIRED_DELIVERABLES: list[str] = [
     "experience_card",
 ]
 
-# 向后兼容 — 所有模式指向同一列表
-STRICT_DELIVERABLES: list[str] = REQUIRED_DELIVERABLES
-MODERATE_DELIVERABLES: list[str] = REQUIRED_DELIVERABLES
-FREE_DELIVERABLES: list[str] = REQUIRED_DELIVERABLES
-
-DELIVERABLES_BY_CONSTRAINT: dict[str, list[str]] = {
-    "strict": REQUIRED_DELIVERABLES,
-    "moderate": REQUIRED_DELIVERABLES,
-    "free": REQUIRED_DELIVERABLES,
-}
-
 # v6.9: 按项目类型裁剪可见交付物 — 非app类不应显示 app_code/构建产物。
 # 复用 charter/get_deployer 类型驱动注册表模式, 新增类型在此注册可见交付物。
 # STATIC_SITE(静态站点): 无原生构建产物, 去掉 app_code(build 本不在 REQUIRED)

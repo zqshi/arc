@@ -7,12 +7,13 @@ import logging
 from dataclasses import dataclass
 
 from arc.application.ai.json_extract import extract_json
-from arc.application.context.content.gate import GATE_EVALUATION_PROMPT
+from arc.application.context.content.gate import GATE_EVALUATION_PROMPT, get_profile
 from arc.application.pipeline.prompts import (
     PHASE_REQUIRED_FIELDS,
     PHASES_NO_SKIP,
 )
 from arc.domain.pipeline.value_objects import PhaseType
+from arc.domain.project.value_objects import ProcessConstraint
 
 logger = logging.getLogger(__name__)
 
@@ -76,14 +77,18 @@ async def evaluate_gate(
     content: dict,
     conventions: str = "",
     *,
+    constraint: ProcessConstraint,
     prior_artifacts: dict | None = None,
 ) -> GateResult:
     """Full gate evaluation: structural check + methodology validation + LLM quality assessment.
 
     Args:
+        constraint: 过程约束级别，决定 GateProfile (score_threshold / structural_short_circuit)。
+                    v6.16: 阈值同源 GateProfile，不再硬编码 score<7 / 缺口>=3 (与对话链路巧合相等)。
         prior_artifacts: 已确认的前置阶段产出物，用于交叉一致性检查。
                         key=artifact_type (str), value=content (dict)
     """
+    profile = get_profile(constraint)
     structural_gaps = check_required_fields(phase_type, content)
 
     # --- 方法论校验 (DDD / ADR) ---
@@ -95,7 +100,7 @@ async def evaluate_gate(
         cross_gaps = _check_cross_consistency(phase_type, content, prior_artifacts)
         structural_gaps.extend(cross_gaps)
 
-    if len(structural_gaps) >= 3:
+    if len(structural_gaps) >= profile.structural_short_circuit:
         return GateResult(
             passed=False,
             score=2,
@@ -144,7 +149,7 @@ async def evaluate_gate(
     passed = result_data.get("passed", False) and len(structural_gaps) == 0
     score = result_data.get("score", 5)
 
-    if score < 7:
+    if score < profile.score_threshold:
         passed = False
 
     return GateResult(
