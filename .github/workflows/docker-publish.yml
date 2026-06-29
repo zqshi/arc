@@ -71,3 +71,55 @@ jobs:
           build-args: |
             VITE_API_URL=
             VITE_WS_URL=
+
+  # v6.18: 原生客户端构建工具链镜像发布 (BINARY_APP 项目的容器化构建依赖)
+  # backend/frontend 是应用镜像; 这三个是构建工具链镜像 (DockerSandboxRuntime 拉起执行构建)
+  # 开发态本地构建仍走 backend/src/arc/infrastructure/sandbox/images/Makefile (arc/xxx 本地名);
+  # 生产环境通过 config.sandbox_builder_images / ARC_SANDBOX_BUILDER_IMAGES 覆盖映射到 ghcr 名。
+  # 触发: release tag (v*), 同 backend/frontend; 非每次 push, 控成本 (android NDK 镜像 2-3GB)。
+  build-builder-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 镜像名后缀 ↔ Dockerfile ↔ 对应 BuildTarget (config 覆盖 key 用)
+          - image-suffix: tauri-builder      # BuildTarget.TAURI_LINUX  (tauri_linux)
+            dockerfile: tauri-builder.Dockerfile
+          - image-suffix: web-builder         # BuildTarget.WEB          (web)
+            dockerfile: web-builder.Dockerfile
+          - image-suffix: android-builder     # BuildTarget.CAPACITOR_APK (capacitor_apk)
+            dockerfile: android-builder.Dockerfile
+            # android build-tools (aapt2 等) 为 x86_64 ELF, 强制 amd64; Dockerfile ARG 默认值同
+            build-args: |
+              BUILD_TARGET_PLATFORM=linux/amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.image-suffix }}
+          tags: |
+            type=raw,value=latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend/src/arc/infrastructure/sandbox/images
+          file: ./backend/src/arc/infrastructure/sandbox/images/${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.build-args }}

@@ -75,8 +75,12 @@ class Settings(BaseSettings):
     opensandbox_api_key: str = ""
     opensandbox_image: str = "python:3.12-slim"
     # 覆盖默认构建镜像映射, key 格式 "{project_type}:{build_target}"
-    # 例: {"binary_app:tauri_linux": "registry.example.com/tauri:v2"}
-    # 留空则用 domain/sandbox/build_images.py 的 DEFAULT_BUILD_IMAGES 注册表
+    # 开发态留空 → DEFAULT_BUILD_IMAGES 注册表 (本地 make 构建的 arc/xxx 本地名)
+    # 生产环境: docker-publish.yml 的 build-builder-images job 在 release tag 时
+    #   发布 ghcr.io/<owner>/<repo>-{tauri,web,android}-builder:latest, 此处覆盖映射:
+    #   {"binary_app:tauri_linux": "ghcr.io/<owner>/<repo>-tauri-builder:latest",
+    #    "binary_app:web": "ghcr.io/<owner>/<repo>-web-builder:latest",
+    #    "binary_app:capacitor_apk": "ghcr.io/<owner>/<repo>-android-builder:latest"}
     sandbox_builder_images: dict[str, str] = {}
 
     # Object Storage (S3-compatible: MinIO / AWS S3 / Aliyun OSS)
