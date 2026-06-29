@@ -10,9 +10,10 @@
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from arc.application.context.token_utils import estimate_tokens
 
 if TYPE_CHECKING:
     from arc.application.ai.llm_adapter import LLMMessage
@@ -20,11 +21,6 @@ if TYPE_CHECKING:
     from arc.domain.conversation.entity import Message
 
 logger = logging.getLogger(__name__)
-
-# CJK Unicode ranges for Chinese/Japanese/Korean detection
-_CJK_RE = re.compile(
-    r"[一-鿿㐀-䶿぀-ゟ゠-ヿ가-힯]"
-)
 
 
 @dataclass(frozen=True)
@@ -181,32 +177,6 @@ class ContextController:
 
 # ------------------------------------------------------------------
 # Token estimation utilities
-# ------------------------------------------------------------------
-
-
-def estimate_tokens(text: str) -> int:
-    """快速 token 估算。
-
-    中文/CJK 字符约 1.5 token/字，英文约 0.25 token/字符。
-    混合文本取加权平均。不依赖 tiktoken 等外部库。
-    """
-    if not text:
-        return 0
-
-    total_chars = len(text)
-    if total_chars == 0:
-        return 0
-
-    # 统计 CJK 字符数
-    cjk_count = len(_CJK_RE.findall(text))
-    non_cjk_count = total_chars - cjk_count
-
-    # CJK: ~1.5 tokens/char; non-CJK: ~0.25 tokens/char (≈ 4 chars/token)
-    return int(cjk_count * 1.5 + non_cjk_count * 0.25)
-
-
-# ------------------------------------------------------------------
-# Internal helpers
 # ------------------------------------------------------------------
 
 

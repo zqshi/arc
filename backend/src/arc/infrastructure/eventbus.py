@@ -21,34 +21,17 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
-from typing import Any, AsyncIterator, Protocol, runtime_checkable
+from typing import Any, AsyncIterator
+
+from arc.infrastructure.eventbus_contract import _DEFAULT_REPLAY_SIZE, EventBus
 
 logger = logging.getLogger(__name__)
 
-# 每个 channel 保留的 replay 事件数 (迟到订阅者最多重放这么多)
-_DEFAULT_REPLAY_SIZE = 500
 # 订阅者队列上限 (背压保护, 超出丢弃事件并告警)
 _SUBSCRIBER_QUEUE_MAX = 500
 
 # 订阅终止哨兵
 _SENTINEL: Any = object()
-
-
-@runtime_checkable
-class EventBus(Protocol):
-    """事件总线抽象。实现方保证 publish/subscribe/shutdown 语义一致。"""
-
-    async def publish(self, channel: str, event: dict) -> None:
-        """投递事件到 channel 的所有订阅者, 并写入 replay 缓冲。"""
-        ...
-
-    def subscribe(self, channel: str) -> AsyncIterator[dict]:
-        """订阅 channel: 先重放历史事件, 再接收实时事件, 直到 shutdown。"""
-        ...
-
-    async def shutdown(self) -> None:
-        """通知所有订阅者终止, 释放资源。"""
-        ...
 
 
 class InMemoryEventBus:
@@ -145,19 +128,4 @@ def set_global_bus(bus: "EventBus | None") -> None:
 def get_global_bus() -> "EventBus | None":
     """取全局 bus; None 表示进程内模式。"""
     return _global_bus
-
-
-def create_eventbus() -> "EventBus":
-    """按配置选择后端: redis_url 非空 → RedisEventBus, 否则 InMemory。
-
-    在 main.py lifespan 调用, 构造后 set_global_bus 注入各 manager。
-    阶段 2 实现 RedisEventBus 后, 此处自动切换。
-    """
-    from arc.config import settings
-
-    if settings.redis_url:
-        from arc.infrastructure.redis_bus import RedisEventBus
-
-        return RedisEventBus(settings.redis_url)
-    return InMemoryEventBus()
 

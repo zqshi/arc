@@ -5,6 +5,7 @@ Revises: y2_revoked_tokens
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "z1_multi_tenant"

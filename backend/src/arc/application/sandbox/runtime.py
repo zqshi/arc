@@ -15,17 +15,13 @@ import asyncio
 import logging
 import subprocess
 import uuid
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
+from arc.application.sandbox.runtime_base import SandboxRuntime, ToolImplFn
 from arc.domain.errors import AppError
 from arc.domain.sandbox.value_objects import BuildTarget, SandboxPolicy
-
-# Type alias for tool implementation functions injected from execution layer.
-# Signature: (params: dict, *, base_path: Path) -> str
-ToolImplFn = Callable[..., Awaitable[str]]
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +37,6 @@ class ApprovalRequest:
     tool_name: str
     tool_input: dict
     future: asyncio.Future
-
-
-class SandboxRuntime(ABC):
-    """Abstract interface for sandbox execution backends."""
-
-    @abstractmethod
-    async def run_command(self, params: dict) -> str:
-        """Execute a shell command within the sandbox."""
-
-    @abstractmethod
-    async def write_file(self, params: dict) -> str:
-        """Write a file within the sandbox."""
-
-    async def close(self) -> None:
-        """Release sandbox resources."""
 
 
 # ---------------------------------------------------------------------------

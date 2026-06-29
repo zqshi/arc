@@ -3,8 +3,9 @@
 Revision ID: z5_version_preview_url
 Revises: z4_experience_last_reused
 """
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "z5_version_preview_url"
 down_revision = "z4_experience_last_reused"

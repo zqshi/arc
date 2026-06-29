@@ -5,6 +5,7 @@ Revises: z2_usage_daily
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "z3_github_integration"

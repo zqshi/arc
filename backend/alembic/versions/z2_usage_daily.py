@@ -5,6 +5,7 @@ Revises: z1_multi_tenant
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "z2_usage_daily"

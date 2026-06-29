@@ -5,6 +5,7 @@ Revises: y1_core_fk_indexes
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "y2_revoked_tokens"

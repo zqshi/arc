@@ -5,9 +5,10 @@ Revises: i2k6gh589012
 Create Date: 2026-05-19
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "j3l7hi690123"
 down_revision = "i2k6gh589012"

@@ -5,9 +5,10 @@ Revises: 7d587912c43d
 Create Date: 2026-06-01
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "v3_domain_model_review"
 down_revision = "a2_deleted_at"

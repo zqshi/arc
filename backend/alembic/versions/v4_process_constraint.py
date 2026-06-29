@@ -5,9 +5,10 @@ Revises: v3_todo_suspended
 Create Date: 2026-06-02
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "v4_process_constraint"
 down_revision = "v3_todo_suspended"

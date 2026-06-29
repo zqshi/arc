@@ -10,9 +10,9 @@ Create Date: 2026-06-24
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision: str = "z11_project_type"
 down_revision: Union[str, None] = "z10_domain_templates"

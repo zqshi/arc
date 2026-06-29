@@ -5,9 +5,10 @@ Revises: r5b7hi234567
 Create Date: 2026-05-21
 
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
+
+from alembic import op
 
 revision = "s6a9bc456789"
 down_revision = "r5b7hi234567"

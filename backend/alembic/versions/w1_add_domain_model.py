@@ -4,9 +4,10 @@ Revision ID: w1_domain_model
 Revises: u2v4_missing_fk_idx, u1v1_add_user_role
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "w1_domain_model"
 down_revision = ("u2v4_missing_fk_idx", "u1v1_add_user_role")

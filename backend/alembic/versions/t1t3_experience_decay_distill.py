@@ -5,9 +5,10 @@ Revises: s6a9bc456789
 Create Date: 2026-05-21
 
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
+
+from alembic import op
 
 revision = "t1t3_decay_distill"
 down_revision = "s6a9bc456789"

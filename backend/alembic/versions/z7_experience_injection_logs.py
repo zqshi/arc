@@ -4,9 +4,10 @@ Revision ID: z7_experience_injection_logs
 Revises: z6_deployments
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
+
+from alembic import op
 
 revision = "z7_experience_injection_logs"
 down_revision = "z6_deployments"

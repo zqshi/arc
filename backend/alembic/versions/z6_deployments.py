@@ -3,8 +3,9 @@
 Revision ID: z6_deployments
 Revises: z5_version_preview_url
 """
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "z6_deployments"
 down_revision = "cc9223296e15"

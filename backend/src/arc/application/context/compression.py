@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from arc.application.context.token_utils import estimate_tokens
+
 if TYPE_CHECKING:
     from arc.application.ai.llm_adapter import LLMAdapter
     from arc.domain.conversation.entity import Message
@@ -127,7 +129,6 @@ class CompressionManager:
         信息损失: 低-中（保留核心决策）
         """
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.context.controller import estimate_tokens
 
         if not messages:
             return []
@@ -184,7 +185,6 @@ class CompressionManager:
         信息损失: 中-高（仅保留关键事实）
         """
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.context.controller import estimate_tokens
 
         if not messages:
             return []
@@ -245,7 +245,6 @@ class CompressionManager:
     def _fallback_truncate(messages: list, budget: int) -> list:
         """降级方案：无 LLM 时保留最近的消息。"""
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.context.controller import estimate_tokens
 
         result = []
         running = 0

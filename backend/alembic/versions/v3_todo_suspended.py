@@ -5,8 +5,9 @@ Revises: v3_domain_model_review
 Create Date: 2026-06-02
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "v3_todo_suspended"
 down_revision = "v3_domain_model_review"

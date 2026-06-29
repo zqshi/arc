@@ -58,7 +58,8 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("ARC_JWT_SECRET must be set in production mode")
 
     # v6.7: 初始化跨进程事件总线 (redis_url 非空 → Redis, 否则 InMemory)
-    from arc.infrastructure.eventbus import create_eventbus, set_global_bus
+    from arc.infrastructure.eventbus import set_global_bus
+    from arc.infrastructure.eventbus_factory import create_eventbus
 
     bus = create_eventbus()
     set_global_bus(bus)

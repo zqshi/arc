@@ -5,9 +5,9 @@ Revises: (auto)
 Create Date: 2026-06-03
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "r1_version_analysis"
 down_revision = None

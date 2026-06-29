@@ -5,8 +5,9 @@ Revises: k8m2np345678
 Create Date: 2026-05-20 18:00:00.000000
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "m1x3ab567890"
 down_revision = "k8m2np345678"

@@ -5,8 +5,9 @@ Revises: h1j5fg478901
 Create Date: 2026-05-18
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "i2k6gh589012"
 down_revision = "h1j5fg478901"

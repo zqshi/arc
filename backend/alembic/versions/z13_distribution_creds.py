@@ -8,9 +8,9 @@ v6.2.0: 项目维度分发凭证加密存储 (按渠道分字段, 与签名凭�
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision: str = "z13_distribution_creds"
 down_revision: Union[str, None] = "z12_signing_creds"

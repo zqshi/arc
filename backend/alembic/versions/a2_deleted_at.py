@@ -5,8 +5,9 @@ Revises: a1_scan_status
 Create Date: 2026-05-30
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "a2_deleted_at"
 down_revision = "a1_scan_status"

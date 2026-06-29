@@ -6,10 +6,10 @@ Create Date: 2026-06-23
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
+from alembic import op
 
 revision: str = "z10_domain_templates"
 down_revision: Union[str, None] = "z9_baas_instances"

@@ -10,7 +10,7 @@ keep file-system consistency (remote sandbox can't mount local project_path).
 from __future__ import annotations
 
 from arc.application.execution.tools import ToolDefinition, ToolRegistry
-from arc.application.sandbox.runtime import SandboxRuntime
+from arc.application.sandbox.runtime_base import SandboxRuntime
 
 # OpenSandbox 模式下需 override 的 read 类工具 (沙箱即工作区, 保证一致性)
 _READ_TOOLS = ("read_file", "list_directory", "grep_search")

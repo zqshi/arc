@@ -9,9 +9,9 @@ Arc API + 下载页/更新元数据的渲染源)。
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision: str = "z14_distribution_manifest"
 down_revision: Union[str, None] = "z13_distribution_creds"

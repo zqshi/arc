@@ -11,9 +11,10 @@ Create Date: 2026-05-26 21:39:31.615623
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = '7d587912c43d'
 down_revision: Union[str, None] = 'z4_experience_last_reused'

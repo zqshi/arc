@@ -9,8 +9,9 @@ Create Date: 2026-06-26
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "z17_capabilities"
 down_revision: Union[str, None] = "z16_drop_injection_logs"

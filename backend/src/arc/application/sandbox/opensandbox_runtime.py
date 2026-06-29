@@ -30,7 +30,7 @@ except ImportError:  # SDK 可选: 本地无 opensandbox 时模块仍可加载, 
     WriteEntry = None  # type: ignore[assignment,misc]
 
 from arc.application.sandbox.registry import sandbox_registry
-from arc.application.sandbox.runtime import SandboxRuntime
+from arc.application.sandbox.runtime_base import SandboxRuntime
 from arc.domain.sandbox.value_objects import SandboxPolicy
 
 logger = logging.getLogger(__name__)

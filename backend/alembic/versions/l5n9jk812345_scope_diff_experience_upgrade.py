@@ -5,8 +5,9 @@ Revises: k4m8ij701234
 Create Date: 2026-05-20
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "l5n9jk812345"
 down_revision = "k4m8ij701234"

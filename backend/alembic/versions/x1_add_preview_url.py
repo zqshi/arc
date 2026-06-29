@@ -4,8 +4,9 @@ Revision ID: x1_preview_url
 Revises: w1_domain_model
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "x1_preview_url"
 down_revision = "w1_domain_model"

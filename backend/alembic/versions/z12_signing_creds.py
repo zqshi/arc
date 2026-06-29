@@ -9,9 +9,9 @@ v6.1.0: 项目维度签名凭证加密存储 (按平台分字段, Fernet base64 
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision: str = "z12_signing_creds"
 down_revision: Union[str, None] = "z11_project_type"

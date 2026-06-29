@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import AsyncIterator
 
-from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse, StreamResult
+from arc.application.ai.llm_types import LLMAdapter, LLMMessage, LLMResponse, StreamResult
 
 logger = logging.getLogger(__name__)
 

@@ -20,7 +20,7 @@ import json
 import logging
 from typing import Any, AsyncIterator
 
-from arc.infrastructure.eventbus import _DEFAULT_REPLAY_SIZE, EventBus
+from arc.infrastructure.eventbus_contract import _DEFAULT_REPLAY_SIZE, EventBus
 
 logger = logging.getLogger(__name__)
 
