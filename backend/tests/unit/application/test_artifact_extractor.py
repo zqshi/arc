@@ -202,6 +202,43 @@ class TestProduceBuildArtifact:
 
             art_svc.return_value.create_or_update_build.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_reads_project_build_target_not_hardcoded(self):
+        """v6.19 T3-g 设计4: _try_produce 读 project 实际 build_target (去 TAURI_LINUX 硬编码)。
+
+        docker target (WEB/APK) 不再被误记 tauri_linux; CI target 不走此 (prototype 无 build_status)。
+        """
+        todo_id = uuid.uuid4()
+        prototype = Artifact(
+            todo_id=todo_id,
+            artifact_type=ArtifactType.PROTOTYPE,
+            content={"build_status": "success", "artifact_path": "dist"},
+        )
+        svc = ArtifactExtractor.__new__(ArtifactExtractor)
+        svc.db = AsyncMock()
+
+        with (
+            patch("arc.infrastructure.repositories.todo.TodoRepository") as todo_repo,
+            patch("arc.infrastructure.repositories.project.ProjectRepository") as proj_repo,
+            patch("arc.application.artifact.service.ArtifactService") as art_svc,
+        ):
+            todo_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(project_id=uuid.uuid4())
+            )
+            proj_repo.return_value.get_by_id = AsyncMock(
+                return_value=SimpleNamespace(
+                    project_type=ProjectType.BINARY_APP,
+                    conversation_config={"sandbox": {"target": "web"}},
+                )
+            )
+            art_svc_inst = AsyncMock()
+            art_svc.return_value = art_svc_inst
+
+            await svc._try_produce_build_artifact(todo_id, prototype)
+
+            kwargs = art_svc_inst.create_or_update_build.call_args.kwargs
+            assert kwargs["build_target"] == "web"
+
     def test_dev_report_and_app_code_coexist_in_one_message(self) -> None:
         """DEVELOPMENT 阶段一条消息同时产出 DEV_REPORT + APP_CODE。"""
         text = """[DELIVERABLE:dev_report]

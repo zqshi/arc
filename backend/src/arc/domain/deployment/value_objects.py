@@ -84,5 +84,15 @@ class DeployConfig:
                     build_command="npm run build && npx cap copy android && npx cap build android",
                     artifact_path="android/app/build/outputs/apk/release",
                 )
+            if target == BuildTarget.TAURI_WINDOWS:
+                # v6.19 波次1: tauri windows (.msi/.exe), CI 编排 (windows runner)。
+                # build_command 不被宿主执行 (linux docker 产不出 Windows 产物) — 仅作
+                # CI workflow 构建语义参考; 实际构建步骤在 build-client-artifacts.yml 内。
+                # Agent 经 build 工具 → BuildOrchestrationService 异步编排 (T3-g 设计2)。
+                # artifact_path="ci-products" 对齐 orchestrate._download_and_extract 解压目录。
+                return DeployConfig(
+                    build_command="cargo tauri build",
+                    artifact_path="ci-products",
+                )
         # 未识别类型走默认
         return DeployConfig()

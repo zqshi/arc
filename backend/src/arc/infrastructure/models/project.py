@@ -51,6 +51,9 @@ class ProjectModel(TimestampMixin, Base):
     enc_apple_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     enc_win_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     enc_android_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 签名凭证 (v6.19 T7/T10) — iOS / 鸿蒙 按平台加密存储
+    enc_ios_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enc_harmony_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     # 分发凭证 (v6.2.0) — 按渠道加密存储 (与签名凭证独立)
     enc_appstore_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     enc_playstore_creds: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -19,6 +19,8 @@ from arc.domain.deployment.signer import (
 )
 from arc.infrastructure.signer.android import AndroidSigner
 from arc.infrastructure.signer.apple import AppleSigner
+from arc.infrastructure.signer.harmony import HarmonySigner
+from arc.infrastructure.signer.ios import IosSigner
 from arc.infrastructure.signer.windows import WindowsSigner
 
 __all__ = [
@@ -60,15 +62,34 @@ def load_credentials_for_project(project, platform: SignerType) -> SigningCreden
             android_key_alias=creds_dict.get("android_key_alias", ""),
             android_key_password=creds_dict.get("android_key_password", ""),
         )
+    if platform == SignerType.IOS:
+        return SigningCredentials(
+            ios_cert_path=creds_dict.get("ios_cert_path", ""),
+            ios_cert_password=creds_dict.get("ios_cert_password", ""),
+            ios_identity=creds_dict.get("ios_identity", ""),
+            ios_provisioning_profile=creds_dict.get("ios_provisioning_profile", ""),
+        )
+    if platform == SignerType.HARMONY:
+        return SigningCredentials(
+            harmony_keystore_path=creds_dict.get("harmony_keystore_path", ""),
+            harmony_keystore_password=creds_dict.get("harmony_keystore_password", ""),
+            harmony_key_alias=creds_dict.get("harmony_key_alias", ""),
+            harmony_key_password=creds_dict.get("harmony_key_password", ""),
+            harmony_cert_path=creds_dict.get("harmony_cert_path", ""),
+            harmony_profile_path=creds_dict.get("harmony_profile_path", ""),
+        )
     return SigningCredentials()
 
 
 # SignerType → Signer 实例注册表
 # T2/T3/T4 done: APPLE/WINDOWS/ANDROID 三平台签名器齐全
+# v6.19 T7/T10 done: IOS/HARMONY 签名器 mock 骨架就位
 SIGNERS: dict[SignerType, Signer] = {
     SignerType.APPLE: AppleSigner(),
     SignerType.WINDOWS: WindowsSigner(),
     SignerType.ANDROID: AndroidSigner(),
+    SignerType.IOS: IosSigner(),
+    SignerType.HARMONY: HarmonySigner(),
 }
 
 

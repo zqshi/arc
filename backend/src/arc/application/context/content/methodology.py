@@ -197,18 +197,23 @@ prototype/
 BINARY_APP_BUILD_GUIDE = """\
 ## 原生客户端构建要求 (project_type=binary_app)
 
-你的目标是产出可在容器沙箱内构建为原生客户端的工程，产物落 src-tauri/target/release/bundle。
-默认框架 Tauri (Rust + WebView)，跨平台 web 资源复用前端工程。
+你的目标是产出可构建为原生客户端的 Tauri 工程 (Rust + WebView，跨平台 web 资源复用前端工程)。
+执行后端分两类 (domain/sandbox/execution_backend.py): linux/web/apk 走 DOCKER (Agent 在容器沙箱
+run_command 同步构建, 产物落 src-tauri/target/release/bundle); windows .msi/.exe 走 CI 编排
+(GHA windows runner, v6.19 激活, 触发→轮询→下载产物, 非 Agent 同步执行)。
 
 ### 你需要达成的状态
 
-一个可被 `cargo tauri build` 成功构建的 Tauri 工程，产出**容器可构建目标**：
-- linux 二进制 (.AppImage / deb)  ← v6.0 波次1 (本阶段聚焦)
-- web 资源 (复用 static_site 的 dist)  ← 波次2 (镜像就绪后激活)
-- android .apk (Capacitor)  ← 波次3 (镜像就绪后激活)
+一个可被 `cargo tauri build` 成功构建的 Tauri 工程，产出构建目标 (按执行后端分类):
+- linux 二进制 (.AppImage / deb)  ← v6.0 波次1 (DOCKER, 容器内构建)
+- web 资源 (复用 static_site 的 dist)  ← v6.12 波次2 (DOCKER)
+- android .apk (Capacitor)  ← v6.12 波次3 (DOCKER)
+- windows .msi/.exe (WebView2)  ← v6.19 波次1 (CI 编排, windows runner)
 
-> 当前阶段(波次1)聚焦 linux bundle; web/apk 在后续波次镜像就绪后激活。
-> 不在范围: macOS .dmg / Windows .exe 需原生 OS，容器化沙箱无法构建，推后到原生 runner/CI matrix。
+> DOCKER target (linux/web/apk): Agent 在容器沙箱 run_command 同步构建。
+> CI target (windows): 需原生 windows OS, 走 GHA 编排
+> (Agent 产工程, CI 跑 cargo tauri build 产 .msi/.exe)。
+> 不在范围: macOS .dmg / iOS .ipa / 鸿蒙 .hap 需原生 OS, 待 v6.19 后续波次。
 
 ### 工程结构
 

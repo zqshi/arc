@@ -20,17 +20,20 @@ class SandboxMode(StrEnum):
 
 
 class BuildTarget(StrEnum):
-    """容器内构建目标 — 决定构建镜像 + build_command + artifact_path。
+    """构建目标 — 决定执行后端 (docker/CI) + 产物形态 + artifact_path。
 
     与 ProjectType 正交: ProjectType 决定"构建什么形态", BuildTarget 决定
-    "容器内构建到哪个目标"。镜像推导见 domain/sandbox/build_images.py。
+    "构建到哪个目标"。执行后端路由见 domain/sandbox/execution_backend.py
+    (DOCKER/CI), 镜像推导见 domain/sandbox/build_images.py (仅 DOCKER target 用)。
 
-    v6.0 波次1 激活 TAURI_LINUX; v6.12 波次2 激活 WEB, 波次3 激活 CAPACITOR_APK。
+    v6.0 波次1 TAURI_LINUX; v6.12 波次2 WEB, 波次3 CAPACITOR_APK (均 DOCKER);
+    v6.19 波次1 TAURI_WINDOWS (CI 编排, windows runner, 需原生 OS)。
     """
 
-    TAURI_LINUX = "tauri_linux"  # v6.0 波次1: tauri linux bundle (deb/AppImage)
-    WEB = "web"  # v6.12 波次2: BINARY_APP web 资源构建 (npm run build → dist, 不打包原生客户端)
-    CAPACITOR_APK = "capacitor_apk"  # v6.12 波次3: android apk (capacitor)
+    TAURI_LINUX = "tauri_linux"  # v6.0 波次1: tauri linux bundle (deb/AppImage), DOCKER
+    WEB = "web"  # v6.12 波次2: BINARY_APP web 资源 (npm run build → dist), DOCKER
+    CAPACITOR_APK = "capacitor_apk"  # v6.12 波次3: android apk (capacitor), DOCKER
+    TAURI_WINDOWS = "tauri_windows"  # v6.19: tauri windows (.msi/.exe, WebView2), CI 编排
 
 
 @dataclass(frozen=True)

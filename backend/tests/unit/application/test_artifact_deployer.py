@@ -34,3 +34,17 @@ class TestResolveDeployConfig:
         cfg = resolve_deploy_config(ProjectType.STATIC_SITE, {}, "dist")
         assert cfg.build_command == "npm run build"
         assert cfg.artifact_path == "dist"
+
+    def test_binary_app_windows_target_uses_ci_products(self):
+        """v6.19 T3-g 设计4: BINARY_APP + TAURI_WINDOWS → artifact_path=ci-products。
+
+        CI target 产物由 orchestrate 下载解压到 local_dir/ci-products, DeployConfig
+        须指此路径供 PrototypeDeployer/DeployService 定位 (build_command 不宿主执行)。
+        """
+        from arc.domain.sandbox.value_objects import BuildTarget
+
+        cfg = resolve_deploy_config(
+            ProjectType.BINARY_APP, {}, "dist", BuildTarget.TAURI_WINDOWS
+        )
+        assert cfg.build_command == "cargo tauri build"
+        assert cfg.artifact_path == "ci-products"

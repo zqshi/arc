@@ -64,6 +64,9 @@ class Project:
     enc_apple_creds: str = ""
     enc_win_creds: str = ""
     enc_android_creds: str = ""
+    # 签名凭证 (v6.19 T7/T10) — iOS / 鸿蒙 按平台分字段加密存储
+    enc_ios_creds: str = ""
+    enc_harmony_creds: str = ""
     # 分发凭证 (v6.2.0) — 按渠道分字段加密存储 (与签名凭证独立)
     enc_appstore_creds: str = ""
     enc_playstore_creds: str = ""
@@ -195,6 +198,8 @@ class Project:
             SignerType.APPLE: "enc_apple_creds",
             SignerType.WINDOWS: "enc_win_creds",
             SignerType.ANDROID: "enc_android_creds",
+            SignerType.IOS: "enc_ios_creds",
+            SignerType.HARMONY: "enc_harmony_creds",
         }[platform]
 
     # -- Distribution credentials (v6.2.0) -------------------------------

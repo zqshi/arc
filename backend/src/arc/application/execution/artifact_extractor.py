@@ -163,7 +163,7 @@ class ArtifactExtractor:
         try:
             from arc.application.artifact.service import ArtifactService
             from arc.domain.project.value_objects import ProjectType
-            from arc.domain.sandbox.value_objects import BuildTarget
+            from arc.domain.sandbox.value_objects import SandboxPolicy
             from arc.infrastructure.repositories.project import ProjectRepository
             from arc.infrastructure.repositories.todo import TodoRepository
 
@@ -179,10 +179,14 @@ class ArtifactExtractor:
             if not build_status:
                 return  # 无构建状态信息
 
+            # 读 project 实际 build_target (去 TAURI_LINUX 硬编码, T3-g 设计4)。
+            # CI target 不走此 (prototype 无 build_status, 上方已 return), 仅 docker target。
+            sandbox_cfg = (getattr(project, "conversation_config", None) or {}).get("sandbox") or {}
+            build_target = SandboxPolicy.from_dict(sandbox_cfg).build_target
             await ArtifactService(self.db).create_or_update_build(
                 todo_id=todo_id,
                 phase_id=prototype.phase_id,
-                build_target=BuildTarget.TAURI_LINUX.value,
+                build_target=build_target.value,
                 artifact_path=content.get("artifact_path", "dist"),
                 build_status=build_status,
             )

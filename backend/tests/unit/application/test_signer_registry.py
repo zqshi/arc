@@ -54,6 +54,44 @@ class TestLoadCredentialsForProject:
         win_creds = load_credentials_for_project(p, SignerType.WINDOWS)
         assert win_creds.is_empty() is True
 
+    def test_loads_ios_creds_from_project(self, monkeypatch):
+        """v6.19 T7: iOS 凭证从项目解密加载。"""
+        monkeypatch.setattr("arc.infrastructure.crypto.settings", _SettingsWithKey())
+        p = Project(name="t")
+        p.set_signing_creds(
+            SignerType.IOS,
+            {
+                "ios_cert_path": "/certs/dev.p12",
+                "ios_cert_password": "secret",
+                "ios_identity": "iPhone Distribution: Team",
+            },
+            encrypt,
+        )
+        creds = load_credentials_for_project(p, SignerType.IOS)
+        assert isinstance(creds, SigningCredentials)
+        assert creds.has_ios() is True
+        assert creds.ios_identity == "iPhone Distribution: Team"
+
+    def test_loads_harmony_creds_from_project(self, monkeypatch):
+        """v6.19 T10: 鸿蒙凭证从项目解密加载。"""
+        monkeypatch.setattr("arc.infrastructure.crypto.settings", _SettingsWithKey())
+        p = Project(name="t")
+        p.set_signing_creds(
+            SignerType.HARMONY,
+            {
+                "harmony_keystore_path": "/certs/dev.p12",
+                "harmony_keystore_password": "secret",
+                "harmony_key_alias": "release",
+                "harmony_cert_path": "/certs/app.cer",
+                "harmony_profile_path": "/certs/profile.p7b",
+            },
+            encrypt,
+        )
+        creds = load_credentials_for_project(p, SignerType.HARMONY)
+        assert isinstance(creds, SigningCredentials)
+        assert creds.has_harmony() is True
+        assert creds.harmony_key_alias == "release"
+
 
 class TestGetSigner:
     def test_apple_registered(self):
@@ -78,8 +116,26 @@ class TestGetSigner:
         assert signer is not None
         assert isinstance(signer, AndroidSigner)
 
+    def test_ios_registered(self):
+        """v6.19 T7 done: IosSigner 已注册。"""
+        from arc.infrastructure.signer.ios import IosSigner
+
+        signer = get_signer(SignerType.IOS)
+        assert signer is not None
+        assert isinstance(signer, IosSigner)
+
+    def test_harmony_registered(self):
+        """v6.19 T10 done: HarmonySigner 已注册。"""
+        from arc.infrastructure.signer.harmony import HarmonySigner
+
+        signer = get_signer(SignerType.HARMONY)
+        assert signer is not None
+        assert isinstance(signer, HarmonySigner)
+
     def test_all_platforms_registered(self):
-        """T2/T3/T4 done: 三平台签名器全部注册。"""
+        """五平台签名器全部注册 (v6.1 APPLE/WINDOWS/ANDROID + v6.19 IOS/HARMONY)。"""
         assert SignerType.APPLE in SIGNERS
         assert SignerType.WINDOWS in SIGNERS
         assert SignerType.ANDROID in SIGNERS
+        assert SignerType.IOS in SIGNERS  # v6.19 T7
+        assert SignerType.HARMONY in SIGNERS  # v6.19 T10

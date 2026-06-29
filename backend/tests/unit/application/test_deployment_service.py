@@ -77,6 +77,22 @@ class TestDetectSignTargets:
         (tmp_path / "app.AppImage").write_text("x")
         assert DeployService._detect_sign_targets(str(tmp_path)) == []
 
+    def test_detects_msi_routes_to_windows(self, tmp_path):
+        """v6.19 T4: .msi 扫描 → WINDOWS (经 EXTENSION_KIND→MSI→signer_for_kind 真相源, 取代扩展名硬编码)。"""
+        (tmp_path / "Setup.msi").write_text("x")
+        targets = DeployService._detect_sign_targets(str(tmp_path))
+        signers = {t[0] for t in targets}
+        assert SignerType.WINDOWS in signers
+
+    def test_detects_ipa_hap_routes_to_ios_harmony(self, tmp_path):
+        """v6.19 T7/T10 done: .ipa→IOS, .hap→HARMONY (KIND_SIGNER_TYPE 已回填, 取代 T5/T8 占位 None)。"""
+        (tmp_path / "App.ipa").write_text("x")
+        (tmp_path / "App.hap").write_text("x")
+        targets = DeployService._detect_sign_targets(str(tmp_path))
+        signers = {t[0] for t in targets}
+        assert SignerType.IOS in signers
+        assert SignerType.HARMONY in signers
+
 
 class TestRollbackDeployment:
     async def test_success_transitions_to_rolled_back(self):

@@ -20,12 +20,16 @@ from arc.infrastructure.repositories.artifact import ArtifactRepository
 logger = logging.getLogger(__name__)
 
 
-def resolve_deploy_config(project_type, content, artifact_path):
-    """按 project_type 解析部署配置 (断点D 修复)。
+def resolve_deploy_config(project_type, content, artifact_path, build_target=None):
+    """按 (project_type, build_target) 解析部署配置 (断点D 修复 + T3-g 设计4)。
 
     BINARY_APP 用类型默认 (cargo tauri build + bundle), 不信 content 的 build_command
     (content 可能是前端 web 资源的 npm run build, 非原生构建命令);
     其他类型沿用 content (兼容 STATIC_SITE 既有行为)。
+
+    build_target 透传 DeployConfig.for_type (v6.12 已支持), 决定产物路径
+    (TAURI_LINUX→bundle / WEB→dist / CAPACITOR_APK→apk / TAURI_WINDOWS→ci-products)。
+    调用方 _deploy_project 从 project.conversation_config.sandbox.target 读 target 传入。
 
     DeployService 内部按 project_type 选 deployer: BINARY_APP → BinaryArtifactDeployer。
     """
@@ -33,7 +37,7 @@ def resolve_deploy_config(project_type, content, artifact_path):
     from arc.domain.project.value_objects import ProjectType
 
     if project_type == ProjectType.BINARY_APP:
-        return DeployConfig.for_type(project_type)
+        return DeployConfig.for_type(project_type, build_target)
     return DeployConfig(
         build_command=content.get("build_command", "npm run build"),
         artifact_path=artifact_path,
@@ -185,7 +189,17 @@ class PrototypeDeployer:
             # 致 BINARY_APP 原型被当静态站点部署)。DeployService 内部按 type 选 deployer:
             # BINARY_APP → BinaryArtifactDeployer (不要求 index.html)。
             project_type = project.project_type
-            deploy_config = resolve_deploy_config(project_type, content, artifact_path)
+            # 读 project 实际 build_target 透传 for_type (T3-g 设计4)。
+            # CI target 产物在 local_dir/ci-products (orchestrate 下载解压)。
+            from arc.domain.sandbox.value_objects import SandboxPolicy
+
+            sandbox_cfg = (
+                getattr(project, "conversation_config", None) or {}
+            ).get("sandbox") or {}
+            build_target = SandboxPolicy.from_dict(sandbox_cfg).build_target
+            deploy_config = resolve_deploy_config(
+                project_type, content, artifact_path, build_target
+            )
 
             deploy_svc = DeployService(self._db)
             deployment = await deploy_svc.deploy(

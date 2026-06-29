@@ -25,6 +25,8 @@ class SignerType(StrEnum):
     APPLE = "apple"  # codesign + xcrun notarytool (macOS 原生)
     WINDOWS = "windows"  # signtool (EV 证书)
     ANDROID = "android"  # apksigner (JDK + keystore)
+    IOS = "ios"  # security import + codesign (v6.19 T7, .ipa + provisioning profile)
+    HARMONY = "harmony"  # hap-sign-tool sign-app (v6.19 T10, .p12 + .cer + .p7b profile)
 
 
 @dataclass(frozen=True)
@@ -51,10 +53,28 @@ class SigningCredentials:
     android_key_password: str = ""  # key 密码 (可与 keystore 密码不同)
     # 注: Play 上传密钥 (play_key_json) 是分发凭证, v6.2 归位到 DistributionCredentials
 
+    # iOS 签名 (v6.19 T7 — security import + codesign, .ipa 重签)
+    ios_cert_path: str = ""  # .p12 证书文件路径 (security import)
+    ios_cert_password: str = ""  # .p12 密码
+    ios_identity: str = ""  # 签名 identity (codesign --sign, 如 "iPhone Distribution: Team")
+    ios_provisioning_profile: str = ""  # .mobileprovision 文件路径 (分发嵌入用, has 判定不强制)
+
+    # 鸿蒙签名 (v6.19 T10 — hap-sign-tool sign-app, .hap)
+    harmony_keystore_path: str = ""  # .p12 keystore 文件路径
+    harmony_keystore_password: str = ""  # keystore 密码
+    harmony_key_alias: str = ""  # 签名 key 别名
+    harmony_key_password: str = ""  # key 密码 (可与 keystore 密码相同, 缺失则用 keystore 密码)
+    harmony_cert_path: str = ""  # .cer 证书文件路径 (appCertFile)
+    harmony_profile_path: str = ""  # .p7b profile 文件路径 (profileFile)
+
     def is_empty(self) -> bool:
         """全平台凭证均未配置。"""
         return not (
-            self.has_apple() or self.has_windows() or self.has_android()
+            self.has_apple()
+            or self.has_windows()
+            or self.has_android()
+            or self.has_ios()
+            or self.has_harmony()
         )
 
     def has_apple(self) -> bool:
@@ -79,6 +99,34 @@ class SigningCredentials:
             self.android_keystore_path
             and self.android_keystore_password
             and self.android_key_alias
+        )
+
+    def has_ios(self) -> bool:
+        """iOS 签名凭证 (.p12 + identity, security import + codesign 用)。
+
+        证书路径 + 密码 + identity 三者齐 → 可签名 (与 has_windows 同构)。
+        provisioning_profile 缺失时 codesign 仍可执行 (仅无法分发到设备),
+        故不纳入 has 判定, 避免过度 skip (分发关注归 DistributionCredentials)。
+        """
+        return bool(
+            self.ios_cert_path
+            and self.ios_cert_password
+            and self.ios_identity
+        )
+
+    def has_harmony(self) -> bool:
+        """鸿蒙签名凭证 (.p12 keystore + alias + .cer + .p7b profile)。
+
+        hap-sign-tool sign-app 必需: keystore + 密码 + alias + appCertFile + profileFile。
+        key_password 可与 keystore_password 相同, 缺失时签名器用 keystore_password 兜底,
+        故不纳入 has 判定 (缺失触发 skip 会阻断可用配置)。
+        """
+        return bool(
+            self.harmony_keystore_path
+            and self.harmony_keystore_password
+            and self.harmony_key_alias
+            and self.harmony_cert_path
+            and self.harmony_profile_path
         )
 
 
