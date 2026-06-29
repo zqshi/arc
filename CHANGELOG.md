@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 _下一版本方向待定 (见 backlog.md)。_
 
+## [6.16.0] - 2026-06-29 — v6.15 遗留技术债务清理
+
+### Changed — process_constraint 单一真相源收敛
+
+- **T1 execution_mode 字段下线**: 删 todo/project entity.execution_mode + set_execution_mode + ORM 列 + repository 映射; TodoResponse 透传 process_constraint (resolve_names batch 查 project, 零 N+1); 独立 todo fallback STRICT; workspace_service create/apply 删 execution_mode 协调; alembic z19 drop column (z18 已回填 process_constraint, drop 安全); 前端 8 处改读 process_constraint + 删 ExecutionMode type/EXECUTION_MODE_LABELS 死代码
+- **6.1 死代码补清**: drop column 后 ExecutionMode class + ProcessConfig.from_execution_mode 无生产调用, 删除
+
+### Changed — gate 阈值同源 / 死结构清理 / 测试隔离
+
+- **T2 strict 阈值同源 GateProfile**: evaluate_gate 加 constraint 参数, score<7 与 缺口>=3 改读 get_profile(constraint).score_threshold/structural_short_circuit (消除与 STRICT profile 巧合相等); ProjectContext 加 process_constraint
+- **T3 删 DELIVERABLES_BY_CONSTRAINT 死结构**: 删三别名 + dict (三档恒等 REQUIRED_DELIVERABLES); conversation_strategy 两处 fallback 改用 REQUIRED_DELIVERABLES; needs_reorder 非死逻辑保留
+- **T4 测试 DB 事务隔离**: conftest db_session 改 join_transaction_mode=create_savepoint, test user flush 不 commit, teardown rollback 外层事务全部撤销; 根治 test_capability_api 偶发 409; 共享 dev DB 安全不 truncate
+
+### 决策
+
+- process_constraint 单一真相源, todo 不持 constraint 字段 (TodoResponse 透传 project.process_constraint)
+- gate 阈值读 GateProfile, 不硬编码 (同源非巧合相等)
+- 测试 savepoint 隔离优于 truncate (共享 dev DB 不破坏真实数据)
+
 ## [6.15.0] - 2026-06-28 — 过程约束依赖守卫治理
 
 ### Changed — 三模式依赖约束统一为硬不变量

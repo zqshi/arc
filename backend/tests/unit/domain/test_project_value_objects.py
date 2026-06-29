@@ -7,13 +7,12 @@ from arc.domain.project.value_objects import (
     DEFAULT_PIPELINE_CONFIG,
     DELIVERABLES_BY_TYPE,
     PHASES_BY_TYPE,
-    ProcessConfig,
-    ProcessConstraint,
     REQUIRED_DELIVERABLES,
     VALID_VERSION_TRANSITIONS,
     AgentAutonomy,
-    ExecutionMode,
     GateStrictness,
+    ProcessConfig,
+    ProcessConstraint,
     ProjectStatus,
     ProjectType,
     VersionStatus,
@@ -40,22 +39,6 @@ class TestProjectStatus:
 
     def test_from_value(self):
         assert ProjectStatus("archived") == ProjectStatus.ARCHIVED
-
-
-class TestExecutionMode:
-    def test_enum_values_complete(self):
-        expected = {"pipeline", "conversation"}
-        assert {em.value for em in ExecutionMode} == expected
-
-    def test_enum_count(self):
-        assert len(ExecutionMode) == 2
-
-    def test_str_equality(self):
-        assert ExecutionMode.PIPELINE == "pipeline"
-        assert ExecutionMode.CONVERSATION == "conversation"
-
-    def test_from_value(self):
-        assert ExecutionMode("pipeline") == ExecutionMode.PIPELINE
 
 
 class TestGateStrictness:
@@ -344,13 +327,3 @@ class TestProcessConfig:
         }
         cfg = ProcessConfig.from_dict(legacy)
         assert cfg.constraint == ProcessConstraint.FREE
-
-    def test_from_execution_mode_single_mapping_point(self):
-        """from_execution_mode 是旧 ExecutionMode 的单一映射点:
-        PIPELINE→STRICT, 否则→FREE。create/update 构造路径由此收敛一致。"""
-        assert ProcessConfig.from_execution_mode(
-            ExecutionMode.PIPELINE
-        ).constraint == ProcessConstraint.STRICT
-        assert ProcessConfig.from_execution_mode(
-            ExecutionMode.CONVERSATION
-        ).constraint == ProcessConstraint.FREE

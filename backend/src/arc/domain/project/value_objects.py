@@ -11,17 +11,10 @@ class ProjectStatus(StrEnum):
     DELETED = "deleted"
 
 
-class ExecutionMode(StrEnum):
-    """Deprecated — 使用 ProcessConstraint 代替。保留兼容旧数据。"""
-
-    PIPELINE = "pipeline"
-    CONVERSATION = "conversation"
-
-
 class ProcessConstraint(StrEnum):
     """过程约束级别 — 控制门禁严格度和交付物管理方式。
 
-    替代 ExecutionMode 的二分法，提供更细粒度的配置:
+    替代旧 pipeline/conversation 二分法，提供更细粒度的配置:
     - STRICT: 强制排序 + gate + 显式 confirm (原 pipeline)
     - MODERATE: 推荐顺序 + 宽松 gate + 可跳过
     - FREE: 无 phase 概念 + 自动提取 (原 conversation)
@@ -198,18 +191,10 @@ class ProcessConfig:
     v6.15: 原 gate_strictness/auto_extract/require_explicit_confirm/show_phase_ui
     四字段前后端零业务消费 (gate 行为由 content.gate.GateProfile 接管, 提取/确认/
     UI 展示由 constraint + 链路决定), 已删除。容器保留以稳定 process_config 的
-    DB/前后端契约, 仅持有 constraint。from_execution_mode 为旧 ExecutionMode 的
-    单一映射点 (PIPELINE→STRICT, 否则→FREE)。
+    DB/前后端契约, 仅持有 constraint。
     """
 
     constraint: ProcessConstraint = ProcessConstraint.FREE
-
-    @staticmethod
-    def from_execution_mode(mode: ExecutionMode) -> "ProcessConfig":
-        """从旧 ExecutionMode 迁移到 ProcessConfig (单一映射点)。"""
-        if mode == ExecutionMode.PIPELINE:
-            return ProcessConfig(constraint=ProcessConstraint.STRICT)
-        return ProcessConfig(constraint=ProcessConstraint.FREE)
 
     def to_dict(self) -> dict:
         return {"constraint": self.constraint.value}
