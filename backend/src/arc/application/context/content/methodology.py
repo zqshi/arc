@@ -211,7 +211,8 @@ run_command 同步构建, 产物落 src-tauri/target/release/bundle); windows .m
 - windows .msi/.exe (WebView2)  ← v6.19 波次1 (CI 编排, windows runner)
 
 > DOCKER target (linux/web/apk): Agent 在容器沙箱 run_command 同步构建。
-> CI target (windows): 需原生 windows OS, 走 GHA 编排 (Agent 产工程, CI 跑 cargo tauri build 产 .msi/.exe)。
+> CI target (windows): 需原生 windows OS, 走 GHA 编排
+> (Agent 产工程, CI 跑 cargo tauri build 产 .msi/.exe)。
 > 不在范围: macOS .dmg / iOS .ipa / 鸿蒙 .hap 需原生 OS, 待 v6.19 后续波次。
 
 ### 工程结构

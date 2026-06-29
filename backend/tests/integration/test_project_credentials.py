@@ -68,6 +68,39 @@ class TestProjectCredentialsCRUD:
         assert resp.json()["configured"] is False
         assert (await client.get(f"/api/projects/{pid}/credentials")).json()["signing"]["windows"] is True
 
+    async def test_configure_ios_signing_creds(self, client):
+        """v6.19 T7: PUT /credentials/signing/ios (枚举自动放行) → GET signing['ios'] True。
+
+        同时守卫 list_credentials 全 SignerType 迭代 (_enc_field_for 须含 IOS, 否则 KeyError)。
+        """
+        create = await client.post("/api/projects", json={"name": "Cred iOS"})
+        pid = create.json()["id"]
+
+        resp = await client.put(
+            f"/api/projects/{pid}/credentials/signing/ios",
+            json={"creds": {"ios_cert_path": "/c.p12", "ios_cert_password": "p", "ios_identity": "id"}},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"platform": "ios", "configured": True}
+
+        listed = await client.get(f"/api/projects/{pid}/credentials")
+        assert listed.json()["signing"]["ios"] is True
+
+    async def test_configure_harmony_signing_creds(self, client):
+        """v6.19 T10: PUT /credentials/signing/harmony → GET signing['harmony'] True。"""
+        create = await client.post("/api/projects", json={"name": "Cred Harmony"})
+        pid = create.json()["id"]
+
+        resp = await client.put(
+            f"/api/projects/{pid}/credentials/signing/harmony",
+            json={"creds": {"harmony_keystore_path": "/c.p12", "harmony_keystore_password": "p"}},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"platform": "harmony", "configured": True}
+
+        listed = await client.get(f"/api/projects/{pid}/credentials")
+        assert listed.json()["signing"]["harmony"] is True
+
 
 class TestProjectCredentialsPermissions:
     async def test_unauthorized_project_returns_401(self, client):

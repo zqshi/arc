@@ -119,9 +119,9 @@ class BuildArtifactKind(StrEnum):
     MSI = "msi"
     EXE = "exe"
     APP = "app"  # macOS bundle (.app 目录, APPLE codesign+notarytool) — 真相源完整性
-    # v6.19 T5/T8: iOS .ipa / 鸿蒙 .hap (形态建模; 签名链路 KIND_SIGNER_TYPE 待 T7/T10)
-    IPA = "ipa"  # iOS app 包 (T7: xcrun + provisioning profile → SignerType.IOS)
-    HAP = "hap"  # 鸿蒙 Ability Package (T10: 华为 .p12+.cer+.profile → SignerType.HARMONY)
+    # v6.19 T7/T10 done: iOS .ipa / 鸿蒙 .hap 签名链路已配套落地 (见 KIND_SIGNER_TYPE)
+    IPA = "ipa"  # iOS app 包 (T7: security import + codesign → SignerType.IOS)
+    HAP = "hap"  # 鸿蒙 Ability Package (T10: hap-sign-tool sign-app → SignerType.HARMONY)
     # 注: 鸿蒙 .app (App Pack, 文件) 与 mac .app (目录) 同扩展名, 不进 EXTENSION_KIND,
     #     T9 构建目标/签名时用 is_dir 分流或独立扩展名处理
 
@@ -140,11 +140,10 @@ KIND_SIGNER_TYPE: dict[BuildArtifactKind, SignerType | None] = {
     BuildArtifactKind.MSI: SignerType.WINDOWS,
     BuildArtifactKind.EXE: SignerType.WINDOWS,
     BuildArtifactKind.APP: SignerType.APPLE,  # macOS bundle → codesign+notarytool (v6.1)
-    # v6.19 T5/T8: iOS .ipa / 鸿蒙 .hap 形态已建模, 签名链路待 T7/T10 配套声明
-    # (SignerType.IOS/HARMONY + 签名器实现 + 凭证加密存储 一起, 不单独先行 —
-    #  避免声明触发 list_credentials 凭证字段连锁)
-    BuildArtifactKind.IPA: None,  # 待 T7 声明 SignerType.IOS
-    BuildArtifactKind.HAP: None,  # 待 T10 声明 SignerType.HARMONY
+    # v6.19 T7/T10 done: iOS .ipa / 鸿蒙 .hap 签名链路回填 (SignerType.IOS/HARMONY
+    # 配套签名器 + 凭证加密存储已落地, 见 infrastructure/signer/{ios,harmony}.py)
+    BuildArtifactKind.IPA: SignerType.IOS,  # security import + codesign (T7)
+    BuildArtifactKind.HAP: SignerType.HARMONY,  # hap-sign-tool sign-app (T10)
 }
 
 

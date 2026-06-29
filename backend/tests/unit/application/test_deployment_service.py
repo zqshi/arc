@@ -84,11 +84,14 @@ class TestDetectSignTargets:
         signers = {t[0] for t in targets}
         assert SignerType.WINDOWS in signers
 
-    def test_ipa_hap_not_scanned_pending_signer(self, tmp_path):
-        """v6.19 T5/T8: .ipa/.hap 形态已登记但 KIND_SIGNER_TYPE=None (待 T7/T10), _detect_sign_targets 跳过 (signer_for_kind=None)。"""
+    def test_detects_ipa_hap_routes_to_ios_harmony(self, tmp_path):
+        """v6.19 T7/T10 done: .ipa→IOS, .hap→HARMONY (KIND_SIGNER_TYPE 已回填, 取代 T5/T8 占位 None)。"""
         (tmp_path / "App.ipa").write_text("x")
         (tmp_path / "App.hap").write_text("x")
-        assert DeployService._detect_sign_targets(str(tmp_path)) == []
+        targets = DeployService._detect_sign_targets(str(tmp_path))
+        signers = {t[0] for t in targets}
+        assert SignerType.IOS in signers
+        assert SignerType.HARMONY in signers
 
 
 class TestRollbackDeployment:

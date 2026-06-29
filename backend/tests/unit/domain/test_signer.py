@@ -19,6 +19,8 @@ class TestSignerType:
         assert SignerType.APPLE == "apple"
         assert SignerType.WINDOWS == "windows"
         assert SignerType.ANDROID == "android"
+        assert SignerType.IOS == "ios"  # v6.19 T7
+        assert SignerType.HARMONY == "harmony"  # v6.19 T10
 
 
 class TestSigningCredentials:
@@ -65,6 +67,63 @@ class TestSigningCredentials:
             android_key_alias="release-key",
         )
         assert creds.has_android() is True
+
+    def test_ios_credentials(self):
+        """v6.19 T7: iOS 签名 (security import + codesign) 需 cert + password + identity。"""
+        creds = SigningCredentials(
+            ios_cert_path="/certs/dev.p12",
+            ios_cert_password="secret",
+            ios_identity="iPhone Distribution: Team",
+        )
+        assert creds.has_ios() is True
+        assert creds.is_empty() is False
+
+    def test_ios_partial_creds_not_complete(self):
+        """缺 identity → has_ios False (codesign --sign 无目标)。"""
+        creds = SigningCredentials(
+            ios_cert_path="/certs/dev.p12", ios_cert_password="secret"
+        )
+        assert creds.has_ios() is False
+
+    def test_ios_profile_not_required_for_has(self):
+        """provisioning_profile 缺失不影响 has_ios (codesign 可执行, profile 属分发关注)。"""
+        creds = SigningCredentials(
+            ios_cert_path="/c.p12", ios_cert_password="p", ios_identity="id"
+        )
+        assert creds.has_ios() is True
+
+    def test_harmony_credentials(self):
+        """v6.19 T10: 鸿蒙签名 (hap-sign-tool) 需 keystore + alias + cer + profile。"""
+        creds = SigningCredentials(
+            harmony_keystore_path="/certs/dev.p12",
+            harmony_keystore_password="secret",
+            harmony_key_alias="release",
+            harmony_cert_path="/certs/app.cer",
+            harmony_profile_path="/certs/profile.p7b",
+        )
+        assert creds.has_harmony() is True
+        assert creds.is_empty() is False
+
+    def test_harmony_partial_creds_not_complete(self):
+        """缺 profile_path → has_harmony False (hap-sign-tool profileFile 必需)。"""
+        creds = SigningCredentials(
+            harmony_keystore_path="/c.p12",
+            harmony_keystore_password="p",
+            harmony_key_alias="a",
+            harmony_cert_path="/c.cer",
+        )
+        assert creds.has_harmony() is False
+
+    def test_harmony_key_password_not_required_for_has(self):
+        """key_password 缺失不影响 has_harmony (签名器用 keystore_password 兜底)。"""
+        creds = SigningCredentials(
+            harmony_keystore_path="/c.p12",
+            harmony_keystore_password="p",
+            harmony_key_alias="a",
+            harmony_cert_path="/c.cer",
+            harmony_profile_path="/c.p7b",
+        )
+        assert creds.has_harmony() is True
 
     def test_play_key_json_not_in_signing_credentials(self):
         """play_key_json 归位到 DistributionCredentials (v6.2), 不在 SigningCredentials。"""

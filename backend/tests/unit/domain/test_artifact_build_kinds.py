@@ -60,10 +60,10 @@ class TestKindSignerType:
     def test_apk_routes_to_android(self):
         assert KIND_SIGNER_TYPE[BuildArtifactKind.APK] is SignerType.ANDROID
 
-    def test_ipa_hap_unsigned_pending_t7_t10(self):
-        """v6.19 T5/T8: .ipa/.hap 形态已建模, 签名链路待 T7/T10 (当前 None 不签, 配套约束)。"""
-        assert KIND_SIGNER_TYPE[BuildArtifactKind.IPA] is None
-        assert KIND_SIGNER_TYPE[BuildArtifactKind.HAP] is None
+    def test_ipa_hap_route_to_ios_harmony(self):
+        """v6.19 T7/T10 done: .ipa→IOS, .hap→HARMONY (KIND_SIGNER_TYPE 已回填, 取代 T5/T8 占位 None)。"""
+        assert KIND_SIGNER_TYPE[BuildArtifactKind.IPA] is SignerType.IOS
+        assert KIND_SIGNER_TYPE[BuildArtifactKind.HAP] is SignerType.HARMONY
 
     def test_linux_and_web_kinds_unsigned(self):
         """Linux (.deb/AppImage) / web (dist) 无标准代码签名机制 → None 不签。"""
