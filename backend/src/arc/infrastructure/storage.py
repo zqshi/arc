@@ -157,6 +157,24 @@ class StorageAdapter:
     async def async_download(self, key: str) -> bytes | None:
         return await asyncio.to_thread(self.download, key)
 
+    def verify(self) -> bool:
+        """探活: head_bucket 验凭证+endpoint 可达 (v6.19 续6 就绪检测探活)。
+
+        成功 True (凭证对+endpoint 可达); 失败/无 S3 配置 False。
+        _is_s3=False (无 storage_endpoint) 时 _client=None → False
+        (非 S3 模式不可作 CI source_url host)。
+        """
+        try:
+            if self._client is None:
+                return False
+            self._client.head_bucket(Bucket=settings.storage_bucket)
+            return True
+        except Exception:  # noqa: BLE001 — 探活容错, 任何凭证/网络异常均判不可达
+            return False
+
+    async def async_verify(self) -> bool:
+        return await asyncio.to_thread(self.verify)
+
     def presigned_url(self, key: str, *, expires_in: int = 3600) -> str:
         """生成 S3 presigned GET URL (临时, 过期失效) — T3-g 设计5。
 

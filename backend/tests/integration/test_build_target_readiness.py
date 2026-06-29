@@ -29,13 +29,14 @@ class TestBuildTargetReadiness:
         }
 
     async def test_response_shape(self, client: AsyncClient):
-        """每项含 target/ready/reason 三字段且类型正确。"""
+        """每项含 target/ready/reason/verified 四字段且类型正确。"""
         resp = await client.get("/api/projects/build-targets")
         for item in resp.json():
-            assert set(item.keys()) == {"target", "ready", "reason"}
+            assert set(item.keys()) == {"target", "ready", "reason", "verified"}
             assert isinstance(item["target"], str)
             assert isinstance(item["ready"], bool)
             assert isinstance(item["reason"], str)
+            assert item["verified"] is None or isinstance(item["verified"], bool)
 
     async def test_docker_targets_always_ready(self, client: AsyncClient):
         """docker target 无外部依赖, 恒就绪 (不依赖 CI 凭证配置)。"""
@@ -53,3 +54,30 @@ class TestBuildTargetReadiness:
                 assert item["reason"] == ""
             else:
                 assert item["reason"] != ""
+
+    async def test_response_includes_verified_field(self, client: AsyncClient):
+        """续6: 响应含 verified 字段 (null=未探活/过期乐观判ready)。"""
+        resp = await client.get("/api/projects/build-targets")
+        for item in resp.json():
+            assert "verified" in item
+            assert item["verified"] is None or isinstance(item["verified"], bool)
+
+    async def test_refresh_query_triggers_background_not_blocking(self, client: AsyncClient, monkeypatch):
+        """续6: ?refresh=true 触发后台探活刷新, 但端点不阻塞 (立即返回, 不等探活)。"""
+        triggered = {"called": False}
+
+        def fake_trigger(s=None):
+            triggered["called"] = True
+
+        monkeypatch.setattr(
+            "arc.application.build.readiness.trigger_background_refresh", fake_trigger
+        )
+        # mock build_targets 路由模块内的引用 (路由 import 时绑定)
+        monkeypatch.setattr(
+            "arc.interface.routes.project.build_targets.trigger_background_refresh",
+            fake_trigger,
+        )
+        resp = await client.get("/api/projects/build-targets?refresh=true")
+        assert resp.status_code == 200
+        assert triggered["called"] is True  # 触发了后台刷新
+        # 端点未阻塞 (返回即成功, 未等探活完成)

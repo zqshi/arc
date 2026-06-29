@@ -178,3 +178,24 @@ class TestPresignedUrl:
         mock_client.generate_presigned_url.return_value = "url"
         adapter.presigned_url("k")
         assert mock_client.generate_presigned_url.call_args.kwargs["ExpiresIn"] == 3600
+
+
+class TestVerify:
+    """v6.19 续6: 探活 head_bucket 验凭证+endpoint 可达 (就绪检测用)。"""
+
+    def test_s3_verify_true_when_head_bucket_ok(self, s3_adapter) -> None:
+        adapter, mock_client = s3_adapter
+        mock_client.head_bucket.return_value = {}
+        assert adapter.verify() is True
+        # 构造时 _ensure_bucket 已调 head_bucket 一次, verify 再调一次
+        assert mock_client.head_bucket.called
+        assert mock_client.head_bucket.call_args.kwargs == {"Bucket": "test-bucket"}
+
+    def test_s3_verify_false_when_head_bucket_raises(self, s3_adapter) -> None:
+        adapter, mock_client = s3_adapter
+        mock_client.head_bucket.side_effect = Exception("403 Forbidden")
+        assert adapter.verify() is False
+
+    def test_local_verify_false_without_s3(self, local_adapter: StorageAdapter) -> None:
+        """无 storage_endpoint (本地模式) _client=None → verify False (不可作 CI host)。"""
+        assert local_adapter.verify() is False

@@ -192,9 +192,11 @@ class BuildTargetReadinessResponse(BaseModel):
 
     target 为 BuildTarget 字符串值; ready=False 时 reason 说明阻塞原因
     (前端灰显目标并标注, 避免用户选了必失败的目标)。
+    verified: 探活结果 (null=未探活/过期乐观判ready, true=探活通过, false=探活失败blocked)。
     """
 
     target: str
     ready: bool
     reason: str = ""
+    verified: bool | None = None
 

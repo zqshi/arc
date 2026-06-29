@@ -140,3 +140,35 @@ class TestDownloadArtifact:
         data = await client.download_artifact(7)
         assert data == b"PK\x03\x04fake-zip"
         assert "/repos/acme/arc/actions/artifacts/7/zip" in captured["url"]
+
+
+class TestVerifyToken:
+    """v6.19 续6: 探活 GET /user 验 token 有效 (就绪检测用)。"""
+
+    async def test_verify_true_on_200(self):
+        def handler(req: httpx.Request) -> httpx.Response:
+            assert req.url.path == "/user"
+            return httpx.Response(200, json={"login": "acme"})
+        client = _client(handler)
+        assert await client.verify_token() is True
+
+    async def test_verify_false_on_401(self):
+        def handler(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(401, json={"message": "Bad credentials"})
+        client = _client(handler)
+        assert await client.verify_token() is False
+
+    async def test_verify_false_on_403(self):
+        def handler(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(403, json={"message": "Forbidden"})
+        client = _client(handler)
+        assert await client.verify_token() is False
+
+    async def test_verify_false_on_transport_error(self):
+        """网络/解析异常 → False (探活容错, 不抛)。"""
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused")
+
+        client = _client(handler)
+        assert await client.verify_token() is False

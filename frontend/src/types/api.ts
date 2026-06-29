@@ -154,10 +154,12 @@ export type BuildTarget =
   | 'harmony_hap';
 
 // v6.19 T11: 构建目标就绪状态 (方案3, 前端透出/灰显依据)
+// verified: null=未探活/过期(乐观判ready), true=探活通过, false=探活失败(blocked)
 export interface BuildTargetReadiness {
   target: BuildTarget;
   ready: boolean;
   reason: string;
+  verified: boolean | null;
 }
 
 export interface CreateProjectRequest {

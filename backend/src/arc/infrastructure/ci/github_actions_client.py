@@ -136,3 +136,17 @@ class GitHubActionsClient:
             )
             resp.raise_for_status()
             return resp.content
+
+    async def verify_token(self) -> bool:
+        """探活: GET /user 验 token 有效 (v6.19 续6 就绪检测探活)。
+
+        2xx→True (token 有效未失效), 4xx/异常→False。
+        边界: 只验 token 有效不验 actions:write 权限 (GET /user 不返权限),
+        权限不足在真实 dispatch 时暴露 (错误信息明确)。
+        """
+        try:
+            async with self._client() as client:
+                resp = await client.get("/user")
+                return resp.status_code < 400
+        except Exception:  # noqa: BLE001 — 探活容错, 任何网络/解析异常均判无效
+            return False

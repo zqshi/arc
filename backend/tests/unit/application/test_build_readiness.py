@@ -115,3 +115,122 @@ class TestBuildTargetReadinessService:
         assert by_target[BuildTarget.TAURI_WINDOWS].ready is True
         assert by_target[BuildTarget.CAPACITOR_IOS].ready is True
         assert by_target[BuildTarget.HARMONY_HAP].ready is False
+
+
+class TestVerifyCacheIntegration:
+    """v6.19 续6: 探活缓存组合 ready 判定 (静态齐 + 缓存探活)。"""
+
+    def setup_method(self):
+        from arc.application.build.readiness_cache import clear_cache
+        clear_cache()
+
+    def teardown_method(self):
+        from arc.application.build.readiness_cache import clear_cache
+        clear_cache()
+
+    def test_cached_verified_false_blocks_hosted_target(self):
+        """静态齐 + 缓存 verified=False → blocked (凭证探活失败)。"""
+        from arc.application.build.readiness_cache import set_cached_verify
+        set_cached_verify(BuildTarget.TAURI_WINDOWS, False)
+        r = assess_target_readiness(BuildTarget.TAURI_WINDOWS, _settings(**_CLOUD))
+        assert r.ready is False
+        assert r.verified is False
+        assert "探活失败" in r.reason
+
+    def test_cached_verified_true_stays_ready(self):
+        from arc.application.build.readiness_cache import set_cached_verify
+        set_cached_verify(BuildTarget.CAPACITOR_IOS, True)
+        r = assess_target_readiness(BuildTarget.CAPACITOR_IOS, _settings(**_CLOUD))
+        assert r.ready is True
+        assert r.verified is True
+
+    def test_no_cache_optimistic_ready(self):
+        """缓存空 (未探活) → 乐观判 ready, verified=None (不误灰显可用目标)。"""
+        r = assess_target_readiness(BuildTarget.TAURI_WINDOWS, _settings(**_CLOUD))
+        assert r.ready is True
+        assert r.verified is None
+
+    def test_cached_verify_ignored_when_creds_missing(self):
+        """静态不齐 (凭证缺) → 优先静态原因 blocked, 不读缓存探活。"""
+        from arc.application.build.readiness_cache import set_cached_verify
+        set_cached_verify(BuildTarget.TAURI_WINDOWS, True)  # 缓存有探活通过
+        r = assess_target_readiness(BuildTarget.TAURI_WINDOWS, _settings())  # 但凭证空
+        assert r.ready is False
+        assert "ARC_GHA_TOKEN" in r.reason
+        assert r.verified is None
+
+
+class TestRefreshVerifications:
+    """v6.19 续6: 后台探活刷新 (mock GHA verify_token + storage verify)。"""
+
+    def setup_method(self):
+        from arc.application.build.readiness_cache import clear_cache
+        clear_cache()
+
+    def teardown_method(self):
+        from arc.application.build.readiness_cache import clear_cache
+        clear_cache()
+
+    async def test_refresh_writes_cache_when_both_ok(self, monkeypatch):
+        from arc.application.build import readiness as rmod
+        from arc.application.build.readiness_cache import get_cached_verify
+
+        async def fake_verify_token(self):
+            return True
+
+        monkeypatch.setattr(
+            "arc.infrastructure.ci.github_actions_client.GitHubActionsClient.verify_token",
+            fake_verify_token,
+        )
+        monkeypatch.setattr(
+            "arc.infrastructure.storage.get_storage",
+            lambda: type("S", (), {"verify": lambda self: True})(),
+        )
+        await rmod.refresh_verifications(_settings(**_CLOUD))
+        assert get_cached_verify(BuildTarget.TAURI_WINDOWS) is True
+        assert get_cached_verify(BuildTarget.CAPACITOR_IOS) is True
+        # 鸿蒙 self-hosted 不探活, 缓存仍 None
+        assert get_cached_verify(BuildTarget.HARMONY_HAP) is None
+
+    async def test_refresh_writes_false_when_gha_fails(self, monkeypatch):
+        from arc.application.build import readiness as rmod
+        from arc.application.build.readiness_cache import get_cached_verify
+
+        async def fake_verify_token(self):
+            return False
+
+        monkeypatch.setattr(
+            "arc.infrastructure.ci.github_actions_client.GitHubActionsClient.verify_token",
+            fake_verify_token,
+        )
+        monkeypatch.setattr(
+            "arc.infrastructure.storage.get_storage",
+            lambda: type("S", (), {"verify": lambda self: True})(),
+        )
+        await rmod.refresh_verifications(_settings(**_CLOUD))
+        # GHA 失败 → 凭证无效 (storage 通也无用)
+        assert get_cached_verify(BuildTarget.TAURI_WINDOWS) is False
+
+    async def test_refresh_skips_when_creds_missing(self, monkeypatch):
+        """静态不齐 (凭证缺) → 不探活, 缓存不写 (无意义)。"""
+        from arc.application.build import readiness as rmod
+        from arc.application.build.readiness_cache import get_cached_verify
+
+        called = {"storage": False}
+
+        async def fake_verify_token(self):
+            return True
+
+        monkeypatch.setattr(
+            "arc.infrastructure.ci.github_actions_client.GitHubActionsClient.verify_token",
+            fake_verify_token,
+        )
+
+        def fake_get_storage():
+            called["storage"] = True
+            return type("S", (), {"verify": lambda self: True})()
+
+        monkeypatch.setattr("arc.infrastructure.storage.get_storage", fake_get_storage)
+        await rmod.refresh_verifications(_settings())  # 凭证空
+        assert called["storage"] is False  # 静态不齐直接跳过, 未探 storage
+        assert get_cached_verify(BuildTarget.TAURI_WINDOWS) is None

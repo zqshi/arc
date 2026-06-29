@@ -9,12 +9,12 @@ vi.mock('../api/client', () => ({
     browseDirectory: vi.fn().mockResolvedValue({ current: '/home', parent: '/', dirs: [] }),
     createDirectory: vi.fn().mockResolvedValue({}),
     getBuildTargetReadiness: vi.fn().mockResolvedValue([
-      { target: 'tauri_linux', ready: true, reason: '' },
-      { target: 'web', ready: true, reason: '' },
-      { target: 'capacitor_apk', ready: true, reason: '' },
-      { target: 'tauri_windows', ready: false, reason: '未配置 GitHub Actions 凭证 (ARC_GHA_TOKEN)' },
-      { target: 'capacitor_ios', ready: false, reason: '未配置 GitHub Actions 凭证 (ARC_GHA_TOKEN)' },
-      { target: 'harmony_hap', ready: false, reason: '需自建平台 runner/工具链 (DevEco CLT)' },
+      { target: 'tauri_linux', ready: true, reason: '', verified: null },
+      { target: 'web', ready: true, reason: '', verified: null },
+      { target: 'capacitor_apk', ready: true, reason: '', verified: null },
+      { target: 'tauri_windows', ready: false, reason: '未配置 GitHub Actions 凭证 (ARC_GHA_TOKEN)', verified: null },
+      { target: 'capacitor_ios', ready: false, reason: '未配置 GitHub Actions 凭证 (ARC_GHA_TOKEN)', verified: null },
+      { target: 'harmony_hap', ready: false, reason: '需自建平台 runner/工具链 (DevEco CLT)', verified: null },
     ]),
   },
 }));
