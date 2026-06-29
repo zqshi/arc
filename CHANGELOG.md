@@ -6,7 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_下一版本方向待定 (见 backlog.md)。_
+_v6.18 方向待定 (见 backlog.md)。_
+
+## [6.17.0] - 2026-06-29 — Skill 注入执行链（架构统一 + 工具集补全）
+
+### Added — skill 对称注入执行链
+- **T1 数据模型**: ToolSpec 值对象 (source=inline|mcp); SkillLoader.load_full 返回 SkillContent (prompt + tool_specs, yaml 解析 SKILL.md frontmatter tools); TaskContext 加 skill_specs/tool_specs/mcp_servers 字段, to_markdown 输出技能规范段
+- **T2 架构统一 (核心闭环)**: CapabilityProvider.load_phase_skills (对话/执行共享 _collect_active_caps, 单一真相源); TaskContextBuilder.build 接 phase_type; session_manager 透传 — skill 真正进 coding agent 执行链
+- **T3 Codex 工具注入**: CodexAdapter._build_tools 把 inline function 注册为 /responses tools (Responses API 顶层格式), code_interpreter 兼容
+
+### Added — MCP 消费侧
+- **T4**: McpClient (stdio + http 传输, JSON-RPC 2.0); McpLoader 转 ToolSpec(source=mcp); CapabilityType.MCP 激活 + is_mcp property; load_phase_skills 集成 mcp
+- **T5**: ClaudeCodeAdapter --mcp-config (真注入, agent 直连 MCP server); OpenHands/Codex 按 agent 能力降级 (to_markdown 指引文本)
+
+### Changed
+- **T6**: capability config 支持 source/directory/content (tools 在 SKILL.md frontmatter, inline textarea 已支持); MCP hint 更新 + 配置提示; PhaseCapabilitiesSection 已支持选 skill/mcp; pyyaml 显式声明 (避免 transitive)
+- 质量检测 6.1-6.7 全过; CI 基线 ruff0/pytest unit 2044+integ 149/tsc-b0/vitest 7
+
+### 决策
+- 统一 provider 取数层, 不合并产物形态 (ContextAssembler→system prompt 对话 / TaskContext→markdown 执行, 各自契约不变)
+- 工具集按 agent 能力分发 (Codex function / ClaudeCode --mcp-config / OpenHands 降级指引), 不抹平不对称
+- load() 向后兼容, 新增 load_full() (现有 8 测试 + provide 不破坏)
+
+### 遗留
+- MCP 真注入仅 ClaudeCode (OpenHands per-session config 不支持 / Codex fire-and-forget 无 function call 路由, 降级指引文本)
+- McpClient HttpMcpTransport 为简化版 (单次请求/响应, 非完整 SSE 流)
+- 端到端真实 agent 验证待环境就绪 (OpenHands localhost:3000 未启动 / Codex api_key 未配); 单测+集成测覆盖注入逻辑
 
 ## [6.16.0] - 2026-06-29 — v6.15 遗留技术债务清理
 
