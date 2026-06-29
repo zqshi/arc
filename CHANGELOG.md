@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.19 方向待定 (见 backlog.md)。_
+_v6.19 原生客户端平台扩展 (Windows → iOS → 鸿蒙依次推进), 见 v6.19.0-current.md。_
 
 ## [6.18.0] - 2026-06-29 — 投产治理升级
 

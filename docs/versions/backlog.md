@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-06-29 (v6.18 已归档: 投产治理升级 — lint/import环/配置对齐/仓库卫生/镜像验证阻断项消除 + 验证闭环, 见 v6.18.0-snapshot.md; v6.19 方向待定。v6.18 归档质检修复 T4 模板 bug: ARC_SANDBOX_BUILDER_IMAGES 空值回归 + ARC_WORKERS infra 混入 backend 模板)
+> 最后更新: 2026-06-29 (v6.18 已归档: 投产治理升级, 见 v6.18.0-snapshot.md; v6.19 已定方向: 原生客户端平台扩展 — Windows→iOS→鸿蒙依次推进补 BuildTarget, 消除"签名器齐了但构建目标没跟上"断链, 见 v6.19.0-current.md。核心约束: 三新平台需原生 OS runner, 容器化沙箱无法构建, T1 架构前置为关键路径)
 
 ---
 
