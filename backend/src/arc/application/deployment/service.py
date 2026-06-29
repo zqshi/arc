@@ -100,7 +100,7 @@ class DeployService:
         await self._deploy_repo.update(deployment)
 
         # 签名 (v6.1.0): build 后 upload 前。graceful skip — 不阻断部署。
-        # 路由按产物平台 (.app/.exe/.apk) 检测, 非按 build_target。
+        # 路由按产物平台 (.app/.exe/.apk 后缀) 检测; .app 歧义按 build_target 消歧 (续6补丁)。
         sign_results: list = []
         if project is not None:
             sign_results = await self._sign_artifact(
@@ -163,8 +163,8 @@ class DeployService:
         """
         from arc.infrastructure.signer import get_signer, load_credentials_for_project
 
-        # 产物平台 → SignerType (按后缀检测, 非 build_target)
-        targets = self._detect_sign_targets(local_dir)
+        # 产物平台 → SignerType (按后缀检测, 非 build_target; .app 歧义按 target 消歧)
+        targets = self._detect_sign_targets(local_dir, build_target)
         if not targets:
             logger.info("DeployService: 无可签名产物 (local_dir=%s), 跳过签名", local_dir)
             return []
@@ -196,16 +196,24 @@ class DeployService:
         return sign_results
 
     @staticmethod
-    def _detect_sign_targets(local_dir: str) -> list:
+    def _detect_sign_targets(local_dir: str, build_target=None) -> list:
         """扫描产物目录, 按形态后缀返回 [(SignerType, artifact_path)]。
 
         T4 (v6.19): 扩展名→形态 (EXTENSION_KIND) →签名平台 (signer_for_kind /
         KIND_SIGNER_TYPE 真相源), 取代原扩展名硬编码 (.exe→WINDOWS)。新增 .msi 扫描。
-        .app 是目录 (macOS bundle), 其余扩展名文件; deb/AppImage/web_dist 不签 (None)。
+        deb/AppImage/web_dist 不签 (None)。
+
+        .app 歧义消歧 (v6.19 续6 补丁): .app 同扩展名有 macOS bundle (目录, 走 APPLE
+        codesign+notarytool) 与 iOS build 产物 (xcodebuild CODE_SIGNING_ALLOWED=NO 产的
+        unsigned .app 目录, 应走 IOS T7 codesign)。EXTENSION_KIND[".app"]=APPLE 无法区分
+        — 故传 build_target 消歧: CAPACITOR_IOS→IOS, 其余 (含 macOS target)→APPLE。
+        build_target=None (向后兼容旧调用) 时 .app 按 EXTENSION_KIND 走 APPLE (macOS 主线)。
         """
         from pathlib import Path
 
         from arc.domain.artifact.value_objects import EXTENSION_KIND, signer_for_kind
+        from arc.domain.deployment.signer import SignerType
+        from arc.domain.sandbox.value_objects import BuildTarget
 
         base = Path(local_dir)
         if not base.is_dir():
@@ -217,9 +225,12 @@ class DeployService:
             if signer is None:  # 不签 (deb/appimage/web_dist)
                 continue
             for f in base.rglob(f"*{ext}"):
-                # .app 是目录 (macOS bundle), 其余扩展名是文件
+                # .app 是目录 (macOS bundle / iOS build 产物), 其余扩展名是文件
                 if ext == ".app":
                     if f.is_dir():
+                        # .app 歧义: 按 build_target 消歧 (续6 补丁)
+                        if build_target == BuildTarget.CAPACITOR_IOS:
+                            signer = SignerType.IOS
                         targets.append((signer, str(f)))
                 elif f.is_file():
                     targets.append((signer, str(f)))

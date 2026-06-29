@@ -19,6 +19,7 @@ from arc.domain.deployment.signer import SignerType
 from arc.domain.deployment.value_objects import DeploymentStatus, DeployType
 from arc.domain.errors import AppError, NotFoundError
 from arc.domain.project.value_objects import ProjectType
+from arc.domain.sandbox.value_objects import BuildTarget
 
 
 def _make_service() -> tuple[DeployService, MagicMock]:
@@ -92,6 +93,41 @@ class TestDetectSignTargets:
         signers = {t[0] for t in targets}
         assert SignerType.IOS in signers
         assert SignerType.HARMONY in signers
+
+    def test_app_disambiguation_by_build_target(self, tmp_path):
+        """v6.19 续6 补丁: .app 同扩展名歧义 — build_target 消歧。
+
+        iOS build (xcodebuild CODE_SIGNING_ALLOWED=NO) 产 unsigned .app 目录应走 IOS
+        (T7 codesign); macOS .app 走 APPLE (codesign+notarytool)。EXTENSION_KIND[".app"]
+        =APPLE 无法区分, 靠 build_target=CAPACITOR_IOS 消歧。
+        build_target=None (向后兼容) 时 .app 走 APPLE (macOS 主线)。
+        """
+        (tmp_path / "App.app").mkdir()
+        # iOS target → IOS
+        targets_ios = DeployService._detect_sign_targets(
+            str(tmp_path), BuildTarget.CAPACITOR_IOS
+        )
+        signers_ios = {t[0] for t in targets_ios}
+        assert SignerType.IOS in signers_ios
+        assert SignerType.APPLE not in signers_ios
+        # 无 target / 其他 target → APPLE (macOS 主线, 向后兼容)
+        targets_none = DeployService._detect_sign_targets(str(tmp_path))
+        signers_none = {t[0] for t in targets_none}
+        assert SignerType.APPLE in signers_none
+        targets_linux = DeployService._detect_sign_targets(
+            str(tmp_path), BuildTarget.TAURI_LINUX
+        )
+        assert SignerType.APPLE in {t[0] for t in targets_linux}
+
+    def test_app_and_ipa_both_present_ios_target_routes_both_to_ios(self, tmp_path):
+        """iOS target 项目里 .app (build 产物) 和 .ipa (若已打包) 都走 IOS。"""
+        (tmp_path / "App.app").mkdir()
+        (tmp_path / "App.ipa").write_text("x")
+        targets = DeployService._detect_sign_targets(
+            str(tmp_path), BuildTarget.CAPACITOR_IOS
+        )
+        signers = {t[0] for t in targets}
+        assert signers == {SignerType.IOS}
 
 
 class TestRollbackDeployment:
