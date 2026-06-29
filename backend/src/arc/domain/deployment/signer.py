@@ -25,6 +25,8 @@ class SignerType(StrEnum):
     APPLE = "apple"  # codesign + xcrun notarytool (macOS 原生)
     WINDOWS = "windows"  # signtool (EV 证书)
     ANDROID = "android"  # apksigner (JDK + keystore)
+    # v6.19 T7/T10: iOS/鸿蒙 SignerType (IOS/HARMONY) 待签名器实现时配套声明
+    # (约束: SignerType 新增须配套签名器实现 + 凭证加密存储, 不在 T5/T8 单独声明)
 
 
 @dataclass(frozen=True)

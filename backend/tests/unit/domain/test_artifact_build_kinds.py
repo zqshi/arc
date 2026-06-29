@@ -60,6 +60,11 @@ class TestKindSignerType:
     def test_apk_routes_to_android(self):
         assert KIND_SIGNER_TYPE[BuildArtifactKind.APK] is SignerType.ANDROID
 
+    def test_ipa_hap_unsigned_pending_t7_t10(self):
+        """v6.19 T5/T8: .ipa/.hap 形态已建模, 签名链路待 T7/T10 (当前 None 不签, 配套约束)。"""
+        assert KIND_SIGNER_TYPE[BuildArtifactKind.IPA] is None
+        assert KIND_SIGNER_TYPE[BuildArtifactKind.HAP] is None
+
     def test_linux_and_web_kinds_unsigned(self):
         """Linux (.deb/AppImage) / web (dist) 无标准代码签名机制 → None 不签。"""
         assert KIND_SIGNER_TYPE[BuildArtifactKind.DEB] is None
@@ -92,6 +97,11 @@ class TestExtensionKind:
     def test_app_routes_to_apple(self):
         """v6.19 T4 补 T2 遗漏: .app → APP → APPLE (macOS bundle, 真相源完整性)。"""
         assert EXTENSION_KIND[".app"] is BuildArtifactKind.APP
+
+    def test_ipa_hap_extensions(self):
+        """v6.19 T5/T8: .ipa/.hap 扩展名登记 (签名器实现 T7/T10)。"""
+        assert EXTENSION_KIND[".ipa"] is BuildArtifactKind.IPA
+        assert EXTENSION_KIND[".hap"] is BuildArtifactKind.HAP
 
     def test_unsigned_extensions_present_but_skip(self):
         """deb/appimage 在 EXTENSION_KIND (可扫) 但 signer_for_kind=None (不签)。"""
