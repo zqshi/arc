@@ -14,7 +14,7 @@ interface CapabilityEditorModalProps {
 const TYPE_OPTIONS: { value: CapabilityType; label: string; hint: string }[] = [
   { value: 'agent', label: 'Agent', hint: '声明一个可用 Coding Agent' },
   { value: 'skill', label: 'Skill', hint: 'SKILL.md 能力封装 (prompt+工具集)' },
-  { value: 'mcp', label: 'MCP', hint: '预留 (本期 loader 不实现)' },
+  { value: 'mcp', label: 'MCP', hint: '外部 MCP server 工具 (stdio/http)' },
 ];
 
 const STATUS_OPTIONS: { value: CapabilityStatus; label: string }[] = [
@@ -234,7 +234,11 @@ export function CapabilityEditorModal({ open, onClose, onSaved, capability }: Ca
                 placeholder='{}'
                 className="w-full rounded-md border border-border bg-bg-input px-3 py-2 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent/50 focus:outline-none"
               />
-              <p className="mt-1 text-[10px] text-text-muted">agent: {'{ agent_key, ... }'}。留空或 {'{}'} = 使用默认配置。</p>
+              <p className="mt-1 text-[10px] text-text-muted">
+                {type === 'mcp'
+                  ? 'stdio: {"transport":"stdio","command","args","env"}；http: {"transport":"http","url","headers"}'
+                  : 'agent: { agent_key, ... }。留空或 {} = 使用默认配置。'}
+              </p>
             </div>
           )}
         </div>
