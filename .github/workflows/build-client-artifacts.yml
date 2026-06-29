@@ -44,9 +44,11 @@ jobs:
           # v6.19 波次2: iOS .ipa (Capacitor + xcodebuild, macos-latest 预装 Xcode)
           - build_target: capacitor_ios
             runner: macos-latest
-          # v6.19 波次3: 鸿蒙 .hap (DevEco CLT + hvigorw, ubuntu-latest 自装 DevEco)
+          # v6.19 波次3: 鸿蒙 .hap — 须 self-hosted runner (label=harmony, 预装 DevEco
+          # CLT + hvigorw + node20)。hosted runner 无 DevEco (华为不公开稳定下载), 不可用;
+          # 就绪检测标 SELF_HOSTED_NEEDED 灰显, 用户不应选直到配此 runner。
           - build_target: harmony_hap
-            runner: ubuntu-latest
+            runner: harmony
     steps:
       - name: Download source tarball
         run: |
@@ -87,17 +89,22 @@ jobs:
             workspace/src-tauri/target/release/bundle/**/*.exe
           if-no-files-found: error
 
-      - name: Build iOS .ipa (Capacitor + xcodebuild)
+      - name: Build iOS .app (unsigned)
         if: matrix.build_target == 'capacitor_ios'
         working-directory: workspace
         run: |
           npm ci
           npm run build
           npx cap sync ios
-          # archive + export 产 .ipa; 签名/配置文件由 arc 分发链路 (T7) 处理,
-          # 此处 unsigned export, 端到端待 macOS runner + Apple 账号微调路径/签名
-          npx cap build ios --configuration Release
-        # capacitor 默认输出 .ipa 于 ios/App 目录, 端到端时按实际路径微调
+          # 产 unsigned .app: cap build ios 默认 export 会 code signing (需
+          # provisioning, 无配置必失败) — 故改 xcodebuild build + CODE_SIGNING_ALLOWED=NO
+          # 产未签名 .app。签名 (codesign) + 打包 .ipa 留 T7 分发链路。
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Release -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath ../../build
+        # capacitor 默认 workspace=ios/App/App.xcworkspace, scheme=App; 端到端按实际微调
 
       - name: Upload iOS artifacts
         if: matrix.build_target == 'capacitor_ios'
@@ -105,26 +112,17 @@ jobs:
         with:
           name: ${{ matrix.build_target }}-artifacts
           path: |
-            workspace/ios/**/*.ipa
+            workspace/build/Build/Products/Release-iphoneos/*.app
           if-no-files-found: error
-
-      - name: Setup DevEco CLT (HarmonyOS)
-        if: matrix.build_target == 'harmony_hap'
-        working-directory: workspace
-        run: |
-          # DevEco Command Line Tools 无官方 action, 手动下载解压
-          # (端到端待专用镜像/self-hosted runner 微调; URL 配仓库变量 DEVECO_CLT_URL)
-          curl -fsSL "$DEVECO_CLT_URL" -o commandline-tools-linux.zip
-          unzip -q commandline-tools-linux.zip
-        env:
-          DEVECO_CLT_URL: ${{ vars.DEVECO_CLT_URL }}
 
       - name: Build 鸿蒙 .hap (hvigorw)
         if: matrix.build_target == 'harmony_hap'
         working-directory: workspace
         run: |
           npm ci
-          ./command-line-tools/bin/hvigorw assembleHap --no-daemon
+          # DevEco CLT + hvigorw 由 self-hosted runner (label=harmony) 预装, 直接用。
+          # (hosted runner 无 DevEco, 华为不公开下载, 故鸿蒙须自建 runner — 见 matrix 注)
+          hvigorw assembleHap --no-daemon
         # 产物路径: entry/build/outputs/default/*.hap (端到端时按实际路径微调)
 
       - name: Upload 鸿蒙 artifacts
