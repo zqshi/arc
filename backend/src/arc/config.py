@@ -83,6 +83,14 @@ class Settings(BaseSettings):
     #    "binary_app:capacitor_apk": "ghcr.io/<owner>/<repo>-android-builder:latest"}
     sandbox_builder_images: dict[str, str] = {}
 
+    # GitHub Actions CI 编排 (v6.19 T3) — CI target (windows/ios/harmony) 构建走 GHA workflow。
+    # 空 token → CI target 构建降级报错 (非 docker target 不受影响)。
+    # token 需 actions:write 权限 (触发 workflow_dispatch); owner/repo 为承载产物构建
+    # workflow (build-client-artifacts.yml) 的仓库。
+    gha_token: str = ""
+    gha_owner: str = ""
+    gha_repo: str = ""
+
     # Object Storage (S3-compatible: MinIO / AWS S3 / Aliyun OSS)
     storage_endpoint: str = ""
     storage_access_key: str = ""

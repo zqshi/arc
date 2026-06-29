@@ -197,32 +197,32 @@ class DeployService:
 
     @staticmethod
     def _detect_sign_targets(local_dir: str) -> list:
-        """扫描产物目录, 按平台后缀返回 [(SignerType, artifact_path)]。
+        """扫描产物目录, 按形态后缀返回 [(SignerType, artifact_path)]。
 
-        .app (目录) → APPLE; .exe → WINDOWS; .apk → ANDROID。
-        deb/AppImage/无后缀 → 不签 (Linux 产物无标准签名机制)。
+        T4 (v6.19): 扩展名→形态 (EXTENSION_KIND) →签名平台 (signer_for_kind /
+        KIND_SIGNER_TYPE 真相源), 取代原扩展名硬编码 (.exe→WINDOWS)。新增 .msi 扫描。
+        .app 是目录 (macOS bundle), 其余扩展名文件; deb/AppImage/web_dist 不签 (None)。
         """
         from pathlib import Path
 
-        from arc.domain.deployment.signer import SignerType
+        from arc.domain.artifact.value_objects import EXTENSION_KIND, signer_for_kind
 
         base = Path(local_dir)
         if not base.is_dir():
             return []
 
         targets = []
-        # .app 是目录 (macOS bundle)
-        for app_dir in base.rglob("*.app"):
-            if app_dir.is_dir():
-                targets.append((SignerType.APPLE, str(app_dir)))
-        # .exe / .apk 是文件
-        for ext, signer_type in (
-            (".exe", SignerType.WINDOWS),
-            (".apk", SignerType.ANDROID),
-        ):
+        for ext, kind in EXTENSION_KIND.items():
+            signer = signer_for_kind(kind)
+            if signer is None:  # 不签 (deb/appimage/web_dist)
+                continue
             for f in base.rglob(f"*{ext}"):
-                if f.is_file():
-                    targets.append((signer_type, str(f)))
+                # .app 是目录 (macOS bundle), 其余扩展名是文件
+                if ext == ".app":
+                    if f.is_dir():
+                        targets.append((signer, str(f)))
+                elif f.is_file():
+                    targets.append((signer, str(f)))
         return targets
 
     async def _distribute(

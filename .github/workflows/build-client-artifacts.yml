@@ -1,0 +1,81 @@
+name: Build Client Artifacts
+
+# v6.19 T3-f: 原生客户端产物构建 workflow (CI target)。
+# 由 arc BuildOrchestrationService 经 workflow_dispatch 触发 (inputs: build_target,
+# source_url, ref)。CI 下载 source_url (项目代码 tarball) → setup 工具链 → 构建 →
+# upload-artifact; arc 轮询 run 完成后下载产物接入 BUILD artifact (v6.9 锚点)。
+#
+# 与 docker-publish.yml 区别: 后者构建 builder 镜像 (产物=镜像); 本 workflow 构建客户端
+# 二进制安装包 (产物=.msi/.exe/.ipa/.hap, 需原生 OS runner)。
+#
+# blocked: 真实触发需 gha_token (actions:write) + 各平台 runner。matrix 预留 ios (T6) /
+# harmony (T9), 待对应波次加 entry。构建步骤细节 (tauri bundle targets/路径) 需各平台
+# runner 真实验证后微调; 契约 (source_url + build_target + upload-artifact) 已对齐 (d)。
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_target:
+        description: "构建目标 (tauri_windows / capacitor_ios / harmony_hap)"
+        required: true
+        type: string
+      source_url:
+        description: "项目代码 tarball URL (arc 上传产生, CI 下载构建)"
+        required: true
+        type: string
+      ref:
+        description: "构建分支 (默认 main)"
+        required: false
+        default: main
+        type: string
+
+jobs:
+  build:
+    # matrix 仅跑匹配 inputs.build_target 的 entry (一台 runner 一次构建一个目标)
+    runs-on: ${{ matrix.runner }}
+    if: matrix.build_target == inputs.build_target
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # v6.19 波次1: Windows .msi/.exe (tauri v2 + WebView2, windows-latest 预装)
+          - build_target: tauri_windows
+            runner: windows-latest
+          # T6 iOS (待波次2): - build_target: capacitor_ios; runner: macos-latest
+          # T9 鸿蒙 (待波次3): - build_target: harmony_hap; runner: ubuntu-latest (DevEco CLT)
+    steps:
+      - name: Download source tarball
+        run: |
+          curl -fsSL "${{ inputs.source_url }}" -o src.tar.gz
+          mkdir -p workspace
+          tar -xzf src.tar.gz -C workspace
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install tauri-cli (v2)
+        run: cargo install tauri-cli --version "^2.0" --locked
+
+      - name: Build tauri windows (.msi/.exe)
+        if: matrix.build_target == 'tauri_windows'
+        working-directory: workspace
+        run: |
+          npm ci
+          npm run build
+          cargo tauri build
+        # tauri.conf.json 的 bundle.targets 由 Agent 产工程时配 ["msi","nsis"]
+        # (见 application/context/content/methodology.py BINARY_APP_BUILD_GUIDE)
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.build_target }}-artifacts
+          path: |
+            workspace/src-tauri/target/release/bundle/**/*.msi
+            workspace/src-tauri/target/release/bundle/**/*.exe
+          if-no-files-found: error
