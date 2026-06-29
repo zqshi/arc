@@ -3,11 +3,19 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import CreateProjectModal from './CreateProjectModal';
 
-// FolderPicker 依赖 API，mock 掉
+// FolderPicker 依赖 API，mock 掉; 同时 mock 构建目标就绪查询 (v6.19 T11)
 vi.mock('../api/client', () => ({
   api: {
     browseDirectory: vi.fn().mockResolvedValue({ current: '/home', parent: '/', dirs: [] }),
     createDirectory: vi.fn().mockResolvedValue({}),
+    getBuildTargetReadiness: vi.fn().mockResolvedValue([
+      { target: 'tauri_linux', ready: true, reason: '' },
+      { target: 'web', ready: true, reason: '' },
+      { target: 'capacitor_apk', ready: true, reason: '' },
+      { target: 'tauri_windows', ready: false, reason: '未配置 GitHub Actions 凭证 (ARC_GHA_TOKEN)' },
+      { target: 'capacitor_ios', ready: false, reason: '未配置 GitHub Actions 凭证 (ARC_GHA_TOKEN)' },
+      { target: 'harmony_hap', ready: false, reason: '需自建平台 runner/工具链 (DevEco CLT)' },
+    ]),
   },
 }));
 
@@ -97,5 +105,32 @@ describe('CreateProjectModal', () => {
         project_type: 'binary_app',
       }));
     });
+  });
+
+  it('shows six build targets including native platforms', async () => {
+    // v6.19 T11: binary_app 透出 6 个构建目标 (linux/web/apk + windows/ios/鸿蒙)
+    renderModal();
+    fireEvent.change(screen.getByPlaceholderText('例如：Arc 工作台'), { target: { value: '原生应用' } });
+    fireEvent.click(screen.getByText('原生客户端'));
+    await vi.waitFor(() => {
+      expect(screen.getByText('Linux 桌面')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Windows')).toBeInTheDocument();
+    expect(screen.getByText('iOS')).toBeInTheDocument();
+    expect(screen.getByText('鸿蒙')).toBeInTheDocument();
+  });
+
+  it('disables unready build targets and shows reason', async () => {
+    // v6.19 T11 方案3: 未就绪目标灰显 disabled + 标注原因; 就绪目标可选
+    renderModal();
+    fireEvent.change(screen.getByPlaceholderText('例如：Arc 工作台'), { target: { value: '原生应用' } });
+    fireEvent.click(screen.getByText('原生客户端'));
+    await vi.waitFor(() => {
+      expect(screen.getByText(/需自建平台 runner/)).toBeInTheDocument();
+    });
+    expect(screen.getByText('Windows').closest('button')).toBeDisabled();
+    expect(screen.getByText('鸿蒙').closest('button')).toBeDisabled();
+    // docker target 就绪, 可选
+    expect(screen.getByText('Linux 桌面').closest('button')).not.toBeDisabled();
   });
 });

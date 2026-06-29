@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { FolderOpen, GitBranch, Zap, ChevronRight, ChevronLeft, Loader2, Monitor, Globe, Smartphone, FileCode } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FolderOpen, GitBranch, Zap, ChevronRight, ChevronLeft, Loader2, Monitor, Globe, Smartphone, FileCode, AppWindow, Apple, Tablet } from 'lucide-react';
 import FolderPicker from './FolderPicker';
-import type { ProjectType, WorkspaceType, BuildTarget } from '../types/api';
+import { api } from '../api/client';
+import type { ProjectType, WorkspaceType, BuildTarget, BuildTargetReadiness } from '../types/api';
 
 type Step = 'info' | 'workspace';
 
@@ -41,7 +42,7 @@ const PROJECT_TYPE_OPTIONS: Array<{
   { type: 'binary_app', icon: Monitor, title: '原生客户端', desc: '桌面 / Web / Android 原生客户端，容器化构建', requiresDocker: true },
 ];
 
-// v6.12: BINARY_APP 构建目标选择 (决定容器内构建形态 + 镜像)
+// v6.19: BINARY_APP 构建目标 (linux/web/apk=DOCKER 容器构建; windows/ios/鸿蒙=CI 编排原生构建)
 const BUILD_TARGET_OPTIONS: Array<{
   target: BuildTarget;
   icon: typeof Globe;
@@ -51,6 +52,9 @@ const BUILD_TARGET_OPTIONS: Array<{
   { target: 'tauri_linux', icon: Monitor, title: 'Linux 桌面', desc: 'Tauri 打包 deb/AppImage（默认）' },
   { target: 'web', icon: FileCode, title: 'Web 资源', desc: 'npm run build 产 dist，不打包原生客户端' },
   { target: 'capacitor_apk', icon: Smartphone, title: 'Android APK', desc: 'Capacitor 构建 android apk' },
+  { target: 'tauri_windows', icon: AppWindow, title: 'Windows', desc: 'CI 构建 .msi/.exe' },
+  { target: 'capacitor_ios', icon: Apple, title: 'iOS', desc: 'CI 构建 .ipa' },
+  { target: 'harmony_hap', icon: Tablet, title: '鸿蒙', desc: 'CI 构建 .hap' },
 ];
 
 export default function CreateProjectModal({ onClose, onCreate }: Props) {
@@ -65,6 +69,26 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
   const [githubToken, setGithubToken] = useState('');
   const [showPicker, setShowPicker] = useState(false);
   const [creating, setCreating] = useState(false);
+  // v6.19 T11: 构建目标就绪状态 (未就绪目标灰显 + 标注原因, 避免选了必失败)
+  const [readiness, setReadiness] = useState<Record<string, BuildTargetReadiness>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getBuildTargetReadiness()
+      .then((list) => {
+        if (cancelled) return;
+        const map: Record<string, BuildTargetReadiness> = {};
+        for (const item of list) map[item.target] = item;
+        setReadiness(map);
+      })
+      .catch(() => {
+        // 就绪查询失败不阻断创建 (视为未知, 不灰显)
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const canNext = name.trim().length > 0;
   const canCreate =
@@ -185,15 +209,20 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
                     {BUILD_TARGET_OPTIONS.map((opt) => {
                       const Icon = opt.icon;
                       const active = buildTarget === opt.target;
+                      const r = readiness[opt.target];
+                      const blocked = Boolean(r && !r.ready);
                       return (
                         <button
                           key={opt.target}
                           type="button"
-                          onClick={() => setBuildTarget(opt.target)}
+                          onClick={() => !blocked && setBuildTarget(opt.target)}
+                          disabled={blocked}
                           className={`flex flex-col items-start gap-1 rounded-lg border px-2.5 py-2 text-left transition-colors ${
                             active
                               ? 'border-accent bg-accent/5'
-                              : 'border-border hover:border-border-active hover:bg-bg-elevated/50'
+                              : blocked
+                                ? 'cursor-not-allowed border-border opacity-50'
+                                : 'border-border hover:border-border-active hover:bg-bg-elevated/50'
                           }`}
                         >
                           <div className="flex items-center gap-1">
@@ -203,6 +232,9 @@ export default function CreateProjectModal({ onClose, onCreate }: Props) {
                             </span>
                           </div>
                           <span className="text-[10px] leading-tight text-text-muted">{opt.desc}</span>
+                          {blocked && r && (
+                            <span className="text-[10px] leading-tight text-status-warning">{r.reason}</span>
+                          )}
                         </button>
                       );
                     })}

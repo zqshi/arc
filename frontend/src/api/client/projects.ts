@@ -12,11 +12,15 @@ import type {
   ImpactReport,
   UpgradeResult,
   Deployment,
+  BuildTargetReadiness,
 } from '../../types/api';
 import type { RequestFn } from './base';
 
 export function createProjectMethods(request: RequestFn) {
   return {
+    getBuildTargetReadiness: (): Promise<BuildTargetReadiness[]> =>
+      request('/api/projects/build-targets'),
+
     listProjects: (includeArchived = false): Promise<Project[]> =>
       request(`/api/projects${includeArchived ? '?include_archived=true' : ''}`),
 

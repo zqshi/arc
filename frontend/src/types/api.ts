@@ -144,7 +144,21 @@ export interface Project {
 export type WorkspaceType = 'local' | 'github' | 'temporary';
 export type ProjectType = 'static_site' | 'binary_app'; // v5.9.0 静态站点; v6.0.0 binary_app(原生客户端, 聚焦容器可构建目标)
 // v6.12: BINARY_APP 构建目标 — 决定容器内构建形态 (桌面包/web dist/android apk)
-export type BuildTarget = 'tauri_linux' | 'web' | 'capacitor_apk';
+// v6.19: 加原生三平台 (CI 编排: windows/ios/鸿蒙)
+export type BuildTarget =
+  | 'tauri_linux'
+  | 'web'
+  | 'capacitor_apk'
+  | 'tauri_windows'
+  | 'capacitor_ios'
+  | 'harmony_hap';
+
+// v6.19 T11: 构建目标就绪状态 (方案3, 前端透出/灰显依据)
+export interface BuildTargetReadiness {
+  target: BuildTarget;
+  ready: boolean;
+  reason: string;
+}
 
 export interface CreateProjectRequest {
   name: string;
