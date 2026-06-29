@@ -40,12 +40,14 @@ class BuildExecutionBackend(StrEnum):
 
 
 # BuildTarget → 执行后端。显式全登记, 新增 target 必须同步此处。
-# v6.19: 现有三 target DOCKER; TAURI_WINDOWS CI 编排 (windows runner, 需原生 OS)。
+# v6.19: 现有三 target DOCKER; TAURI_WINDOWS/CAPACITOR_IOS/HARMONY_HAP CI 编排 (原生 OS runner)。
 TARGET_BACKENDS: dict[BuildTarget, BuildExecutionBackend] = {
     BuildTarget.TAURI_LINUX: BuildExecutionBackend.DOCKER,
     BuildTarget.WEB: BuildExecutionBackend.DOCKER,
     BuildTarget.CAPACITOR_APK: BuildExecutionBackend.DOCKER,
     BuildTarget.TAURI_WINDOWS: BuildExecutionBackend.CI,
+    BuildTarget.CAPACITOR_IOS: BuildExecutionBackend.CI,
+    BuildTarget.HARMONY_HAP: BuildExecutionBackend.CI,
 }
 
 
@@ -66,4 +68,46 @@ def target_execution_backend(target: BuildTarget) -> BuildExecutionBackend:
             f"BuildTarget {target} 未登记执行后端 — 新增 BuildTarget 必须在 "
             f"domain/sandbox/execution_backend.py TARGET_BACKENDS 显式登记 "
             f"(DOCKER 或 CI), 禁止只改枚举不登记"
+        ) from exc
+
+
+class CIRunnerKind(StrEnum):
+    """CI target 的 runner 就绪特性 (v6.19 T11 就绪检测真相源)。
+
+    HOSTED: GHA 公开 runner (windows-latest/macos-latest), 凭证齐即就绪。
+    SELF_HOSTED_NEEDED: 需自建环境 (专用镜像/self-hosted runner) — hosted runner
+        无该平台工具链 (如鸿蒙 DevEco CLT), 凭证齐仍不可构建。
+    """
+
+    HOSTED = "hosted"
+    SELF_HOSTED_NEEDED = "self_hosted_needed"
+
+
+# CI target → runner 就绪特性。仅 CI target 登记 (DOCKER target 不适用)。
+# 就绪检测 (application/build/readiness) 读此: hosted runner 凭证齐即就绪;
+# self-hosted 需额外环境 (鸿蒙 DevEco CLT, GHA hosted runner 无)。
+# 新增 CI target 必须在此登记, 否则 ci_runner_kind 抛 ValueError (同 TARGET_BACKENDS 精神)。
+CI_RUNNER_KIND: dict[BuildTarget, CIRunnerKind] = {
+    BuildTarget.TAURI_WINDOWS: CIRunnerKind.HOSTED,  # windows-latest 公开 runner
+    BuildTarget.CAPACITOR_IOS: CIRunnerKind.HOSTED,  # macos-latest 公开 runner
+    BuildTarget.HARMONY_HAP: CIRunnerKind.SELF_HOSTED_NEEDED,  # DevEco CLT 需自建
+}
+
+
+def ci_runner_kind(target: BuildTarget) -> CIRunnerKind:
+    """查询 CI target 的 runner 就绪特性 (T11 就绪检测读)。
+
+    仅对 CI target 有意义; 调用方应先判 target_execution_backend(target)==CI 再查
+    (DOCKER target 不在此登记, 查询抛 ValueError)。
+
+    Raises:
+        ValueError: CI target 未登记 CI_RUNNER_KIND (新增 CI target 漏登记)。
+    """
+    try:
+        return CI_RUNNER_KIND[target]
+    except KeyError as exc:
+        raise ValueError(
+            f"CI BuildTarget {target} 未登记 runner 特性 — 新增 CI target 必须在 "
+            f"domain/sandbox/execution_backend.py CI_RUNNER_KIND 显式登记 "
+            f"(HOSTED 或 SELF_HOSTED_NEEDED)"
         ) from exc

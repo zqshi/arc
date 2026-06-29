@@ -8,9 +8,9 @@ name: Build Client Artifacts
 # 与 docker-publish.yml 区别: 后者构建 builder 镜像 (产物=镜像); 本 workflow 构建客户端
 # 二进制安装包 (产物=.msi/.exe/.ipa/.hap, 需原生 OS runner)。
 #
-# blocked: 真实触发需 gha_token (actions:write) + 各平台 runner。matrix 预留 ios (T6) /
-# harmony (T9), 待对应波次加 entry。构建步骤细节 (tauri bundle targets/路径) 需各平台
-# runner 真实验证后微调; 契约 (source_url + build_target + upload-artifact) 已对齐 (d)。
+# blocked: 真实触发需 gha_token (actions:write) + 各平台 runner。windows/ios/鸿蒙 matrix 全激活;
+# 构建步骤细节 (tauri bundle targets/cap 路径/DevEco CLT) 需各平台 runner 真实验证后微调;
+# 契约 (source_url + build_target + upload-artifact) 已对齐 (d)。
 
 on:
   workflow_dispatch:
@@ -41,8 +41,12 @@ jobs:
           # v6.19 波次1: Windows .msi/.exe (tauri v2 + WebView2, windows-latest 预装)
           - build_target: tauri_windows
             runner: windows-latest
-          # T6 iOS (待波次2): - build_target: capacitor_ios; runner: macos-latest
-          # T9 鸿蒙 (待波次3): - build_target: harmony_hap; runner: ubuntu-latest (DevEco CLT)
+          # v6.19 波次2: iOS .ipa (Capacitor + xcodebuild, macos-latest 预装 Xcode)
+          - build_target: capacitor_ios
+            runner: macos-latest
+          # v6.19 波次3: 鸿蒙 .hap (DevEco CLT + hvigorw, ubuntu-latest 自装 DevEco)
+          - build_target: harmony_hap
+            runner: ubuntu-latest
     steps:
       - name: Download source tarball
         run: |
@@ -56,9 +60,11 @@ jobs:
           node-version: 20
 
       - name: Setup Rust
+        if: matrix.build_target == 'tauri_windows'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install tauri-cli (v2)
+        if: matrix.build_target == 'tauri_windows'
         run: cargo install tauri-cli --version "^2.0" --locked
 
       - name: Build tauri windows (.msi/.exe)
@@ -71,11 +77,61 @@ jobs:
         # tauri.conf.json 的 bundle.targets 由 Agent 产工程时配 ["msi","nsis"]
         # (见 application/context/content/methodology.py BINARY_APP_BUILD_GUIDE)
 
-      - name: Upload artifacts
+      - name: Upload windows artifacts
+        if: matrix.build_target == 'tauri_windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.build_target }}-artifacts
           path: |
             workspace/src-tauri/target/release/bundle/**/*.msi
             workspace/src-tauri/target/release/bundle/**/*.exe
+          if-no-files-found: error
+
+      - name: Build iOS .ipa (Capacitor + xcodebuild)
+        if: matrix.build_target == 'capacitor_ios'
+        working-directory: workspace
+        run: |
+          npm ci
+          npm run build
+          npx cap sync ios
+          # archive + export 产 .ipa; 签名/配置文件由 arc 分发链路 (T7) 处理,
+          # 此处 unsigned export, 端到端待 macOS runner + Apple 账号微调路径/签名
+          npx cap build ios --configuration Release
+        # capacitor 默认输出 .ipa 于 ios/App 目录, 端到端时按实际路径微调
+
+      - name: Upload iOS artifacts
+        if: matrix.build_target == 'capacitor_ios'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.build_target }}-artifacts
+          path: |
+            workspace/ios/**/*.ipa
+          if-no-files-found: error
+
+      - name: Setup DevEco CLT (HarmonyOS)
+        if: matrix.build_target == 'harmony_hap'
+        working-directory: workspace
+        run: |
+          # DevEco Command Line Tools 无官方 action, 手动下载解压
+          # (端到端待专用镜像/self-hosted runner 微调; URL 配仓库变量 DEVECO_CLT_URL)
+          curl -fsSL "$DEVECO_CLT_URL" -o commandline-tools-linux.zip
+          unzip -q commandline-tools-linux.zip
+        env:
+          DEVECO_CLT_URL: ${{ vars.DEVECO_CLT_URL }}
+
+      - name: Build 鸿蒙 .hap (hvigorw)
+        if: matrix.build_target == 'harmony_hap'
+        working-directory: workspace
+        run: |
+          npm ci
+          ./command-line-tools/bin/hvigorw assembleHap --no-daemon
+        # 产物路径: entry/build/outputs/default/*.hap (端到端时按实际路径微调)
+
+      - name: Upload 鸿蒙 artifacts
+        if: matrix.build_target == 'harmony_hap'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.build_target }}-artifacts
+          path: |
+            workspace/**/build/outputs/**/*.hap
           if-no-files-found: error

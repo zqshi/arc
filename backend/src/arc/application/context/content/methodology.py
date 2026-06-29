@@ -199,21 +199,26 @@ BINARY_APP_BUILD_GUIDE = """\
 
 你的目标是产出可构建为原生客户端的 Tauri 工程 (Rust + WebView，跨平台 web 资源复用前端工程)。
 执行后端分两类 (domain/sandbox/execution_backend.py): linux/web/apk 走 DOCKER (Agent 在容器沙箱
-run_command 同步构建, 产物落 src-tauri/target/release/bundle); windows .msi/.exe 走 CI 编排
-(GHA windows runner, v6.19 激活, 触发→轮询→下载产物, 非 Agent 同步执行)。
+run_command 同步构建, 产物落 src-tauri/target/release/bundle);
+windows .msi/.exe 与 iOS .ipa 走 CI 编排 (GHA 原生 OS runner, v6.19 激活,
+触发→轮询→下载产物, 非 Agent 同步执行)。
 
 ### 你需要达成的状态
 
-一个可被 `cargo tauri build` 成功构建的 Tauri 工程，产出构建目标 (按执行后端分类):
-- linux 二进制 (.AppImage / deb)  ← v6.0 波次1 (DOCKER, 容器内构建)
+产出构建目标 (按执行后端分类):
+- linux 二进制 (.AppImage / deb)  ← v6.0 波次1 (DOCKER, 容器内构建, cargo tauri build)
 - web 资源 (复用 static_site 的 dist)  ← v6.12 波次2 (DOCKER)
 - android .apk (Capacitor)  ← v6.12 波次3 (DOCKER)
-- windows .msi/.exe (WebView2)  ← v6.19 波次1 (CI 编排, windows runner)
+- windows .msi/.exe (WebView2)  ← v6.19 波次1 (CI 编排, windows runner, cargo tauri build)
+- iOS .ipa (Capacitor + xcodebuild)  ← v6.19 波次2 (CI 编排, macos runner)
+- 鸿蒙 .hap (DevEco + hvigorw)  ← v6.19 波次3 (CI 编排, DevEco CLT runner)
 
 > DOCKER target (linux/web/apk): Agent 在容器沙箱 run_command 同步构建。
-> CI target (windows): 需原生 windows OS, 走 GHA 编排
-> (Agent 产工程, CI 跑 cargo tauri build 产 .msi/.exe)。
-> 不在范围: macOS .dmg / iOS .ipa / 鸿蒙 .hap 需原生 OS, 待 v6.19 后续波次。
+> CI target (windows/ios/鸿蒙): 需原生 OS / DevEco, 走 GHA 编排
+> (Agent 产工程, CI 跑构建产原生包)。
+> iOS 走 Capacitor (非 tauri-mobile): npx cap sync ios → xcodebuild archive 产 .ipa。
+> 鸿蒙走 DevEco (ArkTS/ArkUI 脚手架正交于 react/web): hvigorw assembleHap 产 .hap。
+> 不在范围: macOS .dmg 需原生 OS, 待后续波次。
 
 ### 工程结构
 

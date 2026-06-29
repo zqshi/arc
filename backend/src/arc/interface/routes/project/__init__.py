@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from arc.interface.routes.project.build_targets import router as build_targets_router
 from arc.interface.routes.project.core import router as core_router
 from arc.interface.routes.project.credentials import router as credentials_router
 from arc.interface.routes.project.experiences import router as experiences_router
@@ -18,6 +19,9 @@ router = APIRouter()
 # including routers with empty-path routes ("") under another router with
 # no prefix.
 for _sub in (
+    # build_targets 字面量路由 (/build-targets) 必须在 core 的 /{project_id} 参数路由前
+    # 注册, 否则 /build-targets 被 /{project_id} 拦截 (project_id="build-targets" → 404)。
+    build_targets_router,
     core_router,
     prototype_router,
     operations_router,

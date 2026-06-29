@@ -94,5 +94,23 @@ class DeployConfig:
                     build_command="cargo tauri build",
                     artifact_path="ci-products",
                 )
+            if target == BuildTarget.CAPACITOR_IOS:
+                # v6.19 波次2: iOS .ipa, CI 编排 (macos runner + xcodebuild)。
+                # build_command 不被宿主执行 — 仅作 CI workflow 构建语义参考;
+                # 实际步骤在 build-client-artifacts.yml (cap sync + xcodebuild archive)。
+                # artifact_path="ci-products" 对齐 orchestrate 解压目录 (与 windows 一致)。
+                return DeployConfig(
+                    build_command="npx cap build ios",
+                    artifact_path="ci-products",
+                )
+            if target == BuildTarget.HARMONY_HAP:
+                # v6.19 波次3: 鸿蒙 .hap, CI 编排 (DevEco CLT + hvigorw)。
+                # build_command 不被宿主执行 — 仅作 CI workflow 构建语义参考;
+                # 实际步骤在 build-client-artifacts.yml (DevEco + hvigorw assembleHap)。
+                # artifact_path="ci-products" 对齐 orchestrate 解压目录 (与 windows/ios 一致)。
+                return DeployConfig(
+                    build_command="hvigorw assembleHap",
+                    artifact_path="ci-products",
+                )
         # 未识别类型走默认
         return DeployConfig()

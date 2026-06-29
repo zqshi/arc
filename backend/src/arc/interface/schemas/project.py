@@ -15,8 +15,12 @@ class ProjectCreate(BaseModel):
     conventions: str = ""
     process_constraint: str = "free"
     project_type: Literal["static_site", "binary_app"] = "static_site"
-    # v6.12: BINARY_APP 构建目标 (web/capacitor_apk 需显式选; tauri_linux 为默认, 不传即走默认推导)
-    build_target: Literal["tauri_linux", "web", "capacitor_apk"] | None = None
+    # v6.19: BINARY_APP 构建目标 (web/capacitor_apk/原生三平台需显式选; tauri_linux 默认)。
+    # tauri_windows/capacitor_ios/harmony_hap 走 CI 编排 (原生 OS runner)。
+    build_target: Literal[
+        "tauri_linux", "web", "capacitor_apk",
+        "tauri_windows", "capacitor_ios", "harmony_hap",
+    ] | None = None
     # 工作区策略
     workspace_type: Literal["local", "github", "temporary"] = "temporary"
     github_token: str = ""  # workspace_type=github 时可选传入
@@ -181,4 +185,16 @@ class PhaseCapabilitiesUpdate(BaseModel):
 
     phase: str
     capability_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+class BuildTargetReadinessResponse(BaseModel):
+    """构建目标就绪状态 (v6.19 T11 方案3) — 前端透出/灰显依据。
+
+    target 为 BuildTarget 字符串值; ready=False 时 reason 说明阻塞原因
+    (前端灰显目标并标注, 避免用户选了必失败的目标)。
+    """
+
+    target: str
+    ready: bool
+    reason: str = ""
 

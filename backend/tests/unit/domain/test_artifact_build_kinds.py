@@ -142,6 +142,16 @@ class TestTargetArtifactKinds:
         assert BuildArtifactKind.EXE in kinds
         assert len(kinds) == 2
 
+    def test_capacitor_ios_produces_ipa(self):
+        """v6.19 T6: CAPACITOR_IOS 产物 .ipa (T5 已建模形态, 走 CI 编排)。"""
+        kinds = target_artifact_kinds(BuildTarget.CAPACITOR_IOS)
+        assert kinds == frozenset({BuildArtifactKind.IPA})
+
+    def test_harmony_hap_produces_hap(self):
+        """v6.19 T9: HARMONY_HAP 产物 .hap (T8 已建模形态, 走 CI 编排)。"""
+        kinds = target_artifact_kinds(BuildTarget.HARMONY_HAP)
+        assert kinds == frozenset({BuildArtifactKind.HAP})
+
     def test_unregistered_target_raises_value_error(self, monkeypatch):
         """新增 BuildTarget 漏登记 TARGET_ARTIFACT_KINDS 时, 查询抛 ValueError。"""
         reduced = {

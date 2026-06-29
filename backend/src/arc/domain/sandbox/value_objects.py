@@ -27,13 +27,17 @@ class BuildTarget(StrEnum):
     (DOCKER/CI), 镜像推导见 domain/sandbox/build_images.py (仅 DOCKER target 用)。
 
     v6.0 波次1 TAURI_LINUX; v6.12 波次2 WEB, 波次3 CAPACITOR_APK (均 DOCKER);
-    v6.19 波次1 TAURI_WINDOWS (CI 编排, windows runner, 需原生 OS)。
+    v6.19 波次1 TAURI_WINDOWS (CI 编排, windows runner, 需原生 OS);
+    v6.19 波次2 CAPACITOR_IOS (CI 编排, macos runner, xcodebuild 产 .ipa);
+    v6.19 波次3 HARMONY_HAP (CI 编排, DevEco CLT, hvigorw 产 .hap)。
     """
 
     TAURI_LINUX = "tauri_linux"  # v6.0 波次1: tauri linux bundle (deb/AppImage), DOCKER
     WEB = "web"  # v6.12 波次2: BINARY_APP web 资源 (npm run build → dist), DOCKER
     CAPACITOR_APK = "capacitor_apk"  # v6.12 波次3: android apk (capacitor), DOCKER
     TAURI_WINDOWS = "tauri_windows"  # v6.19: tauri windows (.msi/.exe, WebView2), CI 编排
+    CAPACITOR_IOS = "capacitor_ios"  # v6.19 波次2: iOS .ipa (capacitor + xcodebuild), CI 编排
+    HARMONY_HAP = "harmony_hap"  # v6.19 波次3: 鸿蒙 .hap (DevEco CLT + hvigorw), CI 编排
 
 
 @dataclass(frozen=True)

@@ -225,6 +225,36 @@ class TestDeployConfigForType:
         assert cfg.build_command == "cargo tauri build"
         assert cfg.artifact_path == "ci-products"
 
+    def test_binary_app_capacitor_ios_target(self) -> None:
+        """v6.19 波次2: BINARY_APP + CAPACITOR_IOS → CI 编排 (macos runner + xcodebuild)。
+
+        build_command 不被宿主执行 — 仅作 CI workflow 构建语义参考, 实际步骤在
+        build-client-artifacts.yml (cap sync + xcodebuild archive 产 .ipa)。
+        artifact_path="ci-products" 对齐 orchestrate 解压目录 (与 windows 一致)。
+        """
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+        from arc.domain.sandbox.value_objects import BuildTarget
+
+        cfg = DeployConfig.for_type(ProjectType.BINARY_APP, BuildTarget.CAPACITOR_IOS)
+        assert cfg.build_command == "npx cap build ios"
+        assert cfg.artifact_path == "ci-products"
+
+    def test_binary_app_harmony_hap_target(self) -> None:
+        """v6.19 波次3: BINARY_APP + HARMONY_HAP → CI 编排 (DevEco CLT + hvigorw)。
+
+        build_command 不被宿主执行 — 仅作 CI workflow 构建语义参考, 实际步骤在
+        build-client-artifacts.yml (DevEco CLT + hvigorw assembleHap 产 .hap)。
+        artifact_path="ci-products" 对齐 orchestrate 解压目录 (与 windows/ios 一致)。
+        """
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+        from arc.domain.sandbox.value_objects import BuildTarget
+
+        cfg = DeployConfig.for_type(ProjectType.BINARY_APP, BuildTarget.HARMONY_HAP)
+        assert cfg.build_command == "hvigorw assembleHap"
+        assert cfg.artifact_path == "ci-products"
+
     def test_static_site_ignores_target(self) -> None:
         """STATIC_SITE 不受 build_target 影响 (正交维度)。"""
         from arc.domain.deployment.value_objects import DeployConfig

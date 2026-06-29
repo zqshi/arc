@@ -159,6 +159,10 @@ TARGET_ARTIFACT_KINDS: dict[BuildTarget, frozenset[BuildArtifactKind]] = {
     BuildTarget.CAPACITOR_APK: frozenset({BuildArtifactKind.APK}),
     # v6.19 T3: Windows 产物 .msi + .exe (走 CI 编排, T2 已建模形态)
     BuildTarget.TAURI_WINDOWS: frozenset({BuildArtifactKind.MSI, BuildArtifactKind.EXE}),
+    # v6.19 T6: iOS 产物 .ipa (走 CI 编排, T5 已建模形态, T7 签名链路已配套)
+    BuildTarget.CAPACITOR_IOS: frozenset({BuildArtifactKind.IPA}),
+    # v6.19 T9: 鸿蒙产物 .hap (走 CI 编排, T8 已建模形态, T10 签名链路已配套)
+    BuildTarget.HARMONY_HAP: frozenset({BuildArtifactKind.HAP}),
 }
 
 
