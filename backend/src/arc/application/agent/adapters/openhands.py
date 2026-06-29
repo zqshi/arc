@@ -37,6 +37,8 @@ class OpenHandsAdapter(CodingAgentAdapter):
         self._owns_client = client is None
 
     async def start(self, context: TaskContext) -> str:
+        # v6.17: skill 规范 + 工具指引经 to_markdown 注入 (OpenHands 自管工具集,
+        # per-session MCP config 不支持, mcp 工具靠指引文本降级 — agent 自主遵循)
         session = await self._client.create_session()
         task_markdown = context.to_markdown()
         await self._client.send_task(session.session_id, task_markdown)

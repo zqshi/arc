@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import tempfile
 import uuid
 from dataclasses import dataclass, field
 
@@ -54,6 +56,10 @@ class ClaudeCodeAdapter(CodingAgentAdapter):
         cmd = [self._cli_path, "--print", "--output-format", "json"]
         if self._model:
             cmd.extend(["--model", self._model])
+        # v6.17: MCP server 注入 (Claude Code 原生 --mcp-config, agent 直连 MCP server 调工具)
+        mcp_config_path = self._write_mcp_config(context.mcp_servers)
+        if mcp_config_path:
+            cmd.extend(["--mcp-config", mcp_config_path])
 
         task_md = context.to_markdown()
 
@@ -83,6 +89,35 @@ class ClaudeCodeAdapter(CodingAgentAdapter):
             cwd,
         )
         return session_id
+
+    @staticmethod
+    def _write_mcp_config(mcp_servers: list[dict]) -> str | None:
+        """构造 Claude Code mcpServers 配置, 写临时文件返回路径 (v6.17)。
+
+        无 mcp_servers → None。stdio → {command, args, env}; http/sse → {type, url, headers}。
+        临时文件写系统 tmpdir (OS 定期清理; 完整生命周期清理待后续)。
+        """
+        if not mcp_servers:
+            return None
+        servers: dict = {}
+        for srv in mcp_servers:
+            name = srv.get("name") or "mcp-server"
+            transport = srv.get("transport", "stdio")
+            if transport == "stdio":
+                servers[name] = {
+                    "command": srv.get("command"),
+                    "args": srv.get("args") or [],
+                    "env": srv.get("env") or {},
+                }
+            else:  # http / sse
+                entry: dict = {"type": "http", "url": srv.get("url")}
+                if srv.get("headers"):
+                    entry["headers"] = srv["headers"]
+                servers[name] = entry
+        fd, path = tempfile.mkstemp(suffix=".json", prefix="arc-mcp-")
+        with os.fdopen(fd, "w") as f:
+            json.dump({"mcpServers": servers}, f)
+        return path
 
     async def _read_output(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
