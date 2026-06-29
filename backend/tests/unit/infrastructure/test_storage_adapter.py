@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from unittest.mock import MagicMock
 
 from arc.infrastructure.storage import StorageAdapter
 
@@ -128,3 +129,52 @@ class TestStaticSiteDeployer:
         assert result.success is False
         assert "index.html" in result.error
         mod._adapter = None
+
+
+@pytest.fixture
+def s3_adapter(monkeypatch):
+    """Force S3 mode with mocked boto3 client (no real S3 calls)."""
+    monkeypatch.setattr("arc.config.settings.storage_endpoint", "https://s3.example.com")
+    monkeypatch.setattr("arc.config.settings.storage_bucket", "test-bucket")
+    monkeypatch.setattr("arc.config.settings.storage_access_key", "ak")
+    monkeypatch.setattr("arc.config.settings.storage_secret_key", "sk")
+    monkeypatch.setattr("arc.config.settings.storage_public_url", "")
+
+    mock_client = MagicMock()
+    mock_client.exceptions.NoSuchKey = type("NoSuchKey", (Exception,), {})
+    monkeypatch.setattr("boto3.client", lambda *a, **kw: mock_client)
+
+    import arc.infrastructure.storage as mod
+    mod._adapter = None
+    adapter = StorageAdapter()
+    yield adapter, mock_client
+    mod._adapter = None
+
+
+class TestPresignedUrl:
+    """v6.19 T3-g 设计5: presigned URL 用于 CI 下载项目代码 (source_url)。
+
+    bucket 无需 public policy, URL 临时过期, 项目代码不长期暴露。
+    """
+
+    def test_local_raises_without_s3(self, local_adapter: StorageAdapter) -> None:
+        """本地无 S3 无 presigned 能力 → raise (避免静默产 CI 不可达的本地 URL)。"""
+        with pytest.raises(RuntimeError, match="requires S3"):
+            local_adapter.presigned_url("some/key")
+
+    def test_s3_generates_presigned_url(self, s3_adapter) -> None:
+        adapter, mock_client = s3_adapter
+        mock_client.generate_presigned_url.return_value = "https://presigned.example/key"
+        url = adapter.presigned_url("builds/abc/source.tar.gz", expires_in=3600)
+        assert url == "https://presigned.example/key"
+        mock_client.generate_presigned_url.assert_called_once_with(
+            "get_object",
+            Params={"Bucket": "test-bucket", "Key": "builds/abc/source.tar.gz"},
+            ExpiresIn=3600,
+        )
+
+    def test_s3_default_expires_3600(self, s3_adapter) -> None:
+        adapter, mock_client = s3_adapter
+        mock_client.generate_presigned_url.return_value = "url"
+        adapter.presigned_url("k")
+        assert mock_client.generate_presigned_url.call_args.kwargs["ExpiresIn"] == 3600

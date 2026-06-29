@@ -113,6 +113,7 @@ class ExecutionEngine:
                 llm_messages, project_path, sandbox_policy, orchestration_enabled,
                 llm_config=llm_config,
                 conversation_id=str(conversation.id),
+                todo_id=conversation.todo_id,
             ):
                 if "message_id" in event_dict and event_dict.get("content"):
                     if message_id is None:
@@ -352,6 +353,7 @@ class ExecutionEngine:
         llm_config: dict | None = None,
         *,
         conversation_id: str = "",
+        todo_id: uuid.UUID | None = None,
     ) -> AsyncIterator[dict]:
         from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.context.compression import CompressionManager
@@ -401,6 +403,17 @@ class ExecutionEngine:
                 write_file_impl=_write_file,
             )
             registry = SandboxedToolRegistry(project_path, sandbox_runtime)
+
+        # CI target 注册 build 工具 (T3-g 设计2; docker target 不注册, 用 run_command)
+        build_target = sandbox_policy.target if sandbox_policy else None
+        if build_target is not None and todo_id is not None:
+            registry.register_build_tool(
+                build_target=build_target,
+                todo_id=todo_id,
+                db=self._db,
+                conversation_id=conversation_id,
+                local_dir=project_path,
+            )
 
         # Orchestration or single-agent
         try:

@@ -209,6 +209,22 @@ class TestDeployConfigForType:
         assert "npx cap build android" in cfg.build_command
         assert cfg.artifact_path == "android/app/build/outputs/apk/release"
 
+    def test_binary_app_tauri_windows_target(self) -> None:
+        """v6.19 波次1: BINARY_APP + TAURI_WINDOWS → CI 编排。
+
+        build_command 不被宿主执行 (linux docker 产不出 Windows 产物) — 仅作 CI
+        workflow 构建语义参考, 实际构建步骤在 build-client-artifacts.yml 内, Agent
+        经 build 工具 → BuildOrchestrationService 异步编排 (T3-g 设计2)。
+        artifact_path="ci-products" 对齐 orchestrate._download_and_extract 解压目录。
+        """
+        from arc.domain.deployment.value_objects import DeployConfig
+        from arc.domain.project.value_objects import ProjectType
+        from arc.domain.sandbox.value_objects import BuildTarget
+
+        cfg = DeployConfig.for_type(ProjectType.BINARY_APP, BuildTarget.TAURI_WINDOWS)
+        assert cfg.build_command == "cargo tauri build"
+        assert cfg.artifact_path == "ci-products"
+
     def test_static_site_ignores_target(self) -> None:
         """STATIC_SITE 不受 build_target 影响 (正交维度)。"""
         from arc.domain.deployment.value_objects import DeployConfig

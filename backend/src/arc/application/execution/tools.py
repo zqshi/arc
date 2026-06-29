@@ -184,6 +184,27 @@ class ToolRegistry:
     def register(self, tool: ToolDefinition):
         self._tools[tool.name] = tool
 
+    def register_build_tool(
+        self, *, build_target, todo_id, db, conversation_id, local_dir
+    ) -> None:
+        """注册 build 工具 (CI target 专属, v6.19 T3-g 设计2)。
+
+        仿 register_baas_tools 闭包注入。make_build_tool 对非 CI target 返回 None
+        (docker target 不注册, 用 run_command)。Agent 调 build → CI 异步编排
+        (dispatch_build + 后台 await_build + stream_manager 推 build_complete)。
+        """
+        from arc.application.execution.build_tool import make_build_tool
+
+        tool = make_build_tool(
+            build_target=build_target,
+            todo_id=todo_id,
+            db=db,
+            conversation_id=conversation_id,
+            local_dir=local_dir,
+        )
+        if tool is not None:
+            self.register(tool)
+
     def register_baas_tools(self, *, project_id, baas_service) -> None:
         """注册 BaaS 相关 Agent tools (v5.6.0 T10)。
 

@@ -157,6 +157,28 @@ class StorageAdapter:
     async def async_download(self, key: str) -> bytes | None:
         return await asyncio.to_thread(self.download, key)
 
+    def presigned_url(self, key: str, *, expires_in: int = 3600) -> str:
+        """生成 S3 presigned GET URL (临时, 过期失效) — T3-g 设计5。
+
+        用于 CI 下载项目代码 (source_url): bucket 无需 public policy, URL 临时过期,
+        项目代码不长期暴露 (优于 public bucket 模式)。
+
+        本地 (无 S3) 无 presigned 能力 → raise, 避免静默产 CI 不可达的本地 URL
+        (本地 dev 端到端 blocked, 仅 mock 验证)。
+        """
+        if not self._is_s3:
+            raise RuntimeError(
+                "presigned URL requires S3 storage (storage_endpoint not configured)"
+            )
+        return self._client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.storage_bucket, "Key": key},
+            ExpiresIn=expires_in,
+        )
+
+    async def async_presigned_url(self, key: str, *, expires_in: int = 3600) -> str:
+        return await asyncio.to_thread(self.presigned_url, key, expires_in=expires_in)
+
     def _download_s3(self, key: str) -> bytes | None:
         try:
             resp = self._client.get_object(Bucket=settings.storage_bucket, Key=key)
