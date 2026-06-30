@@ -102,7 +102,7 @@ export function useProjectDetail() {
   const { getTaskState } = useProjectTaskStream(isConversationMode ? id : undefined);
 
   const { experiences, expLoading, expFilter, setExpFilter, expCategoryFilter, setExpCategoryFilter, insights, fetchExperiences } = useExperiences(id, activeTab);
-  const { domainModel, domainModelLoading, fetchDomainModel } = useDomainModel(id, activeTab);
+  const { domainModel, domainModelLoading, fetchDomainModel, baasStatus } = useDomainModel(id, activeTab);
   const domainModelReview = useDomainModelReview(id, domainModel?.version || 0);
 
   const versionActions = useVersionActions(id, toast, refreshVersions, confirm);
@@ -176,6 +176,7 @@ export function useProjectDetail() {
     insights, handleAppendConvention,
     domainModel, domainModelLoading, handleRefreshDomainModel, refreshingDM,
     domainModelReview,
+    baasStatus,
     handleExtractDomainModelFromCode, extractingDMFromCode,
     handleExtractExperiences, extracting,
     drawerSession, setDrawerSession,

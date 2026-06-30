@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Layers, Network, Database, Zap, Circle, RefreshCw, Loader2, GitFork, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import type { DomainModel, DomainModelAggregate, DomainModelSubdomain } from '../../types/api';
+import type { DomainModel, DomainModelAggregate, DomainModelSubdomain, BaasStatus } from '../../types/api';
 import { DomainModelGraph } from './DomainModelGraph';
 import ModelHistoryPanel from './ModelHistoryPanel';
 import ValidationPanel from './ValidationPanel';
@@ -19,6 +19,7 @@ interface DomainModelTabProps {
   domainModel: DomainModel | null;
   loading: boolean;
   review: ReturnType<typeof useDomainModelReview>;
+  baasStatus?: BaasStatus | null;
   onRefresh?: () => Promise<void>;
   refreshing?: boolean;
   onExtractFromCode?: () => Promise<void>;
@@ -26,7 +27,7 @@ interface DomainModelTabProps {
   hasLocalPath?: boolean;
 }
 
-export function DomainModelTab({ projectId, domainModel, loading, review, onRefresh, refreshing, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
+export function DomainModelTab({ projectId, domainModel, loading, review, baasStatus, onRefresh, refreshing, onExtractFromCode, extractingFromCode, hasLocalPath }: DomainModelTabProps) {
   const [view, setView] = useState<ViewMode>(() => {
     return (localStorage.getItem('arc:domainModel:view') as ViewMode) || 'all';
   });
@@ -148,6 +149,9 @@ export function DomainModelTab({ projectId, domainModel, loading, review, onRefr
         <StatPill icon={<Zap size={11} />} label="关系" count={(domainModel.relations || []).length + (domainModel.aggregate_relations?.length || 0)} />
       </div>
 
+      {/* BaaS provision 状态 (v6.19 续9 可观测性) — 领域模型落地到 Supabase 的程度 */}
+      <BaasProvisionCard baasStatus={baasStatus} />
+
       {graphMode ? (
         <DomainModelGraph domainModel={domainModel} view={view} />
       ) : (
@@ -256,6 +260,40 @@ function StatPill({ icon, label, count }: { icon: React.ReactNode; label: string
       {icon}
       <span className="text-[10px] text-text-muted">{label}</span>
       <span className="text-[11px] font-semibold text-text-primary">{count}</span>
+    </div>
+  );
+}
+
+/** BaaS provision 状态卡 (v6.19 续9 可观测性) — 让用户看到领域模型落地到 Supabase 的程度。
+ *  provisioned: 显示 schema/表数/model版本; 未装配: 显示 reason (不再无错误可见)。 */
+function BaasProvisionCard({ baasStatus }: { baasStatus?: BaasStatus | null }) {
+  if (!baasStatus) return null;
+
+  if (!baasStatus.provisioned) {
+    return (
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-bg-elevated px-3 py-2">
+        <Database size={12} className="mt-0.5 text-text-muted" />
+        <div className="text-[11px]">
+          <span className="font-medium text-text-secondary">BaaS 未装配</span>
+          <p className="mt-0.5 text-text-muted">{baasStatus.reason || '领域模型提取后自动装配, 模型无聚合时跳过'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4 flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+      <CheckCircle2 size={12} className="mt-0.5 text-emerald-500" />
+      <div className="flex-1 text-[11px]">
+        <span className="font-medium text-text-secondary">
+          BaaS 已装配 · {baasStatus.status}
+        </span>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-text-muted">
+          <span>schema: <code className="text-text-secondary">{baasStatus.schema_name}</code></span>
+          {baasStatus.tables_count != null && <span>业务表 {baasStatus.tables_count}</span>}
+          {baasStatus.last_applied_model_version != null && <span>model v{baasStatus.last_applied_model_version}</span>}
+        </div>
+      </div>
     </div>
   );
 }

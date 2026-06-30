@@ -616,6 +616,19 @@ export interface DomainModel {
   version?: number;
 }
 
+/** BaaS provision 状态 (v6.19 续9 可观测性, GET /api/projects/{id}/baas-status) */
+export interface BaasStatus {
+  provisioned: boolean;
+  reason?: string;
+  status?: string;
+  schema_name?: string;
+  supabase_url?: string;
+  last_applied_model_version?: number;
+  tables_count?: number;
+  activated_at?: string | null;
+  structure?: { schema: string | null; exists: boolean; entities_count?: number };
+}
+
 export interface DomainModelValidationIssue {
   severity: 'error' | 'warning' | 'info';
   category: 'strategic' | 'tactical' | 'naming' | 'completeness';

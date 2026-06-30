@@ -228,6 +228,7 @@ export default function ProjectDetail() {
               domainModel={s.domainModel}
               loading={s.domainModelLoading}
               review={s.domainModelReview}
+              baasStatus={s.baasStatus}
               onRefresh={s.handleRefreshDomainModel}
               refreshing={s.refreshingDM}
               onExtractFromCode={s.handleExtractDomainModelFromCode}

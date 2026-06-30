@@ -130,3 +130,46 @@ class BaasService:
         if instance is None:
             return {"schema": None, "exists": False}
         return await self._provisioner.introspect(instance.schema_name)
+
+    async def get_status(self, project_id: uuid.UUID) -> dict:
+        """组装项目 BaaS provision 状态 (v6.19 续9 可观测性)。
+
+        供前端 DomainModelTab/SettingsTab 透出, 让用户看到 provision 是否发生 +
+        落地到哪 (schema/表数/model版本/Supabase 连接), 不再 '无错误可见'。
+
+        Returns:
+            provisioned=False 时仅含 reason (未装配/模型无聚合); True 时含完整状态。
+        """
+        instance = await self._baas_repo.get_by_project(project_id)
+        if instance is None:
+            return {
+                "provisioned": False,
+                "reason": "项目未 provision BaaS (领域模型提取后自动触发, 模型无聚合时跳过)",
+            }
+
+        # introspect 读 schema 内表结构概况 (元模型表 + 业务表)
+        structure = await self._provisioner.introspect(instance.schema_name)
+        # 业务表数 (pg_tables, 排除元模型表 _meta_*) — asyncpg 用 $1 位置参数
+        tables_count = 0
+        try:
+            tables_count = await self._client.fetchval(
+                "SELECT count(*) FROM pg_tables "
+                "WHERE schemaname=$1 AND tablename NOT LIKE '\\_meta%'",
+                instance.schema_name,
+                schema=instance.schema_name,
+            ) or 0
+        except Exception:
+            logger.warning(
+                "get_status: 读取 schema %s 表数失败", instance.schema_name, exc_info=True
+            )
+
+        return {
+            "provisioned": True,
+            "status": instance.status.value,
+            "schema_name": instance.schema_name,
+            "supabase_url": instance.supabase_url,
+            "last_applied_model_version": instance.last_applied_model_version,
+            "tables_count": tables_count,
+            "activated_at": instance.activated_at.isoformat() if instance.activated_at else None,
+            "structure": structure,
+        }

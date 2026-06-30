@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
-import type { DomainModel } from '../types/api';
+import type { DomainModel, BaasStatus } from '../types/api';
 
 export function useDomainModel(projectId: string | undefined, activeTab: string) {
   const [domainModel, setDomainModel] = useState<DomainModel | null>(null);
   const [domainModelLoading, setDomainModelLoading] = useState(false);
+  const [baasStatus, setBaasStatus] = useState<BaasStatus | null>(null);
   const hasFetched = useRef(false);
 
   const fetchDomainModel = useCallback(async (options?: { silent?: boolean }) => {
@@ -14,8 +15,13 @@ export function useDomainModel(projectId: string | undefined, activeTab: string)
       setDomainModelLoading(true);
     }
     try {
-      const dm = await api.getDomainModel(projectId);
+      // 领域模型 + BaaS provision 状态并行拉取 (baas 失败不阻断模型展示)
+      const [dm, baas] = await Promise.all([
+        api.getDomainModel(projectId),
+        api.getBaasStatus(projectId).catch(() => null),
+      ]);
       setDomainModel(dm);
+      setBaasStatus(baas);
       hasFetched.current = true;
     } catch {
       if (!hasFetched.current) {
@@ -33,5 +39,5 @@ export function useDomainModel(projectId: string | undefined, activeTab: string)
     }
   }, [activeTab, fetchDomainModel]);
 
-  return { domainModel, domainModelLoading, fetchDomainModel };
+  return { domainModel, domainModelLoading, fetchDomainModel, baasStatus };
 }

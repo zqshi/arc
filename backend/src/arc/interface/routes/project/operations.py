@@ -333,3 +333,25 @@ async def update_phase_capabilities(
         project_id, body.phase, body.capability_ids, user_id=user.id
     )
     return {"phase_capabilities": project.pipeline_config.get("phase_capabilities", {})}
+
+
+@router.get("/{project_id}/baas-status")
+async def get_baas_status(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """项目 BaaS provision 状态 (v6.19 续9 可观测性)。
+
+    供前端 DomainModelTab (模型落地程度) / SettingsTab (provision 状态/Supabase 连接)
+    透出, 让用户看到 provision 是否发生 + 落地到哪, 不再 '无错误可见'。
+    """
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    from arc.application.baas.service import BaasService
+
+    svc = BaasService(db)
+    return await svc.get_status(project_id)

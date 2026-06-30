@@ -13,6 +13,7 @@ import type {
   UpgradeResult,
   Deployment,
   BuildTargetReadiness,
+  BaasStatus,
 } from '../../types/api';
 import type { RequestFn } from './base';
 
@@ -59,6 +60,9 @@ export function createProjectMethods(request: RequestFn) {
 
     getDomainModel: (projectId: string): Promise<DomainModel> =>
       request(`/api/projects/${projectId}/domain-model`),
+
+    getBaasStatus: (projectId: string): Promise<BaasStatus> =>
+      request(`/api/projects/${projectId}/baas-status`),
 
     refreshDomainModel: (projectId: string): Promise<{ merged: number; domain_model: DomainModel }> =>
       request(`/api/projects/${projectId}/domain-model/refresh`, { method: 'POST' }),
