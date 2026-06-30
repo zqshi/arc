@@ -184,13 +184,44 @@ class ConversationContextProvider:
         return bool(orch_cfg.get("enabled", False))
 
     async def get_llm_config(self, todo_id: uuid.UUID) -> dict | None:
-        """获取项目级 LLM 配置（conversation_config.llm）。"""
+        """获取项目级 LLM 配置 (v6.20 L5 改造)。
+
+        优先读 Project.llm_provider_id → DB 凭证 (Fernet 解密 api_key) → 返回兼容 dict
+        {provider, model, api_key, base_url} (下游 create_llm_adapter_from_config 零改动);
+        回退旧 conversation_config["llm"] 明文 dict (向后兼容旧数据, 迁移期共存);
+        再回退 None (用全局默认)。
+        """
+        from arc.infrastructure.crypto import decrypt
+        from arc.infrastructure.repositories.llm_provider import (
+            SqlAlchemyLLMProviderRepository,
+        )
         from arc.infrastructure.repositories.project import ProjectRepository
 
         todo = await self._todo_repo.get_by_id(todo_id)
         if not todo or not todo.project_id:
             return None
         project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-        if not project or not project.conversation_config:
+        if not project:
             return None
-        return project.conversation_config.get("llm") or None
+
+        # 优先: 项目级 LLM 凭证指针 → DB 凭证 (替代明文 dict)
+        if project.llm_provider_id:
+            provider = await SqlAlchemyLLMProviderRepository(self.db).get_by_id(
+                project.llm_provider_id, project.user_id or todo.user_id
+            )
+            if provider and provider.has_api_key():
+                api_key = provider.get_api_key(decrypt)
+                return {
+                    "provider": provider.kind.value,
+                    "model": provider.models[0] if provider.models else "",
+                    "api_key": api_key,
+                    "base_url": provider.base_url,
+                }
+
+        # 回退: 旧 conversation_config["llm"] 明文 dict (向后兼容, 迁移期共存)
+        if project.conversation_config:
+            legacy = project.conversation_config.get("llm")
+            if legacy and legacy.get("api_key"):
+                return legacy
+
+        return None

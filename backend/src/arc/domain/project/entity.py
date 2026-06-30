@@ -67,6 +67,10 @@ class Project:
     # 签名凭证 (v6.19 T7/T10) — iOS / 鸿蒙 按平台分字段加密存储
     enc_ios_creds: str = ""
     enc_harmony_creds: str = ""
+    # v6.20 L5: 项目级 LLM 凭证指针 — 指向 llm_providers.id (用户级多厂商凭证),
+    # 替代旧 conversation_config["llm"] 明文 dict (顺带修明文存 api_key 安全问题)。
+    # None = 用全局默认凭证。解密由 application 层注入 (同签名凭证)。
+    llm_provider_id: uuid.UUID | None = None
     # 分发凭证 (v6.2.0) — 按渠道分字段加密存储 (与签名凭证独立)
     enc_appstore_creds: str = ""
     enc_playstore_creds: str = ""

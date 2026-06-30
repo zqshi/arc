@@ -60,6 +60,10 @@ class ProjectModel(TimestampMixin, Base):
     enc_appstore_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     enc_playstore_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
     enc_tauri_updater_creds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # v6.20 L5: 项目级 LLM 凭证指针 (FK → llm_providers.id, nullable)
+    llm_provider_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("llm_providers.id", ondelete="SET NULL"), nullable=True
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

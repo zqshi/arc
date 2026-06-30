@@ -56,9 +56,21 @@ def upgrade() -> None:
         unique=True,
         postgresql_where=sa.text("is_default = true"),
     )
+    # v6.20 L5: 项目级 LLM 凭证指针 (FK → llm_providers.id)
+    # 替代旧 conversation_config["llm"] 明文 dict (顺带修明文 api_key 安全问题)
+    op.add_column(
+        "projects",
+        sa.Column(
+            "llm_provider_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("llm_providers.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("projects", "llm_provider_id")
     op.drop_index("uq_llm_providers_user_default", table_name="llm_providers")
     op.drop_index("ix_llm_providers_user_id", table_name="llm_providers")
     op.drop_table("llm_providers")
