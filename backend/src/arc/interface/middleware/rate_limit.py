@@ -2,6 +2,7 @@
 
 内存滑动窗口 (单 worker/dev) 或 Redis sorted set (多副本生产, redis_url 非空)。
 B5 投产门禁: 多副本下进程内存态限流被副本数倍绕过, redis_url 配置后切 Redis 共享计数。
+配 redis_url 但 redis 包缺失 → 启动期硬失败 (eventbus lifespan 先校验), 不降级不静默。
 """
 from __future__ import annotations
 

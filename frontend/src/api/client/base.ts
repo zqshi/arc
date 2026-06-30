@@ -133,10 +133,14 @@ export function createRequestFn(base: string): RequestFn {
       if (resp.status === 204) return undefined as T;
       return resp.json();
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        throw new ApiError(0, 'Request aborted');
-      }
-      throw err;
+      // 已是 ApiError (如 401/403/4xx/5xx) 直接抛, 不改文案
+      if (err instanceof ApiError) throw err;
+      // 网络层失败: 后端不可达 / 连接拒绝 / DNS / 超时 — 统一友好提示, 不暴露原始 Failed to fetch
+      const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+      const detail = isTimeout
+        ? '请求超时, 后端服务可能过载或不可达, 请稍后重试'
+        : '无法连接后端服务, 请确认服务已启动或检查网络';
+      throw new ApiError(0, detail);
     } finally {
       clearTimeout(timeoutId);
     }
