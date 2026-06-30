@@ -2,6 +2,7 @@
 name = "arc-backend"
 version = "0.1.0"
 description = "Arc - AI-driven personal workbench backend"
+license = {text = "MIT"}
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
