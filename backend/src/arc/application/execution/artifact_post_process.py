@@ -86,13 +86,19 @@ class ArtifactPostProcessHooks:
             project = await project_repo.get_by_id(todo.project_id)
             if not project or not project.domain_model:
                 _record("skip", "skip_no_domain_model")
+                logger.info(
+                    "BaaS provision skipped: no project/domain_model (todo %s)",
+                    todo_id,
+                    extra={"todo_id": str(todo_id), "project_id": str(todo.project_id)},
+                )
                 return
 
             dm = project.domain_model
             aggregates = dm.get("aggregates", []) if isinstance(dm, dict) else []
             if not aggregates:
                 logger.info(
-                    "BaaS provision skipped: todo %s 模型无聚合", todo_id
+                    "BaaS provision skipped: todo %s 模型无聚合", todo_id,
+                    extra={"todo_id": str(todo_id), "project_id": str(project.id)},
                 )
                 _record("skip", "skip_no_aggregates")
                 return
@@ -134,11 +140,13 @@ class ArtifactPostProcessHooks:
             logger.info(
                 "BaaS provision triggered for project %s (model v%s)",
                 project.id, snapshot.version,
+                extra={"project_id": str(project.id), "model_version": snapshot.version},
             )
             _record("success", "success")
         except Exception:
             logger.warning(
-                "BaaS provision after extract failed for todo %s", todo_id, exc_info=True
+                "BaaS provision after extract failed for todo %s", todo_id, exc_info=True,
+                extra={"todo_id": str(todo_id)},
             )
 
     async def try_sync_experience(
