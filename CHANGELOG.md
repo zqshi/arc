@@ -6,7 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.19 原生客户端平台扩展 (Windows → iOS → 鸿蒙依次推进), 见 v6.19.0-current.md。_
+_v6.20 LLM 多厂商凭证管理 + 在线探活, 见 v6.20.0-current.md。_
+
+## [6.19.0] - 2026-06-30 — 原生客户端平台扩展（Windows → iOS → 鸿蒙）
+
+### Added — 三平台构建/签名/分发链路
+- **T1 执行后端真相源**: `domain/sandbox/execution_backend.py` `BuildExecutionBackend` (DOCKER/CI) + `TARGET_BACKENDS` 全登记; 裁决方案 A (CI 编排), 不扩 `SandboxRuntime` ABC
+- **T2/T5/T8 artifact 显式建模**: `BuildArtifactKind` 簇 (MSI/EXE/IPA/HAP/APP) + `KIND_SIGNER_TYPE` + `TARGET_ARTIFACT_KINDS` + `EXTENSION_KIND`, 跨真相源一致性测试守护
+- **T3/T6/T9 构建目标**: `TAURI_WINDOWS`/`CAPACITOR_IOS`/`HARMONY_HAP` + 双真相源登记 + `for_type` 分支 + CI workflow matrix (windows/macos/harmony) + build step (坑1坑2真实化: 鸿蒙 self-hosted / iOS unsigned `.app`)
+- **T4/T7/T10 签名器**: `SignerType.WINDOWS`/`IOS`/`HARMONY` + `IosSigner`/`HarmonySigner` + `enc_ios_creds`/`enc_harmony_creds` + migration z20; `.app` 签名歧义修复 (`_detect_sign_targets` 加 `build_target` 消歧)
+- **T3-g Agent→CI 接缝**: build 工具 (CI target 专属) + `BuildOrchestrationService` (`dispatch_build`/`await_build`) + `GitHubActionsClient` + source_url S3 presigned
+- **T11 前端透出 + 就绪检测**: 三平台卡片 + 就绪灰显 + `BuildTargetReadinessService` (静态+探活 GHA verify_token + S3 head_bucket, 缓存后台刷新) + `GET /build-targets`
+
+### Changed — 可观测性 + 投产健壮性
+- **A1-A3 可观测**: access log + `/ready` 探针分离 (DB+Redis+S3) + `/metrics` Prometheus (HTTP 指标 + Agent 任务耗时)
+- **execution_engine 拆分**: 483→325 行, `run_autopilot` 抽 `autopilot.py` `AutopilotMixin`
+- **M1 migration 漂移清零**: review_feedbacks 漏 import 修正 + ~12 model 补 index/UniqueConstraint 对齐 DB + z21 consolidation, alembic check 干净
+- **M4 BaaS 自动装配端到端验证**: schema/表/RLS 真建 + 可观测加强 (baas-status 端点+前端卡片 / Prometheus metrics)
+- **投产门禁修复 (续13)**: A1 注册用户默认 admin 越权 (role 默认 MEMBER + 首用户特例 + admin 提权 + z22) + A2 `/metrics` bearer token + B5 限流切 Redis + B6 pod graceful + B7 ingress TLS + 部署 runbook/monitoring 工件; 撤 B5 虚假降级 (fail-fast) + 崩溃友好提示缺省页
+
+### 决策
+- 新平台构建走 CI 编排 (方案A), 不扩 `SandboxRuntime` ABC (契约错配: 同步单命令 vs 分钟级异步 batch + 文件产物)
+- 新增 BuildTarget 同步 12+1 处注册点 (`execution_backend.TARGET_BACKENDS` 为第 13 处真相源, 未登记抛 ValueError)
+- 就绪检测真实探活 + 缓存后台刷新 (乐观策略 `verified=None` 判 ready 避免误灰显)
+- 延续 v6.1 mock 验证签名链路模式 (端到端 blocked 于凭证时命令构造+链路用 mock 验证)
+
+### 遗留
+- M2 三平台构建端到端 (硬阻断, 用户凭证: `ARC_GHA_TOKEN` + 云端 `ARC_STORAGE_*`; iOS 需 macOS runner + Apple 账号; 鸿蒙需 self-hosted runner + DevEco)
+- 签名分发端到端 (T4/T7/T10 独立 blocked: Windows EV 证书 / Apple Developer + provisioning / 华为 .p12+.cer+.p7b)
+- OpenHands/Codex 真注入 blocked 于 runtime 环境
+- 质量检测 6.1-6.7 全过; CI 基线 ruff0 / pytest unit 2166 + integ 177 / tsc-b0 / vitest 91 / build0 / alembic check 干净 (head z22)
 
 ## [6.18.0] - 2026-06-29 — 投产治理升级
 
