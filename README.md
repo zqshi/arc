@@ -149,6 +149,31 @@ UI/UE 设计（AI 出方案，人选择）
 - 安全加固（路径遍历防护、CSP 注入、FK 索引优化）
 - Docker 一键部署（多阶段构建、非 root 运行）
 
+**原生客户端构建与分发**
+- 三平台 CI 编排（Windows / iOS / 鸿蒙，GitHub Actions matrix：hosted + self-hosted runner）
+- 构建就绪检测（CIRunnerKind 三态 + GHA token / S3 真实探活 + 缓存后台刷新 + 前端灰显）
+- 五平台签名链路（APPLE / WINDOWS / ANDROID / IOS / HARMONY 签名器 + Fernet 凭证加密）
+- BUILD artifact 统一锚点（构建 → 签名 → 分发链路收敛）
+
+**能力与 Skill 注入**
+- 能力注册表（Agent / Skill / MCP 声明管理，env → DB 迁移 + 热重载）
+- 环节级能力配置（七阶段 × 能力勾选，即时保存）
+- skill 真注入执行链（ClaudeCode `--mcp-config` 真注入 / Codex `/responses` tools / MCP SSE 流式）
+
+**BaaS 自动装配**
+- 领域模型 → Supabase schema provisioning（CREATE SCHEMA + 元模型表 + 业务表 + RLS）
+- 装配可观测双视角（产品 baas-status 端点 + 前端卡片 / 运维 Prometheus metrics）
+
+**过程约束与门禁**
+- 三档约束（STRICT / MODERATE / FREE，依赖 DAG 三档共享硬不变量）
+- 门禁阈值同源 GateProfile（结构短路 + LLM 评分 + 模式守卫拦截非法操作）
+- 流程引擎内容编排（methodology / phase prompt / gate 阈值可配置）
+
+**投产可观测**
+- 结构化 access log（method / path / status / 耗时 / request_id）
+- 探针分离（/health liveness + /ready readiness 探 DB / Redis / S3，失败 503 摘流量）
+- Prometheus metrics（HTTP QPS / 延迟 + Agent 任务耗时 + BaaS provision 全路径埋点）
+
 ## 技术栈
 
 | 层级 | 选型 |
@@ -160,6 +185,8 @@ UI/UE 设计（AI 出方案，人选择）
 | Agent | OpenHands · Codex · Claude Code · Cursor（Registry + Adapter） |
 | 部署 | Docker Compose · K8s manifests · GHCR CI/CD · 非 root 运行 |
 | 存储 | S3 + BaaS 统一存储层（StorageAdapter） |
+| 原生客户端 | Tauri · Capacitor · GitHub Actions CI matrix（Windows / iOS / 鸿蒙） |
+| 可观测 | 结构化日志 · /ready 探针 · Prometheus metrics |
 
 ## 快速开始
 
@@ -341,7 +368,15 @@ arc/
 | v5.1-5.2 | 上下文与优先级 — Prompt注入 + AI Changelog + 优先级可视化 | done |
 | v5.3 | 原型预览架构升级 — 版本维度 + S3 持久化 + 空状态保护 | done |
 | v5.4 | 部署层真实化 — 存储重构 + Deployment 领域建模 + S3 静态部署 | done |
-| v5.5-5.6 | BaaS 升级 — Supabase 运行时 + 领域模型模板 | planned |
+| v5.5-5.6 | BaaS 升级 — Supabase 运行时 + 领域模型模板 + 项目类型框架 | done |
+| v6.0-6.2 | 容器构建链路 — Tauri Linux 构建 + 签名链路 + 分发 | done |
+| v6.3-6.6 | 治理与质量 — 规范传递 + prompt 意图驱动 + 代码质量修复收尾 | done |
+| v6.7-6.8 | 运行时入口 — 凭证 API + skill 热重载 + charter 门禁 + 能力注册表 | done |
+| v6.9-6.10 | 编排与建模 — artifact 显式建模 + 按类型编排 + 流程内容可配置 | done |
+| v6.11-6.13 | 投产加固 — k8s 完整 + 领域错误规范化 + web/android 构建 + 签名真实化 | done |
+| v6.14-6.16 | 治理收敛 — 设置 UX + DAG 依赖守卫 + execution_mode 下线 + 阈值同源 | done |
+| v6.17-6.18 | 投产治理 — skill 注入执行链统一 + import 环治理 + CI builder 镜像 + MCP SSE | done |
+| v6.19 | 原生客户端平台扩展 — Windows / iOS / 鸿蒙 构建目标 + 就绪检测 + 签名器 | 代码完成，端到端待凭证 |
 
 ## 许可
 
