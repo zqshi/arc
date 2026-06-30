@@ -20,7 +20,7 @@ class UserModel(TimestampMixin, Base):
     hashed_password: Mapped[str | None] = mapped_column(Text, nullable=True)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    role: Mapped[str] = mapped_column(String(20), server_default="admin", nullable=False)
+    role: Mapped[str] = mapped_column(String(20), server_default="member", nullable=False)
 
 
 class RevokedTokenModel(Base):

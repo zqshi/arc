@@ -23,3 +23,13 @@ class AbstractUserRepository(ABC):
 
     @abstractmethod
     async def update(self, entity: User) -> User: ...
+
+    @abstractmethod
+    async def is_empty(self) -> bool:
+        """系统中是否无任何用户 (首用户特例判断, A1 投产门禁)。"""
+        ...
+
+    @abstractmethod
+    async def count_admins(self) -> int:
+        """系统中 ADMIN 用户数 (最后 admin 保护, A1 投产门禁)。"""
+        ...

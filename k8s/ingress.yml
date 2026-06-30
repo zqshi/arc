@@ -1,3 +1,7 @@
+# B7 投产门禁: ingress 启用 TLS + 域名占位标注。
+# 部署前: (1) 替换 arc.example.com 为真实域名 (sed 或 kustomize var);
+#         (2) helm 装 cert-manager + apply cert-manager-issuer.yml。
+# 注: /metrics 不经 ingress (公网不暴露), 仅集群内可达, 配 ARC_PROMETHEUS_TOKEN 纵深防御 (A2)。
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -12,16 +16,16 @@ metadata:
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection "upgrade";
-    # TLS — uncomment when cert-manager is configured
-    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # B7: cert-manager 自动签发 TLS (前置: cert-manager + ClusterIssuer 已部署)
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
-  # tls:
-  #   - hosts:
-  #       - arc.your-domain.com
-  #     secretName: arc-tls
+  tls:
+    - hosts:
+        - arc.example.com  # TODO 部署时替换为真实域名
+      secretName: arc-tls
   rules:
-    - host: arc.your-domain.com
+    - host: arc.example.com  # TODO 部署时替换为真实域名
       http:
         paths:
           - path: /api

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import secrets
 import sys
 from contextlib import asynccontextmanager
 
@@ -163,7 +164,7 @@ from arc.interface.middleware.metrics import MetricsMiddleware  # noqa: E402
 from arc.interface.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
 from arc.interface.middleware.request_id import RequestIdMiddleware  # noqa: E402
 
-app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RateLimitMiddleware, redis_url=settings.redis_url)
 app.add_middleware(RequestIdMiddleware)
 # Metrics 最后挂 = 最外层 (Starlette 栈式: 后 add 先执行), 采到全部请求含限流拒绝/异常
 app.add_middleware(MetricsMiddleware)
@@ -298,10 +299,15 @@ async def ready():
 
 
 @app.get("/metrics")
-async def metrics():
-    """Prometheus exposition 端点 — 不挂 auth (scraper 无登录态, k8s 用 NetworkPolicy 限访问)。"""
+async def metrics(request: Request):
+    """Prometheus exposition 端点 (A2: 配 prometheus_token 时校验 bearer token)。"""
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+    if settings.prometheus_token:
+        auth = request.headers.get("authorization", "")
+        token = auth[7:] if auth.startswith("Bearer ") else ""
+        if not secrets.compare_digest(token, settings.prometheus_token):
+            raise HTTPException(401, "Unauthorized")
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
@@ -320,6 +326,7 @@ def register_routes():
     from arc.interface.routes.settings import router as settings_router
     from arc.interface.routes.template import router as template_router
     from arc.interface.routes.todo import router as todo_router
+    from arc.interface.routes.user import router as user_router
     from arc.interface.routes.webhook import router as webhook_router
     from arc.interface.ws.chat import router as ws_router
 
@@ -338,6 +345,7 @@ def register_routes():
     app.include_router(mcp_router, prefix="/api/mcp", tags=["mcp"])
     app.include_router(template_router, prefix="/api/templates", tags=["templates"])
     app.include_router(capability_router, prefix="/api/capabilities", tags=["capabilities"])
+    app.include_router(user_router, prefix="/api/users", tags=["users"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
     from arc.config import settings

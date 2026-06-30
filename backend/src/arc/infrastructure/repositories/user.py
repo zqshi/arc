@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arc.domain.user.entity import User as UserEntity
@@ -60,6 +60,18 @@ class UserRepository(AbstractUserRepository):
         await self.db.refresh(model)
         return self._to_entity(model)
 
+    async def is_empty(self) -> bool:
+        """系统中是否无任何用户 (首用户特例判断, A1 投产门禁)。"""
+        result = await self.db.execute(select(UserModel.id).limit(1))
+        return result.first() is None
+
+    async def count_admins(self) -> int:
+        """系统中 ADMIN 用户数 (最后 admin 保护, A1 投产门禁)。"""
+        result = await self.db.execute(
+            select(func.count()).select_from(UserModel).where(UserModel.role == "admin")
+        )
+        return result.scalar_one()
+
     @staticmethod
     def _to_entity(model: UserModel) -> UserEntity:
         return UserEntity(
@@ -69,7 +81,7 @@ class UserRepository(AbstractUserRepository):
             hashed_password=model.hashed_password,
             display_name=model.display_name,
             is_active=model.is_active,
-            role=UserRole(model.role) if model.role else UserRole.ADMIN,
+            role=UserRole(model.role) if model.role else UserRole.MEMBER,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

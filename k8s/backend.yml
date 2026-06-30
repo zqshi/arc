@@ -59,12 +59,17 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]  # B6: 摘流量 + graceful shutdown, 减少重启中断
           volumeMounts:
             - name: preview-static
               mountPath: /app/data/static/previews
       volumes:
         - name: preview-static
           emptyDir: {}
+      terminationGracePeriodSeconds: 60  # B6: 给在途请求/Agent 任务 graceful 关闭时间
   strategy:
     type: RollingUpdate
     rollingUpdate:

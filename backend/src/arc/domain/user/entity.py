@@ -21,7 +21,7 @@ class User:
     phone: str | None = None
     hashed_password: str | None = None
     is_active: bool = True
-    role: UserRole = UserRole.ADMIN
+    role: UserRole = UserRole.MEMBER  # A1: 默认 MEMBER, 首用户特例/提权才 ADMIN (投产门禁)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 

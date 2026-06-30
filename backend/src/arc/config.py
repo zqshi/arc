@@ -123,6 +123,10 @@ class Settings(BaseSettings):
     supabase_anon_key: str = "dev-anon-key"
     supabase_api_url: str = "http://localhost:54321"  # PostgREST endpoint 给前端用
 
+    # Observability — /metrics bearer token (A2 投产门禁)
+    # 空=不校验 (dev/集群内网); 生产配随机 token, scraper 带 Authorization: Bearer <token>
+    prometheus_token: str = ""
+
     model_config = {"env_prefix": "ARC_", "env_file": ".env"}
 
 

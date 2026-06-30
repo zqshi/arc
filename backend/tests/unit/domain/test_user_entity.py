@@ -10,7 +10,8 @@ class TestUserCreation:
     def test_defaults(self) -> None:
         u = User(display_name="Alice")
         assert u.display_name == "Alice"
-        assert u.role == UserRole.ADMIN
+        # A1 投产门禁: 注册用户默认 MEMBER, 仅首用户特例/被提权才 ADMIN
+        assert u.role == UserRole.MEMBER
         assert u.is_active is True
         assert u.username is None
         assert u.phone is None

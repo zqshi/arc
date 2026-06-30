@@ -24,6 +24,7 @@ async def ensure_seed_users() -> None:
     try:
         from arc.application.auth.password import hash_password
         from arc.domain.user.entity import User
+        from arc.domain.user.value_objects import UserRole
         from arc.infrastructure.database import async_session_factory
         from arc.infrastructure.repositories.user import UserRepository
 
@@ -37,6 +38,7 @@ async def ensure_seed_users() -> None:
                     username=acct["username"],
                     hashed_password=hash_password(acct["password"]),
                     display_name=acct["display_name"],
+                    role=UserRole.ADMIN,  # dev seed 账号即管理员 (debug-only)
                 )
                 await user_repo.create(user)
                 logger.info("Seed user created: %s", acct["username"])

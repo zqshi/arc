@@ -1,11 +1,12 @@
-"""IP-based sliding window rate limiter (in-memory).
+"""IP-based sliding window rate limiter.
 
-For multi-instance deployments, replace the in-memory store with Redis.
+内存滑动窗口 (单 worker/dev) 或 Redis sorted set (多副本生产, redis_url 非空)。
+B5 投产门禁: 多副本下进程内存态限流被副本数倍绕过, redis_url 配置后切 Redis 共享计数。
 """
-
 from __future__ import annotations
 
 import time
+import uuid
 from collections import defaultdict
 
 from fastapi import Request, Response
@@ -21,12 +22,23 @@ _GC_INTERVAL = 300
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, default_limit: int = _DEFAULT_LIMIT, window: int = _DEFAULT_WINDOW):
+    def __init__(
+        self,
+        app,
+        default_limit: int = _DEFAULT_LIMIT,
+        window: int = _DEFAULT_WINDOW,
+        redis_url: str = "",
+    ):
         super().__init__(app)
         self._default_limit = default_limit
         self._window = window
         self._hits: dict[str, list[float]] = defaultdict(list)
-        self._last_gc = time.monotonic()
+        self._last_gc = time.time()
+        self._redis = None
+        if redis_url:
+            import redis.asyncio as aioredis
+
+            self._redis = aioredis.from_url(redis_url, decode_responses=True)
 
     def _get_limit(self, path: str) -> int:
         for prefix in _LLM_PATHS:
@@ -42,6 +54,26 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             del self._hits[k]
         self._last_gc = now
 
+    def _check_memory(self, key: str, now: float, limit: int) -> bool:
+        """内存滑动窗口. 返回 True=允许, False=限流。"""
+        hits = self._hits[key]
+        hits[:] = [t for t in hits if now - t < self._window]
+        if len(hits) >= limit:
+            return False
+        hits.append(now)
+        return True
+
+    async def _check_redis(self, key: str, now: float, limit: int) -> bool:
+        """Redis sorted set 滑动窗口 (多副本共享计数). 返回 True=允许, False=限流。"""
+        r = self._redis
+        await r.zremrangebyscore(key, 0, now - self._window)
+        count = await r.zcard(key)
+        if count >= limit:
+            return False
+        await r.zadd(key, {f"{now}:{uuid.uuid4().hex[:8]}": now})
+        await r.expire(key, self._window)
+        return True
+
     async def dispatch(self, request: Request, call_next) -> Response:
         if request.url.path in ("/health", "/docs", "/openapi.json"):
             return await call_next(request)
@@ -52,19 +84,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         client_ip = request.client.host if request.client else "unknown"
         key = f"{client_ip}:{request.url.path}"
-        now = time.monotonic()
+        now = time.time()
         limit = self._get_limit(request.url.path)
 
-        self._maybe_gc(now)
+        if self._redis:
+            allowed = await self._check_redis(key, now, limit)
+        else:
+            self._maybe_gc(now)
+            allowed = self._check_memory(key, now, limit)
 
-        hits = self._hits[key]
-        hits[:] = [t for t in hits if now - t < self._window]
-
-        if len(hits) >= limit:
+        if not allowed:
             return JSONResponse(
                 status_code=429,
                 content={"detail": "请求过于频繁，请稍后再试", "error_code": "RATE_LIMITED"},
             )
-
-        hits.append(now)
         return await call_next(request)

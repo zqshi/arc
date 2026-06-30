@@ -1,0 +1,22 @@
+# B7: cert-manager ClusterIssuer (Let's Encrypt) — ingress TLS 自动签发前置。
+# 部署步骤:
+#   1. helm repo add jetstack https://charts.jetstack.io
+#   2. helm install cert-manager jetstack/cert-manager --namespace cert-manager \
+#        --create-namespace --set crds.enabled=true
+#   3. 替换下方 email 为真实运维邮箱后: kubectl apply -f k8s/cert-manager-issuer.yml
+# 注: 云托管 k8s 若用厂商自带证书服务 (如 AWS ACM + ALB / 阿里云 SLB 证书), 可不用 cert-manager,
+#     改 ingress 用厂商 annotation。本 ClusterIssuer 为通用 Let's Encrypt 方案。
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@example.com  # TODO 替换为真实运维邮箱
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx

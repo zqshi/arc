@@ -15,8 +15,9 @@ from arc.application.auth.jwt import (
 from arc.application.auth.password import hash_password, verify_password
 from arc.application.auth.sms import SMSService
 from arc.application.organization.service import OrganizationService
-from arc.domain.errors import AuthenticationError, ConflictError
+from arc.domain.errors import AuthenticationError, ConflictError, ForbiddenError, NotFoundError
 from arc.domain.user.entity import User
+from arc.domain.user.value_objects import UserRole
 from arc.infrastructure.models.user import RevokedTokenModel
 from arc.infrastructure.repositories.organization import OrganizationMemberRepository
 from arc.infrastructure.repositories.user import UserRepository
@@ -32,6 +33,10 @@ class AuthService:
         self.org_svc = OrganizationService(db)
         self.org_member_repo = OrganizationMemberRepository(db)
 
+    async def _role_for_new_user(self) -> UserRole:
+        """首用户特例 (A1 投产门禁): 系统无用户时新注册者即 ADMIN, 否则 MEMBER。"""
+        return UserRole.ADMIN if await self.user_repo.is_empty() else UserRole.MEMBER
+
     async def register_with_password(
         self, username: str, password: str, display_name: str | None = None
     ) -> User:
@@ -43,6 +48,7 @@ class AuthService:
             username=username,
             hashed_password=hash_password(password),
             display_name=display_name or username,
+            role=await self._role_for_new_user(),
         )
         user = await self.user_repo.create(user)
         await self.org_svc.create_org(
@@ -59,6 +65,7 @@ class AuthService:
         user = User(
             phone=phone,
             display_name=display_name or f"用户{phone[-4:]}",
+            role=await self._role_for_new_user(),
         )
         user = await self.user_repo.create(user)
         await self.org_svc.create_org(
@@ -94,6 +101,7 @@ class AuthService:
             user = User(
                 phone=phone,
                 display_name=f"用户{phone[-4:]}",
+                role=await self._role_for_new_user(),
             )
             user = await self.user_repo.create(user)
             await self.org_svc.create_org(
@@ -137,6 +145,22 @@ class AuthService:
 
     async def get_user(self, user_id: UUID) -> User | None:
         return await self.user_repo.get_by_id(user_id)
+
+    async def change_user_role(
+        self, target_id: UUID, new_role: UserRole, actor: User
+    ) -> User:
+        """A1 投产门禁: admin 变更用户角色 + 最后 admin 保护。"""
+        if not actor.has_permission(UserRole.ADMIN):
+            raise ForbiddenError("仅管理员可变更用户角色")
+        target = await self.user_repo.get_by_id(target_id)
+        if not target:
+            raise NotFoundError("用户不存在")
+        # 最后 admin 保护: 不允许把最后一个 admin 降级为非 admin
+        if target.role == UserRole.ADMIN and new_role != UserRole.ADMIN:
+            if await self.user_repo.count_admins() <= 1:
+                raise ForbiddenError("不能降级最后一个管理员")
+        target.change_role(new_role)
+        return await self.user_repo.update(target)
 
     async def _generate_tokens(self, user: User) -> dict:
         org_id = await self.get_default_org_id(user.id)

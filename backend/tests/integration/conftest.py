@@ -58,6 +58,7 @@ async def db_session():
 @pytest.fixture
 async def client(db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
     from arc.domain.user.entity import User
+    from arc.domain.user.value_objects import UserRole
     from arc.interface.deps import get_current_user, get_db
     from arc.main import app
 
@@ -65,6 +66,7 @@ async def client(db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
         id=TEST_USER_ID,
         username="test-integration",
         display_name="Integration Test User",
+        role=UserRole.ADMIN,  # A1: 集成测试 test_user 保持 admin (默认值已改 member)
     )
 
     async def override_get_db():

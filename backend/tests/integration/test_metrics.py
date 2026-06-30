@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from httpx import AsyncClient
 
+from arc.config import settings
+
 
 def _count_sample(text: str, metric: str, **labels: str) -> float:
     """从 exposition 文本中取某 metric+label 组合的样本值 (取最后一行匹配, 多 worker 不涉及)。"""
@@ -112,3 +114,29 @@ class TestBaasMetrics:
         assert "arc_baas_provision_duration_seconds" in metrics
         assert 'result="skip"' in metrics
         assert 'reason="skip_no_aggregates"' in metrics
+
+
+class TestMetricsToken:
+    """/metrics bearer token 鉴权 (A2 投产门禁)。"""
+
+    async def test_no_token_config_allows_access(self, client: AsyncClient):
+        """prometheus_token 空 → 不校验 (向后兼容 dev/内网)。"""
+        resp = await client.get("/metrics")
+        assert resp.status_code == 200
+
+    async def test_token_configured_rejects_no_header(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "prometheus_token", "secret-token")
+        resp = await client.get("/metrics")
+        assert resp.status_code == 401
+
+    async def test_token_configured_accepts_valid_bearer(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "prometheus_token", "secret-token")
+        resp = await client.get(
+            "/metrics", headers={"Authorization": "Bearer secret-token"}
+        )
+        assert resp.status_code == 200
+
+    async def test_token_configured_rejects_wrong_token(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "prometheus_token", "secret-token")
+        resp = await client.get("/metrics", headers={"Authorization": "Bearer wrong"})
+        assert resp.status_code == 401

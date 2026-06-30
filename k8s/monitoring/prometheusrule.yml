@@ -1,0 +1,62 @@
+# B2: arc 告警规则 (PrometheusRule, 需 kube-prometheus-stack 已部署)。
+# helm install kube-prom-stack prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
+# 之后: kubectl apply -f k8s/monitoring/prometheusrule.yml
+# label prometheus 需匹配实际 kube-prometheus-stack 的 Prometheus selector (默认 kube-prometheus-stack-prometheus)。
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: arc-alerts
+  namespace: arc
+  labels:
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: arc.rules
+      rules:
+        - alert: ArcBackendDown
+          expr: up{job="arc-backend"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "arc backend 实例宕机"
+            description: "Prometheus 抓取失败超过 1 分钟"
+        - alert: ArcReadinessFailing
+          expr: probe_success{job="arc-readiness"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "arc /ready 失败 (DB/Redis/S3 依赖异常)"
+        - alert: ArcHighErrorRate
+          expr: |
+            sum(rate(arc_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(arc_http_requests_total[5m])), 1) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "arc HTTP 5xx 错误率 >10% (5min)"
+        - alert: ArcLlmProvisionFailRate
+          expr: sum(rate(arc_baas_provision_total{result="fail"}[10m])) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "BaaS provision 失败率高 (检查 Supabase 连接)"
+        - alert: ArcPodRestartLoop
+          expr: increase(kube_pod_container_status_restarts_total{container="backend"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "arc backend pod 1h 内重启 >3 次 (可能 OOM/crashloop)"
+        - alert: ArcAgentTaskSlow
+          expr: |
+            histogram_quantile(0.95, sum(rate(arc_agent_task_duration_seconds_bucket[10m])) by (le)) > 600
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Agent 任务 P95 耗时 >10min (LLM/沙箱可能慢)"

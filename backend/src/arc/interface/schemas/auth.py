@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -41,3 +43,7 @@ class UserResponse(BaseModel):
     phone: str | None
     display_name: str
     role: str = "admin"
+
+
+class UserRoleUpdateRequest(BaseModel):
+    role: Literal["admin", "member", "viewer"]
