@@ -16,11 +16,11 @@ class AgentSessionModel(TimestampMixin, Base):
         ForeignKey("todos.id", ondelete="CASCADE"), nullable=False, index=True
     )
     phase_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("pipeline_phases.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("pipeline_phases.id", ondelete="CASCADE"), nullable=False, index=True
     )
     agent_type: Mapped[str] = mapped_column(String(30), nullable=False)
     external_session_id: Mapped[str] = mapped_column(String(255), default="")
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
     task_context: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     result_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     error_reason: Mapped[str] = mapped_column(Text, default="")

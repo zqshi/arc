@@ -23,15 +23,16 @@ class Experience(TimestampMixin, Base):
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
     version_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("versions.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("versions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     source_experience_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("experiences.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
-    scope: Mapped[str] = mapped_column(String(20), default="project")
+    scope: Mapped[str] = mapped_column(String(20), default="project", index=True)
     status: Mapped[str] = mapped_column(String(20), default="draft")
     category: Mapped[str] = mapped_column(String(30), default="technical")
     source: Mapped[str] = mapped_column(String(30), default="manual")
@@ -60,6 +61,6 @@ class ExperienceFeedback(TimestampMixin, Base):
         ForeignKey("experiences.id", ondelete="CASCADE"), nullable=False
     )
     todo_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("todos.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("todos.id", ondelete="CASCADE"), nullable=False, index=True
     )
     helpful: Mapped[bool] = mapped_column(Boolean, nullable=False)

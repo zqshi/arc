@@ -16,7 +16,7 @@ class ArtifactModel(TimestampMixin, Base):
         ForeignKey("todos.id", ondelete="CASCADE"), nullable=False, index=True
     )
     phase_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("pipeline_phases.id", ondelete="CASCADE"), nullable=True
+        ForeignKey("pipeline_phases.id", ondelete="CASCADE"), nullable=True, index=True
     )
     artifact_type: Mapped[str] = mapped_column(String(30), nullable=False)
     content: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)

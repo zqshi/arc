@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +10,9 @@ from .base import Base, TimestampMixin
 
 class TodoDependency(Base):
     __tablename__ = "todo_dependencies"
+    __table_args__ = (
+        UniqueConstraint("todo_id", "depends_on_id", name="uq_todo_dependency"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     todo_id: Mapped[uuid.UUID] = mapped_column(
@@ -23,6 +26,10 @@ class TodoDependency(Base):
 
 class Todo(TimestampMixin, Base):
     __tablename__ = "todos"
+    __table_args__ = (
+        Index("ix_todos_created_at", "created_at"),
+        Index("ix_todos_github_issue", "project_id", "github_issue_number"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -36,12 +43,12 @@ class Todo(TimestampMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="pending")
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     priority: Mapped[int] = mapped_column(Integer, default=2)
     current_phase: Mapped[str | None] = mapped_column(String(20), nullable=True)
     tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     source_session_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("planning_sessions.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("planning_sessions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     source_feature_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     github_issue_number: Mapped[int | None] = mapped_column(Integer, nullable=True)

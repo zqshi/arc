@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, func
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -9,6 +9,9 @@ from .base import Base
 
 class UsageDailyModel(Base):
     __tablename__ = "usage_daily"
+    __table_args__ = (
+        Index("ix_usage_daily_org_date", "organization_id", "usage_date", unique=True),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(

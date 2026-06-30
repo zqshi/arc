@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import BigInteger, ForeignKey, String, Text
+from sqlalchemy import BigInteger, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,6 +11,9 @@ class VersionAnalysisModel(TimestampMixin, Base):
     """版本 AI 分析结果缓存。"""
 
     __tablename__ = "version_analyses"
+    __table_args__ = (
+        Index("ix_version_analyses_fingerprint", "version_id", "fingerprint"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     version_id: Mapped[uuid.UUID] = mapped_column(
@@ -25,7 +28,7 @@ class DocumentModel(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -41,16 +44,16 @@ class PlanningSessionModel(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
     version_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("versions.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("versions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     document_ids: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     constraints: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     roadmap: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True, index=True
     )
     status: Mapped[str] = mapped_column(String(20), default="draft")
 

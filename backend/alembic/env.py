@@ -33,8 +33,24 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    """排除 pgvector HNSW 向量索引。
+
+    SQLAlchemy 的 Vector 类型不把 HNSW 索引反映到 metadata, autogenerate 会
+    误报 remove_index; 该索引由 migration 显式 `CREATE INDEX ... USING hnsw`
+    建立并管理 (b5d9fa812345), 此处排除避免漂移噪声。
+    """
+    if type_ == "index" and name == "ix_experiences_embedding_hnsw":
+        return False
+    return True
+
+
 def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=include_object,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
