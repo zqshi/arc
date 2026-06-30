@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Settings as SettingsIcon, Server, Bot, Cpu, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
-import { LLMConfigSection } from '../components/project/LLMConfigSection';
+import { LLMProviderManager } from '../components/llm/LLMProviderManager';
 import { CapabilityManager } from '../components/CapabilityManager';
 import type { SystemSettings } from '../types/api';
 
@@ -10,24 +10,23 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [healthStatus, setHealthStatus] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      try {
-        const [s, h] = await Promise.all([
-          api.getSettings(),
-          fetch(`${import.meta.env.VITE_API_URL || ''}/health`).then(r => r.json()),
-        ]);
-        setSettings(s);
-        setHealthStatus(h);
-      } catch {
-        setSettings(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [s, h] = await Promise.all([
+        api.getSettings(),
+        fetch(`${import.meta.env.VITE_API_URL || ''}/health`).then(r => r.json()),
+      ]);
+      setSettings(s);
+      setHealthStatus(h);
+    } catch {
+      setSettings(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void fetchAll(); }, [fetchAll]);
 
   if (loading) {
     return <div className="flex h-full items-center justify-center text-sm text-text-muted">加载中...</div>;
@@ -74,32 +73,12 @@ export default function SettingsPage() {
 
           {/* Usage & Plan — hidden for now (single-user mode) */}
 
-          {/* LLM Configuration — Editable */}
+          {/* LLM Configuration — v6.20 多厂商凭证管理 */}
           <section className="rounded-lg border border-border bg-bg-card p-4">
             <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
               <Cpu size={13} /> LLM 配置
             </h2>
-            <LLMConfigSection
-              config={{
-                provider: settings.llm_provider,
-                model: (settings as unknown as Record<string, unknown>)[`${settings.llm_provider}_model`] as string || '',
-                base_url: (settings as unknown as Record<string, unknown>)[`${settings.llm_provider}_base_url`] as string || '',
-              }}
-              onChange={async (config) => {
-                try {
-                  const payload: Record<string, string> = {};
-                  if (config.provider) payload.llm_provider = config.provider;
-                  if (config.model) payload[`${config.provider || settings.llm_provider}_model`] = config.model;
-                  if (config.base_url) payload[`${config.provider || settings.llm_provider}_base_url`] = config.base_url;
-                  if (config.api_key) payload[`${config.provider || settings.llm_provider}_api_key`] = config.api_key;
-                  await api.updateSettings(payload);
-                  // 刷新展示
-                  const s = await api.getSettings();
-                  setSettings(s);
-                } catch { /* */ }
-              }}
-              showSaveHint
-            />
+            <LLMProviderManager onDefaultChanged={fetchAll} />
           </section>
 
           {/* Agent Config */}

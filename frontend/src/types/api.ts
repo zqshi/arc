@@ -463,6 +463,39 @@ export interface SystemSettings {
   agent_deployment: string;
 }
 
+// ─── LLM Providers (v6.20 多厂商凭证管理) ─────────────────
+
+export interface ProviderTemplate {
+  key: string;
+  label: string;
+  kind: 'openai_compatible' | 'anthropic';
+  default_base_url: string;
+  supports_list_models: boolean;
+  suggested_models: string[];
+}
+
+export interface LLMProvider {
+  id: string;
+  name: string;
+  kind: 'openai_compatible' | 'anthropic';
+  base_url: string;
+  models: string[];
+  is_default: boolean;
+  api_key_set: boolean;
+}
+
+export interface VerifyResult {
+  valid: boolean;
+  models: string[];
+  error_kind: string; // invalid_key | http_error | network | unknown | ''
+  error_message: string;
+}
+
+export interface ListModelsResult {
+  models: string[];
+  cached: boolean;
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 export const PHASE_ORDER: PhaseType[] = [
   'clarification', 'ui_design', 'architecture', 'development', 'testing', 'deployment', 'extraction',

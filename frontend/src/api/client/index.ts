@@ -8,6 +8,7 @@ import { createSystemMethods } from './system';
 import { createCapabilityMethods } from './capabilities';
 import { createOrganizationMethods } from './organizations';
 import { createTemplateMethods } from './templates';
+import { createLLMMethods } from './llm';
 
 const request = createRequestFn(API_BASE);
 
@@ -22,6 +23,7 @@ export const api = {
   ...createCapabilityMethods(request),
   ...createOrganizationMethods(request),
   ...createTemplateMethods(request),
+  ...createLLMMethods(request),
 };
 
 export { ApiError };
