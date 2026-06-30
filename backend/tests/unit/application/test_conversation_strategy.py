@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from arc.application.execution.execution_engine import _needs_user_input
+from arc.application.execution.execution_helpers import needs_user_input as _needs_user_input
 
 
 class TestNeedsUserInput:

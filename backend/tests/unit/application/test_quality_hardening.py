@@ -134,7 +134,7 @@ class TestAutopilotWallTimeout:
             return 601.0  # 超过 wall_timeout
 
         events = []
-        with patch("arc.application.execution.execution_engine.time") as mock_time:
+        with patch("arc.application.execution.autopilot.time") as mock_time:
             mock_time.monotonic = fake_monotonic
             async for event in engine.run_autopilot(conversation):
                 events.append(event)

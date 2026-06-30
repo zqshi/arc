@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from arc.application.execution.execution_engine import _map_tool_event, _needs_user_input
+from arc.application.execution.execution_engine import _map_tool_event
+from arc.application.execution.execution_helpers import needs_user_input as _needs_user_input
 
 
 class TestNeedsUserInput:
