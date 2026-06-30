@@ -9,6 +9,8 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from arc.domain.llm.entity import LLMProvider
 from arc.domain.llm.repository import LLMProviderRepository
 from arc.domain.llm.value_objects import LLMProviderKind
@@ -41,8 +43,13 @@ def _decrypt(token: str) -> str:
 class LLMProviderService:
     """LLM 厂商凭证管理 + 探活编排 (用户级隔离, user_id 由调用方传)。"""
 
-    def __init__(self, repo: LLMProviderRepository) -> None:
-        self._repo = repo
+    def __init__(self, db: AsyncSession) -> None:
+        from arc.infrastructure.repositories.llm_provider import (
+            SqlAlchemyLLMProviderRepository,
+        )
+
+        self._db = db
+        self._repo: LLMProviderRepository = SqlAlchemyLLMProviderRepository(db)
 
     # -- CRUD ---------------------------------------------------------------
 
@@ -60,11 +67,12 @@ class LLMProviderService:
             user_id=user_id, name=name, kind=kind, base_url=base_url
         )
         provider.set_api_key(api_key, _encrypt)
-        if is_default:
-            provider.mark_default()
+        # is_default 不在 create 时直接写 (会撞部分唯一索引),
+        # 先 insert is_default=False, 再 set_default 互斥切换
         created = await self._repo.create(provider)
         if is_default:
             await self._repo.set_default(created.id, user_id)
+            created.mark_default()
         return created
 
     async def list(

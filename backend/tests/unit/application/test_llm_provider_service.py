@@ -74,10 +74,17 @@ class _FakeRepo:
         return sum(1 for p in self.providers.values() if p.user_id == user_id)
 
 
+def _svc(repo):
+    """构造 service 注入 fake repo (绕过 __init__ 的 db 构造)。"""
+    svc = LLMProviderService.__new__(LLMProviderService)
+    svc._repo = repo
+    return svc
+
+
 class TestLLMProviderCRUD:
     async def test_create_encrypts_api_key(self) -> None:
         repo = _FakeRepo()
-        svc = LLMProviderService(repo)
+        svc = _svc(repo)
         with patch("arc.application.llm.service._encrypt", side_effect=lambda x: f"enc({x})"):
             p = await svc.create(
                 user_id=uuid.uuid4(),
@@ -90,7 +97,7 @@ class TestLLMProviderCRUD:
 
     async def test_create_default_sets_default(self) -> None:
         repo = _FakeRepo()
-        svc = LLMProviderService(repo)
+        svc = _svc(repo)
         with patch("arc.application.llm.service._encrypt", side_effect=lambda x: f"enc({x})"):
             p = await svc.create(
                 user_id=uuid.uuid4(),
@@ -105,7 +112,7 @@ class TestLLMProviderCRUD:
 
     async def test_update_renames(self) -> None:
         repo = _FakeRepo()
-        svc = LLMProviderService(repo)
+        svc = _svc(repo)
         with patch("arc.application.llm.service._encrypt", side_effect=lambda x: f"enc({x})"):
             p = await svc.create(
                 user_id=uuid.uuid4(), name="old", kind=LLMProviderKind.OPENAI_COMPATIBLE,
@@ -116,13 +123,13 @@ class TestLLMProviderCRUD:
 
     async def test_update_not_found_raises(self) -> None:
         repo = _FakeRepo()
-        svc = LLMProviderService(repo)
+        svc = _svc(repo)
         with pytest.raises(ValueError, match="not found"):
             await svc.update(uuid.uuid4(), uuid.uuid4(), name="x")
 
     async def test_delete(self) -> None:
         repo = _FakeRepo()
-        svc = LLMProviderService(repo)
+        svc = _svc(repo)
         with patch("arc.application.llm.service._encrypt", side_effect=lambda x: f"enc({x})"):
             p = await svc.create(
                 user_id=uuid.uuid4(), name="x", kind=LLMProviderKind.OPENAI_COMPATIBLE,
@@ -134,7 +141,7 @@ class TestLLMProviderCRUD:
 
 class TestVerifyCredentials:
     async def test_empty_key_returns_invalid(self) -> None:
-        svc = LLMProviderService(_FakeRepo())
+        svc = _svc(_FakeRepo())
         result = await svc.verify_credentials(
             kind=LLMProviderKind.OPENAI_COMPATIBLE, base_url="", api_key=""
         )
@@ -142,7 +149,7 @@ class TestVerifyCredentials:
         assert result.error_kind == "invalid_key"
 
     async def test_openai_success_returns_models(self) -> None:
-        svc = LLMProviderService(_FakeRepo())
+        svc = _svc(_FakeRepo())
         mock_adapter = MagicMock()
         mock_adapter.list_models = AsyncMock(return_value=["gpt-4o", "gpt-4o-mini"])
         mock_adapter.close = AsyncMock()
@@ -157,7 +164,7 @@ class TestVerifyCredentials:
         mock_adapter.close.assert_awaited()
 
     async def test_anthropic_success_verifies_then_static(self) -> None:
-        svc = LLMProviderService(_FakeRepo())
+        svc = _svc(_FakeRepo())
         mock_adapter = MagicMock()
         mock_adapter.verify = AsyncMock()
         mock_adapter.list_models = AsyncMock(
@@ -175,7 +182,7 @@ class TestVerifyCredentials:
         assert "claude-sonnet-4-6" in result.models
 
     async def test_invalid_key_classified(self) -> None:
-        svc = LLMProviderService(_FakeRepo())
+        svc = _svc(_FakeRepo())
         mock_adapter = MagicMock()
         exc = RuntimeError("Unauthorized")
         exc.status_code = 401  # type: ignore[attr-defined]
@@ -189,7 +196,7 @@ class TestVerifyCredentials:
         assert result.error_kind == "invalid_key"
 
     async def test_network_error_classified(self) -> None:
-        svc = LLMProviderService(_FakeRepo())
+        svc = _svc(_FakeRepo())
         mock_adapter = MagicMock()
         mock_adapter.list_models = AsyncMock(
             side_effect=ConnectionError("connect refused")
@@ -204,7 +211,7 @@ class TestVerifyCredentials:
 
     async def test_close_called_on_failure(self) -> None:
         """探活失败也必须 close adapter (资源释放)。"""
-        svc = LLMProviderService(_FakeRepo())
+        svc = _svc(_FakeRepo())
         mock_adapter = MagicMock()
         mock_adapter.list_models = AsyncMock(side_effect=RuntimeError("500"))
         mock_adapter.close = AsyncMock()
@@ -218,7 +225,7 @@ class TestVerifyCredentials:
 class TestListModelsCache:
     async def test_returns_cached_models_without_fetch(self) -> None:
         repo = _FakeRepo()
-        svc = LLMProviderService(repo)
+        svc = _svc(repo)
         uid = uuid.uuid4()
         with patch("arc.application.llm.service._encrypt", side_effect=lambda x: f"enc({x})"):
             p = await svc.create(
@@ -233,7 +240,7 @@ class TestListModelsCache:
 
     async def test_refresh_fetches_and_persists(self) -> None:
         repo = _FakeRepo()
-        svc = LLMProviderService(repo)
+        svc = _svc(repo)
         uid = uuid.uuid4()
         with patch("arc.application.llm.service._encrypt", side_effect=lambda x: f"enc({x})"), \
              patch("arc.application.llm.service._decrypt", side_effect=lambda x: x.removeprefix("enc(")):
@@ -252,14 +259,14 @@ class TestListModelsCache:
         assert updated.models == ["gpt-4o", "gpt-4o-mini"]
 
     async def test_not_found_raises(self) -> None:
-        svc = LLMProviderService(_FakeRepo())
+        svc = _svc(_FakeRepo())
         with pytest.raises(ValueError, match="not found"):
             await svc.list_models(uuid.uuid4(), uuid.uuid4())
 
     async def test_no_api_key_returns_existing_cache(self) -> None:
         """provider 无 api_key → 返已有缓存 (不抛, graceful)。"""
         repo = _FakeRepo()
-        svc = LLMProviderService(repo)
+        svc = _svc(repo)
         uid = uuid.uuid4()
         with patch("arc.application.llm.service._encrypt", side_effect=lambda x: f"enc({x})"):
             p = await svc.create(
