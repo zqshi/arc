@@ -26,6 +26,7 @@ dependencies = [
     "redis>=5.0.0",  # v6.7: 跨进程事件总线 (多 worker), redis.asyncio pub/sub
     "opensandbox>=0.1.0",  # v6.7: 云沙箱后端 (sandbox_default_mode=open_sandbox)
     "pyyaml>=6.0",  # v6.17: SKILL.md frontmatter 解析 (skill_loader, alembic 带入但显式声明避免 transitive)
+    "prometheus_client>=0.20.0",  # v6.19: /metrics 指标端点 (QPS/错误率/延迟/Agent 任务耗时)
 ]
 
 [project.optional-dependencies]

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from arc.config import settings
 from arc.domain.errors import AppError, DomainError
@@ -159,11 +159,14 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+from arc.interface.middleware.metrics import MetricsMiddleware  # noqa: E402
 from arc.interface.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
 from arc.interface.middleware.request_id import RequestIdMiddleware  # noqa: E402
 
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestIdMiddleware)
+# Metrics 最后挂 = 最外层 (Starlette 栈式: 后 add 先执行), 采到全部请求含限流拒绝/异常
+app.add_middleware(MetricsMiddleware)
 
 
 @app.exception_handler(AppError)
@@ -292,6 +295,14 @@ async def ready():
 
     status_code = 200 if checks["status"] == "ready" else 503
     return JSONResponse(content=checks, status_code=status_code)
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus exposition 端点 — 不挂 auth (scraper 无登录态, k8s 用 NetworkPolicy 限访问)。"""
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 def register_routes():

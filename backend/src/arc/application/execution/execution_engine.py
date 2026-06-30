@@ -220,6 +220,12 @@ class ExecutionEngine:
         checkpoint_mgr = CheckpointManager(self._db)
         start = time.monotonic()
 
+        def _observe_task(outcome: str) -> None:
+            """autopilot 任务结束埋点 (各正常退出分支调用; 异常路径由调用方 log, 不在此记)。"""
+            from arc.application.execution.metrics import AGENT_TASK_DURATION
+
+            AGENT_TASK_DURATION.labels(outcome=outcome).observe(time.monotonic() - start)
+
         # --- 断点恢复：检测是否有未完成的 checkpoint ---
         start_round = 0
         try:
@@ -264,6 +270,7 @@ class ExecutionEngine:
                     "autopilot.wall_timeout conversation=%s elapsed=%.0fs",
                     conversation.id, elapsed,
                 )
+                _observe_task("timeout")
                 yield {
                     "event": "autopilot_paused",
                     "reason": "wall_timeout",
@@ -294,6 +301,7 @@ class ExecutionEngine:
             # 质量达标完成 (非虚假完成——杜绝从劣质产出提炼经验)
             if tracker and tracker.is_quality_complete(qualified):
                 await _extract_experience(self._db, conversation.todo_id, self._prompt_builder)
+                _observe_task("complete")
                 yield {
                     "event": "autopilot_complete",
                     "reason": "all_deliverables_quality_qualified",
@@ -302,6 +310,7 @@ class ExecutionEngine:
 
             last_msg = conversation.messages[-1] if conversation.messages else None
             if last_msg and _needs_user_input(last_msg.content):
+                _observe_task("paused")
                 yield {"event": "autopilot_paused", "reason": "needs_user_input"}
                 return
 
@@ -314,6 +323,7 @@ class ExecutionEngine:
                     last_stuck = stuck["type"]
                     stuck_rounds = 1
                 if stuck_rounds > max_gate_retries:
+                    _observe_task("paused")
                     yield {
                         "event": "autopilot_paused",
                         "reason": "gate_stuck",
@@ -338,6 +348,7 @@ class ExecutionEngine:
             )
             await self._conv_repo.add_message(conversation.id, advance_msg)
 
+        _observe_task("paused")
         yield {"event": "autopilot_paused", "reason": "max_rounds_reached"}
 
     # ------------------------------------------------------------------
