@@ -38,6 +38,8 @@ class ProjectUpdate(BaseModel):
     process_config: dict | None = None
     pipeline_config: dict | None = None
     conversation_config: dict | None = None
+    # v6.20 L5: 项目级 LLM 凭证指针 (str(uuid) | None 取消覆盖)
+    llm_provider_id: str | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -60,6 +62,7 @@ class ProjectResponse(BaseModel):
     process_config: dict | None = None
     pipeline_config: dict | None = None
     conversation_config: dict | None = None
+    llm_provider_id: str | None = None  # v6.20 L5: 项目级 LLM 凭证指针
     github_connected: bool = False
     github_repo: str | None = None
     created_at: str

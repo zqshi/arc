@@ -28,6 +28,7 @@ def _project_resp(p: Project) -> ProjectResponse:
         process_config=p.process_config.to_dict() if p.process_config else None,
         pipeline_config=p.pipeline_config,
         conversation_config=p.conversation_config,
+        llm_provider_id=str(p.llm_provider_id) if p.llm_provider_id else None,
         github_connected=gh_connected,
         github_repo=gh_repo,
         created_at=p.created_at.isoformat(),

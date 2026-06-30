@@ -186,3 +186,42 @@ class TestLLMProviderPagination:
         assert r.status_code == 200
         data = r.json()
         assert len(data) == 1
+
+
+class TestProjectLLMProviderLink:
+    """v6.20 L5: 项目级 LLM 凭证指针 (替代明文 conversation_config llm)。"""
+
+    async def test_project_set_and_read_llm_provider(self, client) -> None:
+        # 1. 建 LLM 凭证
+        r = await client.post(
+            "/api/llm/providers",
+            json={
+                "name": "openai", "kind": "openai_compatible",
+                "base_url": "https://api.openai.com/v1", "api_key": "sk-test",
+            },
+        )
+        provider_id = r.json()["id"]
+
+        # 2. 建项目 (201 Created)
+        r = await client.post(
+            "/api/projects",
+            json={"name": "llm-link-test", "project_type": "static_site"},
+        )
+        assert r.status_code == 201, r.text
+        project_id = r.json()["id"]
+
+        # 3. 设项目级 LLM 凭证指针
+        r = await client.patch(
+            f"/api/projects/{project_id}",
+            json={"llm_provider_id": provider_id},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["llm_provider_id"] == provider_id
+
+        # 4. 取消覆盖 (None)
+        r = await client.patch(
+            f"/api/projects/{project_id}",
+            json={"llm_provider_id": None},
+        )
+        assert r.status_code == 200
+        assert r.json()["llm_provider_id"] is None

@@ -268,6 +268,10 @@ class ProjectWorkspaceService:
         if "conversation_config" in updates and updates["conversation_config"]:
             project.update_conversation_config(updates.pop("conversation_config"))
 
+        # v6.20 L5: 项目级 LLM 凭证指针 (None = 取消覆盖, 用全局默认)
+        if "llm_provider_id" in updates:
+            project.llm_provider_id = updates.pop("llm_provider_id") or None
+
         for key, val in updates.items():
             if val is not None:
                 setattr(project, key, val)
