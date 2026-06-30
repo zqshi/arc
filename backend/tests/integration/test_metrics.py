@@ -91,6 +91,15 @@ class TestAgentTaskMetrics:
         assert "arc_agent_task_duration_seconds" in metrics
         assert "outcome=\"paused\"" in metrics
 
+
+class TestBaasMetrics:
+    """BaaS provision 运维指标埋点 (续9) — result=success|skip|fail + reason。
+
+    真实 provision 链路 blocked 于 LLM 凭证 (走对话产出 tech_architecture 才触发 hook),
+    这里验证指标定义存在 + BAAS_PROVISION_TOTAL 可被 inc + 出现在 /metrics。
+    真实失败率/skip 分布待生产端到端累积。
+    """
+
     async def test_baas_metrics_exposed(self, client: AsyncClient):
         """/metrics 暴露 arc_baas_provision_total + arc_baas_provision_duration_seconds (续9)。"""
         from arc.application.baas.metrics import BAAS_PROVISION_TOTAL
