@@ -7,6 +7,7 @@ from .capability import CapabilityModel
 from .conversation import Conversation, Message
 from .deployment import DeploymentModel
 from .experience import Experience
+from .llm_provider import LLMProviderModel
 from .organization import OrganizationMemberModel, OrganizationModel
 from .pipeline import PipelinePhaseModel
 from .planning import DeliverableTrackerModel, DocumentModel, PlanningSessionModel
@@ -30,6 +31,7 @@ __all__ = [
     "DeliverableTrackerModel",
     "DocumentModel",
     "Experience",
+    "LLMProviderModel",
     "OrganizationMemberModel",
     "OrganizationModel",
     "PipelinePhaseModel",
