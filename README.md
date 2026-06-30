@@ -245,11 +245,23 @@ DEBUG 模式自动创建种子账号：demo/demo123、test/test123
 ```bash
 # 安全（必须）
 ARC_JWT_SECRET=<openssl rand -hex 32>   # 未设置拒绝启动
+ARC_SIGNING_SECRET_KEY=<Fernet key>      # 签名凭证加密密钥, 空=dev 降级明文 (生产必配)
 ARC_DEBUG=false
 ARC_CORS_ORIGINS=https://your-domain
+ARC_PROMETHEUS_TOKEN=<openssl rand -hex 32>  # /metrics bearer 鉴权, 空=不校验 (指标裸暴露, 生产必配)
 
 # 数据库（必须）
 ARC_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/arc
+
+# Redis（多副本/多 worker 必须）
+ARC_REDIS_URL=redis://redis:6379/0  # 跨进程事件总线 + 限流共享计数; 空=单 worker 内存态 (多副本限流被副本数倍绕过)
+
+# 对象存储（生产建议, 否则预览静态文件写本地需挂可写卷）
+ARC_STORAGE_ENDPOINT=https://s3.example.com
+ARC_STORAGE_ACCESS_KEY=...
+ARC_STORAGE_SECRET_KEY=...
+ARC_STORAGE_BUCKET=arc-previews
+ARC_STORAGE_PUBLIC_URL=https://cdn.example.com
 
 # AI（至少配一个）
 ARC_ANTHROPIC_API_KEY=sk-ant-...
@@ -258,9 +270,14 @@ ARC_DEEPSEEK_API_KEY=sk-...
 
 # 短信（生产不要用 mock）
 ARC_SMS_MOCK_MODE=false
+
+# CI 构建编排（可选, 仅 Windows/iOS/鸿蒙原生客户端构建需要）
+ARC_GHA_TOKEN=<actions:write 权限的 PAT>
+ARC_GHA_OWNER=<owner>
+ARC_GHA_REPO=<repo>
 ```
 
-完整变量说明见 [.env.example](.env.example)（与 `backend/src/arc/config.py` 一一对应）。
+完整变量说明见 [.env.example](.env.example)（与 `backend/src/arc/config.py` 一一对应）。投产部署完整流程（备份/告警/Secret/Redis 云托管接入）见 [部署 Runbook](./docs/deploy-runbook.md)。
 
 ## Kubernetes 部署
 
@@ -351,6 +368,7 @@ arc/
 - 变更日志：[CHANGELOG.md](./CHANGELOG.md)
 - 贡献规范：[CONTRIBUTING.md](./CONTRIBUTING.md)
 - 环境变量：[.env.example](./.env.example)
+- 部署 Runbook：[docs/deploy-runbook.md](./docs/deploy-runbook.md)
 - API 文档：启动后访问 http://localhost:8000/docs
 
 ## 版本历程
