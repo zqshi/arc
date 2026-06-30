@@ -21,8 +21,22 @@ from arc.infrastructure.baas.supabase_client import SupabaseClient
 
 
 async def _cleanup_schema(db_session, schema_name: str) -> None:
-    """测试后清理: DROP SCHEMA + 删 baas_instances 记录。"""
-    await db_session.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
+    """测试后清理: DROP SCHEMA + 删 baas_instances 记录。
+
+    DROP SCHEMA 必须走 asyncpg (SupabaseClient) 而非 SQLAlchemy db_session ——
+    conftest savepoint 模式 (join_transaction_mode=create_savepoint) 下 db_session.commit()
+    退化为 release savepoint, 外层 teardown trans.rollback() 会撤销 DROP; 而 provision
+    建的 schema 是 asyncpg autocommit 持久化 (CREATE SCHEMA 经 SupabaseClient 真提交)。
+    走 asyncpg DROP 与 provision 对称, 才能真实删除避免 orphan schema 泄漏 (续9 修)。
+    """
+    client = SupabaseClient()
+    try:
+        await client.execute(
+            f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE', schema=None
+        )
+    finally:
+        await client.close()
+    # baas_instances 记录走 db_session (外层 rollback 会撤销, 此处兜底)
     await db_session.execute(
         text("DELETE FROM baas_instances WHERE schema_name = :name"),
         {"name": schema_name},
