@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     jwt_refresh_expire_days: int = 7
     sms_mock_mode: bool = False
 
-    # LLM
+    # LLM (v6.20: 多厂商凭证管理走 DB llm_providers 表, 见 /api/llm;
+    #       下列 env 字段降级为全局默认 fallback / seed 兜底, 向后兼容现有 env 部署)
     llm_provider: str = "openai"  # openai | anthropic | deepseek
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
