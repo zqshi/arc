@@ -116,3 +116,24 @@ class LLMAdapter(ABC):
     @abstractmethod
     async def close(self) -> None:
         """Release underlying HTTP resources."""
+
+    async def list_models(self) -> list[str]:
+        """拉取该 provider 可用模型清单 (v6.20 L3, verify/list_models 用)。
+
+        OpenAI 兼容走 client.models.list() (免费不计费, 顺带验 key);
+        Anthropic 官方无 list API, 子类返静态建议 (诚实降级, 不探活)。
+        子类须 override, 默认 raise NotImplementedError。
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support list_models"
+        )
+
+    async def verify(self) -> None:
+        """探活凭证有效性 (v6.20 L3, 成功不抛, 失败抛异常由 service 捕获分类)。
+
+        OpenAI 兼容走 models.list(); Anthropic 走 1-token messages.create。
+        子类须 override, 默认 raise NotImplementedError。
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support verify"
+        )

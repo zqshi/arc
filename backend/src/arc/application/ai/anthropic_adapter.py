@@ -227,6 +227,32 @@ class AnthropicAdapter(LLMAdapter):
 
     # -- lifecycle ------------------------------------------------------------
 
+    # -- list_models / verify (v6.20 L3) -------------------------------------
+
+    async def list_models(self) -> list[str]:
+        """Anthropic 官方无 list models API, 返回静态建议清单 (诚实降级, 不探活)。
+
+        与 domain PROVIDER_TEMPLATES anthropic.suggested_models 保持一致 (协议知识,
+        解耦不 import domain, 手动同步)。
+        """
+        return [
+            "claude-sonnet-4-6",
+            "claude-opus-4-8",
+            "claude-haiku-4-5-20251001",
+        ]
+
+    async def verify(self) -> None:
+        """探活: 1-token messages.create (验 key + base_url, model 用 self._model)。"""
+        try:
+            await self._client.messages.create(
+                model=self._model,
+                max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+        except Exception as exc:
+            logger.error("Anthropic verify failed: %s", exc)
+            raise
+
     async def close(self) -> None:
         await self._client.close()
         if self._embed_client:

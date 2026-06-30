@@ -178,5 +178,20 @@ class OpenAIAdapter(LLMAdapter):
 
     # -- lifecycle ------------------------------------------------------------
 
+    # -- list_models / verify (v6.20 L3) -------------------------------------
+
+    async def list_models(self) -> list[str]:
+        """拉取可用模型清单 (client.models.list(), 免费不计费, 顺带验 key)。"""
+        try:
+            resp = await self._client.models.list()
+        except Exception as exc:
+            logger.error("OpenAI list_models failed: %s", exc)
+            raise
+        return [m.id for m in resp.data]
+
+    async def verify(self) -> None:
+        """探活: models.list() 成功即凭证有效。"""
+        await self._client.models.list()
+
     async def close(self) -> None:
         await self._client.close()
