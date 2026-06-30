@@ -90,3 +90,16 @@ class TestAgentTaskMetrics:
         metrics = (await client.get("/metrics")).text
         assert "arc_agent_task_duration_seconds" in metrics
         assert "outcome=\"paused\"" in metrics
+
+    async def test_baas_metrics_exposed(self, client: AsyncClient):
+        """/metrics 暴露 arc_baas_provision_total + arc_baas_provision_duration_seconds (续9)。"""
+        from arc.application.baas.metrics import BAAS_PROVISION_TOTAL
+
+        # inc 一次确保 Counter 有数据点 (skip_no_aggregates 是高频正常路径)
+        BAAS_PROVISION_TOTAL.labels(result="skip", reason="skip_no_aggregates").inc()
+
+        metrics = (await client.get("/metrics")).text
+        assert "arc_baas_provision_total" in metrics
+        assert "arc_baas_provision_duration_seconds" in metrics
+        assert 'result="skip"' in metrics
+        assert 'reason="skip_no_aggregates"' in metrics

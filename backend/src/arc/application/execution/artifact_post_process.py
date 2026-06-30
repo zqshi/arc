@@ -55,7 +55,21 @@ class ArtifactPostProcessHooks:
 
         把项目 domain_model 转 BaasSchema 落地到 Supabase, 让生成的应用有真实后端。
         失败仅 warning 不阻断 (与 review hook 一致)。
+        v6.19 续9: 全路径接入 metrics (result=success|skip|fail + reason) + duration。
         """
+        import time
+
+        from arc.application.baas.metrics import (
+            BAAS_PROVISION_DURATION,
+            BAAS_PROVISION_TOTAL,
+        )
+
+        start = time.monotonic()
+
+        def _record(result: str, reason: str) -> None:
+            BAAS_PROVISION_TOTAL.labels(result=result, reason=reason).inc()
+            BAAS_PROVISION_DURATION.observe(time.monotonic() - start)
+
         from arc.application.baas.domain_model_applier import DomainModelApplier
         from arc.application.baas.service import BaasService
         from arc.infrastructure.repositories.project import ProjectRepository
@@ -65,11 +79,13 @@ class ArtifactPostProcessHooks:
             todo_repo = TodoRepository(self.db)
             todo = await todo_repo.get_by_id(todo_id)
             if not todo or not todo.project_id:
+                _record("skip", "skip_no_project")
                 return
 
             project_repo = ProjectRepository(self.db)
             project = await project_repo.get_by_id(todo.project_id)
             if not project or not project.domain_model:
+                _record("skip", "skip_no_domain_model")
                 return
 
             dm = project.domain_model
@@ -78,6 +94,7 @@ class ArtifactPostProcessHooks:
                 logger.info(
                     "BaaS provision skipped: todo %s 模型无聚合", todo_id
                 )
+                _record("skip", "skip_no_aggregates")
                 return
 
             # 构造当前 snapshot (复用 DomainModelApplier 的转换逻辑)
@@ -98,15 +115,27 @@ class ArtifactPostProcessHooks:
 
             baas_service = BaasService(self.db)
             applier = DomainModelApplier(baas_service)
-            await applier.apply_snapshot(
-                project_id=project.id,
-                snapshot=snapshot,
-                supabase_url="",  # dev 默认 (同库隔离)
-            )
+            try:
+                await applier.apply_snapshot(
+                    project_id=project.id,
+                    snapshot=snapshot,
+                    supabase_url="",  # dev 默认 (同库隔离)
+                )
+            except Exception as e:
+                # 区分 provision 失败 vs apply_model 失败 (DDL 执行阶段)
+                from arc.domain.baas.errors import ProvisionError, SchemaApplyError
+                if isinstance(e, SchemaApplyError):
+                    _record("fail", "fail_apply")
+                elif isinstance(e, ProvisionError):
+                    _record("fail", "fail_provision")
+                else:
+                    _record("fail", "fail_other")
+                raise
             logger.info(
                 "BaaS provision triggered for project %s (model v%s)",
                 project.id, snapshot.version,
             )
+            _record("success", "success")
         except Exception:
             logger.warning(
                 "BaaS provision after extract failed for todo %s", todo_id, exc_info=True
