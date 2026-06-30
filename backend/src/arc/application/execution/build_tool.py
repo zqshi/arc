@@ -23,7 +23,7 @@ import tarfile
 from pathlib import Path
 from uuid import UUID
 
-from arc.application.execution.tools import ToolDefinition
+from arc.application.execution.tool_definitions import ToolDefinition
 from arc.domain.sandbox.execution_backend import (
     BuildExecutionBackend,
     target_execution_backend,

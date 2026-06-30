@@ -6,7 +6,9 @@ read files, list directories, search code, execute commands, and write files.
 All file operations are sandboxed to the project's local_path.
 
 文件操作 handler 的具体实现已拆分到 tool_fileops.py (沙箱化读写/搜索/执行, v6.11 T4);
-本文件保留 tool 值对象 (ToolDefinition / ToolCall / ToolResult) 与 ToolRegistry 注册中心。
+tool 值对象 (ToolDefinition / ToolCall / ToolResult) 已抽到 tool_definitions.py
+(v6.19 质检 P1: 打破 build_tool ↔ tools 循环依赖, build_tool 不再依赖 tools);
+本文件 re-export 保持 `from arc.application.execution.tools import ToolDefinition` 等原路径可达。
 _run_command / _write_file 等 handler 经 re-export 保持原路径可达
 (execution_engine 直接 `from arc.application.execution.tools import _run_command, _write_file`)。
 """
@@ -14,10 +16,13 @@ _run_command / _write_file 等 handler 经 re-export 保持原路径可达
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable
 
+from arc.application.execution.tool_definitions import (
+    ToolCall,
+    ToolDefinition,
+    ToolResult,
+)
 from arc.application.execution.tool_fileops import (
     _grep_search,
     _list_directory,
@@ -28,37 +33,7 @@ from arc.application.execution.tool_fileops import (
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Core types
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class ToolDefinition:
-    """A tool the AI can invoke during conversation."""
-
-    name: str
-    description: str
-    input_schema: dict[str, Any]
-    handler: Callable[[dict], Awaitable[str]]
-
-
-@dataclass
-class ToolCall:
-    """A tool invocation from the LLM."""
-
-    id: str
-    name: str
-    input: dict[str, Any]
-
-
-@dataclass
-class ToolResult:
-    """Result of executing a tool."""
-
-    tool_use_id: str
-    content: str
-    is_error: bool = False
+# Tool 值对象 (ToolDefinition / ToolCall / ToolResult) 定义见 tool_definitions.py。
 
 
 # ---------------------------------------------------------------------------

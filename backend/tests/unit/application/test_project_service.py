@@ -233,3 +233,58 @@ class TestNextVersionName:
         ]
         result = _next_version_name(versions, "major")
         assert result == "v3.0"
+
+
+class TestComputeAnalysisStatus:
+    """compute_analysis_status: fingerprint 比对判定分析状态
+    (v6.19 质检 P1, 从 routes/project/versions.py 下沉)。"""
+
+    async def test_no_analysis_has_false(self) -> None:
+        """版本无 analysis 记录 → has=False, stale=False。"""
+        svc = _make_service()
+        version = Version(project_id=uuid.uuid4(), name="v1.0")
+
+        fp_result = MagicMock()
+        fp_result.all.return_value = []  # 无 analysis 记录
+        svc.db.execute = AsyncMock(return_value=fp_result)
+
+        result = await svc.compute_analysis_status([version])
+
+        assert result[version.id] == {"has": False, "stale": False}
+
+    async def test_stale_when_fingerprint_mismatch(self) -> None:
+        """有 analysis 但 todo 变更致 fingerprint 不匹配 → stale=True。"""
+        svc = _make_service()
+        version = Version(project_id=uuid.uuid4(), name="v1.0")
+
+        fp_result = MagicMock()
+        fp_result.all.return_value = [(version.id, "oldfingerprint12345")]  # 旧 fp
+        todo_result = MagicMock()
+        todo_result.all.return_value = [(uuid.uuid4(), "done")]  # 当前 todo (重算 fp 必不同)
+        svc.db.execute = AsyncMock(side_effect=[fp_result, todo_result])
+
+        result = await svc.compute_analysis_status([version])
+
+        assert result[version.id] == {"has": True, "stale": True}
+
+    async def test_fresh_when_fingerprint_matches(self) -> None:
+        """有 analysis 且 todo 未变 (fingerprint 匹配) → stale=False。"""
+        import hashlib
+
+        svc = _make_service()
+        version = Version(project_id=uuid.uuid4(), name="v1.0")
+
+        todo_id = uuid.uuid4()
+        # 预算当前 todo 的 fingerprint (与 service 内重算逻辑一致)
+        parts = sorted([f"{todo_id}:done"])
+        expected_fp = hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+
+        fp_result = MagicMock()
+        fp_result.all.return_value = [(version.id, expected_fp)]
+        todo_result = MagicMock()
+        todo_result.all.return_value = [(todo_id, "done")]
+        svc.db.execute = AsyncMock(side_effect=[fp_result, todo_result])
+
+        result = await svc.compute_analysis_status([version])
+
+        assert result[version.id] == {"has": True, "stale": False}
