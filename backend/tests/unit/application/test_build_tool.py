@@ -5,7 +5,6 @@ dispatch_build 调用 + 后台 task 启动 + 返回"已派发"。docker target �
 """
 from __future__ import annotations
 
-import asyncio
 import io
 import tarfile
 import uuid
