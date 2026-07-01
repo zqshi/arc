@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.24 辅助模块 LLM 接 DB 收口 (G1 B/C), 见 v6.24.0-current.md。_
+_v6.24 方向待定。G1 B/C (辅助模块 LLM 接 DB 收尾) 评估后撤回 backlog (env 凭证可用时无症状, 不值得单独立版), 见 v6.24.0-current.md。_
 
 ## [6.23.0] - 2026-07-01 — 投产检测后清单收口 (debt cleanup)
 

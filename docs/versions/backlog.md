@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-07-01 (v6.23 已归档: 投产检测后清单收口 C1/G1A/D1A/D2/D3/F1, 见 v6.23.0-snapshot.md; v6.24 已激活: 辅助模块 LLM 接 DB 收口 G1 B/C)
+> 最后更新: 2026-07-01 (v6.23 已归档: 投产检测后清单收口 C1/G1A/D1A/D2/D3/F1, 见 v6.23.0-snapshot.md; v6.24 已激活, **方向待定** — G1 B/C 评估后撤回 backlog, 不值得单独占版)
 
 ---
 
@@ -19,6 +19,7 @@
 | 工作项 | 优先级 | 来源 | 状态 |
 |--------|--------|------|------|
 | 架构升级候选: ToolPlan 工具治理契约 / 运行起手快照 (对照 ClawMate) | P3 待触发 | [arc-architecture-upgrade-proposal.md](../arc-architecture-upgrade-proposal.md) | ⏳ 暂不落地 (2026-07-01 沉淀方案)。触发条件: 接入 3+ 外部工具 / experience 需复现 / 工具误用事故 / 多租户立项。核心: 把 charter/gate 治理延伸到工具层 |
+| G1-B/C: template services + gate/validator LLM 接 DB 凭证 | P3 待触发 | v6.23 G1 A 收尾 (撤回 v6.24) | ⏳ 评估后暂不做 (2026-07-01): env 凭证可用时无症状, 仅 env 未启用才失败 (同 v6.22 T7 bug 类), 属收尾一致性非修 bug, 不值得单独立版。触发条件: ① 多用户/计费隔离; ② 用户报 template/gate 调用失败; ③ 产品承诺设置页凭证对所有调用生效。B 类 template services 需穿 db (apply/extraction per-project, matching 全局); C 类 gate/validator 注入 adapter (v6.23 已决策) |
 | domain/organization 模块缺少测试 | P2 | v2.2.0 质量检测 6.6 | ✅ 2026-06-29 核实: test_organization_service / test_organization_entity / test_organization_value_objects 均已存在 |
 | application 层部分 service 缺少测试 (auth/artifact/agent_loop) | P2 | v2.2.0 质量检测 6.6 | ⚠️ 2026-06-29 核实过时: test_auth_service / test_artifact_service(+extractor/deployer/binary/gate 5 文件) / test_agent_loop 均已存在 (tests/unit/application 共 111 文件)。原"缺测试"描述不准; 改为评估覆盖度 |
 | 前端测试体系建立 | P3 | v2.2.0 质量检测 6.6 | ✅ 2026-06-29 核实: frontend/src 共 17 个 .test.tsx/.ts (vitest 91 passed), 覆盖组件/hook/api client |
