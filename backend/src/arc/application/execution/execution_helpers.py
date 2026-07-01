@@ -127,8 +127,12 @@ async def trigger_pre_llm_hooks(
 
 
 async def build_loop_config(db, todo_id: uuid.UUID):
-    """构建 text-only AgentLoop 配置 (从项目 conversation_config 读取)。"""
-    from arc.application.execution.agent_loop import LoopConfig
+    """构建 text-only AgentLoop 配置 (从项目 conversation_config 读取)。
+
+    v6.23 D2: 走 Project.loop_config() 类型化访问器, 替代裸 dict 读
+    (原 loop_cfg.get('token_budget', 120000) 等 3 处字符串键裸读 + 默认值重复)。
+    """
+    from arc.domain.project.value_objects import LoopConfig
     from arc.infrastructure.repositories.project import ProjectRepository
     from arc.infrastructure.repositories.todo import TodoRepository
 
@@ -141,12 +145,7 @@ async def build_loop_config(db, todo_id: uuid.UUID):
     if not project or not project.conversation_config:
         return LoopConfig()
 
-    loop_cfg = project.conversation_config.get("loop_config", {})
-    return LoopConfig(
-        token_budget=loop_cfg.get("token_budget", 120000),
-        wall_timeout_seconds=loop_cfg.get("wall_timeout_seconds", 300.0),
-        max_tokens_per_call=loop_cfg.get("max_tokens_per_call", 16384),
-    )
+    return project.loop_config()
 
 
 async def extract_experience(db, todo_id: uuid.UUID, prompt_builder) -> None:

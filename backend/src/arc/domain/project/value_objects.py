@@ -175,6 +175,71 @@ DEFAULT_CONVERSATION_CONFIG: dict = {
 }
 
 
+@dataclass(frozen=True)
+class GitSyncConfig:
+    """git_sync 子结构值对象 (v6.23 D2)。
+
+    conversation_config['git_sync'] 的类型化读视图, 替代 session_manager 中
+    `cfg.get('auto_commit', False)` 式裸读 (拼写错误静默降级风险)。
+    默认值单一源: from_dict 通过 GitSyncConfig() 实例取默认, 与
+    DEFAULT_CONVERSATION_CONFIG['git_sync'] 由 drift guard 测试对齐。
+    """
+
+    auto_commit: bool = False
+    auto_push: bool = False
+    commit_prefix: str = "feat"
+    target_branch: str = ""
+
+    @staticmethod
+    def from_dict(data: dict | None) -> "GitSyncConfig":
+        """从 conversation_config['git_sync'] 子 dict 解析; None/空 → 全默认。
+
+        多余键忽略 (同 ProcessConfig.from_dict 范式), 防旧数据/脏键报错。
+        """
+        if not data:
+            return GitSyncConfig()
+        defaults = GitSyncConfig()
+        return GitSyncConfig(
+            auto_commit=data.get("auto_commit", defaults.auto_commit),
+            auto_push=data.get("auto_push", defaults.auto_push),
+            commit_prefix=data.get("commit_prefix", defaults.commit_prefix),
+            target_branch=data.get("target_branch", defaults.target_branch),
+        )
+
+
+@dataclass(frozen=True)
+class LoopConfig:
+    """loop_config 子结构值对象 (v6.23 D2, 自 application/execution/agent_loop.py 迁入)。
+
+    conversation_config['loop_config'] 的类型化读视图, 替代 build_loop_config 中
+    `loop_cfg.get('token_budget', 120000)` 式裸读。
+    - 3 持久化字段 (token_budget/wall_timeout_seconds/max_tokens_per_call) 来自
+      conversation_config, 默认值与 DEFAULT_CONVERSATION_CONFIG['loop_config'] 由
+      drift guard 测试对齐。
+    - max_validation_retries 为 AgentLoop 运行时默认, 不持久化
+      (from_conversation_config 不从 dict 读, 防脏数据误注入)。
+    """
+
+    token_budget: int = 120000
+    wall_timeout_seconds: float = 300.0
+    max_tokens_per_call: int = 16384
+    max_validation_retries: int = 2
+
+    @staticmethod
+    def from_conversation_config(config: dict | None) -> "LoopConfig":
+        """从 conversation_config 解析 loop_config 子结构; None/空/无键 → 全默认。"""
+        if not config:
+            return LoopConfig()
+        loop = config.get("loop_config") or {}
+        defaults = LoopConfig()
+        # max_validation_retries 不读 (运行时默认, 不持久化)
+        return LoopConfig(
+            token_budget=loop.get("token_budget", defaults.token_budget),
+            wall_timeout_seconds=loop.get("wall_timeout_seconds", defaults.wall_timeout_seconds),
+            max_tokens_per_call=loop.get("max_tokens_per_call", defaults.max_tokens_per_call),
+        )
+
+
 class ModelChangeTrigger(StrEnum):
     """触发领域模型变更的来源。"""
 

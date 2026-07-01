@@ -19,6 +19,8 @@ from arc.domain.project.value_objects import (
     VALID_PHASES,
     VALID_VERSION_TRANSITIONS,
     ContextPolicy,
+    GitSyncConfig,
+    LoopConfig,
     ModelChangeTrigger,
     ProcessConfig,
     ProcessConstraint,
@@ -149,6 +151,23 @@ class Project:
                 base[key] = val
         self.conversation_config = base
         self.updated_at = datetime.now(UTC)
+
+    def git_sync_config(self) -> GitSyncConfig:
+        """conversation_config['git_sync'] 的类型化读视图 (v6.23 D2)。
+
+        替代调用方 `project.conversation_config.get('git_sync', {}).get('auto_commit', False)`
+        式裸读 — 拼写错误静默降级风险。缺子结构时返回全默认 GitSyncConfig。
+        """
+        return GitSyncConfig.from_dict(
+            (self.conversation_config or {}).get("git_sync")
+        )
+
+    def loop_config(self) -> LoopConfig:
+        """conversation_config['loop_config'] 的类型化读视图 (v6.23 D2)。
+
+        替代 build_loop_config 中 `loop_cfg.get('token_budget', 120000)` 式裸读。
+        """
+        return LoopConfig.from_conversation_config(self.conversation_config)
 
     def configure_github(self, token: str, owner: str, repo: str, webhook_secret: str) -> None:
         self.github_token = token

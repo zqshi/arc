@@ -16,6 +16,7 @@ from enum import StrEnum
 from typing import AsyncIterator
 
 from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, StreamResult
+from arc.domain.project.value_objects import LoopConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +30,6 @@ class LoopState(StrEnum):
     FAILED = "failed"
     BUDGET_EXCEEDED = "budget_exceeded"
     TIMED_OUT = "timed_out"
-
-
-@dataclass
-class LoopConfig:
-    token_budget: int = 120000
-    wall_timeout_seconds: float = 300.0
-    max_tokens_per_call: int = 16384
-    max_validation_retries: int = 2
 
 
 @dataclass

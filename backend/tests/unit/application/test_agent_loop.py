@@ -10,8 +10,8 @@ from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse, 
 from arc.application.execution.agent_loop import (
     AgentLoop,
     DeliverableValidator,
-    LoopConfig,
 )
+from arc.domain.project.value_objects import LoopConfig
 
 
 class FakeAdapter(LLMAdapter):

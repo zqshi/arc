@@ -12,6 +12,7 @@ from arc.domain.agent.entity import AgentSession
 from arc.domain.agent.value_objects import AgentType, SessionStatus
 from arc.domain.errors import NotFoundError
 from arc.domain.pipeline.value_objects import PhaseType
+from arc.domain.project.value_objects import GitSyncConfig
 from arc.domain.todo.value_objects import MessageRole
 from arc.infrastructure.repositories.agent import AgentSessionRepository
 from arc.infrastructure.repositories.conversation import ConversationRepository
@@ -281,25 +282,21 @@ class AgentSessionManager:
         if not changes.has_changes:
             return
 
-        # 检查项目 git_sync 配置
+        # 检查项目 git_sync 配置 (v6.23 D2: 走类型化 VO 访问器, 替代裸 dict 读)
         from arc.infrastructure.repositories.project import ProjectRepository
         from arc.infrastructure.repositories.todo import TodoRepository
 
         todo = await TodoRepository(db).get_by_id(session.todo_id)
-        git_sync_config = {}
+        git_sync_cfg = GitSyncConfig()
         if todo and todo.project_id:
             project = await ProjectRepository(db).get_by_id(todo.project_id)
-            if project and project.conversation_config:
-                git_sync_config = project.conversation_config.get("git_sync", {})
-
-        auto_commit = git_sync_config.get("auto_commit", False)
-        auto_push = git_sync_config.get("auto_push", False)
-        commit_prefix = git_sync_config.get("commit_prefix", "feat")
+            if project:
+                git_sync_cfg = project.git_sync_config()
 
         # auto_commit + auto_push: 直接推送，不等用户确认
-        if auto_commit and auto_push:
-            commit_msg = f"{commit_prefix}: {todo.title if todo else 'agent changes'}"
-            branch = git_sync_config.get("target_branch") or None
+        if git_sync_cfg.auto_commit and git_sync_cfg.auto_push:
+            commit_msg = f"{git_sync_cfg.commit_prefix}: {todo.title if todo else 'agent changes'}"
+            branch = git_sync_cfg.target_branch or None
             result = await git.commit_and_push(commit_msg, branch)
             status_msg = (
                 f"代码已自动推送: {result.commit_sha[:7]} → {result.branch}"

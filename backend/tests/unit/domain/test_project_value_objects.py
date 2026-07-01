@@ -11,6 +11,8 @@ from arc.domain.project.value_objects import (
     VALID_VERSION_TRANSITIONS,
     AgentAutonomy,
     GateStrictness,
+    GitSyncConfig,
+    LoopConfig,
     ProcessConfig,
     ProcessConstraint,
     ProjectStatus,
@@ -182,6 +184,125 @@ class TestDefaultConversationConfig:
         git = DEFAULT_CONVERSATION_CONFIG["git_sync"]
         assert git["auto_commit"] is False
         assert git["auto_push"] is False
+
+
+class TestGitSyncConfig:
+    """v6.23 D2: git_sync 子结构值对象 — 防 session_manager 裸读拼写错误 + 默认值单一源。"""
+
+    def test_from_dict_full(self):
+        cfg = GitSyncConfig.from_dict({
+            "auto_commit": True,
+            "auto_push": True,
+            "commit_prefix": "fix",
+            "target_branch": "main",
+        })
+        assert cfg.auto_commit is True
+        assert cfg.auto_push is True
+        assert cfg.commit_prefix == "fix"
+        assert cfg.target_branch == "main"
+
+    def test_from_dict_partial_uses_defaults(self):
+        cfg = GitSyncConfig.from_dict({"auto_commit": True})
+        assert cfg.auto_commit is True
+        assert cfg.auto_push is False  # 默认
+        assert cfg.commit_prefix == "feat"  # 默认
+        assert cfg.target_branch == ""  # 默认
+
+    def test_from_dict_empty_returns_defaults(self):
+        cfg = GitSyncConfig.from_dict({})
+        assert cfg == GitSyncConfig()
+
+    def test_from_dict_none_returns_defaults(self):
+        cfg = GitSyncConfig.from_dict(None)
+        assert cfg == GitSyncConfig()
+
+    def test_from_dict_ignores_unknown_keys(self):
+        """旧数据/多余键不应报错, 只取已知字段 (同 ProcessConfig.from_dict 范式)。"""
+        cfg = GitSyncConfig.from_dict({"auto_commit": True, "legacy_key": "x"})
+        assert cfg.auto_commit is True
+
+    def test_defaults_match_default_conversation_config(self):
+        """drift guard: VO 默认值必须与 DEFAULT_CONVERSATION_CONFIG['git_sync'] 一致。"""
+        default_dict = DEFAULT_CONVERSATION_CONFIG["git_sync"]
+        cfg = GitSyncConfig()
+        assert cfg.auto_commit == default_dict["auto_commit"]
+        assert cfg.auto_push == default_dict["auto_push"]
+        assert cfg.commit_prefix == default_dict["commit_prefix"]
+        assert cfg.target_branch == default_dict["target_branch"]
+
+    def test_frozen_immutable(self):
+        cfg = GitSyncConfig()
+        with pytest.raises((AttributeError, TypeError)):
+            cfg.auto_commit = True  # type: ignore[misc]
+
+
+class TestLoopConfig:
+    """v6.23 D2: loop_config 子结构值对象 — 防 build_loop_config 裸读拼写错误 + 默认值单一源。
+
+    LoopConfig 从 application/execution/agent_loop.py 迁入 domain:
+    - 3 持久化字段 (token_budget/wall_timeout_seconds/max_tokens_per_call) 来自 conversation_config
+    - max_validation_retries 为 AgentLoop 运行时默认, 不持久化 (from_conversation_config 不读)
+    """
+
+    def test_from_conversation_config_full(self):
+        cfg = LoopConfig.from_conversation_config({
+            "loop_config": {
+                "token_budget": 50000,
+                "wall_timeout_seconds": 120,
+                "max_tokens_per_call": 8192,
+            },
+        })
+        assert cfg.token_budget == 50000
+        assert cfg.wall_timeout_seconds == 120
+        assert cfg.max_tokens_per_call == 8192
+
+    def test_from_conversation_config_partial_uses_defaults(self):
+        cfg = LoopConfig.from_conversation_config({
+            "loop_config": {"token_budget": 50000},
+        })
+        assert cfg.token_budget == 50000
+        assert cfg.wall_timeout_seconds == 300.0  # 默认
+        assert cfg.max_tokens_per_call == 16384  # 默认
+
+    def test_from_conversation_config_empty_returns_defaults(self):
+        cfg = LoopConfig.from_conversation_config({})
+        assert cfg == LoopConfig()
+
+    def test_from_conversation_config_none_returns_defaults(self):
+        cfg = LoopConfig.from_conversation_config(None)
+        assert cfg == LoopConfig()
+
+    def test_from_conversation_config_missing_loop_config_key(self):
+        """config 存在但无 loop_config 子键 → 全默认。"""
+        cfg = LoopConfig.from_conversation_config({"auto_archive": False})
+        assert cfg == LoopConfig()
+
+    def test_from_conversation_config_ignores_unknown_keys(self):
+        cfg = LoopConfig.from_conversation_config({
+            "loop_config": {"token_budget": 50000, "legacy": "x"},
+        })
+        assert cfg.token_budget == 50000
+
+    def test_max_validation_retries_not_read_from_dict(self):
+        """max_validation_retries 是运行时默认, from_conversation_config 不从 dict 读
+        (持久化层不存此键, 防误读脏数据)。"""
+        cfg = LoopConfig.from_conversation_config({
+            "loop_config": {"max_validation_retries": 99},
+        })
+        assert cfg.max_validation_retries == 2  # 保持默认, 不读 dict
+
+    def test_defaults_match_default_conversation_config(self):
+        """drift guard: 3 持久化字段默认值必须与 DEFAULT_CONVERSATION_CONFIG['loop_config'] 一致。"""
+        default_dict = DEFAULT_CONVERSATION_CONFIG["loop_config"]
+        cfg = LoopConfig()
+        assert cfg.token_budget == default_dict["token_budget"]
+        assert cfg.wall_timeout_seconds == default_dict["wall_timeout_seconds"]
+        assert cfg.max_tokens_per_call == default_dict["max_tokens_per_call"]
+
+    def test_frozen_immutable(self):
+        cfg = LoopConfig()
+        with pytest.raises((AttributeError, TypeError)):
+            cfg.token_budget = 1  # type: ignore[misc]
 
 
 class TestProjectType:

@@ -9,6 +9,8 @@ from arc.domain.project.entity import Project, Version
 from arc.domain.project.value_objects import (
     DEFAULT_CONVERSATION_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
+    GitSyncConfig,
+    LoopConfig,
     ProcessConstraint,
     ProjectStatus,
     VersionStatus,
@@ -67,6 +69,44 @@ class TestProjectBehavior:
         p.update_conversation_config({"auto_archive": False})
         assert p.conversation_config["auto_archive"] is False
         assert "required_deliverables" in p.conversation_config
+
+    def test_git_sync_config_returns_vo_from_default(self) -> None:
+        """v6.23 D2: git_sync_config() 返回类型化 VO, 替代裸 dict 读。"""
+        p = self._make()
+        cfg = p.git_sync_config()
+        assert isinstance(cfg, GitSyncConfig)
+        assert cfg.auto_commit is False
+        assert cfg.auto_push is False
+        assert cfg.commit_prefix == "feat"
+        assert cfg.target_branch == ""
+
+    def test_git_sync_config_reflects_custom_config(self) -> None:
+        p = self._make()
+        p.update_conversation_config({
+            "git_sync": {"auto_commit": True, "target_branch": "dev"},
+        })
+        cfg = p.git_sync_config()
+        assert cfg.auto_commit is True
+        assert cfg.target_branch == "dev"
+        assert cfg.auto_push is False  # 未覆盖, 保持默认
+
+    def test_loop_config_returns_vo_from_default(self) -> None:
+        """v6.23 D2: loop_config() 返回类型化 VO, 替代裸 dict 读。"""
+        p = self._make()
+        cfg = p.loop_config()
+        assert isinstance(cfg, LoopConfig)
+        assert cfg.token_budget == 120000
+        assert cfg.wall_timeout_seconds == 300.0
+        assert cfg.max_tokens_per_call == 16384
+
+    def test_loop_config_reflects_custom_config(self) -> None:
+        p = self._make()
+        p.update_conversation_config({
+            "loop_config": {"token_budget": 50000},
+        })
+        cfg = p.loop_config()
+        assert cfg.token_budget == 50000
+        assert cfg.wall_timeout_seconds == 300.0  # 未覆盖, 保持默认
 
     def test_update_pipeline_config_preserves_existing_custom(self) -> None:
         """部分更新不丢已有非默认值 (回归: 重置式 merge 会丢 phase_capabilities 等自定义)。"""
