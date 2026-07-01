@@ -6,7 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.20 LLM 多厂商凭证管理 + 在线探活, 见 v6.20.0-current.md。_
+_v6.21 LLM 链路深化 + 技术债清理, 见 v6.21.0-current.md。_
+
+## [6.20.0] - 2026-07-01 — LLM 多厂商凭证管理 + 在线探活
+
+### Added — 多厂商凭证管理 + 在线探活
+- **L1 domain**: `domain/llm/` LLMProvider 聚合 (注入式 Fernet 加密, 同签名凭证) + LLMProviderKind (OPENAI_COMPATIBLE/ANTHROPIC) + PROVIDER_TEMPLATES 单一真相源 + repository ABC
+- **L2 infrastructure**: `llm_providers` 表 (migration z23, JSONB models + 部分唯一索引 is_default 互斥) + `projects.llm_provider_id` FK 列 + SqlAlchemyLLMProviderRepository
+- **L3 adapter 探活**: OpenAIAdapter.list_models (client.models.list() 免费不计费) + verify / AnthropicAdapter.list_models (静态建议, 官方无 list API 诚实降级) + verify (1-token messages.create)
+- **L4 application**: LLMProviderService (CRUD + verify_credentials 临时凭证探活返 models + list_models 缓存回填 graceful)
+- **L5 链路改造**: conversation_context.get_llm_config 改读 Project.llm_provider_id → DB 凭证 → 兼容 dict (下游零改) + 回退旧明文 dict (向后兼容); Project 加字段 + 端点层可设/读
+- **L6 interface**: `/api/llm` CRUD + verify + models + templates 端点 (CurrentUser, GET 不回明文)
+- **L7 frontend**: LLMProviderManager (列表+模板+验证按钮+动态模型+设默认) 替代旧静态 MODEL_SUGGESTIONS + 删 temperature/max_tokens 死字段 + 删旧 LLMConfigSection 死代码
+
+### Changed
+- config.py LLM 字段降级为 env fallback (DB 多厂商管理为主链路); .env.example 注释指向 DB 管理
+- 修 api.listTemplates 重名冲突 (→ listProviderTemplates)
+
+### 决策
+- 凭证用户级隔离 (user_id), 加密复用 crypto.py Fernet (同签名凭证, DDD 合规)
+- list_models/verify 非抽象方法 (不强制改 ResilientAdapter/TracingAdapter 包装器)
+- verify 验临时凭证 (前端传未保存 key, 不依赖保存顺序, 成功顺带返 models)
+- Anthropic 静态建议降级 (官方无 list API, 诚实标注不假装)
+- get_llm_config 返回兼容 dict (单点改造, 下游零侵入)
+- 全局默认走 env 渐进边界 (create_llm_adapter 同步无法读 DB, 项目级已通 DB, 留 v6.21)
+
+### 遗留
+- 全局默认凭证读取边界 (L5 渐进): create_llm_adapter() 同步读 env, 未接 DB 默认凭证; 项目级 llm_provider_id 已通 DB, 全局默认走 env fallback。完整接通留 v6.21 D1
+- per-phase/worker 选用重映射完整形态, 留 v6.21 D2
+- 多 worker 凭证缓存 Redis pub/sub, 留增强
+- 质量检测 6.1-6.7 全过; CI 基线 ruff0 / pytest 2430 / alembic z23 双向干净 / tsc-b0 / vitest 97 / build0
 
 ## [6.19.0] - 2026-06-30 — 原生客户端平台扩展（Windows → iOS → 鸿蒙）
 
