@@ -1,6 +1,5 @@
 """ExperienceService 核心方法单元测试。"""
 
-import types
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -203,8 +202,10 @@ class TestExperienceServiceGenerateEmbedding:
 
         exp = Experience(title="t", problem="p", solution="s", id=uuid.uuid4())
         svc = ExperienceService.__new__(ExperienceService)
-        with patch("arc.application.ai.resilience.create_resilient_adapter", side_effect=RuntimeError):
-            result = await svc._generate_embedding(exp)
+        svc.db = MagicMock()
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.llm_adapter.create_llm_adapter", side_effect=RuntimeError):
+            result = await svc._generate_embedding(exp, user_id=uuid.uuid4())
         assert result is None
 
 
@@ -245,7 +246,8 @@ class TestExperienceServiceExtractFromTodo:
 
         todo = Todo(title="t", description="d", id=uuid.uuid4())
         svc = self._make_svc(existing=True)
-        with patch("arc.application.ai.resilience.create_resilient_adapter") as mock_adapter_factory:
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.llm_adapter.create_llm_adapter") as mock_adapter_factory:
             result = await svc.extract_from_todo(todo)
         assert result is None
         mock_adapter_factory.assert_not_called()
@@ -254,7 +256,8 @@ class TestExperienceServiceExtractFromTodo:
     async def test_returns_none_when_no_conversation(self):
         todo = Todo(title="t", description="d", id=uuid.uuid4())
         svc = self._make_svc(conversations=[])
-        with patch("arc.application.ai.resilience.create_resilient_adapter") as mock_adapter_factory:
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.llm_adapter.create_llm_adapter") as mock_adapter_factory:
             result = await svc.extract_from_todo(todo)
         assert result is None
         mock_adapter_factory.assert_not_called()
@@ -267,57 +270,67 @@ class TestExperienceServiceExtractFromTodo:
         )
         svc = self._make_svc(conversations=[self._make_conversation(todo.id)])
 
+        from contextlib import asynccontextmanager
+
         mock_adapter = MagicMock()
         mock_adapter.chat = AsyncMock(
-            return_value=types.SimpleNamespace(
+            return_value=MagicMock(
                 content='{"title":"exp","problem":"p","solution":"s",'
                 '"applicable_scenarios":"scn","category":"technical"}'
             )
         )
         mock_adapter.embed = AsyncMock(return_value=[0.1, 0.2])
-        mock_adapter.close = AsyncMock()
-        with patch(
-            "arc.application.ai.resilience.create_resilient_adapter",
-            return_value=mock_adapter,
-        ):
+
+        @asynccontextmanager
+        async def mock_acquire(llm_config):
+            yield mock_adapter
+
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.adapter_pool.adapter_pool.acquire_for_project", mock_acquire):
             result = await svc.extract_from_todo(todo)
         assert result is not None
         assert result.title == "exp"
         assert result.embedding == [0.1, 0.2]
         svc.exp_repo.create.assert_awaited_once()
-        mock_adapter.close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_json_parse_failure_returns_none(self):
         todo = Todo(title="t", description="d", id=uuid.uuid4())
         svc = self._make_svc(conversations=[self._make_conversation(todo.id)])
 
+        from contextlib import asynccontextmanager
+
         mock_adapter = MagicMock()
         mock_adapter.chat = AsyncMock(
-            return_value=types.SimpleNamespace(content="这是纯文本,没有任何JSON结构")
+            return_value=MagicMock(content="这是纯文本,没有任何JSON结构")
         )
-        mock_adapter.close = AsyncMock()
-        with patch(
-            "arc.application.ai.resilience.create_resilient_adapter",
-            return_value=mock_adapter,
-        ):
+
+        @asynccontextmanager
+        async def mock_acquire(llm_config):
+            yield mock_adapter
+
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.adapter_pool.adapter_pool.acquire_for_project", mock_acquire):
             result = await svc.extract_from_todo(todo)
         assert result is None
         svc.exp_repo.create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_llm_exception_returns_none(self):
+        from contextlib import asynccontextmanager
+
         todo = Todo(title="t", description="d", id=uuid.uuid4())
         svc = self._make_svc(conversations=[self._make_conversation(todo.id)])
 
         mock_adapter = MagicMock()
         mock_adapter.chat = AsyncMock(side_effect=RuntimeError("LLM down"))
-        mock_adapter.close = AsyncMock()
-        with patch(
-            "arc.application.ai.resilience.create_resilient_adapter",
-            return_value=mock_adapter,
-        ):
+
+        @asynccontextmanager
+        async def mock_acquire(llm_config):
+            yield mock_adapter
+
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.adapter_pool.adapter_pool.acquire_for_project", mock_acquire):
             result = await svc.extract_from_todo(todo)
         assert result is None
         svc.exp_repo.create.assert_not_awaited()
-        mock_adapter.close.assert_awaited_once()

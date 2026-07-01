@@ -223,6 +223,32 @@ class LLMProviderService:
             return self._provider_to_config(provider)
         return None
 
+    @classmethod
+    async def resolve_for_context(
+        cls,
+        db: AsyncSession,
+        *,
+        project_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
+    ) -> dict | None:
+        """辅助模块统一入口 (G1 A 类): 消除各辅助 service 重复的"查 project + resolve"逻辑。
+
+        - project_id 有 → 查 project 走 resolve_from_project (user_id 用 project.user_id 兜底)
+        - 否则 user_id 有 → 走 resolve_default_config
+        - 都无 → None (调用方 acquire_for_project 走 env 兜底, 保持渐进边界)
+        """
+        if project_id:
+            from arc.infrastructure.repositories.project import ProjectRepository
+
+            project = await ProjectRepository(db).get_by_id(project_id)
+            if project:
+                return await cls(db).resolve_from_project(
+                    project, project.user_id or user_id
+                )
+        if user_id:
+            return await cls(db).resolve_default_config(user_id)
+        return None
+
     @staticmethod
     def _provider_to_config(provider: LLMProvider) -> dict:
         """LLMProvider → adapter 可用 dict (解密 api_key, 复用 create_llm_adapter_from_config)。"""

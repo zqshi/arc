@@ -5,7 +5,9 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from arc.application.ai.adapter_pool import adapter_pool
 from arc.application.ai.json_extract import extract_json
+from arc.application.llm.service import LLMProviderService
 from arc.domain.errors import ConflictError, NotFoundError
 from arc.domain.experience.entity import Experience
 from arc.domain.todo.entity import Todo
@@ -107,24 +109,23 @@ class ExperienceService:
             logger.info("extract_from_todo: no conversation content for todo %s", todo.id)
             return None
 
-        from arc.application.ai.resilience import create_resilient_adapter
-
-        adapter = create_resilient_adapter()
-        try:
-            data = await self._extract_experience_data(adapter, todo, conversation_log)
-            if data is None:
+        llm_config = await LLMProviderService.resolve_for_context(
+            self.db, project_id=todo.project_id
+        )
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
+            try:
+                data = await self._extract_experience_data(adapter, todo, conversation_log)
+                if data is None:
+                    return None
+                experience = await self._build_experience(todo, data, adapter)
+                created = await self.exp_repo.create(experience)
+                logger.info(
+                    "extract_from_todo: created experience %s for todo %s", created.id, todo.id
+                )
+                return created
+            except Exception as exc:
+                logger.error("extract_from_todo: unexpected error: %s", exc)
                 return None
-            experience = await self._build_experience(todo, data, adapter)
-            created = await self.exp_repo.create(experience)
-            logger.info(
-                "extract_from_todo: created experience %s for todo %s", created.id, todo.id
-            )
-            return created
-        except Exception as exc:
-            logger.error("extract_from_todo: unexpected error: %s", exc)
-            return None
-        finally:
-            await adapter.close()
 
     async def _already_extracted(self, todo: Todo) -> bool:
         """去重: experience_card artifact 已同步过则跳过 LLM 提取。"""
@@ -234,20 +235,15 @@ class ExperienceService:
         2. 低于 SIMILARITY_THRESHOLD 的结果直接丢弃
         3. 同一 category 最多返回 MAX_SAME_CATEGORY 条
         """
-        from arc.application.ai.resilience import create_resilient_adapter
-
+        llm_config = await LLMProviderService.resolve_for_context(
+            self.db, project_id=project_id, user_id=user_id
+        )
         try:
-            adapter = create_resilient_adapter()
-        except Exception as exc:
-            logger.warning("search_similar: adapter creation failed: %s", exc)
-            return []
-        try:
-            embedding = await adapter.embed(query)
+            async with adapter_pool.acquire_for_project(llm_config) as adapter:
+                embedding = await adapter.embed(query)
         except Exception as exc:
             logger.warning("search_similar: embedding generation failed: %s", exc)
             return []
-        finally:
-            await adapter.close()
 
         try:
             scored_results = await self.exp_repo.search_by_embedding(
@@ -315,7 +311,6 @@ class ExperienceService:
             raise ConflictError("Already a personal experience")
 
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.ai.resilience import create_resilient_adapter
 
         distill_prompt = (
             "将以下项目经验提炼为通用个人经验。\n\n"
@@ -342,8 +337,10 @@ class ExperienceService:
 
         distilled_data = {}
         try:
-            adapter = create_resilient_adapter()
-            try:
+            llm_config = await LLMProviderService.resolve_for_context(
+                self.db, user_id=user_id
+            )
+            async with adapter_pool.acquire_for_project(llm_config) as adapter:
                 response = await adapter.chat(
                     [LLMMessage(role="user", content=distill_prompt)],
                     temperature=0.3,
@@ -353,8 +350,6 @@ class ExperienceService:
                 distilled_data = extract_json(response.content)
                 if not isinstance(distilled_data, dict):
                     distilled_data = {}
-            finally:
-                await adapter.close()
         except Exception as exc:
             logger.warning(
                 "distill_to_personal: AI distill failed: %s, using original content", exc
@@ -412,7 +407,7 @@ class ExperienceService:
             applicable_scenarios=applicable_scenarios,
             tags=tags,
         )
-        exp.embedding = await self._generate_embedding(exp)
+        exp.embedding = await self._generate_embedding(exp, user_id=user_id)
         return await self.exp_repo.create(exp, user_id=user_id)
 
     async def update(
@@ -423,20 +418,20 @@ class ExperienceService:
         if not exp:
             raise NotFoundError("Experience not found")
         self._apply_updates(exp, updates)
-        exp.embedding = await self._generate_embedding(exp)
+        exp.embedding = await self._generate_embedding(exp, user_id=user_id)
         return await self.exp_repo.update(exp)
 
-    async def _generate_embedding(self, exp: Experience) -> list[float] | None:
+    async def _generate_embedding(
+        self, exp: Experience, *, user_id: uuid.UUID | None = None
+    ) -> list[float] | None:
         """生成经验文本的 embedding, 失败降级返回 None (不影响主流程)。"""
         text = f"{exp.title} {exp.problem} {exp.solution} {exp.applicable_scenarios}"
         try:
-            from arc.application.ai.resilience import create_resilient_adapter
-
-            adapter = create_resilient_adapter()
-            try:
+            llm_config = await LLMProviderService.resolve_for_context(
+                self.db, project_id=exp.project_id, user_id=user_id
+            )
+            async with adapter_pool.acquire_for_project(llm_config) as adapter:
                 return await adapter.embed(text)
-            finally:
-                await adapter.close()
         except Exception:
             logger.warning("Failed to generate embedding for experience %s", exp.id)
             return None

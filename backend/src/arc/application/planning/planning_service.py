@@ -152,14 +152,15 @@ class PlanningService:
             domain_model_context=domain_model_context,
         )
 
+        from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.ai.resilience import create_resilient_adapter
+        from arc.application.llm.service import LLMProviderService
 
-        adapter = create_resilient_adapter()
-        try:
+        llm_config = await LLMProviderService.resolve_for_context(
+            self.db, project_id=session.project_id
+        )
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
             response = await adapter.chat([LLMMessage(role="user", content=prompt)])
-        finally:
-            await adapter.close()
 
         roadmap = extract_json(response.content)
         if not isinstance(roadmap, dict):

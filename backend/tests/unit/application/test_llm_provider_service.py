@@ -392,6 +392,54 @@ class TestResolveLlmConfig:
             "base_url": "https://api.openai.com/v1",
         }
 
+
+class TestResolveForContext:
+    """resolve_for_context (G1 A 类): 辅助模块统一入口, 消除重复查 project 逻辑。
+
+    4 分支: project_id 有(查到/查不到) × user_id 有/无。
+    """
+
+    async def test_project_id_resolves_via_resolve_from_project(self):
+        """project_id 有 + 查到 project → resolve_from_project(project, project.user_id)。"""
+        uid = uuid.uuid4()
+        project = MagicMock()
+        project.user_id = uid
+        config = {"provider": "openai", "api_key": "k"}
+        with patch("arc.infrastructure.repositories.project.ProjectRepository") as MockRepo, \
+             patch.object(LLMProviderService, "resolve_from_project", AsyncMock(return_value=config)) as mock_rf:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=project)
+            result = await LLMProviderService.resolve_for_context(
+                MagicMock(), project_id=uuid.uuid4()
+            )
+        assert result == config
+        mock_rf.assert_awaited_once_with(project, uid)
+
+    async def test_project_not_found_falls_through_to_user_default(self):
+        """project_id 有但查不到 project → 回退 resolve_default_config(user_id)。"""
+        uid = uuid.uuid4()
+        with patch("arc.infrastructure.repositories.project.ProjectRepository") as MockRepo, \
+             patch.object(LLMProviderService, "resolve_default_config", AsyncMock(return_value=None)) as mock_rd:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=None)
+            result = await LLMProviderService.resolve_for_context(
+                MagicMock(), project_id=uuid.uuid4(), user_id=uid
+            )
+        assert result is None
+        mock_rd.assert_awaited_once_with(uid)
+
+    async def test_no_project_id_uses_user_default(self):
+        """project_id 无 → resolve_default_config(user_id)。"""
+        uid = uuid.uuid4()
+        config = {"provider": "openai", "api_key": "k"}
+        with patch.object(LLMProviderService, "resolve_default_config", AsyncMock(return_value=config)) as mock_rd:
+            result = await LLMProviderService.resolve_for_context(MagicMock(), user_id=uid)
+        assert result == config
+        mock_rd.assert_awaited_once_with(uid)
+
+    async def test_all_none_returns_none(self):
+        """project_id 无 + user_id 无 → None (调用方走 env 兜底, 保持渐进边界)。"""
+        result = await LLMProviderService.resolve_for_context(MagicMock())
+        assert result is None
+
     async def test_resolve_default_config_no_default_returns_none(self):
         """D1: 无默认凭证 → None (走 env 兜底, 保持 v6.20 渐进边界)。"""
         svc = _svc(_FakeRepo())

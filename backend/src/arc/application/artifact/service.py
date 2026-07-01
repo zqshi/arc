@@ -36,8 +36,10 @@ class ArtifactService:
         self, todo_id: uuid.UUID, phase_type: PhaseType
     ) -> Artifact | None:
         """Use LLM to extract structured artifact from a phase's conversation."""
+        from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.ai.resilience import create_resilient_adapter
+        from arc.application.llm.service import LLMProviderService
+        from arc.infrastructure.repositories.todo import TodoRepository
 
         phase = await self.phase_repo.get_by_todo_and_type(todo_id, phase_type)
         if not phase or not phase.conversation_id:
@@ -64,11 +66,13 @@ class ArtifactService:
                 messages.append(LLMMessage(role=msg.role.value, content=msg.content))
         messages.append(LLMMessage(role="user", content=extraction_prompt))
 
-        adapter = create_resilient_adapter()
-        try:
+        todo = await TodoRepository(self.db).get_by_id(todo_id)
+        project_id = todo.project_id if todo else None
+        llm_config = await LLMProviderService.resolve_for_context(
+            self.db, project_id=project_id
+        )
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
             response = await adapter.chat(messages, temperature=0.3)
-        finally:
-            await adapter.close()
 
         content = extract_json(response.content)
         if content is None or not isinstance(content, dict):

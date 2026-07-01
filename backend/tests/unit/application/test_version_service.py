@@ -166,7 +166,8 @@ class TestGenerateChangelog:
         todo2.title = "注册功能"
         todo2.description = ""
 
-        with patch("arc.application.ai.resilience.create_resilient_adapter", side_effect=Exception("no LLM")):
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.adapter_pool.adapter_pool.acquire_for_project", side_effect=Exception("no LLM")):
             result = await svc._generate_changelog(v, [todo1, todo2])
 
         assert "- 用户登录" in result
@@ -175,6 +176,8 @@ class TestGenerateChangelog:
     @pytest.mark.asyncio
     async def test_llm_success(self, changelog_service):
         """LLM 成功时返回 AI 生成内容。"""
+        from contextlib import asynccontextmanager
+
         svc = changelog_service
         v = Version(project_id=uuid.uuid4(), name="v1.0")
 
@@ -187,9 +190,13 @@ class TestGenerateChangelog:
 
         mock_adapter = AsyncMock()
         mock_adapter.chat = AsyncMock(return_value=mock_response)
-        mock_adapter.close = AsyncMock()
 
-        with patch("arc.application.ai.resilience.create_resilient_adapter", return_value=mock_adapter):
+        @asynccontextmanager
+        async def mock_acquire(llm_config):
+            yield mock_adapter
+
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.adapter_pool.adapter_pool.acquire_for_project", mock_acquire):
             result = await svc._generate_changelog(v, [todo])
 
         assert "用户登录" in result
@@ -198,6 +205,8 @@ class TestGenerateChangelog:
     @pytest.mark.asyncio
     async def test_llm_returns_empty_uses_fallback(self, changelog_service):
         """LLM 返回空内容时降级为 fallback。"""
+        from contextlib import asynccontextmanager
+
         svc = changelog_service
         v = Version(project_id=uuid.uuid4(), name="v1.0")
 
@@ -210,9 +219,13 @@ class TestGenerateChangelog:
 
         mock_adapter = AsyncMock()
         mock_adapter.chat = AsyncMock(return_value=mock_response)
-        mock_adapter.close = AsyncMock()
 
-        with patch("arc.application.ai.resilience.create_resilient_adapter", return_value=mock_adapter):
+        @asynccontextmanager
+        async def mock_acquire(llm_config):
+            yield mock_adapter
+
+        with patch("arc.application.llm.service.LLMProviderService.resolve_for_context", AsyncMock(return_value=None)), \
+             patch("arc.application.ai.adapter_pool.adapter_pool.acquire_for_project", mock_acquire):
             result = await svc._generate_changelog(v, [todo])
 
         assert "- 修复BUG" in result

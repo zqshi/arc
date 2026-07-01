@@ -71,7 +71,7 @@ class DocumentService:
 
         try:
             text = await self._extract_text(data, content_type)
-            features = await self._parse_features(text, filename)
+            features = await self._parse_features(text, filename, project_id=project_id)
             doc.mark_ready(text, features)
         except Exception as exc:
             logger.exception("Document processing failed: %s", exc)
@@ -124,14 +124,17 @@ class DocumentService:
             logger.warning("python-docx not installed, DOCX extraction unavailable")
             return "[DOCX文件 - 需安装python-docx库进行文本提取]"
 
-    async def _parse_features(self, text: str, filename: str) -> list[dict]:
+    async def _parse_features(
+        self, text: str, filename: str, *, project_id: uuid.UUID | None = None
+    ) -> list[dict]:
         """用AI从文档文本中提取功能点列表。"""
         if not text or len(text.strip()) < 50:
             return []
 
+        from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.ai.json_extract import extract_json
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.ai.resilience import create_resilient_adapter
+        from arc.application.llm.service import LLMProviderService
 
         prompt = f"""从以下文档中提取所有可独立交付的功能需求。
 
@@ -153,11 +156,11 @@ class DocumentService:
 ]
 ```"""
 
-        adapter = create_resilient_adapter()
-        try:
+        llm_config = await LLMProviderService.resolve_for_context(
+            self.db, project_id=project_id
+        )
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
             response = await adapter.chat([LLMMessage(role="user", content=prompt)])
-        finally:
-            await adapter.close()
 
         result = extract_json(response.content)
         if isinstance(result, list):

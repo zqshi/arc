@@ -101,17 +101,18 @@ class ConflictDetector:
             features_section=features_section,
         )
 
+        from arc.application.ai.adapter_pool import adapter_pool
         from arc.application.ai.llm_adapter import LLMMessage
-        from arc.application.ai.resilience import create_resilient_adapter
+        from arc.application.llm.service import LLMProviderService
 
-        adapter = create_resilient_adapter()
-        try:
+        llm_config = await LLMProviderService(self.db).resolve_from_project(
+            project, project.user_id
+        )
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
             response = await adapter.chat(
                 [LLMMessage(role="user", content=prompt)],
                 temperature=0.2,
             )
-        finally:
-            await adapter.close()
 
         result = extract_json(response.content)
         if not isinstance(result, dict):
