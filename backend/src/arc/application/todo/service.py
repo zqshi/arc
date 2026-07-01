@@ -43,27 +43,37 @@ class TodoService:
         if not todo:
             raise ValueError(f"Todo {todo_id} not found")
 
-        from arc.application.ai.llm_adapter import LLMMessage, create_llm_adapter
+        from arc.application.ai.adapter_pool import adapter_pool
+        from arc.application.ai.llm_adapter import LLMMessage
+        from arc.application.llm.service import LLMProviderService
+        from arc.infrastructure.repositories.project import ProjectRepository
 
-        adapter = create_llm_adapter()
-        try:
-            prompt = TAG_EXTRACTION_PROMPT.format(
-                title=todo.title,
-                description=todo.description or "（无描述）",
-            )
-            response = await adapter.chat(
-                [LLMMessage(role="user", content=prompt)],
-                temperature=0.3,
-                max_tokens=512,
-            )
-            tags = self._parse_tags(response.content)
-            todo.tags = tags
-            await self.todo_repo.update(todo)
-            logger.info("Extracted %d tags for todo %s", len(tags), todo_id)
-        except Exception as exc:
-            logger.warning("Tag extraction failed for todo %s: %s", todo_id, exc)
-        finally:
-            await adapter.close()
+        # v6.21 D1: LLM 凭证走 DB (项目级 llm_provider_id → 用户默认), 非 env fallback
+        llm_config = None
+        if todo.project_id:
+            project = await ProjectRepository(self.db).get_by_id(todo.project_id)
+            if project:
+                llm_config = await LLMProviderService(self.db).resolve_from_project(
+                    project, project.user_id
+                )
+
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
+            try:
+                prompt = TAG_EXTRACTION_PROMPT.format(
+                    title=todo.title,
+                    description=todo.description or "（无描述）",
+                )
+                response = await adapter.chat(
+                    [LLMMessage(role="user", content=prompt)],
+                    temperature=0.3,
+                    max_tokens=512,
+                )
+                tags = self._parse_tags(response.content)
+                todo.tags = tags
+                await self.todo_repo.update(todo)
+                logger.info("Extracted %d tags for todo %s", len(tags), todo_id)
+            except Exception as exc:
+                logger.warning("Tag extraction failed for todo %s: %s", todo_id, exc)
 
         return todo
 

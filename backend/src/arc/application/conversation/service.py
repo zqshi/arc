@@ -120,13 +120,21 @@ class ConversationService:
         return bool(orch_cfg.get("enabled", False))
 
     async def _get_llm_config(self, todo_id: uuid.UUID) -> dict | None:
-        """获取项目级 LLM 配置（conversation_config.llm）。"""
+        """获取项目级 LLM 配置 (v6.21 D3: 补 llm_provider_id, 统一走 LLMProviderService)。
+
+        修复 v6.20 L5 遗漏: pipeline 路径原只读 conversation_config["llm"] 明文,
+        跳过 llm_provider_id。现对齐 unified 路径 (conversation_context.get_llm_config),
+        优先级链一致 (项目 llm_provider_id → 旧明文 → 用户默认 → None)。
+        """
+        from arc.application.llm.service import LLMProviderService
         from arc.infrastructure.repositories.project import ProjectRepository
 
         todo = await self.todo_repo.get_by_id(todo_id)
         if not todo or not todo.project_id:
             return None
         project = await ProjectRepository(self.db).get_by_id(todo.project_id)
-        if not project or not project.conversation_config:
+        if not project:
             return None
-        return project.conversation_config.get("llm") or None
+        return await LLMProviderService(self.db).resolve_from_project(
+            project, project.user_id
+        )

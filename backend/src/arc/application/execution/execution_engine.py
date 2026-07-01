@@ -274,7 +274,7 @@ class ExecutionEngine(AutopilotMixin):
                 from arc.application.orchestration.service import OrchestrationService
 
                 orch = OrchestrationService(adapter_pool)
-                event_stream = orch.execute(llm_messages, registry)
+                event_stream = orch.execute(llm_messages, registry, llm_config=llm_config)
             else:
                 async def _single():
                     async with adapter_pool.acquire_for_project(llm_config) as adapter:
@@ -315,11 +315,24 @@ class ExecutionEngine(AutopilotMixin):
             AgentLoop,
             DeliverableValidator,
         )
+        from arc.application.llm.service import LLMProviderService
+        from arc.infrastructure.repositories.project import ProjectRepository
+        from arc.infrastructure.repositories.todo import TodoRepository
 
         validator = DeliverableValidator(DELIVERABLE_REQUIRED_FIELDS)
         config = await _build_loop_config(self._db, todo_id)
 
-        async with adapter_pool.acquire() as adapter:
+        # v6.21 D1: LLM 凭证走 DB (项目级 llm_provider_id → 用户默认), 非 env fallback
+        llm_config = None
+        todo = await TodoRepository(self._db).get_by_id(todo_id)
+        if todo and todo.project_id:
+            project = await ProjectRepository(self._db).get_by_id(todo.project_id)
+            if project:
+                llm_config = await LLMProviderService(self._db).resolve_from_project(
+                    project, project.user_id
+                )
+
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
             loop = AgentLoop(adapter, config)
             async for mapped in _map_agent_loop_events(loop.run(llm_messages, validator=validator)):
                 yield mapped

@@ -178,6 +178,61 @@ class LLMProviderService:
         await self._repo.update(provider)
         return models
 
+    # -- LLM 配置解析 (v6.21 D1/D3) ----------------------------------------
+
+    async def resolve_from_project(
+        self, project, user_id: uuid.UUID
+    ) -> dict | None:
+        """解析项目 LLM 配置为 adapter 可用的 dict (D1+D3 统一入口)。
+
+        优先级链:
+        1. 项目级 llm_provider_id → DB 凭证 (Fernet 解密)
+        2. 旧明文 conversation_config["llm"] (迁移期兼容)
+        3. 用户默认凭证 (is_default=True) → DB 解密  ← D1 新增
+        4. None (调用方走 adapter_pool _DEFAULT_KEY = env 兜底)
+
+        返回 {provider, model, api_key, base_url} 或 None。统一 conversation_context
+        (unified 路径) 与 conversation/service (pipeline 路径) 的 LLM 配置解析, 消除重复。
+        """
+        # 1. 项目级 LLM 凭证指针 → DB 凭证
+        if project.llm_provider_id:
+            provider = await self._repo.get_by_id(project.llm_provider_id, user_id)
+            if provider and provider.has_api_key():
+                return self._provider_to_config(provider)
+
+        # 2. 旧明文 conversation_config["llm"] (向后兼容, 迁移期共存)
+        if project.conversation_config:
+            legacy = project.conversation_config.get("llm")
+            if legacy and legacy.get("api_key"):
+                return legacy
+
+        # 3. 用户默认凭证 (D1: 全局默认走 DB, 非 env)
+        return await self.resolve_default_config(user_id)
+
+    async def resolve_default_config(
+        self, user_id: uuid.UUID
+    ) -> dict | None:
+        """解析用户默认 LLM 配置 (D1): is_default=True 凭证 → DB 解密 → dict。
+
+        供无项目级覆盖的 Agent 主链路调用方 (extract_tags / text-only 等) 使用,
+        让"设置页设默认凭证"生效到非项目级路径。无默认或未配 api_key → None
+        (调用方走 adapter_pool _DEFAULT_KEY = env 兜底, 保持 v6.20 渐进边界)。
+        """
+        provider = await self._repo.get_default(user_id)
+        if provider and provider.has_api_key():
+            return self._provider_to_config(provider)
+        return None
+
+    @staticmethod
+    def _provider_to_config(provider: LLMProvider) -> dict:
+        """LLMProvider → adapter 可用 dict (解密 api_key, 复用 create_llm_adapter_from_config)。"""
+        return {
+            "provider": provider.kind.value,
+            "model": provider.models[0] if provider.models else "",
+            "api_key": provider.get_api_key(_decrypt),
+            "base_url": provider.base_url,
+        }
+
     # -- helpers ------------------------------------------------------------
 
     @staticmethod

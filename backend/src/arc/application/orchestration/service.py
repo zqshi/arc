@@ -44,6 +44,7 @@ class OrchestrationService:
 
     def __init__(self, pool: AdapterPool) -> None:
         self._pool = pool
+        self._llm_config: dict | None = None
 
     async def execute(
         self,
@@ -51,12 +52,17 @@ class OrchestrationService:
         registry: ToolRegistry,
         *,
         conversation_id: uuid.UUID | None = None,
+        llm_config: dict | None = None,
     ) -> AsyncIterator[ToolLoopEvent]:
         """Execute with optional multi-agent orchestration.
 
         If the planner decides decomposition is worthwhile, spawns parallel
         workers and synthesizes. Otherwise, falls through to single-agent.
+
+        v6.21 D1: llm_config 透传给 sub-agent 的 adapter 获取 (项目级/用户默认,
+        非 env). worker 路径 (acquire_worker) 走 _WORKER_KEY, 由 D2 处理.
         """
+        self._llm_config = llm_config
         user_message = self._extract_user_message(messages)
         plan = await self._plan(user_message, conversation_id)
 
@@ -179,7 +185,7 @@ class OrchestrationService:
             LLMMessage(role="user", content=prompt),
         ]
 
-        async with self._pool.acquire() as adapter:
+        async with self._pool.acquire_for_project(self._llm_config) as adapter:
             response = await adapter.chat(messages, max_tokens=2048)
 
         # Try to parse JSON plan from response
@@ -316,7 +322,7 @@ class OrchestrationService:
         ]
 
         message_id = str(uuid.uuid4())
-        async with self._pool.acquire() as adapter:
+        async with self._pool.acquire_for_project(self._llm_config) as adapter:
             stream_iter, result = await adapter.chat_stream_with_result(
                 messages, max_tokens=8192,
             )
@@ -339,7 +345,7 @@ class OrchestrationService:
         """Standard single-agent execution (no orchestration overhead)."""
         from arc.application.execution.tool_loop import ToolAwareLoop
 
-        async with self._pool.acquire() as adapter:
+        async with self._pool.acquire_for_project(self._llm_config) as adapter:
             loop = ToolAwareLoop(adapter, registry)
             async for event in loop.run(messages):
                 yield event
