@@ -60,7 +60,9 @@ class OrchestrationService:
         workers and synthesizes. Otherwise, falls through to single-agent.
 
         v6.21 D1: llm_config 透传给 sub-agent 的 adapter 获取 (项目级/用户默认,
-        非 env). worker 路径 (acquire_worker) 走 _WORKER_KEY, 由 D2 处理.
+        非 env). v6.22 D2: worker 路径 (acquire_worker) 同样透传 llm_config,
+        走 DB 凭证 + settings.worker_model 覆盖 (cheap model), llm_config 为 None
+        时 fallback env 兜底 (同 acquire_for_project 渐进边界).
         """
         self._llm_config = llm_config
         user_message = self._extract_user_message(messages)
@@ -275,7 +277,7 @@ class OrchestrationService:
 
         # Run with worker adapter (cheap model)
         full_output = ""
-        async with self._pool.acquire_worker() as adapter:
+        async with self._pool.acquire_worker(self._llm_config) as adapter:
             loop = ToolAwareLoop(adapter, scoped, max_tokens_per_call=4096)
             async for event in loop.run(worker_messages):
                 if event.type == "text_delta":

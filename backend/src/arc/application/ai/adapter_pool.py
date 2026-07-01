@@ -290,16 +290,30 @@ class AdapterPool:
             await inner.close()
 
     @asynccontextmanager
-    async def acquire_worker(self):
+    async def acquire_worker(self, llm_config: dict | None = None):
         """Acquire a worker adapter (cheap model) with concurrency control.
 
-        If no worker model is configured, falls back to the default model.
+        v6.22 D2: worker 走 DB 凭证 (per-user 隔离, 同 D1 acquire_for_project)。
+        - llm_config 有值 (项目级/用户默认凭证): 用其 provider/api_key/base_url,
+          model 由 settings.worker_model 覆盖 (cheap model), 无 worker_model 则同主 model。
+          worker adapter 不缓存 (ephemeral, 同 acquire_for_project)。
+        - llm_config 为 None 或无 api_key: fallback 全局 _WORKER_KEY (env 兜底, 旧行为)。
         Blocks if the concurrency limit is reached.
         """
         sem = self._get_semaphore()
         async with sem:
-            adapter = self._ensure_adapter(_WORKER_KEY)
-            yield adapter
+            if llm_config and llm_config.get("api_key"):
+                from arc.application.ai.resilience import ResilientAdapter
+
+                inner = _create_worker_adapter(llm_config)
+                adapter = TracingAdapter(ResilientAdapter(inner))
+                try:
+                    yield adapter
+                finally:
+                    await inner.close()
+            else:
+                adapter = self._ensure_adapter(_WORKER_KEY)
+                yield adapter
 
     async def shutdown(self) -> None:
         for adapter in self._adapters.values():
@@ -310,10 +324,27 @@ class AdapterPool:
         self._adapters.clear()
 
 
-def _create_worker_adapter():
-    """Create an adapter for worker sub-agents, using cheap model if configured."""
-    from arc.application.ai.resilience import create_resilient_adapter
+def _create_worker_adapter(llm_config: dict | None = None):
+    """Create an adapter for worker sub-agents, using cheap model if configured.
+
+    v6.22 D2:
+    - llm_config 有值: 复用主凭证 (provider/api_key/base_url), model 由
+      settings.worker_model 覆盖 (cheap), 无 worker_model 则同主 model。
+      与 acquire_for_project 同源 (create_llm_adapter_from_config), per-user 隔离。
+    - llm_config 为 None: 走 env (worker_llm_provider/worker_model), 旧行为兜底。
+    """
     from arc.config import settings
+
+    if llm_config and llm_config.get("api_key"):
+        worker_config = dict(llm_config)
+        if settings.worker_model:
+            worker_config["model"] = settings.worker_model
+        from arc.application.ai.llm_factory import create_llm_adapter_from_config
+
+        return create_llm_adapter_from_config(worker_config)
+
+    # env 兜底 (llm_config 为 None)
+    from arc.application.ai.resilience import create_resilient_adapter
 
     worker_provider = settings.worker_llm_provider or settings.llm_provider
     worker_model = settings.worker_model
