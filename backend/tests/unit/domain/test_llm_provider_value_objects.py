@@ -7,9 +7,8 @@ from __future__ import annotations
 import pytest
 
 from arc.domain.llm.value_objects import (
-    LLMProviderKind,
     PROVIDER_TEMPLATES,
-    ProviderTemplate,
+    LLMProviderKind,
     template_by_key,
 )
 
