@@ -6,7 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.23 方向待定, 见 v6.23.0-current.md。_
+_v6.24 辅助模块 LLM 接 DB 收口 (G1 B/C), 见 v6.24.0-current.md。_
+
+## [6.23.0] - 2026-07-01 — 投产检测后清单收口 (debt cleanup)
+
+### Added — 投产检测后清单收口
+- **C1 Cursor agent adapter 补实现**: 参照 claude_code CLI 子进程模式。核实 Cursor CLI 命令 `agent` + `-p` argv prompt (不支持 stdin) + text 输出 (无 JSON→每行 OBSERVATION) + 无 `--mcp-config` (mcp_servers 文本降级)。registry 零改动 (`implemented=True` 即注册)。6 集成测试。
+- **G1 A 辅助模块 LLM 接 DB (9 处)**: experience×4/planning×3/project/artifact `create_resilient_adapter` (env) → `resolve_for_context` + `acquire_for_project` (DB 凭证)。helper `LLMProviderService.resolve_for_context` 统一入口。修 adapter_pool 单例跨测试残留 (unit/conftest autouse 清理)。B/C 类留 v6.24。
+- **D2 conversation_config 子结构值对象化**: `GitSyncConfig` VO + `LoopConfig` 自 agent_loop 迁入 domain (+from_conversation_config/from_dict, 默认值经 VO 实例单一源, drift guard 对齐)。Project 加 `git_sync_config()`/`loop_config()` 访问器; session_manager + execution_helpers 两处裸读收口。核实实际裸读 2 站点 (非"7+处")。20 单测。
+- **D3 scanning 端点集成测试 (15)**: status/start/stream 三端点全覆盖。核实推翻"scan_manager 难 mock 需重构" — 路由 lazy import 可 monkeypatch 注入 testdouble, 零生产代码改动。
+
+### Fixed — 集成套件 flaky + 慢 (F1, 计划外)
+- **F1 集成套件 15min+flaky → 33s+216 全绿**: 双层根因 — (1) mock_llm 仅 patch `create_llm_adapter` 漏 generate 路径 (走 `acquire_for_project`→`create_llm_adapter_from_config`, 未 mock→真实 GLM); 修: 同时 patch 两工厂。(2) **integration/conftest 漏 adapter_pool 清理** (G1A 仅给 unit 加), 前测试缓存真实 adapter 污染后测试 (mock 对已缓存 adapter 无效); 修: mirror unit autouse 清理。test_pipeline_e2e/test_agent_registry_sync 多源 flake 同根因一并消除。
+
+### Changed — 评估/澄清
+- **D1 A .env 前缀语义整理 (非 breaking)**: 核实"触发 pydantic forbid"已不触发 (config.py 无 model_config, 默认 extra=ignore) → D1 退化为清晰度。文件头修正前缀语义 + 5 compose infra 变量标注。B 类重命名 breaking 大留专项。
+- **G1 B/C 架构决策 (定 v6.24)**: C 类 gate/validator 纯函数注入 `adapter` (保持纯函数+零 DB 耦合); B 类 template services 复制 G1 A 模式。
+
+### 质量检测
+6.1-6.7 全过 (6.3 grep 不匹配为 pydantic 前缀假阳性, 零 config 改动)。详见 v6.23.0-snapshot.md。基线: ruff0 / unit 2277 / integ 216 (33s 确定性) / tsc-b0 / vitest97。
 
 ## [6.22.0] - 2026-07-01 — v6.21 遗留收尾 + 扫描链路修复
 
