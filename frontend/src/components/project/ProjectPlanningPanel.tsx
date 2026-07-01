@@ -1,21 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import {
-  Upload,
-  FileText,
-  Trash2,
-  Loader2,
-  Sparkles,
-  Map,
-  Check,
-  Rocket,
-  RefreshCw,
-  Eye,
-  X,
+  Upload, FileText, Trash2, Loader2, Sparkles, Map, X,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useToast } from '../Toast';
-import MarkdownContent from '../MarkdownContent';
 import type { PlanningDocument, PlanningSession } from '../../types/api';
+import { RoadmapCard } from './project-planning-panel-parts';
 
 interface ProjectPlanningPanelProps {
   projectId: string;
@@ -160,73 +150,26 @@ export function ProjectPlanningPanel({ projectId, onRoadmapApplied, onClose, onP
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Documents */}
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
-              <FileText size={11} /> 需求文档
-            </p>
-            <label className={`flex cursor-pointer items-center gap-1 rounded-md bg-accent px-2 py-1 text-[10px] font-medium text-white hover:bg-accent-hover ${uploading ? 'opacity-50' : ''}`}>
-              {uploading ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
-              上传
-              <input ref={fileRef} type="file" className="hidden" accept=".pdf,.md,.txt,.docx" onChange={handleUpload} disabled={uploading} />
-            </label>
-          </div>
-          {documents.length > 0 ? (
-            <div className="space-y-1.5">
-              {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center gap-2 rounded border border-border bg-bg-elevated px-3 py-2">
-                  <FileText size={12} className="flex-shrink-0 text-accent" />
-                  <span className="min-w-0 flex-1 truncate text-[11px] text-text-primary">{doc.filename}</span>
-                  <span className="text-[9px] text-text-muted">{(doc.size / 1024).toFixed(1)}KB</span>
-                  {doc.parsed_features && (
-                    <span className="text-[9px] text-text-muted">{doc.parsed_features.length} 功能点</span>
-                  )}
-                  <button onClick={() => handleDeleteDoc(doc.id)} className="text-text-muted hover:text-status-error">
-                    <Trash2 size={11} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[10px] text-text-muted">上传PRD文档，AI拆分为版本路线图</p>
-          )}
-        </div>
+        <DocumentList
+          documents={documents}
+          uploading={uploading}
+          fileRef={fileRef}
+          onUpload={handleUpload}
+          onDelete={handleDeleteDoc}
+        />
 
-        {/* Constraints */}
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="mb-1 block text-[10px] text-text-muted">团队规模</label>
-            <input type="number" min={1} max={50} value={teamCapacity}
-              onChange={(e) => setTeamCapacity(Number(e.target.value))}
-              className="h-8 w-20 rounded border border-border bg-bg-input px-2 text-xs text-text-primary focus:border-border-active focus:outline-none" />
-          </div>
-          <div>
-            <label className="mb-1 block text-[10px] text-text-muted">迭代周期(周)</label>
-            <input type="number" min={1} max={12} value={iterationWeeks}
-              onChange={(e) => setIterationWeeks(Number(e.target.value))}
-              className="h-8 w-20 rounded border border-border bg-bg-input px-2 text-xs text-text-primary focus:border-border-active focus:outline-none" />
-          </div>
-          <div>
-            <label className="mb-1 block text-[10px] text-text-muted">发布策略</label>
-            <select value={releaseStrategy} onChange={(e) => setReleaseStrategy(e.target.value)}
-              className="h-8 rounded border border-border bg-bg-input px-2 text-xs text-text-primary focus:border-border-active focus:outline-none">
-              <option value="mvp">MVP 优先</option>
-              <option value="module">模块优先</option>
-              <option value="risk">风险驱动</option>
-            </select>
-          </div>
-          <button
-            onClick={handleGenerate}
-            disabled={generating || documents.length === 0}
-            className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[11px] font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-          >
-            {generating ? <Loader2 size={12} className="animate-spin" /> : <Map size={12} />}
-            {generating ? '生成中...' : '生成版本路线图'}
-          </button>
-        </div>
+        <ConstraintsPanel
+          teamCapacity={teamCapacity}
+          iterationWeeks={iterationWeeks}
+          releaseStrategy={releaseStrategy}
+          generating={generating}
+          canGenerate={documents.length > 0}
+          onTeamCapacityChange={setTeamCapacity}
+          onIterationWeeksChange={setIterationWeeks}
+          onReleaseStrategyChange={setReleaseStrategy}
+          onGenerate={handleGenerate}
+        />
 
-        {/* Sessions */}
         {sessions.length > 0 && (
           <div className="space-y-3">
             {sessions.map((session) => (
@@ -247,104 +190,106 @@ export function ProjectPlanningPanel({ projectId, onRoadmapApplied, onClose, onP
   );
 }
 
-function RoadmapCard({
-  session,
-  onConfirm,
-  onApply,
-  onRevise,
-  onPreview,
-  applying,
+function DocumentList({
+  documents,
+  uploading,
+  fileRef,
+  onUpload,
+  onDelete,
 }: {
-  session: PlanningSession;
-  onConfirm: () => void;
-  onApply: () => void;
-  onRevise: () => void;
-  onPreview?: () => void;
-  applying: boolean;
+  documents: PlanningDocument[];
+  uploading: boolean;
+  fileRef: React.RefObject<HTMLInputElement | null>;
+  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onDelete: (docId: string) => void;
 }) {
-  const roadmap = session.roadmap || {};
-  const { versions, strategy, strategy_rationale: strategyRationale, total_estimated_weeks: totalWeeks, timeline_mermaid: timelineMermaid } = roadmap;
-
-  const statusLabel: Record<string, string> = {
-    draft: '草稿', reviewing: '待确认', confirmed: '已确认', applied: '已应用',
-  };
-  const statusColor: Record<string, string> = {
-    draft: 'bg-text-muted/15 text-text-muted',
-    reviewing: 'bg-amber-500/15 text-amber-500',
-    confirmed: 'bg-accent/15 text-accent',
-    applied: 'bg-status-done/15 text-status-done',
-  };
-
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Map size={13} className="text-accent" />
-          <span className="text-[11px] font-medium text-text-primary">{strategy || '版本路线图'}</span>
-          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${statusColor[session.status] || ''}`}>
-            {statusLabel[session.status] || session.status}
-          </span>
-          {totalWeeks && <span className="text-[10px] text-text-muted">预估 {totalWeeks} 周</span>}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {onPreview && (
-            <button onClick={onPreview} className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] text-text-muted hover:bg-bg-elevated hover:text-text-secondary">
-              <Eye size={10} /> 预览
-            </button>
-          )}
-          {session.status === 'reviewing' && (
-            <button onClick={onConfirm} className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[10px] font-medium text-white hover:bg-accent-hover">
-              <Check size={11} /> 确认
-            </button>
-          )}
-          {session.status === 'confirmed' && (
-            <button onClick={onApply} disabled={applying} className="flex items-center gap-1 rounded-md bg-status-done px-2 py-1 text-[10px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-              {applying ? <Loader2 size={11} className="animate-spin" /> : <Rocket size={11} />}
-              应用到项目
-            </button>
-          )}
-          {session.status === 'applied' && (
-            <button onClick={onRevise} className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] text-text-muted hover:bg-bg-elevated hover:text-text-secondary">
-              <RefreshCw size={10} /> 重新规划
-            </button>
-          )}
-        </div>
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+          <FileText size={11} /> 需求文档
+        </p>
+        <label className={`flex cursor-pointer items-center gap-1 rounded-md bg-accent px-2 py-1 text-[10px] font-medium text-white hover:bg-accent-hover ${uploading ? 'opacity-50' : ''}`}>
+          {uploading ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
+          上传
+          <input ref={fileRef} type="file" className="hidden" accept=".pdf,.md,.txt,.docx" onChange={onUpload} disabled={uploading} />
+        </label>
       </div>
-
-      {strategyRationale && (
-        <div className="border-t border-border/50 px-3 py-2">
-          <p className="text-[10px] text-text-secondary">{strategyRationale}</p>
-        </div>
-      )}
-
-      {versions && versions.length > 0 && (
-        <div className="border-t border-border/50 px-3 py-2.5 space-y-2">
-          {versions.map((v, i) => (
-            <div key={i} className="rounded border border-border bg-bg-card p-2.5">
-              <div className="mb-1 flex items-center gap-2">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[8px] font-bold text-white">{i + 1}</span>
-                <span className="text-[11px] font-medium text-text-primary">{v.name}</span>
-                {v.estimated_sprints != null && <span className="text-[9px] text-text-muted">{String(v.estimated_sprints)} 个迭代</span>}
-              </div>
-              <p className="mb-1 text-[10px] text-text-secondary">{v.goal}</p>
-              {v.features?.slice(0, 5).map((feat, fi) => (
-                <div key={fi} className="flex items-center gap-2 pl-6 text-[10px] text-text-secondary">
-                  <span className="text-text-muted">-</span>
-                  <span>{feat.title}</span>
-                </div>
-              ))}
+      {documents.length > 0 ? (
+        <div className="space-y-1.5">
+          {documents.map((doc) => (
+            <div key={doc.id} className="flex items-center gap-2 rounded border border-border bg-bg-elevated px-3 py-2">
+              <FileText size={12} className="flex-shrink-0 text-accent" />
+              <span className="min-w-0 flex-1 truncate text-[11px] text-text-primary">{doc.filename}</span>
+              <span className="text-[9px] text-text-muted">{(doc.size / 1024).toFixed(1)}KB</span>
+              {doc.parsed_features && (
+                <span className="text-[9px] text-text-muted">{doc.parsed_features.length} 功能点</span>
+              )}
+              <button onClick={() => onDelete(doc.id)} className="text-text-muted hover:text-status-error">
+                <Trash2 size={11} />
+              </button>
             </div>
           ))}
         </div>
+      ) : (
+        <p className="text-[10px] text-text-muted">上传PRD文档，AI拆分为版本路线图</p>
       )}
+    </div>
+  );
+}
 
-      {timelineMermaid && (
-        <div className="border-t border-border/50 px-3 py-2">
-          <div className="rounded bg-bg-card p-2">
-            <MarkdownContent content={`\`\`\`mermaid\n${timelineMermaid}\n\`\`\``} />
-          </div>
-        </div>
-      )}
+function ConstraintsPanel({
+  teamCapacity,
+  iterationWeeks,
+  releaseStrategy,
+  generating,
+  canGenerate,
+  onTeamCapacityChange,
+  onIterationWeeksChange,
+  onReleaseStrategyChange,
+  onGenerate,
+}: {
+  teamCapacity: number;
+  iterationWeeks: number;
+  releaseStrategy: string;
+  generating: boolean;
+  canGenerate: boolean;
+  onTeamCapacityChange: (v: number) => void;
+  onIterationWeeksChange: (v: number) => void;
+  onReleaseStrategyChange: (v: string) => void;
+  onGenerate: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div>
+        <label className="mb-1 block text-[10px] text-text-muted">团队规模</label>
+        <input type="number" min={1} max={50} value={teamCapacity}
+          onChange={(e) => onTeamCapacityChange(Number(e.target.value))}
+          className="h-8 w-20 rounded border border-border bg-bg-input px-2 text-xs text-text-primary focus:border-border-active focus:outline-none" />
+      </div>
+      <div>
+        <label className="mb-1 block text-[10px] text-text-muted">迭代周期(周)</label>
+        <input type="number" min={1} max={12} value={iterationWeeks}
+          onChange={(e) => onIterationWeeksChange(Number(e.target.value))}
+          className="h-8 w-20 rounded border border-border bg-bg-input px-2 text-xs text-text-primary focus:border-border-active focus:outline-none" />
+      </div>
+      <div>
+        <label className="mb-1 block text-[10px] text-text-muted">发布策略</label>
+        <select value={releaseStrategy} onChange={(e) => onReleaseStrategyChange(e.target.value)}
+          className="h-8 rounded border border-border bg-bg-input px-2 text-xs text-text-primary focus:border-border-active focus:outline-none">
+          <option value="mvp">MVP 优先</option>
+          <option value="module">模块优先</option>
+          <option value="risk">风险驱动</option>
+        </select>
+      </div>
+      <button
+        onClick={onGenerate}
+        disabled={generating || !canGenerate}
+        className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[11px] font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+      >
+        {generating ? <Loader2 size={12} className="animate-spin" /> : <Map size={12} />}
+        {generating ? '生成中...' : '生成版本路线图'}
+      </button>
     </div>
   );
 }
