@@ -11,6 +11,22 @@ from arc.application.ai.llm_adapter import LLMAdapter, LLMMessage, LLMResponse, 
 
 logger = logging.getLogger(__name__)
 
+
+def _is_retryable_error(exc: Exception) -> bool:
+    """是否值得重试。
+
+    4xx 客户端错误(非 429 限流)不可重试 — 权限(403)/认证(401)/参数(400)错误
+    重试无意义,立即抛出避免后台 task 长时间占位(scan_codebase 403 被重试 3 次 +
+    指数退避致 is_running 长期为 True, 用户再点扫描 → 409)。
+    SDK 透传的 APIStatusError 带 status_code 属性;无 status_code 的异常视为可重试
+    (网络抖动/超时/未知运行时错误)。
+    """
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and 400 <= status < 500 and status != 429:
+        return False
+    return True
+
+
 _DEFAULT_MAX_RETRIES = 3
 _DEFAULT_TIMEOUT_SECONDS = 300
 _CB_FAILURE_THRESHOLD = 5
@@ -139,6 +155,8 @@ class ResilientAdapter(LLMAdapter):
                 if started:
                     # Already yielded chunks — can't retry mid-stream
                     raise
+                if not _is_retryable_error(exc):
+                    raise
                 last_exc = exc
                 logger.warning(
                     "LLM stream connect failed (attempt %d/%d): %s",
@@ -174,6 +192,8 @@ class ResilientAdapter(LLMAdapter):
                 raise
             except Exception as exc:
                 self._chat_breaker.on_failure()
+                if not _is_retryable_error(exc):
+                    raise
                 last_exc = exc
                 logger.warning(
                     "LLM stream_with_result connect failed (attempt %d/%d): %s",
@@ -271,6 +291,8 @@ class ResilientAdapter(LLMAdapter):
                 breaker.on_failure()
                 last_exc = exc
                 logger.warning("LLM error (attempt %d/%d): %s", attempt + 1, self._max_retries, exc)
+                if not _is_retryable_error(exc):
+                    raise
 
             if attempt < self._max_retries - 1:
                 delay = min(2**attempt * 2, 16)  # exponential backoff: 2s, 4s, 8s, 16s

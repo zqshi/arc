@@ -62,6 +62,40 @@ class TestRetry:
         with pytest.raises(asyncio.TimeoutError):
             await resilient.chat([LLMMessage(role="user", content="hi")])
 
+    async def test_no_retry_on_client_error(self):
+        """4xx 客户端错误(403)不重试, 立即抛出 (scan 409 根因修复)."""
+        inner = _make_adapter()
+        # 模拟 SDK 透传的 403 Forbidden (APIStatusError 带 status_code)
+        exc = PermissionError("consumer has not enabled this model")
+        exc.status_code = 403  # type: ignore[attr-defined]
+        inner.chat.side_effect = exc
+        resilient = ResilientAdapter(inner, max_retries=3, breaker=_CircuitBreaker())
+        with pytest.raises(PermissionError, match="consumer has not enabled"):
+            await resilient.chat([LLMMessage(role="user", content="hi")])
+        # 不重试 — 仅调用 1 次
+        assert inner.chat.call_count == 1
+
+    async def test_no_retry_on_400_but_retry_on_429(self):
+        """400 不重试, 429 限流仍重试."""
+        inner = _make_adapter()
+        exc400 = ValueError("bad request")
+        exc400.status_code = 400  # type: ignore[attr-defined]
+        inner.chat.side_effect = exc400
+        resilient = ResilientAdapter(inner, max_retries=3, breaker=_CircuitBreaker())
+        with pytest.raises(ValueError):
+            await resilient.chat([LLMMessage(role="user", content="hi")])
+        assert inner.chat.call_count == 1  # 400 不重试
+
+        # 429 限流 → 重试到耗尽
+        inner2 = _make_adapter()
+        exc429 = RuntimeError("rate limited")
+        exc429.status_code = 429  # type: ignore[attr-defined]
+        inner2.chat.side_effect = exc429
+        resilient2 = ResilientAdapter(inner2, max_retries=2, breaker=_CircuitBreaker())
+        with pytest.raises(RuntimeError):
+            await resilient2.chat([LLMMessage(role="user", content="hi")])
+        assert inner2.chat.call_count == 2  # 429 重试
+
 
 class TestCircuitBreaker:
     async def test_opens_after_threshold(self):
