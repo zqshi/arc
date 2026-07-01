@@ -6,7 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.22 v6.21 遗留收尾 + 技术债务清理, 见 v6.22.0-current.md。方向待细化。_
+_v6.23 方向待定, 见 v6.23.0-current.md。_
+
+## [6.22.0] - 2026-07-01 — v6.21 遗留收尾 + 扫描链路修复
+
+### Added — worker/扫描凭证链路接 DB + 扫描修复
+- **D2 worker 凭证链路走 DB**: `acquire_worker(llm_config)` 接受 D1 透传的 llm_config, 复用主凭证 + `settings.worker_model` 覆盖 model (cheap), ephemeral 不缓存; None 时 env 兜底。调用方 `orchestration/service.py _run_worker` 传 `self._llm_config`。6 单测。
+- **T7 扫描接 DB 凭证 (计划外)**: scanner_analysis 5 处 `acquire()` → `acquire_for_project(llm_config)`, scan_codebase 路由 `resolve_from_project` 透传。扩展 D1 边界 (原"辅助模块不做"), None 时 env 兜底。3 单测。
+- **T8 force=true 强制重扫 (计划外)**: scan_manager 加 `cancel(project_id)`, scan_codebase force=true 时取消旧 task 再 start_scan, scan_status 路由补偿。unit 测试。
+
+### Fixed — 集成测试 + 重试缺陷
+- **T5 集成测试 4 失败修复**: 三文件本地 `cleanup` teardown 模式 (yield 在前) 在 v6.16 savepoint 下 commit 退化、DELETE 被外层 rollback 撤销, 从未真正清理 dev DB 预存 openhands 脏数据。提取到 conftest 统一 `cleanup` fixture 改 setup 模式 (DELETE+flush 在 yield 前)。附带 `test_db_empty_seeds_env`/`test_seed_idempotent` 真正测到 env seed 路径。
+- **T6 403 重试致 scan 409 (计划外)**: `resilience._retry`/`chat_stream`/`chat_stream_with_result` 对所有异常重试 (含 403), scanner_analysis 5 处 LLM × 3 重试 × 指数退避致 scan task 占位 → `is_running=True` → 再点 409。加 `_is_retryable_error(exc)` helper, 4xx (非 429) 不重试立即抛出。2 单测。
+
+### Changed — 评估决策
+- **T2 Project dict 值对象化**: 评估后不做 (pipeline_config ROI 低 / domain_model ROI 负 (LLM 产出) / conversation_config 整体值对象化绑死迁移期兼容结构)。记技术债务: git_sync/loop_config 子结构值对象化留下版本。
+
+### 质量检测
+6.1-6.7 全过 (6.6 记录项: scanning 端点端到端 integ 未补, 全局单例难 mock, unit 覆盖核心)。最终基线 ruff0 / unit+integ 2448 passed / tsc -b 0 / vitest 97。
 
 ## [6.21.0] - 2026-07-01 — LLM 链路深化 + 技术债清理
 
