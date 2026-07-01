@@ -10,15 +10,6 @@ import uuid
 import pytest
 
 
-@pytest.fixture
-async def cleanup(db_session):
-    yield
-    from sqlalchemy import text
-
-    await db_session.execute(text("DELETE FROM capabilities"))
-    await db_session.commit()
-
-
 class TestCapabilityAPI:
     @pytest.mark.asyncio
     async def test_create_and_get(self, client, cleanup):

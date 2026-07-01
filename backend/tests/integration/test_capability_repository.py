@@ -35,16 +35,6 @@ def _make_capability(
     )
 
 
-@pytest.fixture
-async def cleanup(db_session):
-    """每个测试后清理 capabilities 表。"""
-    yield
-    from sqlalchemy import text
-
-    await db_session.execute(text("DELETE FROM capabilities"))
-    await db_session.commit()
-
-
 class TestCapabilityCRUD:
     @pytest.mark.asyncio
     async def test_create_and_get(self, db_session, cleanup):

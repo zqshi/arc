@@ -56,6 +56,25 @@ async def db_session():
 
 
 @pytest.fixture
+async def cleanup(db_session: AsyncSession):
+    """v6.22: setup 模式预清 capabilities 表。
+
+    测试运行前清空 capabilities, 让 capability/agent_registry 测试从干净状态出发
+    (修 v6.21 遗留 4 失败: dev DB 预存 openhands 脏数据污染)。savepoint 内 flush,
+    teardown 由 db_session 外层 trans.rollback() 撤销, 不破坏 dev DB 真实数据。
+
+    原三文件本地 cleanup 为 teardown 模式 (yield 在前 + commit), 在 v6.16 savepoint
+    下 commit 退化为 savepoint release、DELETE 被外层 rollback 撤销, 从未真正清理且
+    清理时机在测试后, 无法保证测试运行时 DB 干净。改为 setup 模式根治。
+    被测代码 (sync_registry_from_db / CapabilityRepository / API get_db override) 均
+    复用传入 db_session, flush 后可见; 无独立 session 旁路。
+    """
+    await db_session.execute(text("DELETE FROM capabilities"))
+    await db_session.flush()
+    yield
+
+
+@pytest.fixture
 async def client(db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
     from arc.domain.user.entity import User
     from arc.domain.user.value_objects import UserRole

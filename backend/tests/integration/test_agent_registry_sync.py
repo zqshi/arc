@@ -18,15 +18,6 @@ from arc.domain.capability.value_objects import (
 )
 
 
-@pytest.fixture
-async def cleanup(db_session):
-    yield
-    from sqlalchemy import text
-
-    await db_session.execute(text("DELETE FROM capabilities"))
-    await db_session.commit()
-
-
 def _only_openhands_env(monkeypatch):
     from arc.config import settings
 
