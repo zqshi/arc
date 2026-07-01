@@ -13,6 +13,21 @@ from arc.config import settings
 TEST_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 
+@pytest.fixture(autouse=True)
+def _clear_adapter_pool_cache():
+    """v6.23 F1: 每测试前清空 adapter_pool 单例缓存 (同 unit/conftest, G1A 已证)。
+
+    integration 漏了此清理 → 前测试 (无 mock_llm) 缓存的真实 adapter 残留 _DEFAULT_KEY,
+    后测试 (如 test_pipeline_e2e) generate 若走 _ensure_adapter(_DEFAULT_KEY) 复用真实
+    adapter → mock_llm patch 工厂函数对已缓存 adapter 无效 → 真实 GLM → flaky + 套件慢。
+    """
+    from arc.application.ai.adapter_pool import adapter_pool
+
+    adapter_pool._adapters.clear()
+    yield
+    adapter_pool._adapters.clear()
+
+
 @pytest.fixture(scope="session")
 def anyio_backend():
     return "asyncio"

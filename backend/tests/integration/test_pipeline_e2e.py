@@ -44,13 +44,23 @@ MOCK_GATE_PASS = json.dumps({
 
 @pytest.fixture
 def mock_llm():
-    """Mock LLM that returns predetermined responses."""
-    with patch("arc.application.ai.llm_adapter.create_llm_adapter") as mock_factory:
-        adapter = AsyncMock()
-        adapter.chat = AsyncMock()
-        adapter.embed = AsyncMock(return_value=[0.1] * 1536)
-        adapter.close = AsyncMock()
-        mock_factory.return_value = adapter
+    """Mock LLM that returns predetermined responses.
+
+    v6.23 F1: 同时 patch create_llm_adapter 与 create_llm_adapter_from_config。
+    generate 路径走 adapter_pool.acquire_for_project(llm_config) → create_llm_adapter_from_config
+    (llm_config 有 api_key 时, 经 DB LLMProviderService.resolve_for_context 解析); gate/无 config
+    路径走 create_resilient_adapter → create_llm_adapter。只 patch 后者会让 generate 走真实 GLM,
+    artifact 非确定 → gate methodology gap → 偶发 409 + 套件因重试退避拖到 15min。
+    两工厂返回同一 mock adapter, 由 mock_llm.chat.return_value 统一控制。
+    """
+    adapter = AsyncMock()
+    adapter.chat = AsyncMock()
+    adapter.embed = AsyncMock(return_value=[0.1] * 1536)
+    adapter.close = AsyncMock()
+    with (
+        patch("arc.application.ai.llm_adapter.create_llm_adapter", return_value=adapter),
+        patch("arc.application.ai.llm_adapter.create_llm_adapter_from_config", return_value=adapter),
+    ):
         yield adapter
 
 
