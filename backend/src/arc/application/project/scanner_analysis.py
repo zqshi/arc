@@ -274,11 +274,17 @@ def parse_domain_model_response(response_text: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-async def scan_and_summarize_stream(path: str) -> AsyncIterator[dict]:
+async def scan_and_summarize_stream(
+    path: str, llm_config: dict | None = None
+) -> AsyncIterator[dict]:
     """Stream scan with automatic batching for large projects.
 
     - If all files fit in one prompt → single LLM call (streamed)
     - If too large → batch analysis → synthesis (each batch streamed)
+
+    v6.22 B: llm_config 由调用方 (scan_task ← scan_codebase 路由) 经 D1
+    resolve_from_project 解析后透传, 扫描走 DB 凭证 (per-user 隔离); None
+    时 acquire_for_project fallback env (旧行为, 兼容无 user 上下文调用).
     """
     from arc.application.ai.adapter_pool import adapter_pool
     from arc.application.ai.llm_adapter import LLMMessage
@@ -317,7 +323,7 @@ async def scan_and_summarize_stream(path: str) -> AsyncIterator[dict]:
             source_content=source_section,
             source_count=len(data["source_files"]),
         )
-        async with adapter_pool.acquire() as adapter:
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
             async for chunk in adapter.chat_stream(
                 [LLMMessage(role="user", content=prompt)],
                 temperature=0.3, max_tokens=scale.max_tokens,
@@ -356,7 +362,7 @@ async def scan_and_summarize_stream(path: str) -> AsyncIterator[dict]:
             )
 
             batch_content = ""
-            async with adapter_pool.acquire() as adapter:
+            async with adapter_pool.acquire_for_project(llm_config) as adapter:
                 async for chunk in adapter.chat_stream(
                     [LLMMessage(role="user", content=batch_prompt)],
                     temperature=0.3, max_tokens=4096,
@@ -376,7 +382,7 @@ async def scan_and_summarize_stream(path: str) -> AsyncIterator[dict]:
         )
 
         full_content = ""
-        async with adapter_pool.acquire() as adapter:
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
             async for chunk in adapter.chat_stream(
                 [LLMMessage(role="user", content=synthesis_prompt)],
                 temperature=0.3, max_tokens=scale.max_tokens,
@@ -400,7 +406,7 @@ async def scan_and_summarize_stream(path: str) -> AsyncIterator[dict]:
 
         yield {"event": "stage", "message": "正在构建领域模型..."}
         try:
-            async with adapter_pool.acquire() as adapter:
+            async with adapter_pool.acquire_for_project(llm_config) as adapter:
                 dm_response = await adapter.chat(
                     [LLMMessage(role="user", content=dm_prompt)],
                     temperature=0.1, max_tokens=8192,
@@ -423,7 +429,7 @@ async def scan_and_summarize_stream(path: str) -> AsyncIterator[dict]:
 # ---------------------------------------------------------------------------
 
 
-async def scan_and_summarize(path: str) -> str:
+async def scan_and_summarize(path: str, llm_config: dict | None = None) -> str:
     """Non-streaming scan. Uses single-pass if fits, otherwise multi-pass."""
     from arc.application.ai.adapter_pool import adapter_pool
     from arc.application.ai.llm_adapter import LLMMessage
@@ -435,7 +441,7 @@ async def scan_and_summarize(path: str) -> str:
 
     context_budget = _estimate_context_budget()
     if len(prompt) <= context_budget:
-        async with adapter_pool.acquire() as adapter:
+        async with adapter_pool.acquire_for_project(llm_config) as adapter:
             response = await adapter.chat(
                 [LLMMessage(role="user", content=prompt)],
                 temperature=0.3, max_tokens=scale.max_tokens,
@@ -444,7 +450,7 @@ async def scan_and_summarize(path: str) -> str:
 
     # Multi-pass fallback
     result_parts = []
-    async for event in scan_and_summarize_stream(data["path"]):
+    async for event in scan_and_summarize_stream(data["path"], llm_config):
         if event.get("event") == "done":
             return event.get("summary", "")
     return "\n".join(result_parts) or "分析失败"

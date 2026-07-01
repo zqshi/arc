@@ -49,6 +49,7 @@ async def scan_codebase(
 ):
     from pathlib import Path
 
+    from arc.application.llm.service import LLMProviderService
     from arc.application.project.scan_task import scan_manager
     from arc.application.project.scanner import compute_scan_fingerprint
 
@@ -71,7 +72,11 @@ async def scan_codebase(
             return {"summary": project.codebase_summary, "cached": True}
 
     if scan_manager.is_running(pid):
-        raise HTTPException(409, "扫描进行中，请勿重复操作")
+        if force:
+            # A: 强制重扫 — 取消旧 task (cancel 后 is_running=False, start_scan 能进)
+            await scan_manager.cancel(pid)
+        else:
+            raise HTTPException(409, "扫描进行中，请勿重复操作")
 
     if project.scan_status == "scanning":
         project.scan_status = "idle"
@@ -79,7 +84,10 @@ async def scan_codebase(
         await repo.update(project)
         await db.commit()
 
-    task_id = await scan_manager.start_scan(pid, str(path))
+    # B: 扫描走 DB 凭证 (D1 resolve_from_project, per-user 隔离), None 时 env 兜底
+    llm_config = await LLMProviderService(db).resolve_from_project(project, user.id)
+
+    task_id = await scan_manager.start_scan(pid, str(path), llm_config)
     return JSONResponse(
         status_code=202,
         content={"task_id": task_id, "status": "running"},

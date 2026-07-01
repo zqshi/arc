@@ -55,8 +55,14 @@ class ScanTaskManager:
         """Return the last scan error message for a project, or None."""
         return self._last_error.get(project_id)
 
-    async def start_scan(self, project_id: str, path: str) -> str:
-        """Start a background scan task. Returns task_id."""
+    async def start_scan(
+        self, project_id: str, path: str, llm_config: dict | None = None
+    ) -> str:
+        """Start a background scan task. Returns task_id.
+
+        v6.22 B: llm_config 由调用方 (scan_codebase 路由) 经 D1 resolve_from_project
+        解析后透传, 扫描走 DB 凭证; None 时 scanner_analysis fallback env.
+        """
         async with self._lock:
             if self.is_running(project_id):
                 raise RuntimeError("Scan already in progress")
@@ -64,9 +70,32 @@ class ScanTaskManager:
             self._last_error.pop(project_id, None)
             self._accumulated[project_id] = ""
             task_id = str(uuid.uuid4())[:8]
-            task = asyncio.create_task(self._run_scan(project_id, path, task_id))
+            task = asyncio.create_task(
+                self._run_scan(project_id, path, task_id, llm_config)
+            )
             self._tasks[project_id] = task
             return task_id
+
+    async def cancel(self, project_id: str) -> bool:
+        """取消正在进行的扫描 task (force=true 强制重扫用)。
+
+        先从 _tasks 移除 (让 is_running 立即 False, start_scan 能进), 再 cancel+await
+        让 task 走完 finally (_finish 通知订阅者 + pop)。不在 lock 内 await task
+        (避免与 _run_scan finally 的 lock 死锁)。返回是否确实取消了运行中的 task。
+        scan_status 残留由 scan_codebase 路由补偿 (置 idle)。
+        """
+        async with self._lock:
+            task = self._tasks.pop(project_id, None)
+        if task is None or task.done():
+            return False
+        task.cancel()
+        try:
+            await task
+        except BaseException:
+            pass
+        async with self._lock:
+            self._accumulated.pop(project_id, None)
+        return True
 
     async def subscribe(self, project_id: str) -> AsyncIterator[dict]:
         """Subscribe to scan events for a project. Yields events until done.
@@ -158,7 +187,9 @@ class ScanTaskManager:
             except asyncio.QueueFull:
                 pass
 
-    async def _run_scan(self, project_id: str, path: str, task_id: str) -> None:
+    async def _run_scan(
+        self, project_id: str, path: str, task_id: str, llm_config: dict | None = None
+    ) -> None:
         """Execute the scan, emitting events and persisting the result."""
         from arc.application.project.scanner import compute_scan_fingerprint
         from arc.application.project.scanner_analysis import (
@@ -174,7 +205,7 @@ class ScanTaskManager:
 
         try:
             last_stage = ""
-            async for event in scan_and_summarize_stream(path):
+            async for event in scan_and_summarize_stream(path, llm_config):
                 await self._emit(project_id, event)
                 evt_type = event.get("event")
                 if evt_type == "done":
