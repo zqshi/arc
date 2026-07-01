@@ -6,7 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.21 LLM 链路深化 + 技术债清理, 见 v6.21.0-current.md。_
+_v6.22 v6.21 遗留收尾 + 技术债务清理, 见 v6.22.0-current.md。方向待细化。_
+
+## [6.21.0] - 2026-07-01 — LLM 链路深化 + 技术债清理
+
+### Added — LLM 链路走 DB 凭证 + 前端组件拆分
+- **D1 全局默认凭证接通 DB**: `LLMProviderService.resolve_from_project` + `resolve_default_config`, 优先级链 项目 llm_provider_id → 旧明文 → 用户默认凭证 → None(env兜底)。Agent 主链路 (extract_tags/_text_only_stream/orchestration) 走 `acquire_for_project`, env 退化为兜底。推翻方案 A (adapter_pool 全局单例 vs LLMProvider per-user 串台), 改选请求级解析。7 单测。
+- **D3 pipeline 路径补 llm_provider_id**: `conversation/service.py` 对齐 unified 路径, 修复 v6.20 L5 遗漏。两处共用 `resolve_from_project` 消除重复。
+- **T1 前端 10 组件拆分**: 10 父组件 + 11 parts 文件全 <300, 纯结构搬运零行为变化。
+
+### Changed
+- `conversation_context.get_llm_config` 收敛到 `LLMProviderService`, 移除直接依赖 `SqlAlchemyLLMProviderRepository`+`crypto` (减轻 execution 层对 infrastructure 依赖)
+- `orchestration.execute` 加 `llm_config` 参数, 3 处 `acquire`→`acquire_for_project`
+
+### 决策
+- 推翻 current.md 方案 A (lifespan 注入 _DEFAULT_KEY): adapter_pool 全局单例 vs LLMProvider per-user 隔离串台, 改选请求级解析 + env 兜底
+- D1 只改 Agent 主链路核心 (3 处), 辅助模块 (~20 处 create_resilient_adapter) 仍走 env (渐进边界)
+- T3 跳过 (hooks.py 纯函数是全项目既定模式, 非聚合违规)
+- D2/T2 留下版本 (worker 语义需产品决策 / 值对象化工作量大)
+
+### 遗留
+- D2 worker 凭证链路 (worker 语义待定), T2 值对象化, 集成测试 4 失败 (DB openhands 残留, 预先存在) — 留 v6.22
 
 ## [6.20.0] - 2026-07-01 — LLM 多厂商凭证管理 + 在线探活
 
