@@ -9,8 +9,9 @@ Revises: z22_role_default_member
 Create Date: 2026-06-30
 """
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "z23_llm_providers"
 down_revision = "z22_role_default_member"

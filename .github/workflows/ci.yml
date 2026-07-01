@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check backend/src
+      - run: ruff check backend/
 
   backend-test:
     runs-on: ubuntu-latest
