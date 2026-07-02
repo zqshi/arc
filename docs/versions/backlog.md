@@ -76,6 +76,11 @@
 | conversation_config 子结构值对象化 (git_sync/loop_config 防 7+ 处裸读拼写错误) | P3 | v6.22 技术债务 | pending |
 | BaaS provision pipeline 触发链缺口 (pipeline generate/refresh 不接入 artifact_extractor→try_provision_baas, 无手动端点, 走 pipeline 永不 provision) | P0 | v6.24 R5 验证 | ✅ 2026-07-02 已修: DomainModelService.provision_baas 统一入口 + refresh 自动调 + POST /projects/{id}/baas/provision 端点。实测 pipeline→refresh→provisioned=true |
 | BaaS provision 建表 RLS 启用但 0 policy (orders/payments/inventories relrowsecurity=t 但 pg_policies=0 → Supabase anon/authenticated deny-all 不可读写; dev superuser bypass 掩盖) | P0 | v6.24 R5 验证 | ✅ 2026-07-02 已修: DomainModelApplier 生成默认 policy (user_id 行级隔离/无user_id authenticated共享) + user_id DEFAULT auth.uid() + provisioner 预建 Supabase 约定。实测 pg_policies=4 |
+| conversation 模式 BaaS provision 端到端未运行态实测 (send_message→execution_engine→artifact_extractor→try_provision_baas 仅代码路径确认, pipeline 路径已实测 provisioned=true, conversation 路径未跑真实 LLM 端到端) | P2 | v6.24 R5 验证 | ⏳ 待运行态验证 (新会话: conversation 发消息→产出 tech_architecture→验 baas-status provisioned) |
+| start_phase 前置检查与 skip 规则状态不一致 (clarification 产品规则"不可跳过" skip→400, 但 start architecture 前置检查放行 active 的 clarification, 可绕过"必须完成"约束) | P2 | v6.24 R5 验证 | ⏳ 待修: start_phase 前置检查收紧 (active 也算未完成, 或 skip 规则放开首阶段) |
+| ArtifactPostProcessHooks.try_provision_baas_after_extract 未复用 DomainModelService.provision_baas (conversation 与 pipeline 两处 project→snapshot→apply_snapshot 编排重复, 行为一致但不 DRY) | P3 | v6.24 R5 验证 | ⏳ 待重构: Hooks 改调 provision_baas (execution→project 跨 application 子层依赖可接受) |
+| 智谱 glm-5-turbo 经 anthropic 兼容端点 architecture 产出慢 (实测 23s~191s 波动, 智谱服务端 x-process-time, 非 arc bug 但影响交互体验) | P3 | v6.24 R5 验证 | ⏳ 评估: worker_model 切 glm-4.5-air 或换更快端点/原生 SDK |
+| 多 .env 配置易错 (根 .env 全空占位 + backend/.env 真实 LLM 配置 + pydantic forbid ARC_DB_PORT infra 变量, cwd 不对即 forbid/空 key 500; 本会话踩两次) | P3 | v6.24 R5 验证 | ⏳ 待整理: 统一单 .env 或 config 加 extra='ignore' (v6.18 既定债务 D1 重提) |
 
 ---
 
