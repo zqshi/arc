@@ -147,10 +147,27 @@ async def generate_artifact(todo_id: str, phase_type: str, db: DbSession, user: 
 
 
 @router.post("/{todo_id}/phases/{phase_type}/confirm", response_model=PhaseResponse)
-async def confirm_phase(todo_id: str, phase_type: str, db: DbSession, user: CurrentUser):
-    """Confirm phase artifact and advance to next phase."""
+async def confirm_phase(
+    todo_id: str,
+    phase_type: str,
+    db: DbSession,
+    user: CurrentUser,
+    force_review_failure: bool = False,
+    reason: str | None = None,
+):
+    """Confirm phase artifact and advance to next phase.
+
+    v6.24 P2 评审故障逃生阀: force_review_failure + reason 仅当 LLM 评审基础设施
+    故障时生效 (gate_result.review_infra_failure), 客观守卫 (结构/方法论/DAG) 不可绕过。
+    """
     todo = await _verify_todo_ownership(db, todo_id, user.id)
     await _require_pipeline_mode(db, todo, user.id)
+
+    if force_review_failure and not (reason and reason.strip()):
+        raise HTTPException(
+            status_code=400,
+            detail="force_review_failure 需提供非空 reason 说明",
+        )
 
     from arc.application.pipeline.gate import PhaseGateError
     from arc.application.pipeline.service import PipelineService
@@ -158,7 +175,11 @@ async def confirm_phase(todo_id: str, phase_type: str, db: DbSession, user: Curr
     pt = _parse_phase_type(phase_type)
     svc = PipelineService(db)
     try:
-        phase = await svc.confirm_phase(UUID(todo_id), pt)
+        phase = await svc.confirm_phase(
+            UUID(todo_id), pt,
+            force_review_failure=force_review_failure,
+            reason=reason,
+        )
     except PhaseGateError as exc:
         raise HTTPException(
             status_code=409,

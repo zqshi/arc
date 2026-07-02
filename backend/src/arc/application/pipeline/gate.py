@@ -34,6 +34,9 @@ class GateResult:
     score: int
     gaps: list[str]
     suggestion: str
+    # v6.24 P2: 标识"LLM 评审基础设施故障"(解析失败/服务不可达), 区分"客观守卫 fail"。
+    # 仅 review_infra_failure=True 时允许 confirm 故障逃生阀 force, 客观守卫不可绕过。
+    review_infra_failure: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -41,6 +44,7 @@ class GateResult:
             "score": self.score,
             "gaps": self.gaps,
             "suggestion": self.suggestion,
+            "review_infra_failure": self.review_infra_failure,
         }
 
 
@@ -135,14 +139,16 @@ async def evaluate_gate(
         result_data = await _default_pipeline_review(prompt)
 
     if not isinstance(result_data, dict):
-        # v6.24: score=0 哨兵 — 区分"评审基础设施故障(未出有效结果)" vs "评了但质量差"。
-        # 供 confirm 故障逃生阀 (P2) 识别 score==0 = LLM 评审层故障, 非产出物不合格。
+        # v6.24 P2: review_infra_failure 哨兵 — 标识"LLM 评审基础设施故障"(解析失败/服务不可达),
+        # 区分"客观守卫 fail"(DAG/结构/方法论, 不可 override)。供 confirm 故障逃生阀识别:
+        # 仅 review_infra_failure=True 时允许 force_review_failure, 客观守卫不可绕过。
         logger.warning("Gate evaluation parse failed, blocking advancement")
         return GateResult(
             passed=False,
             score=0,
             gaps=structural_gaps or ["AI质量评审结果解析失败（评审基础设施故障，非产出物问题）"],
             suggestion="质量评审遇到技术问题，请重试；持续失败请联系管理员或使用故障逃生出口。",
+            review_infra_failure=True,
         )
 
     # v6.24: passed 完全由代码推导 (score>=阈值 且 结构无缺口 且 无 p0 阻断), 不读 LLM passed 字段

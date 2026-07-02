@@ -151,12 +151,21 @@ class PipelineService:
         return artifact
 
     async def confirm_phase(
-        self, todo_id: uuid.UUID, phase_type: PhaseType
+        self,
+        todo_id: uuid.UUID,
+        phase_type: PhaseType,
+        *,
+        force_review_failure: bool = False,
+        reason: str | None = None,
     ) -> PipelinePhase | None:
         """Confirm current phase's artifact and advance to next phase.
 
         Raises PhaseGateError if the artifact doesn't meet quality gates.
         Uses a savepoint so all DB changes roll back atomically on failure.
+
+        v6.24 P2 评审故障逃生阀: force_review_failure + reason 仅当
+        gate_result.review_infra_failure (LLM 评审基础设施故障) 时生效 —
+        客观守卫 (结构/方法论/DAG) 不可绕过。审计走 logger.warning (不加 DB 字段)。
         """
         from arc.application.pipeline.gate import GateResult, PhaseGateError
 
@@ -177,7 +186,28 @@ class PipelineService:
 
         gate_result = await self._evaluate_phase_gate(phase_type, artifact, todo_id)
         if not gate_result.passed:
-            raise PhaseGateError(gate_result)
+            # P2 评审故障逃生阀: 仅 LLM 评审基础设施故障可 force, 客观守卫不可绕过。
+            # (能走到 LLM 层说明客观守卫已过; review_infra_failure 只在解析失败时由 gate 设置)
+            if (
+                force_review_failure
+                and gate_result.review_infra_failure
+                and reason
+                and reason.strip()
+            ):
+                logger.warning(
+                    "gate review override (infra failure): "
+                    "todo=%s phase=%s user_reason=%s",
+                    todo_id, phase_type.value, reason,
+                )
+                gate_result = GateResult(
+                    passed=True,
+                    score=0,  # 保留哨兵: 此确认经故障 override
+                    gaps=gate_result.gaps,
+                    suggestion=f"经用户强制确认（评审基础设施故障）: {reason}",
+                    review_infra_failure=True,
+                )
+            else:
+                raise PhaseGateError(gate_result)
 
         async with self.db.begin_nested():
             await self._confirm_and_advance(todo_id, phase_type, phase, artifact, gate_result)

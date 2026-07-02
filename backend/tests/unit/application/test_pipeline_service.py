@@ -239,6 +239,63 @@ class TestPipelineServiceConfirmPhase:
         pipeline_mocks["extract_experience"].assert_awaited_once()
         pipeline_mocks["notify_github"].assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_force_overrides_review_infra_failure(self, pipeline_mocks):
+        """P2: LLM 评审基础设施故障 + force + reason → 跳过 LLM 层, 推进。"""
+        from arc.application.pipeline.gate import GateResult
+
+        pipeline_mocks["evaluate_gate"].return_value = GateResult(
+            passed=False, score=0,
+            gaps=["AI质量评审结果解析失败（评审基础设施故障）"],
+            suggestion="质量评审遇到技术问题", review_infra_failure=True,
+        )
+        phase = _make_phase(PhaseType.DEVELOPMENT)
+        artifact = _make_artifact()
+        next_p = _make_phase(PhaseType.TESTING, status=PhaseStatus.PENDING)
+        svc = _make_svc(
+            current_phase=phase, artifact=artifact, todo=_make_todo(), next_phase=next_p,
+        )
+        result = await svc.confirm_phase(
+            uuid.uuid4(), PhaseType.DEVELOPMENT,
+            force_review_failure=True, reason="LLM 评审服务持续超时",
+        )
+        assert result is phase  # 推进成功
+        assert phase.status == PhaseStatus.CONFIRMED
+
+    @pytest.mark.asyncio
+    async def test_force_does_not_override_objective_failure(self, pipeline_mocks):
+        """P2: 客观守卫 fail (review_infra_failure=False) + force → 仍 PhaseGateError。"""
+        from arc.application.pipeline.gate import GateResult, PhaseGateError
+
+        pipeline_mocks["evaluate_gate"].return_value = GateResult(
+            passed=False, score=2, gaps=["缺关键字段"], suggestion="补全",
+            review_infra_failure=False,  # 客观守卫 fail, 非 LLM 故障
+        )
+        phase = _make_phase(PhaseType.DEVELOPMENT)
+        svc = _make_svc(current_phase=phase, artifact=_make_artifact())
+        with pytest.raises(PhaseGateError):
+            await svc.confirm_phase(
+                uuid.uuid4(), PhaseType.DEVELOPMENT,
+                force_review_failure=True, reason="想跳过",
+            )
+
+    @pytest.mark.asyncio
+    async def test_force_infra_failure_without_reason_raises(self, pipeline_mocks):
+        """P2: infra 故障 + force 但 reason 空 → 仍 PhaseGateError (service 兜底, 路由层返 400)。"""
+        from arc.application.pipeline.gate import GateResult, PhaseGateError
+
+        pipeline_mocks["evaluate_gate"].return_value = GateResult(
+            passed=False, score=0, gaps=["解析失败"], suggestion="重试",
+            review_infra_failure=True,
+        )
+        phase = _make_phase(PhaseType.DEVELOPMENT)
+        svc = _make_svc(current_phase=phase, artifact=_make_artifact())
+        with pytest.raises(PhaseGateError):
+            await svc.confirm_phase(
+                uuid.uuid4(), PhaseType.DEVELOPMENT,
+                force_review_failure=True, reason="   ",  # 空白 → 不满足逃生条件
+            )
+
 
 class TestPipelineServiceDAGGuard:
     """STRICT 链路 DAG 依赖守卫 (v6.15) — 与 FREE 链路同一真相源, 硬阻断。
