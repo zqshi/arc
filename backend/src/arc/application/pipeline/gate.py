@@ -79,6 +79,7 @@ async def evaluate_gate(
     *,
     constraint: ProcessConstraint,
     prior_artifacts: dict | None = None,
+    llm_review_fn=None,
 ) -> GateResult:
     """Full gate evaluation: structural check + methodology validation + LLM quality assessment.
 
@@ -87,6 +88,12 @@ async def evaluate_gate(
                     v6.16: 阈值同源 GateProfile，不再硬编码 score<7 / 缺口>=3 (与对话链路巧合相等)。
         prior_artifacts: 已确认的前置阶段产出物，用于交叉一致性检查。
                         key=artifact_type (str), value=content (dict)
+        llm_review_fn: 可选评审注入 (prompt)->dict，测试用；None 走默认 adapter。
+                      v6.24: 对齐 conversation_gate 可测性设计，两条路径测试手法统一。
+
+    v6.24: passed 完全由代码推导 (score>=阈值 且 结构无缺口)，不读 LLM 返回的 passed 字段。
+           修复 strict 死循环根因 (旧 :149 吃 LLM passed，无 rubric 时 LLM 倾向 passed=False
+           即使 score=9 → 永久卡死)。解析失败返回 score=0 哨兵，供 confirm 故障逃生阀识别。
     """
     profile = get_profile(constraint)
     structural_gaps = check_required_fields(phase_type, content)
@@ -108,9 +115,6 @@ async def evaluate_gate(
             suggestion="产出物缺少多个关键字段或未通过方法论校验，请继续完善。",
         )
 
-    from arc.application.ai.llm_adapter import LLMMessage
-    from arc.application.ai.resilience import create_resilient_adapter
-
     phase_label = PHASE_LABELS.get(phase_type, phase_type.value)
 
     conventions_section = ""
@@ -125,32 +129,28 @@ async def evaluate_gate(
         capabilities_section="",  # pipeline 模式不注入环节能力 (对话模式 W3.3 接通)
     )
 
-    adapter = create_resilient_adapter()
-    try:
-        response = await adapter.chat(
-            [
-                LLMMessage(role="user", content=prompt),
-            ]
-        )
-    finally:
-        await adapter.close()
+    if llm_review_fn is not None:
+        result_data = await llm_review_fn(prompt)
+    else:
+        result_data = await _default_pipeline_review(prompt)
 
-    result_data = extract_json(response.content)
     if not isinstance(result_data, dict):
+        # v6.24: score=0 哨兵 — 区分"评审基础设施故障(未出有效结果)" vs "评了但质量差"。
+        # 供 confirm 故障逃生阀 (P2) 识别 score==0 = LLM 评审层故障, 非产出物不合格。
         logger.warning("Gate evaluation parse failed, blocking advancement")
         return GateResult(
             passed=False,
-            score=4,
-            gaps=structural_gaps or ["AI质量评审结果解析失败"],
-            suggestion="质量评审遇到问题，请重试。如持续失败请检查AI服务状态。",
+            score=0,
+            gaps=structural_gaps or ["AI质量评审结果解析失败（评审基础设施故障，非产出物问题）"],
+            suggestion="质量评审遇到技术问题，请重试；持续失败请联系管理员或使用故障逃生出口。",
         )
 
-    all_gaps = list(set(structural_gaps + result_data.get("gaps", [])))
-    passed = result_data.get("passed", False) and len(structural_gaps) == 0
-    score = result_data.get("score", 5)
-
-    if score < profile.score_threshold:
-        passed = False
+    # v6.24: passed 完全由代码推导 (score>=阈值 且 结构无缺口), 不读 LLM 返回的 passed 字段
+    # (与 conversation_gate.py 对齐)。修复 strict 死循环根因。
+    # all_gaps 去重保序 (dict.fromkeys), 原 set() 顺序不稳定影响测试断言。
+    all_gaps = list(dict.fromkeys(structural_gaps + list(result_data.get("gaps", []))))
+    score = int(result_data.get("score", 5))
+    passed = len(structural_gaps) == 0 and score >= profile.score_threshold
 
     return GateResult(
         passed=passed,
@@ -158,6 +158,22 @@ async def evaluate_gate(
         gaps=all_gaps,
         suggestion=result_data.get("suggestion", "请补充完善产出物内容。"),
     )
+
+
+async def _default_pipeline_review(prompt: str):
+    """默认 LLM 评审实现 (复用 resilient adapter), 返回解析后的 dict 或原始值。
+
+    与 conversation_gate._default_llm_review 对称, 两条路径测试手法统一 (llm_review_fn 注入)。
+    """
+    from arc.application.ai.llm_adapter import LLMMessage
+    from arc.application.ai.resilience import create_resilient_adapter
+
+    adapter = create_resilient_adapter()
+    try:
+        response = await adapter.chat([LLMMessage(role="user", content=prompt)])
+    finally:
+        await adapter.close()
+    return extract_json(response.content)
 
 
 # ---------------------------------------------------------------------------
