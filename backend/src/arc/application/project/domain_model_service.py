@@ -103,7 +103,61 @@ class DomainModelService:
         await self._db.commit()
         refreshed_project = await self._project_repo.get_by_id(project.id, user_id=user_id)
         dm = refreshed_project.domain_model or {**EMPTY_DOMAIN_MODEL}
+        # v6.24 P0-1: refresh 提取后自动 provision BaaS (之前 pipeline 路径不触发 provision)
+        if merged:
+            try:
+                await self.provision_baas(project.id)
+            except Exception:
+                logger.warning(
+                    "refresh 后 BaaS provision 失败 project %s", project.id, exc_info=True
+                )
         return merged, dm
+
+    async def provision_baas(self, project_id: uuid.UUID) -> dict:
+        """从 project.domain_model provision BaaS (v6.24 P0-1)。
+
+        pipeline/refresh/手动端点的统一 provision 入口 (之前 BaaS provision 只挂
+        conversation 模式 artifact_extractor 链, pipeline 主路径不触发)。无 domain_model
+        或无聚合则跳过。apply 失败抛异常 (调用方决定 graceful)。
+
+        Returns: {provisioned: bool, reason?/schema_name?}
+        """
+        project = await self._project_repo.get_by_id(project_id)
+        if not project:
+            raise NotFoundError(f"Project {project_id} not found")
+        dm = project.domain_model
+        if not dm:
+            return {"provisioned": False, "reason": "项目无领域模型"}
+        aggregates = dm.get("aggregates", []) if isinstance(dm, dict) else []
+        if not aggregates:
+            return {"provisioned": False, "reason": "领域模型无聚合"}
+
+        from arc.application.baas.domain_model_applier import DomainModelApplier
+        from arc.application.baas.service import BaasService
+        from arc.domain.project.value_objects import (
+            DomainModelSnapshot,
+            ModelChangeTrigger,
+        )
+
+        snapshot = DomainModelSnapshot(
+            version=dm.get("version", 1),
+            content=dm,
+            trigger=ModelChangeTrigger.MANUAL,
+            trigger_todo_id=None,
+            created_at=datetime.now(UTC),
+        )
+        baas_service = BaasService(self._db)
+        applier = DomainModelApplier(baas_service)
+        await applier.apply_snapshot(
+            project_id=project.id,
+            snapshot=snapshot,
+            supabase_url="",  # dev 同库隔离; 投产由 SupabaseClient 按配置解析
+        )
+        logger.info("BaaS provisioned for project %s", project.id)
+        return {
+            "provisioned": True,
+            "schema_name": DomainModelApplier._schema_name_for(project.id),
+        }
 
     async def extract_from_code(self, project: Project) -> dict:
         """从代码库源文件直接提取领域模型并合并。

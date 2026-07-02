@@ -335,6 +335,29 @@ async def update_phase_capabilities(
     return {"phase_capabilities": project.pipeline_config.get("phase_capabilities", {})}
 
 
+@router.post("/{project_id}/baas/provision", status_code=200)
+async def provision_baas(
+    project_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """手动 provision BaaS (v6.24 P0-1) — 从 project.domain_model 落地 schema。
+
+    pipeline/refresh 已自动触发, 此端点供前端手动重试/兜底。
+    """
+    from arc.application.project.domain_model_service import DomainModelService
+
+    repo = ProjectRepository(db)
+    project = await repo.get_by_id(project_id, user_id=user.id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    svc = DomainModelService(db)
+    try:
+        return await svc.provision_baas(project.id)
+    except Exception as e:
+        raise HTTPException(500, f"BaaS provision 失败: {e}")
+
+
 @router.get("/{project_id}/baas-status")
 async def get_baas_status(
     project_id: uuid.UUID,
