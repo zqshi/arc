@@ -175,3 +175,27 @@ class TestEvaluateGateGapsDedup:
         assert result.gaps.count(structural_gap_prefix) == 1
         assert result.gaps[0].startswith("缺少必填字段")
         assert "另外的建议" in result.gaps
+
+
+class TestEvaluateGateP0Gaps:
+    """P1: LLM p0_gaps (阻断性缺口) 致 fail, gaps (改进建议) 不阻断。"""
+
+    async def test_p0_gap_blocks_pass(self) -> None:
+        """LLM 返回 score=9 (>=strict 阈值) 但有 p0_gap → 不通过。"""
+        result = await evaluate_gate(
+            PhaseType.CLARIFICATION, _complete_clarification(),
+            constraint=ProcessConstraint.STRICT,
+            llm_review_fn=_reviewer(score=9, p0_gaps=["致命缺口: 自相矛盾"]),
+        )
+        assert result.passed is False
+        assert any("致命缺口" in g for g in result.gaps)
+
+    async def test_improvement_gap_does_not_block(self) -> None:
+        """LLM 返回 score=9 + 仅 gaps (改进建议, 无 p0) → 通过。"""
+        result = await evaluate_gate(
+            PhaseType.CLARIFICATION, _complete_clarification(),
+            constraint=ProcessConstraint.STRICT,
+            llm_review_fn=_reviewer(score=9, gaps=["建议补充更多细节"]),
+        )
+        assert result.passed is True
+        assert any("更多细节" in g for g in result.gaps)

@@ -142,16 +142,20 @@ async def evaluate_conversation_gate(
 
     # 层 4: LLM 质量评审
     score = 8
+    llm_p0_gaps: list[str] = []
     llm_gaps: list[str] = []
     suggestion = ""
     if profile.enable_llm_review:
         checked.append("llm_review")
-        score, llm_gaps, suggestion = await _run_llm_review(
+        score, llm_p0_gaps, llm_gaps, suggestion = await _run_llm_review(
             phase_type, content, conventions, charter, capabilities, llm_review_fn,
         )
 
-    all_gaps = list(dict.fromkeys(gaps + llm_gaps))  # 去重保序
-    passed = (len(gaps) == 0) and score >= profile.score_threshold
+    # v6.24 P1: p0_gaps (LLM 阻断性缺口) 致 fail, gaps (改进建议) 不阻断。
+    # blocking = 客观结构/方法论/交叉 gap + LLM p0_gaps; passed 看 blocking 空 且 score 达标。
+    blocking_gaps = gaps + llm_p0_gaps
+    all_gaps = list(dict.fromkeys(blocking_gaps + llm_gaps))  # 去重保序
+    passed = (len(blocking_gaps) == 0) and score >= profile.score_threshold
 
     return ConversationGateResult(
         passed=passed, score=score, gaps=all_gaps,
@@ -226,9 +230,11 @@ async def _run_llm_review(phase_type, content, conventions, charter, capabilitie
 
     if not isinstance(result_data, dict):
         logger.warning("conversation gate LLM review parse failed")
-        return 8, [], ""  # 解析失败保守给通过分，结构校验已兜底
+        return 8, [], [], ""  # 解析失败保守给通过分，结构校验已兜底
+    # v6.24 P1: p0_gaps (阻断) 与 gaps (改进) 分离, 对齐 GATE_EVALUATION_PROMPT 新契约
     return (
         int(result_data.get("score", 8)),
+        list(result_data.get("p0_gaps", []) or []),
         list(result_data.get("gaps", []) or []),
         str(result_data.get("suggestion", "")),
     )

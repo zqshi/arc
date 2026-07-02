@@ -145,12 +145,20 @@ async def evaluate_gate(
             suggestion="质量评审遇到技术问题，请重试；持续失败请联系管理员或使用故障逃生出口。",
         )
 
-    # v6.24: passed 完全由代码推导 (score>=阈值 且 结构无缺口), 不读 LLM 返回的 passed 字段
+    # v6.24: passed 完全由代码推导 (score>=阈值 且 结构无缺口 且 无 p0 阻断), 不读 LLM passed 字段
     # (与 conversation_gate.py 对齐)。修复 strict 死循环根因。
+    # p0_gaps = LLM 标记的阻断性缺口 (P1 rubric 契约), 致 fail; gaps = 改进建议, 不阻断。
     # all_gaps 去重保序 (dict.fromkeys), 原 set() 顺序不稳定影响测试断言。
-    all_gaps = list(dict.fromkeys(structural_gaps + list(result_data.get("gaps", []))))
+    p0_gaps = list(result_data.get("p0_gaps", []) or [])
+    all_gaps = list(dict.fromkeys(
+        structural_gaps + p0_gaps + list(result_data.get("gaps", []) or [])
+    ))
     score = int(result_data.get("score", 5))
-    passed = len(structural_gaps) == 0 and score >= profile.score_threshold
+    passed = (
+        len(structural_gaps) == 0
+        and len(p0_gaps) == 0
+        and score >= profile.score_threshold
+    )
 
     return GateResult(
         passed=passed,

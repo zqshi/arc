@@ -19,10 +19,15 @@ def _complete_req_spec() -> dict:
     }
 
 
-def _llm_reviewer(score: int, gaps=None):
-    """构造注入用 LLM 评审函数。"""
+def _llm_reviewer(score: int, gaps=None, p0_gaps=None):
+    """构造注入用 LLM 评审函数 (v6.24 P1: 不再返回 passed, 加 p0_gaps)。"""
     async def fn(prompt: str) -> dict:
-        return {"passed": score >= 5, "score": score, "gaps": gaps or [], "suggestion": "ok"}
+        return {
+            "score": score,
+            "p0_gaps": p0_gaps or [],
+            "gaps": gaps or [],
+            "suggestion": "ok",
+        }
 
     return fn
 
@@ -143,16 +148,41 @@ class TestEvaluateConversationGate:
         assert result.passed is False  # 结构缺口存在
         assert any("boundaries" in g for g in result.gaps)
 
+    async def test_p0_gap_overrides_score(self) -> None:
+        """LLM score=9 (>=strict) 但有 p0_gap → 不通过 (P1: p0 阻断)。"""
+        result = await evaluate_conversation_gate(
+            ArtifactType.REQUIREMENT_SPEC, _complete_req_spec(),
+            constraint=ProcessConstraint.STRICT,
+            llm_review_fn=_llm_reviewer(9, p0_gaps=["阻断性缺口"]),
+        )
+        assert result.passed is False
+        assert any("阻断性缺口" in g for g in result.gaps)
+
+    async def test_improvement_gap_does_not_block(self) -> None:
+        """LLM score=9 + 仅改进建议 (无 p0) → 通过 (P1: gaps 不阻断)。"""
+        result = await evaluate_conversation_gate(
+            ArtifactType.REQUIREMENT_SPEC, _complete_req_spec(),
+            constraint=ProcessConstraint.STRICT,
+            llm_review_fn=_llm_reviewer(9, gaps=["建议补充细节"]),
+        )
+        assert result.passed is True
+        assert any("补充细节" in g for g in result.gaps)
+
 
 class TestCharterCompliance:
     """charter 遵守度门禁 — charter 注入 LLM 评审 prompt (波次3)。"""
 
     @staticmethod
-    def _capturing_reviewer(captured: list[str], score: int = 8, gaps=None):
-        """捕获 prompt + 返回固定评审结果。"""
+    def _capturing_reviewer(captured: list[str], score: int = 8, gaps=None, p0_gaps=None):
+        """捕获 prompt + 返回固定评审结果 (v6.24 P1: 不再返回 passed)。"""
         async def fn(prompt: str) -> dict:
             captured.append(prompt)
-            return {"passed": score >= 5, "score": score, "gaps": gaps or [], "suggestion": "ok"}
+            return {
+                "score": score,
+                "p0_gaps": p0_gaps or [],
+                "gaps": gaps or [],
+                "suggestion": "ok",
+            }
         return fn
 
     async def test_charter_injected_into_llm_prompt(self) -> None:
