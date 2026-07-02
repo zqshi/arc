@@ -130,6 +130,59 @@ class TestConvertToBaasSchema:
         assert "posts" in table_names
         assert "comments" in table_names
 
+    def test_user_id_column_gets_auth_uid_default(self):
+        """user_id 列 DEFAULT auth.uid() — 防前端伪造 owner (rls_validator 检查项 2)。"""
+        from arc.application.baas.domain_model_applier import DomainModelApplier
+
+        snapshot = _make_snapshot([{"name": "Post", "fields": ["id", "title", "user_id"]}])
+        schema = DomainModelApplier.convert_to_baas_schema(snapshot, project_id=uuid.uuid4())
+        user_id_col = next(c for c in schema.tables[0].columns if c.name == "user_id")
+        assert user_id_col.default == "auth.uid()"
+
+    def test_user_id_table_generates_row_isolation_policies(self):
+        """有 user_id 的表生成 authenticated 行级隔离策略 (user_id = auth.uid())。
+
+        v6.24 P0-2: 之前 policies=[] 导致 RLS 启用但 deny-all。
+        """
+        from arc.application.baas.domain_model_applier import DomainModelApplier
+
+        snapshot = _make_snapshot([{"name": "Post", "fields": ["id", "user_id"]}])
+        schema = DomainModelApplier.convert_to_baas_schema(snapshot, project_id=uuid.uuid4())
+        table = schema.tables[0]
+        ops = {(p.operation, p.role) for p in schema.policies if p.table_name == table.name}
+        assert ("SELECT", "authenticated") in ops
+        assert ("INSERT", "authenticated") in ops
+        assert ("UPDATE", "authenticated") in ops
+        assert ("DELETE", "authenticated") in ops
+        sel = next(p for p in schema.policies if p.table_name == table.name and p.operation == "SELECT")
+        assert sel.using_expr == "user_id = auth.uid()"
+        ins = next(p for p in schema.policies if p.table_name == table.name and p.operation == "INSERT")
+        assert ins.check_expr == "user_id = auth.uid()"  # WITH CHECK 防越权写入
+
+    def test_no_user_id_table_generates_authenticated_shared_policies(self):
+        """无 user_id 表 (字典表) 生成 authenticated 共享策略 — 非 anon 全放行, 非 deny。"""
+        from arc.application.baas.domain_model_applier import DomainModelApplier
+
+        snapshot = _make_snapshot([{"name": "Tag", "fields": ["id", "name"]}])
+        schema = DomainModelApplier.convert_to_baas_schema(snapshot, project_id=uuid.uuid4())
+        table = schema.tables[0]
+        policies = [p for p in schema.policies if p.table_name == table.name]
+        assert len(policies) > 0  # 非 deny-all
+        assert all(p.role == "authenticated" for p in policies)  # 非 anon
+
+    def test_generated_schema_passes_rls_validation(self):
+        """端到端安全闭环: convert 产出经 validate_rls 无 warning。"""
+        from arc.application.baas.domain_model_applier import DomainModelApplier
+        from arc.application.baas.rls_validator import validate_rls
+
+        snapshot = _make_snapshot([
+            {"name": "Post", "fields": ["id", "title", "user_id"]},
+            {"name": "Tag", "fields": ["id", "name"]},
+        ])
+        schema = DomainModelApplier.convert_to_baas_schema(snapshot, project_id=uuid.uuid4())
+        warnings = validate_rls(schema)
+        assert warnings == [], f"RLS 校验有 warning: {[ (w.table, w.message) for w in warnings]}"
+
 
 class TestApplySnapshot:
     @pytest.mark.asyncio

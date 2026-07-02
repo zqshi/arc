@@ -20,6 +20,7 @@ import uuid
 from arc.domain.baas.value_objects import (
     BaasSchema,
     ColumnDef,
+    RlsPolicy,
     TableDef,
 )
 from arc.domain.project.value_objects import DomainModelSnapshot
@@ -93,13 +94,43 @@ class DomainModelApplier:
                 continue
             tables.append(DomainModelApplier._aggregate_to_table(agg))
 
+        # v6.24 P0-2: 默认 RLS 策略 — 有 user_id 行级隔离, 无 user_id authenticated 共享。
+        # 之前 policies=[] 导致 RLS 启用但 deny-all (非 superuser 不可读写)。
+        policies: list[RlsPolicy] = []
+        for table in tables:
+            if table.has_rls:
+                policies.extend(DomainModelApplier._table_policies(table))
+
         return BaasSchema(
             schema_name=schema_name,
             tables=tables,
-            policies=[],  # 领域模型快照不含 RLS 语义, 留给 Agent 后续补
+            policies=policies,
             transitions=[],
             actions=[],
         )
+
+    @staticmethod
+    def _table_policies(table: TableDef) -> list[RlsPolicy]:
+        """为表生成默认 RLS 策略 (符合 rls_validator 期望, 非 deny-all)。
+
+        - 有 user_id: 行级隔离 (user_id = auth.uid()) — 用户只访问自己拥有的行;
+        - 无 user_id (字典表): authenticated 共享 — 非 anon 全放行, 非 deny。
+        Agent 后续可按需覆盖 (领域模型快照不含业务级 RLS 语义)。
+        """
+        if any(c.name == "user_id" for c in table.columns):
+            expr = "user_id = auth.uid()"
+            return [
+                RlsPolicy(table.name, "SELECT", "authenticated", using_expr=expr),
+                RlsPolicy(table.name, "INSERT", "authenticated", check_expr=expr),
+                RlsPolicy(table.name, "UPDATE", "authenticated", using_expr=expr, check_expr=expr),
+                RlsPolicy(table.name, "DELETE", "authenticated", using_expr=expr),
+            ]
+        return [
+            RlsPolicy(table.name, "SELECT", "authenticated", using_expr="true"),
+            RlsPolicy(table.name, "INSERT", "authenticated", check_expr="true"),
+            RlsPolicy(table.name, "UPDATE", "authenticated", using_expr="true", check_expr="true"),
+            RlsPolicy(table.name, "DELETE", "authenticated", using_expr="true"),
+        ]
 
     @staticmethod
     def _aggregate_to_table(agg: dict) -> TableDef:
@@ -115,11 +146,16 @@ class DomainModelApplier:
                 continue
             if fname == "id":
                 has_id = True
+            default = (
+                "gen_random_uuid()" if fname == "id"
+                else "auth.uid()" if fname == "user_id"
+                else None
+            )
             columns.append(ColumnDef(
                 name=fname,
                 type=_infer_column_type(fname),
                 nullable=fname != "id",
-                default="gen_random_uuid()" if fname == "id" else None,
+                default=default,
                 is_primary=(fname == "id"),
             ))
 

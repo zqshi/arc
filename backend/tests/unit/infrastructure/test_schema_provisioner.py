@@ -45,12 +45,15 @@ class TestProvision:
 
         await provisioner.provision("arc_test123")
 
-        # 不应再 CREATE SCHEMA
+        # 不应再 CREATE 目标 SCHEMA (arc_test123); auth schema 兼容兜底除外 (v6.24 P0-2)
         executed_sql = [c.args[0] for c in mock_client.execute.call_args_list]
-        schema_creates = [s for s in executed_sql if "CREATE SCHEMA" in s]
+        schema_creates = [s for s in executed_sql if "CREATE SCHEMA" in s and "arc_test123" in s]
         assert len(schema_creates) == 0
         # 但元模型表仍执行 (IF NOT EXISTS 幂等)
         assert any("_meta_entities" in s for s in executed_sql)
+        # v6.24 P0-2: Supabase 兼容兜底 (roles + auth.uid) 始终执行
+        assert any("authenticated" in s for s in executed_sql)
+        assert any("auth.uid" in s for s in executed_sql)
 
     @pytest.mark.asyncio
     async def test_provision_invalid_schema_raises(self, provisioner):

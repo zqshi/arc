@@ -54,6 +54,39 @@ def generate_create_schema_sql(schema: str) -> str:
     return f'CREATE SCHEMA IF NOT EXISTS "{schema}";'
 
 
+def generate_ensure_roles_sql() -> str:
+    """确保 Supabase 约定角色 (authenticated/anon) 存在 (幂等)。
+
+    v6.24 P0-2: RLS policy `TO authenticated` 需要 role 存在才能 CREATE POLICY;
+    dev/普通 PG 无此角色 → provision 时预建。Supabase 环境内置这两个角色,
+    DO 块的 IF NOT EXISTS 幂等跳过, 不冲突。
+    """
+    return """DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated;
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon;
+  END IF;
+END $$;"""
+
+
+def generate_ensure_auth_uid_sql() -> str:
+    """确保 auth schema + auth.uid() 函数存在 (dev 兜底; Supabase 内置跳过)。
+
+    v6.24 P0-2: user_id DEFAULT auth.uid() + RLS USING auth.uid() 依赖此函数。
+    dev uid() 返回 NULL (无 JWT); Supabase 内置真 uid() — IF NOT EXISTS 跳过,
+    绝不覆盖 (CREATE OR REPLACE 会污染 Supabase 内置, 禁用)。
+    """
+    return """CREATE SCHEMA IF NOT EXISTS auth;
+DO $func$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
+                 WHERE n.nspname = 'auth' AND p.proname = 'uid') THEN
+    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $body$ SELECT NULL::uuid $body$;
+  END IF;
+END $func$;"""
+
+
 def generate_meta_tables_sql(schema: str) -> str:
     """生成元模型表 (借鉴 XSpace _meta_*)。
 

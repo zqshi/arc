@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 from arc.domain.baas.errors import ProvisionError
 from arc.infrastructure.baas.sql_generator import (
     generate_create_schema_sql,
+    generate_ensure_auth_uid_sql,
+    generate_ensure_roles_sql,
     generate_meta_tables_sql,
 )
 
@@ -30,6 +32,10 @@ class SchemaProvisioner:
     async def provision(self, schema: str) -> None:
         """创建 schema + 元模型表 (幂等, 可重复执行)。"""
         try:
+            # v6.24 P0-2: 确保 Supabase 约定角色存在 (RLS policy TO authenticated 依赖)
+            await self._client.execute(generate_ensure_roles_sql(), schema=None)
+            # v6.24 P0-2: 确保 auth.uid() 可用 (user_id DEFAULT + RLS USING 依赖)
+            await self._client.execute(generate_ensure_auth_uid_sql(), schema=None)
             exists = await self._client.schema_exists(schema)
             if not exists:
                 await self._client.execute(
