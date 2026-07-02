@@ -1,7 +1,7 @@
 # Backlog — 后续版本规划
 
 > 这是粗粒度的版本规划, 不是承诺。每个版本启动时再细化为 current.md。
-> 最后更新: 2026-07-01 (v6.23 已归档: 投产检测后清单收口 C1/G1A/D1A/D2/D3/F1, 见 v6.23.0-snapshot.md; v6.24 已激活, **方向待定** — G1 B/C 评估后撤回 backlog, 不值得单独占版)
+> 最后更新: 2026-07-02 (v6.24 strict gate 死循环 P0 修复 done — P0+P1+P2 全清, 见 v6.24.0-current.md「二·三」; R5 pipeline + conversation BaaS 端到端已验证。strict gate 原标 v6.25 提前到 v6.24 完成)
 
 ---
 
@@ -82,7 +82,7 @@
 | ArtifactPostProcessHooks.try_provision_baas_after_extract 未复用 DomainModelService.provision_baas (编排重复) | P3 | v6.24 R5 验证 | ✅ 2026-07-02 已重构: Hooks 改调 provision_baas 统一入口 + reason_code 英文 metrics, 消除 apply_snapshot 编排重复 |
 | 智谱 glm-5-turbo 经 anthropic 兼容端点 architecture 产出慢 (实测 23s~191s 波动, 智谱服务端 x-process-time, 非 arc bug 但影响交互体验) | P3 | v6.24 R5 验证 | ⏳ 评估: worker_model 切 glm-4.5-air 或换更快端点/原生 SDK |
 | 多 .env 配置易错 (根 .env 全空占位 + backend/.env 真实 LLM 配置 + pydantic forbid ARC_DB_PORT infra 变量, cwd 不对即 forbid/空 key 500) | P3 | v6.24 R5 验证 | ✅ 2026-07-02 部分治理: .env.example DB 端口 5432→5433 与 ARC_DB_PORT/docker 一致 (backend/.env 同步); 根+backend 双 .env 结构仍存 (config extra='ignore' 未做, 留观察) |
-| **strict 模式 gate 死循环 (投产阻断)** — GATE_EVALUATION_PROMPT 无 rubric 仅问"是否足以推进", LLM 无锚定主观判 passed=False 即使 score=9; 每次评估挑新 gaps 不收敛; confirm 端点无 override/max-retries, clarification 不可 skip → **strict 用户永久卡死 clarification 无法推进 pipeline**; pipeline/gate.py:149 + conversation_gate.py 共用此 prompt, 全 strict/moderate 路径受影响 | P0 | v6.24 conversation 实测评估 | ⏳ **v6.25 专修**: P0 score 兜底 (score>=阈值+2 时 passed 强制 true) + 用户 override 强制确认端点 (解阻塞); P1 重写 prompt 加 rubric (评估维度 完整性/一致性/可行性/清晰度 + gap P0/P1 分级只 P0 致 fail + score 10/7/5 锚定 + passed 条件明确); P2 评估稳定性 (缓存/多数表决). workaround: 转 free 模式 |
+| **strict 模式 gate 死循环 (投产阻断)** — GATE_EVALUATION_PROMPT 无 rubric 仅问"是否足以推进", LLM 无锚定主观判 passed=False 即使 score=9; 每次评估挑新 gaps 不收敛; confirm 端点无 override/max-retries, clarification 不可 skip → **strict 用户永久卡死 clarification 无法推进 pipeline**; pipeline/gate.py:149 + conversation_gate.py 共用此 prompt, 全 strict/moderate 路径受影响 | P0 | v6.24 conversation 实测评估 | ✅ **2026-07-02 v6.24 修复** (提前于 v6.25 计划): P0 passed 改 score 驱动 (不读 LLM passed, 对齐 conversation_gate; 比"score 阈值+2 兜底"更彻底) + 解析失败 review_infra_failure 哨兵; P1 prompt rubric 化 (维度+锚点+p0_gaps/gaps 分级+删 passed 字段, 同计划); P2 confirm 故障逃生阀 (review_infra_failure+force/reason, 仅 LLM 层故障可 force 客观守卫不可绕过, 重定义"质量 override"为"故障逃生阀"化解 STRICT 语义冲突; 缓存/多数表决 P3 留观察). commit 5c77641/483a032/9194378. 详见 v6.24-current「二·三」 |
 
 ---
 
