@@ -6,7 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.24 方向待定。G1 B/C (辅助模块 LLM 接 DB 收尾) 评估后撤回 backlog (env 凭证可用时无症状, 不值得单独立版), 见 v6.24.0-current.md。_
+_v6.24 R5 端到端价值流验证 + BaaS provision 两个 P0 修复。_
+
+### Fixed — BaaS provision 两个 P0 (R5 端到端验证暴露, 2026-07-02 修复)
+- **P0-1 BaaS provision 在 pipeline 主路径不自动触发**: provision 只挂 conversation 模式 `artifact_extractor → try_provision_baas` 链, pipeline generate / domain-model/refresh 不接入 → 走 pipeline 永不 provision, baas-status 永远 false。修: `DomainModelService.provision_baas` 统一入口 (project.domain_model → apply_snapshot) + `refresh_domain_model` 提取后自动调 (try/except graceful) + `POST /projects/{id}/baas/provision` 手动端点。实测 pipeline→architecture generate→refresh→baas-status `provisioned=true`。
+- **P0-2 provision 建表启用 RLS 但 0 policy → 非 superuser deny-all**: `DomainModelApplier` 返回 `policies=[]` + 表 `has_rls=True` → PostgreSQL 启用 RLS 无 policy = 默认拒绝 → Supabase anon/authenticated 不可读写 (dev superuser bypass 掩盖)。修: applier 按表生成默认 policy (有 user_id→行级隔离 `user_id = auth.uid()`, 无 user_id→authenticated 共享) + user_id 列 `DEFAULT auth.uid()`; `SchemaProvisioner` provision 时幂等预建 Supabase 约定 (authenticated/anon 角色 + auth.uid() 函数 — dev 兜底, Supabase 内置 IF NOT EXISTS 跳过, 禁 CREATE OR REPLACE 防污染)。实测 arc_xxx schema `pg_policies=4` (修复前 0)。
+
+### Added — R5 方向验证
+- **R5 端到端价值流验证 (推翻 blocked 误判)**: v6.23/backlog 标 "R5 blocked 需 PAT/S3/runner/证书" 是误判 — R5 只需真实 LLM + provision 链, 不依赖 R3/R4 构建凭证。实测智谱 glm-5-turbo (经 open.bigmodel.cn anthropic 兼容端点) 端到端跑通 ARCHITECTURE 产出 + domain_model 提取 + provision, 暴露上述两个 P0 (已修)。见 v6.24.0-current.md「R5 验证结论」。
+- **provision 端点 + 测试**: `POST /projects/{id}/baas/provision` (3 集成测试) + `DomainModelApplier` 4 单测 (policy 生成/user_id DEFAULT/validate_rls 端到端)。CI 基线 ruff0 / pytest 2500 passed。
 
 ## [6.23.0] - 2026-07-01 — 投产检测后清单收口 (debt cleanup)
 

@@ -74,6 +74,8 @@
 | T2 Project dict 值对象化 (pipeline_config/conversation_config 嵌套, 现有 entity 方法已封装 merge) | P2 | v6.21 遗留 | ✅ v6.22 评估不做 (pipeline ROI 低 / domain_model ROI 负 / conversation_config 绑死迁移期); 技术债务: git_sync/loop_config 子结构值对象化留下版本 |
 | 集成测试 4 失败 (test_agent_registry_sync + test_capability_api/repository, DB openhands/codex 声明残留, stash 验证非 v6.21 引入) | P1 | v6.21 质检 6.6 | ✅ v6.22 (T5: conftest 统一 cleanup 改 setup 模式, 根因 teardown+savepoint 从未真正清理) |
 | conversation_config 子结构值对象化 (git_sync/loop_config 防 7+ 处裸读拼写错误) | P3 | v6.22 技术债务 | pending |
+| BaaS provision pipeline 触发链缺口 (pipeline generate/refresh 不接入 artifact_extractor→try_provision_baas, 无手动端点, 走 pipeline 永不 provision) | P0 | v6.24 R5 验证 | ✅ 2026-07-02 已修: DomainModelService.provision_baas 统一入口 + refresh 自动调 + POST /projects/{id}/baas/provision 端点。实测 pipeline→refresh→provisioned=true |
+| BaaS provision 建表 RLS 启用但 0 policy (orders/payments/inventories relrowsecurity=t 但 pg_policies=0 → Supabase anon/authenticated deny-all 不可读写; dev superuser bypass 掩盖) | P0 | v6.24 R5 验证 | ✅ 2026-07-02 已修: DomainModelApplier 生成默认 policy (user_id 行级隔离/无user_id authenticated共享) + user_id DEFAULT auth.uid() + provisioner 预建 Supabase 约定。实测 pg_policies=4 |
 
 ---
 
