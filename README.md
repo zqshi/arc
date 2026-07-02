@@ -401,7 +401,7 @@ arc/
 | v6.21 | LLM 链路深化 — 请求级 resolve_from_project + env 兜底 + 前端 10 组件拆分 | done |
 | v6.22 | 扫描链路修复 — worker 走 DB 凭证 + 4xx 不重试 + force 强制重扫 | done |
 | v6.23 | 集成与扫描治理 — 集成套件 flaky 修复（33s 确定性）+ 扫描接 DB + 经验/前端体验 | done |
-| v6.24 | BaaS 端到端验证 — provision 统一入口 + RLS 行级隔离 + conversation 路径阻断 bug 修复 | 进行中 |
+| v6.24 | BaaS 端到端 + strict gate 修复 — provision 统一入口 + RLS 行级隔离 + conversation 阻断 bug + gate 死循环修复 (passed 改 score 驱动 + prompt rubric 化 + confirm 评审故障逃生阀) | done |
 
 ## 许可
 

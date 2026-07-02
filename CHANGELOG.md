@@ -6,15 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_v6.24 R5 端到端价值流验证 + BaaS provision 两个 P0 修复。_
+_v6.25 方向待定。_
+
+## [6.24.0] - 2026-07-02 — BaaS 端到端验证 + strict gate 死循环修复
+
+### Fixed — strict gate 死循环 P0 投产阻断 (P0+P1+P2)
+- **P0 passed 改 score 驱动 (5c77641)**: `pipeline/gate.py:149` 吃 LLM `passed` 字段 (无 rubric 时 LLM 倾向 `passed=False` 即使 score=9) → strict clarification 永久卡死。改 `passed = (结构无缺口 且 无p0 且 score>=阈值)`, 对齐 `conversation_gate`; 解析失败 `review_infra_failure` 哨兵; `evaluate_gate` 加 `llm_review_fn` 注入; gaps `dict.fromkeys` 去重保序。
+- **P1 GATE_EVALUATION_PROMPT rubric 化 (483a032)**: 加评分维度 (完整性0.3/一致性0.25/可行性0.25/清晰度0.2) + score 9-10/7-8/5-6/3-4/1-2 锚点 + `p0_gaps`(阻断)/`gaps`(建议) 分级 + **删 `passed` 输出字段**。pipeline/gate + conversation_gate 同步。
+- **P2 confirm 评审故障逃生阀 (9194378)**: `GateResult` 加 `review_infra_failure` 字段; `confirm_phase` 加 `force_review_failure`+`reason` (keyword-only), **仅 `review_infra_failure=True` 可 force** (客观守卫 结构/方法论/DAG 不可绕过); reason 空→400, 客观 fail+force→409; `logger.warning` 审计。重定义 "质量 override" 为 "故障逃生阀" 化解 STRICT 语义冲突。
+
+### Fixed — conversation 路径两个阻断 bug (1913ef0)
+- **P0 sandbox_policy.target 笔误**: `execution_engine.py:261` 读 `.target` (字段实为 `build_target`) 阻断整个 conversation 模式 LLM 调用。
+- **P1 中文 entity name slugify**: `convert_to_baas_schema` 加 `_slugify_identifier` 容错 LLM 产 `Order（订单聚合根）` 致 `_IDENT_RE` 拒绝。
 
 ### Fixed — BaaS provision 两个 P0 (R5 端到端验证暴露, 2026-07-02 修复)
 - **P0-1 BaaS provision 在 pipeline 主路径不自动触发**: provision 只挂 conversation 模式 `artifact_extractor → try_provision_baas` 链, pipeline generate / domain-model/refresh 不接入 → 走 pipeline 永不 provision, baas-status 永远 false。修: `DomainModelService.provision_baas` 统一入口 (project.domain_model → apply_snapshot) + `refresh_domain_model` 提取后自动调 (try/except graceful) + `POST /projects/{id}/baas/provision` 手动端点。实测 pipeline→architecture generate→refresh→baas-status `provisioned=true`。
 - **P0-2 provision 建表启用 RLS 但 0 policy → 非 superuser deny-all**: `DomainModelApplier` 返回 `policies=[]` + 表 `has_rls=True` → PostgreSQL 启用 RLS 无 policy = 默认拒绝 → Supabase anon/authenticated 不可读写 (dev superuser bypass 掩盖)。修: applier 按表生成默认 policy (有 user_id→行级隔离 `user_id = auth.uid()`, 无 user_id→authenticated 共享) + user_id 列 `DEFAULT auth.uid()`; `SchemaProvisioner` provision 时幂等预建 Supabase 约定 (authenticated/anon 角色 + auth.uid() 函数 — dev 兜底, Supabase 内置 IF NOT EXISTS 跳过, 禁 CREATE OR REPLACE 防污染)。实测 arc_xxx schema `pg_policies=4` (修复前 0)。
 
 ### Added — R5 方向验证
-- **R5 端到端价值流验证 (推翻 blocked 误判)**: v6.23/backlog 标 "R5 blocked 需 PAT/S3/runner/证书" 是误判 — R5 只需真实 LLM + provision 链, 不依赖 R3/R4 构建凭证。实测智谱 glm-5-turbo (经 open.bigmodel.cn anthropic 兼容端点) 端到端跑通 ARCHITECTURE 产出 + domain_model 提取 + provision, 暴露上述两个 P0 (已修)。见 v6.24.0-current.md「R5 验证结论」。
+- **R5 端到端价值流验证 (推翻 blocked 误判)**: v6.23/backlog 标 "R5 blocked 需 PAT/S3/runner/证书" 是误判 — R5 只需真实 LLM + provision 链, 不依赖 R3/R4 构建凭证。实测智谱 glm-5-turbo (经 open.bigmodel.cn anthropic 兼容端点) 端到端跑通 ARCHITECTURE 产出 + domain_model 提取 + provision, 暴露上述两个 P0 (已修)。见 v6.24.0-snapshot.md「交付内容」。
 - **provision 端点 + 测试**: `POST /projects/{id}/baas/provision` (3 集成测试) + `DomainModelApplier` 4 单测 (policy 生成/user_id DEFAULT/validate_rls 端到端)。CI 基线 ruff0 / pytest 2500 passed。
+
+### 质量检测
+6.1-6.7 全过 (6.5 改动文件全 <500, service.py 483 近警戒; 6.6 strict gate P0/P1/P2 + BaaS 修复全有测试)。详见 v6.24.0-snapshot.md。最终基线: ruff0 / unit 2300 / integ 223 (共 2523) / tsc-b0 / vitest 97。
 
 ## [6.23.0] - 2026-07-01 — 投产检测后清单收口 (debt cleanup)
 
