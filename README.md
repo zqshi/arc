@@ -162,6 +162,8 @@ UI/UE 设计（AI 出方案，人选择）
 
 **BaaS 自动装配**
 - 领域模型 → Supabase schema provisioning（CREATE SCHEMA + 元模型表 + 业务表 + RLS）
+- RLS 行级隔离（user_id = auth.uid() + DEFAULT auth.uid()，非 deny-all）+ Supabase 约定角色预建
+- conversation / pipeline 双路径自动触发 provision（ArtifactPostProcessHooks 复用 DomainModelService.provision_baas 统一入口）
 - 装配可观测双视角（产品 baas-status 端点 + 前端卡片 / 运维 Prometheus metrics）
 
 **过程约束与门禁**
@@ -395,6 +397,11 @@ arc/
 | v6.14-6.16 | 治理收敛 — 设置 UX + DAG 依赖守卫 + execution_mode 下线 + 阈值同源 | done |
 | v6.17-6.18 | 投产治理 — skill 注入执行链统一 + import 环治理 + CI builder 镜像 + MCP SSE | done |
 | v6.19 | 原生客户端平台扩展 — Windows / iOS / 鸿蒙 构建目标 + 就绪检测 + 签名器 | 代码完成，端到端待凭证 |
+| v6.20 | LLM 多厂商凭证 — Fernet 注入式加密 + adapter 探活 + 项目级 llm_provider_id 指针 | done |
+| v6.21 | LLM 链路深化 — 请求级 resolve_from_project + env 兜底 + 前端 10 组件拆分 | done |
+| v6.22 | 扫描链路修复 — worker 走 DB 凭证 + 4xx 不重试 + force 强制重扫 | done |
+| v6.23 | 集成与扫描治理 — 集成套件 flaky 修复（33s 确定性）+ 扫描接 DB + 经验/前端体验 | done |
+| v6.24 | BaaS 端到端验证 — provision 统一入口 + RLS 行级隔离 + conversation 路径阻断 bug 修复 | 进行中 |
 
 ## 许可
 

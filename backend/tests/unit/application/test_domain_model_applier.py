@@ -49,6 +49,29 @@ class TestConvertToBaasSchema:
         assert "title" in col_names
         assert "user_id" in col_names
 
+    def test_aggregate_name_with_chinese_description_slugified(self):
+        """LLM 产出 name 带中文/括号描述时, slugify 取合规标识符片段建表。
+
+        回归 v6.24 conversation 端到端实测: LLM 产出 ``Order（订单聚合根）``,
+        extractor 原样写入 domain_model; 修复前 _IDENT_RE 校验失败致聚合全跳过,
+        provision 触发但不建表。
+        """
+        from arc.application.baas.domain_model_applier import DomainModelApplier
+
+        snapshot = _make_snapshot([
+            {"name": "Order（订单聚合根）", "fields": ["id", "user_id", "status"]},
+            {"name": "Payment（支付聚合根）", "fields": ["id", "order_id", "amount"]},
+        ])
+
+        schema = DomainModelApplier.convert_to_baas_schema(
+            snapshot, project_id=uuid.uuid4()
+        )
+
+        # 两个聚合都应建表 (slugify 后 Order→orders, Payment→payments)
+        assert len(schema.tables) == 2
+        table_names = sorted(t.name for t in schema.tables)
+        assert table_names == ["orders", "payments"]
+
     def test_id_column_becomes_primary_key(self):
         from arc.application.baas.domain_model_applier import DomainModelApplier
 

@@ -53,8 +53,9 @@ class ArtifactPostProcessHooks:
     async def try_provision_baas_after_extract(self, todo_id: uuid.UUID) -> None:
         """v5.6.0: 领域模型提取后自动 provision BaaS schema + apply 模型。
 
-        把项目 domain_model 转 BaasSchema 落地到 Supabase, 让生成的应用有真实后端。
-        失败仅 warning 不阻断 (与 review hook 一致)。
+        v6.24 治理: 复用 DomainModelService.provision_baas 统一入口, 消除 conversation
+        与 pipeline 两处 apply_snapshot 编排重复 (snapshot 构造 + applier 调用下沉到
+        service)。失败仅 warning 不阻断 (与 review hook 一致)。
         v6.19 续9: 全路径接入 metrics (result=success|skip|fail + reason) + duration。
         """
         import time
@@ -70,9 +71,6 @@ class ArtifactPostProcessHooks:
             BAAS_PROVISION_TOTAL.labels(result=result, reason=reason).inc()
             BAAS_PROVISION_DURATION.observe(time.monotonic() - start)
 
-        from arc.application.baas.domain_model_applier import DomainModelApplier
-        from arc.application.baas.service import BaasService
-        from arc.infrastructure.repositories.project import ProjectRepository
         from arc.infrastructure.repositories.todo import TodoRepository
 
         try:
@@ -82,51 +80,13 @@ class ArtifactPostProcessHooks:
                 _record("skip", "skip_no_project")
                 return
 
-            project_repo = ProjectRepository(self.db)
-            project = await project_repo.get_by_id(todo.project_id)
-            if not project or not project.domain_model:
-                _record("skip", "skip_no_domain_model")
-                logger.info(
-                    "BaaS provision skipped: no project/domain_model (todo %s)",
-                    todo_id,
-                    extra={"todo_id": str(todo_id), "project_id": str(todo.project_id)},
-                )
-                return
-
-            dm = project.domain_model
-            aggregates = dm.get("aggregates", []) if isinstance(dm, dict) else []
-            if not aggregates:
-                logger.info(
-                    "BaaS provision skipped: todo %s 模型无聚合", todo_id,
-                    extra={"todo_id": str(todo_id), "project_id": str(project.id)},
-                )
-                _record("skip", "skip_no_aggregates")
-                return
-
-            # 构造当前 snapshot (复用 DomainModelApplier 的转换逻辑)
-            from arc.domain.project.value_objects import (
-                DomainModelSnapshot,
-                ModelChangeTrigger,
+            from arc.application.project.domain_model_service import (
+                DomainModelService,
             )
 
-            snapshot = DomainModelSnapshot(
-                version=dm.get("version", 1),
-                content=dm,
-                trigger=ModelChangeTrigger.MANUAL,
-                trigger_todo_id=str(todo_id),
-                created_at=__import__("datetime").datetime.now(
-                    __import__("datetime").timezone.utc
-                ),
-            )
-
-            baas_service = BaasService(self.db)
-            applier = DomainModelApplier(baas_service)
+            svc = DomainModelService(self.db)
             try:
-                await applier.apply_snapshot(
-                    project_id=project.id,
-                    snapshot=snapshot,
-                    supabase_url="",  # dev 默认 (同库隔离)
-                )
+                result = await svc.provision_baas(todo.project_id)
             except Exception as e:
                 # 区分 provision 失败 vs apply_model 失败 (DDL 执行阶段)
                 from arc.domain.baas.errors import ProvisionError, SchemaApplyError
@@ -136,18 +96,35 @@ class ArtifactPostProcessHooks:
                     _record("fail", "fail_provision")
                 else:
                     _record("fail", "fail_other")
-                raise
-            logger.info(
-                "BaaS provision triggered for project %s (model v%s)",
-                project.id, snapshot.version,
-                extra={"project_id": str(project.id), "model_version": snapshot.version},
-            )
-            _record("success", "success")
+                logger.warning(
+                    "BaaS provision after extract failed for todo %s", todo_id,
+                    exc_info=True,
+                    extra={"todo_id": str(todo_id), "project_id": str(todo.project_id)},
+                )
+                return  # 不阻断 conversation (原 raise 经外层 except 吞, 等效)
+
+            if result.get("provisioned"):
+                logger.info(
+                    "BaaS provision triggered for project %s (schema %s)",
+                    todo.project_id, result.get("schema_name", ""),
+                    extra={"project_id": str(todo.project_id)},
+                )
+                _record("success", "success")
+            else:
+                # provision_baas 返回英文 reason_code (no_domain_model/no_aggregates)
+                reason_code = result.get("reason_code", "skip_other")
+                _record("skip", f"skip_{reason_code}")
+                logger.info(
+                    "BaaS provision skipped: todo %s reason=%s",
+                    todo_id, reason_code,
+                    extra={"todo_id": str(todo_id), "project_id": str(todo.project_id)},
+                )
         except Exception:
             logger.warning(
                 "BaaS provision after extract failed for todo %s", todo_id, exc_info=True,
                 extra={"todo_id": str(todo_id)},
             )
+            _record("fail", "fail_other")
 
     async def try_sync_experience(
         self, todo_id: uuid.UUID, content: dict

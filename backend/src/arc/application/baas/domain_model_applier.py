@@ -89,10 +89,12 @@ class DomainModelApplier:
         for agg in aggregates:
             if not isinstance(agg, dict):
                 continue
-            name = agg.get("name")
-            if not name or not _IDENT_RE.fullmatch(str(name)):
+            # LLM 产出 name 可能带中文/括号描述, slugify 取合规标识符片段
+            name = DomainModelApplier._slugify_identifier(agg.get("name"))
+            if not name:
                 continue
-            tables.append(DomainModelApplier._aggregate_to_table(agg))
+            cleaned = {**agg, "name": name}
+            tables.append(DomainModelApplier._aggregate_to_table(cleaned))
 
         # v6.24 P0-2: 默认 RLS 策略 — 有 user_id 行级隔离, 无 user_id authenticated 共享。
         # 之前 policies=[] 导致 RLS 启用但 deny-all (非 superuser 不可读写)。
@@ -167,6 +169,22 @@ class DomainModelApplier:
             ))
 
         return TableDef(name=_pluralize(name), columns=columns, has_rls=True)
+
+    @staticmethod
+    def _slugify_identifier(raw) -> str:
+        """从 LLM 产出的 entity name 提取合规 SQL/代码标识符。
+
+        LLM 常产出 ``Order（订单聚合根）`` 这类带中文/括号描述的 name;
+        取首个 ``[a-zA-Z_][a-zA-Z0-9_]*`` 片段作表名基础 (如 → ``Order``)。
+        纯英文 name (如 ``BaseAggregateRoot``) 原样返回。无合规片段返回 ""。
+        v6.24 conversation 端到端实测发现: extractor 不清洗 name, LLM 中文描述
+        致 _IDENT_RE 校验失败 → 聚合全跳过 → provision 触发但不建表。
+        """
+        if not raw:
+            return ""
+        # _IDENT_RE 带 ^$ 锚定 (fullmatch 用); 这里取首个标识符片段须非锚定
+        m = re.search(r"[a-zA-Z_][a-zA-Z0-9_]*", str(raw))
+        return m.group(0) if m else ""
 
     async def apply_snapshot(
         self,

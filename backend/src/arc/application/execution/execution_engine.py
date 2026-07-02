@@ -258,7 +258,7 @@ class ExecutionEngine(AutopilotMixin):
             registry = SandboxedToolRegistry(project_path, sandbox_runtime)
 
         # CI target 注册 build 工具 (T3-g 设计2; docker target 不注册, 用 run_command)
-        build_target = sandbox_policy.target if sandbox_policy else None
+        build_target = sandbox_policy.build_target if sandbox_policy else None
         if build_target is not None and todo_id is not None:
             registry.register_build_tool(
                 build_target=build_target,

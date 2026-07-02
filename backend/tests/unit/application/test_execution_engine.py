@@ -104,3 +104,32 @@ class TestMapToolEvent:
         event.metadata = {"request_id": "r1", "tool_name": "write_file"}
         results = _map_tool_event(event)
         assert results[0]["event"] == "approval_required"
+
+
+class TestSandboxPolicyBuildTargetAccess:
+    """回归: _tool_aware_stream 必须读 SandboxPolicy.build_target, 不能误用 .target.
+
+    v6.24 conversation 端到端实测发现 execution_engine 误用 sandbox_policy.target
+    致 AttributeError, 阻断整个 conversation 模式 LLM 调用 (R5 pipeline 路径未触发此分支)。
+    """
+
+    def test_policy_exposes_build_target_not_target(self) -> None:
+        from arc.domain.sandbox.value_objects import (
+            BuildTarget,
+            SandboxMode,
+            SandboxPolicy,
+        )
+
+        policy = SandboxPolicy(mode=SandboxMode.DOCKER)
+        # build_target 字段必须存在且有默认值
+        assert policy.build_target == BuildTarget.TAURI_LINUX
+        # target 属性不应存在 — 误用会抛 AttributeError
+        assert not hasattr(policy, "target")
+
+    def test_engine_source_reads_build_target(self) -> None:
+        """源码级防护: execution_engine 不得引用 sandbox_policy.target。"""
+        import arc.application.execution.execution_engine as eng
+
+        source = open(eng.__file__).read()
+        assert "sandbox_policy.target" not in source
+        assert "sandbox_policy.build_target" in source

@@ -120,17 +120,21 @@ class DomainModelService:
         conversation 模式 artifact_extractor 链, pipeline 主路径不触发)。无 domain_model
         或无聚合则跳过。apply 失败抛异常 (调用方决定 graceful)。
 
-        Returns: {provisioned: bool, reason?/schema_name?}
+        Returns: {provisioned: bool, reason?/reason_code?/schema_name?}
+            - reason_code (英文, 供 metrics/编程消费): no_domain_model / no_aggregates
+            - reason (中文, 供前端展示)
         """
         project = await self._project_repo.get_by_id(project_id)
         if not project:
             raise NotFoundError(f"Project {project_id} not found")
         dm = project.domain_model
         if not dm:
-            return {"provisioned": False, "reason": "项目无领域模型"}
+            return {"provisioned": False, "reason": "项目无领域模型",
+                    "reason_code": "no_domain_model"}
         aggregates = dm.get("aggregates", []) if isinstance(dm, dict) else []
         if not aggregates:
-            return {"provisioned": False, "reason": "领域模型无聚合"}
+            return {"provisioned": False, "reason": "领域模型无聚合",
+                    "reason_code": "no_aggregates"}
 
         from arc.application.baas.domain_model_applier import DomainModelApplier
         from arc.application.baas.service import BaasService
