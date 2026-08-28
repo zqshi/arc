@@ -9,6 +9,7 @@ PROVIDER_TEMPLATES 是 provider 列表的单一真相源 (替代旧版前端 MOD
 llm_factory 硬编码两处不同步)。前端"添加厂商"时选模板快速填默认 base_url, 也可全自定义
 (kind=openai_compatible + 任意 base_url)。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -92,6 +93,13 @@ PROVIDER_TEMPLATES: tuple[ProviderTemplate, ...] = (
         kind=LLMProviderKind.OPENAI_COMPATIBLE,
         default_base_url="https://api.moonshot.cn/v1",
         suggested_models=("moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"),
+    ),
+    ProviderTemplate(
+        key="orcarouter",
+        label="OrcaRouter",
+        kind=LLMProviderKind.OPENAI_COMPATIBLE,
+        default_base_url="https://api.orcarouter.ai/v1",
+        suggested_models=("gpt-4o", "gpt-4o-mini"),  # 聚合路由, verify 后在线拉取真实清单
     ),
     ProviderTemplate(
         key="custom",

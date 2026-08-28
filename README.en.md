@@ -1,5 +1,7 @@
 # Arc
 
+[![Powered by OrcaRouter](https://img.shields.io/badge/Powered_by-OrcaRouter-2563eb)](https://www.orcarouter.ai/ref/ref_c54cda4198a2dcbcb1e4)
+
 > **Languages:** [简体中文](./README.md) | **English** (current)
 
 > Every project you've done makes the next one faster and better.

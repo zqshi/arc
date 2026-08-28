@@ -2,6 +2,7 @@
 
 零 mock, 直接构造, 验证值对象行为与协议族属性 + 模板真相源完整性。
 """
+
 from __future__ import annotations
 
 import pytest
@@ -27,7 +28,7 @@ class TestLLMProviderKind:
 
 class TestProviderTemplates:
     def test_templates_non_empty(self) -> None:
-        assert len(PROVIDER_TEMPLATES) >= 6
+        assert len(PROVIDER_TEMPLATES) >= 7
 
     def test_template_keys_unique(self) -> None:
         keys = [t.key for t in PROVIDER_TEMPLATES]
@@ -46,6 +47,13 @@ class TestProviderTemplates:
         assert t is not None
         assert t.kind is LLMProviderKind.ANTHROPIC
         assert t.default_base_url == ""  # 用 SDK 默认端点
+
+    def test_orcarouter_template_fields(self) -> None:
+        t = template_by_key("orcarouter")
+        assert t is not None
+        assert t.kind is LLMProviderKind.OPENAI_COMPATIBLE
+        assert t.default_base_url == "https://api.orcarouter.ai/v1"
+        assert "gpt-4o" in t.suggested_models
 
     def test_template_by_key_miss(self) -> None:
         assert template_by_key("nonexistent") is None
